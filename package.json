@@ -1,0 +1,15 @@
+{
+  "name": "trm-core",
+  "version": "0.1.0-alpha.0",
+  "description": "TRM Core",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "trm",
+    "abap"
+  ],
+  "author": "simonegaffurini",
+  "license": "MIT"
+}
