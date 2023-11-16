@@ -1,0 +1,1 @@
+export type SO_TEXT = string;

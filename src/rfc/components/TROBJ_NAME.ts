@@ -1,0 +1,1 @@
+export type TROBJ_NAME = string;

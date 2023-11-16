@@ -1,0 +1,1 @@
+export type SEU_OBJ = string;

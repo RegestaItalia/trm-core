@@ -1,0 +1,1 @@
+export type AS4TIME = string;

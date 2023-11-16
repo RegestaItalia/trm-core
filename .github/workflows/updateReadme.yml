@@ -1,0 +1,32 @@
+name: Update Readme (docs.trmregistry.com)
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+      - 'main'
+    paths:
+      - 'README.md'
+      - 'TABLE_OF_CONTENTS.md'
+jobs:
+  updateReadme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: repo
+      - name: Checkout Regesta Actions
+        uses: actions/checkout@v2
+        with:
+          repository: RegestaItalia/actions
+          token: ${{ secrets.CI_GITHUB_TOKEN }}
+          path: actions/regesta
+      - name: Update readme
+        uses: ./actions/regesta/trm/updateReadme
+        with:
+          actionPath: actions/regesta/trm/updateReadme
+          repoFullName: ${{ github.repository }}
+          branch: ${{ github.ref_name }}
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          replacePath: core/

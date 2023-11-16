@@ -1,0 +1,1 @@
+export type SYCHAR512 = string;

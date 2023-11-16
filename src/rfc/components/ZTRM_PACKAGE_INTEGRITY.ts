@@ -1,0 +1,1 @@
+export type ZTRM_PACKAGE_INTEGRITY = string;

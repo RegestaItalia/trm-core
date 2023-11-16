@@ -1,0 +1,1 @@
+export type FILESYS_D = string;

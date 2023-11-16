@@ -1,0 +1,1 @@
+export type SOBJ_NAME = string;

@@ -1,0 +1,1 @@
+export type PGMID = string;

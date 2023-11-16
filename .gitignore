@@ -1,0 +1,9 @@
+.env
+.npmrc
+.vscode
+node_modules
+dist
+sapnwrfc.ini
+dev_rfc.log
+_noderfc.log
+src/test.ts

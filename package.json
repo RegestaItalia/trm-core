@@ -1,0 +1,62 @@
+{
+  "name": "trm-core",
+  "version": "1.0.0",
+  "description": "TRM (Transport Request Manager) Core",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [
+    "trm",
+    "abap"
+  ],
+  "homepage": "https://www.trmregistry.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RegestaItalia/trm-core.git"
+  },
+  "author": {
+    "name": "Simone Gaffurini",
+    "email": "simone.gaffurini@regestaitalia.it"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@esm2cjs/normalize-url": "^8.0.0",
+    "adm-zip": "^0.5.10",
+    "axios": "^1.4.0",
+    "cli-progress": "^3.12.0",
+    "cli-table3": "^0.6.3",
+    "dotenv": "^16.3.1",
+    "email-validator": "^2.0.4",
+    "express": "^4.18.2",
+    "inquirer": "^8.0.0",
+    "loading-cli": "^1.1.0",
+    "node-r3trans": "^1.0.10",
+    "node-rfc": "^3.2.0",
+    "object-keys-normalizer": "^1.0.1",
+    "opener": "^1.5.2",
+    "protocol-registry": "^1.4.0",
+    "semver": "^7.5.4",
+    "semver-sort": "^1.0.0",
+    "spdx-license-ids": "^3.0.13",
+    "trm-registry-types": "^1.0.3",
+    "xml-beautify": "^1.2.3",
+    "xml-js": "^1.6.11",
+    "xmldom": "^0.6.0"
+  },
+  "devDependencies": {
+    "@types/adm-zip": "^0.5.0",
+    "@types/cli-progress": "^3.11.3",
+    "@types/express": "^4.17.17",
+    "@types/inquirer": "^9.0.3",
+    "@types/node": "^20.4.4",
+    "@types/opener": "^1.4.0",
+    "@types/semver": "^7.5.0",
+    "@types/semver-sort": "^0.0.1",
+    "@types/xmldom": "^0.1.32"
+  }
+}
