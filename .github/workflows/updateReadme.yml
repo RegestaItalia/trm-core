@@ -28,5 +28,5 @@ jobs:
           actionPath: actions/regesta/trm/updateReadme
           repoFullName: ${{ github.repository }}
           branch: ${{ github.ref_name }}
-          githubToken: ${{ secrets.GITHUB_TOKEN }}
+          githubToken: ${{ secrets.CI_GITHUB_TOKEN }}
           replacePath: core/
