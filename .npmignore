@@ -7,3 +7,4 @@ docs
 sapnwrfc.ini
 dev_rfc.log
 _noderfc.log
+dist/test*
