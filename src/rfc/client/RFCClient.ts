@@ -263,4 +263,11 @@ export class RFCClient {
             is_integrity: integrity
         });
     }
+
+    public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]){
+        await this._call("ZTRM_ADD_LANG_TR", {
+            iv_trkorr: trkorr,
+            it_devclass: devclassFilter
+        });
+    }
 }

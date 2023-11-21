@@ -5,7 +5,7 @@ import { Logger } from "../logger";
 import { Manifest, TrmManifest } from "../manifest";
 import { Registry, RegistryType } from "../registry";
 import { DEVCLASS, TR_TARGET } from "../rfc/components";
-import { TADIR } from "../rfc/struct";
+import { LXE_TT_PACKG_LINE, TADIR } from "../rfc/struct";
 import { SystemConnector } from "../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../transport";
 import { DEFAULT_VERSION, TrmPackage } from "../trmPackage";
@@ -481,6 +481,23 @@ export async function publish(data: {
         target: trTarget,
         text: `@X1@TRM: ${manifest.name} v${manifest.version}`
     }, system, true, logger);
+    var langTr: Transport = await Transport.createLang({
+        target: trTarget,
+        text: `@X1@TRM: ${manifest.name} v${manifest.version} (L)`
+    }, system, true, logger);
+
+    var iLanguageObjects: number = 0;
+    try{
+        await langTr.addTranslations(devcOnly.map(o => o.objName));
+        iLanguageObjects = (await langTr.getE071()).length;
+    }catch(e){
+        logger.info(`Language transport generation error (${e.toString()})`);
+    }finally{
+        if(iLanguageObjects === 0){
+            await langTr.delete();
+            langTr = null;
+        }
+    }
 
     try {
         await tadirToc.addComment(`name=${manifest.name}`);
@@ -509,6 +526,9 @@ export async function publish(data: {
         logger.loading(`Finalizing release...`);
         await devcToc.release(false, true, tmpFolder, timeout);
         devcTocReleased = true;
+        if(langTr){
+            await langTr.release(false, true, tmpFolder, timeout);
+        }
 
         logger.loading(`Creating TRM Artifact...`);
         const trmArtifact = await TrmArtifact.create([
