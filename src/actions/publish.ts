@@ -518,14 +518,12 @@ export async function publish(data: {
 
     const timeout = data.releaseTimeout || 180;
     const tmpFolder = data.tmpFolder;
-    var devcTocReleased = false; //TODO make a better method inside Transport
 
     try {
         logger.forceStop();
         await tadirToc.release(false, false, tmpFolder, timeout);
         logger.loading(`Finalizing release...`);
         await devcToc.release(false, true, tmpFolder, timeout);
-        devcTocReleased = true;
         if(langTr){
             await langTr.release(false, true, tmpFolder, timeout);
         }
@@ -566,9 +564,13 @@ export async function publish(data: {
         if (rollBackTransports) {
             await system.addToIgnoredTrkorr(tadirToc.trkorr);
             logger.error(`Transport ${tadirToc.trkorr} rollback.`);
-            if (!devcTocReleased) {
+            if ((await devcToc.canBeDeleted())) {
                 await devcToc.delete();
                 logger.error(`Transport ${devcToc.trkorr} rollback.`);
+            }
+            if(langTr && (await langTr.canBeDeleted())){
+                await langTr.delete();
+                logger.error(`Transport ${langTr.trkorr} rollback.`);
             }
         }
     }

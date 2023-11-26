@@ -61,6 +61,18 @@ export class SystemConnector {
         }
     }
 
+    public async getTransportStatus(trkorr: TRKORR): Promise<string> {
+        const aTrkorrStatusCheck: any[] = (await this.rfcClient.readTable('E070',
+            [{ fieldName: 'TRKORR' }, { fieldName: 'TRSTATUS' }],
+            `TRKORR EQ '${trkorr}'`
+        ));
+        if(aTrkorrStatusCheck.length !== 1){
+            throw new Error(`Transport not found.`);
+        }else{
+            return aTrkorrStatusCheck[0].trstatus;
+        }
+    }
+
     public async getPackageWorkbenchTransport(oPackage: TrmPackage): Promise<Transport> {
         var aTrkorr: TRKORR[] = (await this.rfcClient.readTable('E071',
             [{ fieldName: 'TRKORR' }],
@@ -73,11 +85,13 @@ export class SystemConnector {
         //for each transport, check its status is D (can be released)
         var aSkipTrkorr: string[] = [];
         for (const sTrkorr of aTrkorr) {
-            const aTrkorrStatusCheck: any[] = (await this.rfcClient.readTable('E070',
-                [{ fieldName: 'TRKORR' }],
-                `TRKORR EQ '${sTrkorr}' AND TRSTATUS EQ 'D'`
-            ));
-            if(aTrkorrStatusCheck.length === 0){
+            var canBeReleased = false;
+            try{
+                canBeReleased = (await this.getTransportStatus(sTrkorr)) === 'D';
+            }catch(e){
+                canBeReleased = false;
+            }
+            if(!canBeReleased){
                 aSkipTrkorr.push(sTrkorr);
             }
         }
@@ -90,13 +104,13 @@ export class SystemConnector {
         for (const transport of transports) {
             const transportPackage = await transport.getLinkedPackage();
             if (transportPackage) {
-                if(TrmPackage.compare(transportPackage, oPackage)){
+                if (TrmPackage.compare(transportPackage, oPackage)) {
                     packageTransports.push(transport);
                 }
             }
         }
-        
-        if(packageTransports.length > 0){
+
+        if (packageTransports.length > 0) {
             return await Transport.getLatest(packageTransports);
         }
 
@@ -125,11 +139,11 @@ export class SystemConnector {
         for (const sTrkorr of aTrkorr) {
             //check tms
             //don't check transports from source
-            if(!aSourceTrkorr.includes(sTrkorr)){
+            if (!aSourceTrkorr.includes(sTrkorr)) {
                 var aTrkorrStatusCheck: any[];
                 try {
                     aTrkorrStatusCheck = (await this.rfcClient.readTable('TMSBUFFER',
-                        [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC'}],
+                        [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
                         //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
                         `SYSNAM EQ '${this._dest}' AND TRKORR EQ '${sTrkorr}' AND IMPSING NE 'X'`
                     )).filter(o => parseInt(o.maxrc) <= 4);
@@ -375,13 +389,13 @@ export class SystemConnector {
     public async getPackageIntegrity(oPackage: TrmPackage): Promise<string> {
         const packageName = oPackage.packageName;
         const registryEndpoint = oPackage.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : oPackage.registry.endpoint;
-        const aIntegrity: {integrity: string}[] = await this.rfcClient.readTable('ZTRM_INTEGRITY',
+        const aIntegrity: { integrity: string }[] = await this.rfcClient.readTable('ZTRM_INTEGRITY',
             [{ fieldName: 'INTEGRITY' }],
             `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
         );
-        if(aIntegrity.length === 1){
+        if (aIntegrity.length === 1) {
             return aIntegrity[0].integrity;
-        }else{
+        } else {
             return ''; //avoid returning undefined
         }
     }

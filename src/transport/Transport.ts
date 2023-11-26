@@ -639,4 +639,9 @@ export class Transport {
         await this._systemConnector.rfcClient.renameTransportRequest(this.trkorr, as4text);
     }
 
+    public async canBeDeleted(): Promise<boolean> {
+        const status = await this._systemConnector.getTransportStatus(this.trkorr);
+        return status === 'D';
+    }
+
 }
