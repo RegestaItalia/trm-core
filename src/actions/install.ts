@@ -200,6 +200,7 @@ export async function install(data: {
     }
     const aDevcTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.DEVC);
     const aTadirTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.TADIR);
+    const aLangTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.LANG);
     var wbObjects: {
         pgmid: string,
         object: string,
@@ -392,6 +393,28 @@ export async function install(data: {
             await system.rfcClient.tadirInterface(tadir);
         }
         logger.success(`TADIR import finished.`);
+    }
+    if(aLangTransports.length > 0){
+        //import lang transports
+        logger.loading(`Importing transports...`);
+        for (const langTransport of aLangTransports) {
+            const langEntries = normalize(await r3trans.getTableEntries(langTransport.binaries.data, 'E071'));
+            wbObjects = wbObjects.concat(langEntries.map(o => {
+                return {
+                    pgmid: o.pgmid,
+                    object: o.object,
+                    objName: o.objName
+                }
+            }));
+            const oTransport = await Transport.upload({
+                binary: langTransport.binaries,
+                systemConnector: system,
+                trTarget: system.getDest()
+            }, true, logger);
+            await oTransport.import(false, importTimeout);
+        }
+        logger.success(`Transports imported.`);
+        logger.success(`LANG import finished.`);
     }
 
     logger.loading(`Finalizing install...`);
