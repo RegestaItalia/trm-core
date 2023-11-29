@@ -49,11 +49,22 @@ export class RFCClient {
         if (options) {
             //line must not exceede 72 chars length
             //it must not break on an operator
-            aOptions = options.split(' ').map(s => {
-                return {
-                    text: s
-                }
-            });
+            const aSplit = options.split('AND');
+            if(aSplit.length > 1){
+                aSplit.forEach((s, i) => {
+                    var sText = s.trim();
+                    if(i !== 0){
+                        sText = `AND ${sText}`;
+                    }
+                    aOptions.push({ text: sText });
+                })
+            }else{
+                aOptions = aSplit.map(s => {
+                    return {
+                        text: s
+                    }
+                }) ;
+            }
             /*aOptions = (options.match(/.{1,72}/g)).map(s => {
                 return {
                     text: s
