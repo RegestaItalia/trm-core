@@ -26,7 +26,6 @@ export class Logger{
 
     public loading(text: string){
         if(this.coreEnv === CoreEnv.CLI){
-            this.forceStop();
             this.loader = this.cliObj.render().start(text);
         }
         if(this.coreEnv === CoreEnv.JSON){

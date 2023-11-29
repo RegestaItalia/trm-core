@@ -5,7 +5,7 @@
         "esModuleInterop": true,
         "rootDir": "src",
         "outDir": "dist",
-        "sourceMap": true,
+        "sourceMap": false,
         "resolveJsonModule": true,
         "declaration": true,
         "removeComments": true,
