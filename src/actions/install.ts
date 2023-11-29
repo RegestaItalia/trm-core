@@ -364,9 +364,11 @@ export async function install(data: {
             const installRoot = installPackageHierarchy.devclass === packageReplacement.installDevclass;
             const originalParentCl = tdevc.find(o => o.devclass === packageReplacement.originalDevclass).parentcl;
             if (originalParentCl) {
-                const installParentCl = packageReplacements.find(o => o.originalDevclass === originalParentCl).installDevclass;
-                if (!installRoot) {
-                    await system.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
+                const installParentCl = packageReplacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass;
+                if(installParentCl){
+                    if (!installRoot) {
+                        await system.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
+                    }
                 }
             }
         }
