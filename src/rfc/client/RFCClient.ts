@@ -47,11 +47,18 @@ export class RFCClient {
         const delimiter = '|';
         var aOptions: struct.RFC_DB_OPT[] = [];
         if (options) {
-            aOptions = (options.match(/.{1,72}/g)).map(s => {
+            //line must not exceede 72 chars length
+            //it must not break on an operator
+            aOptions = options.split(' ').map(s => {
                 return {
                     text: s
                 }
-            }) || [];
+            });
+            /*aOptions = (options.match(/.{1,72}/g)).map(s => {
+                return {
+                    text: s
+                }
+            }) || [];*/
         }
         const result = await this._call("RFC_READ_TABLE", {
             query_table: tableName.toUpperCase(),
