@@ -7,7 +7,7 @@ import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
 import { R3trans, R3transLogParser, ReleaseLogStep } from "node-r3trans";
 import { TransportContent } from "./TransportContent";
-import { E070, E071, TADIR, TLINE } from "../rfc/struct";
+import { E070, E071, LXE_TT_PACKG_LINE, TADIR, TLINE } from "../rfc/struct";
 import { Documentation } from "./Documentation";
 import { TrmTransportIdentifier } from "./TrmTransportIdentifier";
 import { TrmPackage } from "../trmPackage";
@@ -230,6 +230,20 @@ export class Transport {
             object: COMMENT_OBJ,
             objName: comment
         }], false);
+    }
+
+    public async addTranslations(aDevclass: DEVCLASS[]) {
+        var aDevclassLangFilter: LXE_TT_PACKG_LINE[] = [];
+        aDevclass.forEach(d => {
+            if(!aDevclassLangFilter.find(o => o.low === d)){
+                aDevclassLangFilter.push({
+                    sign: 'I',
+                    option: 'EQ',
+                    low: d
+                });
+            }
+        });
+        await this._systemConnector.rfcClient.addTranslationToTr(this.trkorr, aDevclassLangFilter);
     }
 
     public async getLinkedPackage(): Promise<TrmPackage> {
@@ -517,6 +531,17 @@ export class Transport {
         return new Transport(trkorr, systemConnector, data.target, logger).setTrmIdentifier(data.trmIdentifier);
     }
 
+    public static async createLang(data: {
+        text: AS4TEXT,
+        target: TR_TARGET
+    }, systemConnector: SystemConnector, skipLog: boolean = false, logger?: Logger): Promise<Transport> {
+        logger = skipLog ? Logger.getDummy() : logger;
+        logger.loading(`Creating transport request (LANG)...`);
+        const trkorr = await systemConnector.rfcClient.createWbTransport(data.text, data.target);
+        logger.success(`Transport request ${trkorr} generated successfully.`);
+        return new Transport(trkorr, systemConnector, data.target, logger).setTrmIdentifier(TrmTransportIdentifier.LANG);
+    }
+
     public static async createWb(data: {
         text: AS4TEXT,
         target?: TR_TARGET
@@ -613,4 +638,14 @@ export class Transport {
     public async rename(as4text: string): Promise<void> {
         await this._systemConnector.rfcClient.renameTransportRequest(this.trkorr, as4text);
     }
+
+    public async canBeDeleted(): Promise<boolean> {
+        const status = await this._systemConnector.getTransportStatus(this.trkorr);
+        return status === 'D';
+    }
+
+    public async addObjectsFromTransport(from: TRKORR): Promise<void> {
+        await this._systemConnector.rfcClient.trCopy(from, this.trkorr);
+    }
+
 }

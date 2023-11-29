@@ -47,11 +47,29 @@ export class RFCClient {
         const delimiter = '|';
         var aOptions: struct.RFC_DB_OPT[] = [];
         if (options) {
-            aOptions = (options.match(/.{1,72}/g)).map(s => {
+            //line must not exceede 72 chars length
+            //it must not break on an operator
+            const aSplit = options.split('AND');
+            if(aSplit.length > 1){
+                aSplit.forEach((s, i) => {
+                    var sText = s.trim();
+                    if(i !== 0){
+                        sText = `AND ${sText}`;
+                    }
+                    aOptions.push({ text: sText });
+                })
+            }else{
+                aOptions = aSplit.map(s => {
+                    return {
+                        text: s
+                    }
+                }) ;
+            }
+            /*aOptions = (options.match(/.{1,72}/g)).map(s => {
                 return {
                     text: s
                 }
-            }) || [];
+            }) || [];*/
         }
         const result = await this._call("RFC_READ_TABLE", {
             query_table: tableName.toUpperCase(),
@@ -261,6 +279,21 @@ export class RFCClient {
     public async setPackageIntegrity(integrity: struct.ZTRM_INTEGRITY): Promise<void> {
         await this._call("ZTRM_SET_INTEGRITY", {
             is_integrity: integrity
+        });
+    }
+
+    public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void>{
+        await this._call("ZTRM_ADD_LANG_TR", {
+            iv_trkorr: trkorr,
+            it_devclass: devclassFilter
+        });
+    }
+
+    public async trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean = false): Promise<void> {
+        await this._call("ZTRM_TR_COPY", {
+            iv_from: from,
+            iv_to: to,
+            iv_doc: doc ? 'X' : ' '
         });
     }
 }

@@ -1,4 +1,5 @@
 export enum TrmTransportIdentifier {
     DEVC = 'DEVC',
-    TADIR = 'TADIR'
+    TADIR = 'TADIR',
+    LANG = 'LANG'
 }

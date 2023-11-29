@@ -34,3 +34,6 @@ export * from "./ARBGB";
 export * from "./MSGNR";
 export * from "./NATXT";
 export * from "./ZTRM_PACKAGE_INTEGRITY";
+export * from "./DDSIGN";
+export * from "./DDOPTION";
+export * from "./TRPARFLAG";
