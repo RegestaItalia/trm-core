@@ -644,4 +644,8 @@ export class Transport {
         return status === 'D';
     }
 
+    public async addObjectsFromTransport(from: TRKORR): Promise<void> {
+        await this._systemConnector.rfcClient.trCopy(from, this.trkorr);
+    }
+
 }

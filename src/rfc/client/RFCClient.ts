@@ -282,10 +282,18 @@ export class RFCClient {
         });
     }
 
-    public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]){
+    public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void>{
         await this._call("ZTRM_ADD_LANG_TR", {
             iv_trkorr: trkorr,
             it_devclass: devclassFilter
+        });
+    }
+
+    public async trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean = false): Promise<void> {
+        await this._call("ZTRM_TR_COPY", {
+            iv_from: from,
+            iv_to: to,
+            iv_doc: doc ? 'X' : ' '
         });
     }
 }

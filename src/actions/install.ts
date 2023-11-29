@@ -9,7 +9,7 @@ import { installDependency } from "./installDependency";
 import { Transport, TrmTransportIdentifier } from "../transport";
 import { getPackageHierarchy, getPackageNamespace, normalize } from "../commons";
 import { R3trans } from "node-r3trans";
-import { TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../rfc";
+import { TADIR, TDEVC, TDEVCT, TRKORR, ZTRM_INSTALLDEVC } from "../rfc";
 import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { createHash } from "crypto";
@@ -206,6 +206,7 @@ export async function install(data: {
         object: string,
         objName: string
     }[] = [];
+    var trCopy: TRKORR[] = [];
     if (aDevcTransports.length > 1) {
         throw new Error(`Unexpected declaration of devclass in package ${packageName}.`);
     } else {
@@ -400,14 +401,8 @@ export async function install(data: {
         //import lang transports
         logger.loading(`Importing transports...`);
         for (const langTransport of aLangTransports) {
-            const langEntries = normalize(await r3trans.getTableEntries(langTransport.binaries.data, 'E071'));
-            wbObjects = wbObjects.concat(langEntries.map(o => {
-                return {
-                    pgmid: o.pgmid,
-                    object: o.object,
-                    objName: o.objName
-                }
-            }));
+            //const langEntries = normalize(await r3trans.getTableEntries(langTransport.binaries.data, 'E071'));
+            trCopy.push(langTransport.trkorr);
             const oTransport = await Transport.upload({
                 binary: langTransport.binaries,
                 systemConnector: system,
@@ -457,7 +452,7 @@ export async function install(data: {
         }
     }
 
-    if (wbObjectsAdd.length > 0 && !skipWbTransport) {
+    if ((wbObjectsAdd.length > 0 || trCopy.length > 0) && !skipWbTransport) {
         //if a non released trm request for this package is found, use it and rename
         var wbTransport = await system.getPackageWorkbenchTransport(oTrmPackage);
         if (!wbTransport) {
@@ -467,9 +462,6 @@ export async function install(data: {
                 target: targetSystem
             }, system, true, logger);
         }
-        //TODO remove old comments, if they exist
-        //TR_DELETE_COMM_OBJECT_KEYS
-        //non blocking
         await wbTransport.addComment(`name=${manifest.name}`);
         await wbTransport.addComment(`version=${manifest.version}`);
         await wbTransport.setDocumentation(oManifest.getAbapXml());
@@ -484,6 +476,15 @@ export async function install(data: {
                     await wbTransport.addObjects([wbObjectAdd], false);
                 }
             } catch (e) {
+                //object might be in transport already
+                //TODO better handle this case
+            }
+        }
+        for(const trFrom of trCopy){
+            try{
+                await wbTransport.addObjectsFromTransport(trFrom);
+            }catch(e){
+                debugger
                 //object might be in transport already
                 //TODO better handle this case
             }
