@@ -520,19 +520,18 @@ export async function publish(data: {
     const tmpFolder = data.tmpFolder;
 
     try {
+        var aTransports = [tadirToc, devcToc];
         logger.forceStop();
         await tadirToc.release(false, false, tmpFolder, timeout);
         logger.loading(`Finalizing release...`);
         await devcToc.release(false, true, tmpFolder, timeout);
         if(langTr){
+            aTransports.push(langTr);
             await langTr.release(false, true, tmpFolder, timeout);
         }
 
         logger.loading(`Creating TRM Artifact...`);
-        const trmArtifact = await TrmArtifact.create([
-            tadirToc,
-            devcToc
-        ], oTrmPackage.manifest, true);
+        const trmArtifact = await TrmArtifact.create(aTransports, oTrmPackage.manifest, true);
 
         logger.loading(`Publishing...`);
         await oTrmPackage.publish({
