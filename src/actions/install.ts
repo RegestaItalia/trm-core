@@ -484,7 +484,6 @@ export async function install(data: {
             try{
                 await wbTransport.addObjectsFromTransport(trFrom);
             }catch(e){
-                debugger
                 //object might be in transport already
                 //TODO better handle this case
             }
