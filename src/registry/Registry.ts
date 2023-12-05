@@ -288,7 +288,7 @@ export class Registry {
     }
 
     public async publishArtifact(packageName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<void> {
-        const fileName = `${packageName}@${version}.trm`.replace('.', '_');
+        const fileName = `${packageName}@${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, fileName);
         formData.append('readme', readme,);
