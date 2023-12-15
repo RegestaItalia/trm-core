@@ -34,6 +34,11 @@ async function getTrmPackage(data: {
         }
     }
 
+    //check package name doesn't throw error
+    parsePackageName({
+        fullName: manifest.name
+    });
+
     //build a dummy TrmPackage
     const trmPackage = new TrmPackage(manifest.name, registry);
 
