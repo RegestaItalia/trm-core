@@ -45,5 +45,8 @@ export function parsePackageName(args: {
     if(result.organization){
         result.organization = validateOrganizationName(result.organization);
     }
+    if(result.fullName.length > 42){
+        throw new Error('Package name cannot exceede 42 characters limit.');
+    }
     return result;
 }

@@ -7,7 +7,7 @@ import { TrmPackage } from "../trmPackage";
 import { Manifest } from "../manifest";
 import { installDependency } from "./installDependency";
 import { Transport, TrmTransportIdentifier } from "../transport";
-import { getPackageHierarchy, getPackageNamespace, normalize } from "../commons";
+import { getPackageHierarchy, getPackageNamespace, normalize, parsePackageName } from "../commons";
 import { R3trans } from "node-r3trans";
 import { TADIR, TDEVC, TDEVCT, TRKORR, ZTRM_INSTALLDEVC } from "../rfc";
 import { checkSapEntries } from "./checkSapEntries";
@@ -66,6 +66,12 @@ export async function install(data: {
     if (!version) {
         throw new Error(`Version not specified.`);
     }
+
+    //check package name doesn't throw error
+    parsePackageName({
+        fullName: packageName
+    });
+
     logger.loading(`Reading system data...`);
     const installedPackages = await system.getInstalledPackages();
     const oTrmPackage = new TrmPackage(packageName, registry, null, logger);
