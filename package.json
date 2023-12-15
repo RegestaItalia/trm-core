@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,7 +9,8 @@
     "!dist/test.*"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "trm",
