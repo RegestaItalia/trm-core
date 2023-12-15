@@ -196,6 +196,7 @@ export async function publish(data: {
     skipEditSapEntries?: boolean,
     skipEditDependencies?: boolean,
     skipReadme?: boolean,
+    skipLang?: boolean,
     readme?: string,
     releaseTimeout?: number,
     tmpFolder?: string
@@ -205,6 +206,7 @@ export async function publish(data: {
     var trTarget = data.target;
     const ci = data.ci;
     const skipDependencies = data.skipDependencies;
+    const skipLang = data.skipLang ? true : false;
     if (ci) {
         data.forceManifestInput = false;
         data.overwriteManifestValues = true;
@@ -481,22 +483,26 @@ export async function publish(data: {
         target: trTarget,
         text: `@X1@TRM: ${manifest.name} v${manifest.version}`
     }, system, true, logger);
-    var langTr: Transport = await Transport.createLang({
-        target: trTarget,
-        text: `@X1@TRM: ${manifest.name} v${manifest.version} (L)`
-    }, system, true, logger);
-
-    var iLanguageObjects: number = 0;
-    try{
-        await langTr.addTranslations(devcOnly.map(o => o.objName));
-        iLanguageObjects = (await langTr.getE071()).length;
-    }catch(e){
-        logger.info(`Language transport generation error (${e.toString()})`);
-    }finally{
-        if(iLanguageObjects === 0){
-            await langTr.delete();
-            langTr = null;
+    var langTr: Transport;
+    if(!skipLang){
+        langTr = await Transport.createLang({
+            target: trTarget,
+            text: `@X1@TRM: ${manifest.name} v${manifest.version} (L)`
+        }, system, true, logger);
+        var iLanguageObjects: number = 0;
+        try{
+            await langTr.addTranslations(devcOnly.map(o => o.objName));
+            iLanguageObjects = (await langTr.getE071()).length;
+        }catch(e){
+            logger.warning(`Language transport generation error (${e.toString()})`);
+        }finally{
+            if(iLanguageObjects === 0){
+                await langTr.delete();
+                langTr = null;
+            }
         }
+    }else{
+        logger.info(`Skipping language transport.`);
     }
 
     try {

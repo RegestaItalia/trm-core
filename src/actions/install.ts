@@ -37,6 +37,7 @@ export async function install(data: {
     forceInstall?: boolean,
     ignoreSapEntries?: boolean,
     skipDependencies?: boolean,
+    skipLang?: boolean,
     importTimeout?: number,
     keepOriginalPackages?: boolean,
     packageReplacements?: { originalDevclass: string, installDevclass: string }[],
@@ -48,6 +49,7 @@ export async function install(data: {
 }, inquirer: Inquirer, system: SystemConnector, registry: Registry, logger: Logger) {
     const ignoreSapEntries = data.ignoreSapEntries ? true : false;
     const skipDependencies = data.skipDependencies ? true : false;
+    const skipLang = data.skipLang ? true : false;
     const ci = data.ci ? true : false;
     const importTimeout = data.importTimeout || 180;
     const forceInstall = data.forceInstall || ci ? true : false;
@@ -398,20 +400,24 @@ export async function install(data: {
         logger.success(`TADIR import finished.`);
     }
     if(aLangTransports.length > 0){
-        //import lang transports
-        logger.loading(`Importing transports...`);
-        for (const langTransport of aLangTransports) {
-            //const langEntries = normalize(await r3trans.getTableEntries(langTransport.binaries.data, 'E071'));
-            trCopy.push(langTransport.trkorr);
-            const oTransport = await Transport.upload({
-                binary: langTransport.binaries,
-                systemConnector: system,
-                trTarget: system.getDest()
-            }, true, logger);
-            await oTransport.import(false, importTimeout);
+        if(!skipLang){
+            //import lang transports
+            logger.loading(`Importing transports...`);
+            for (const langTransport of aLangTransports) {
+                //const langEntries = normalize(await r3trans.getTableEntries(langTransport.binaries.data, 'E071'));
+                trCopy.push(langTransport.trkorr);
+                const oTransport = await Transport.upload({
+                    binary: langTransport.binaries,
+                    systemConnector: system,
+                    trTarget: system.getDest()
+                }, true, logger);
+                await oTransport.import(false, importTimeout);
+            }
+            logger.success(`Transports imported.`);
+            logger.success(`LANG import finished.`);
+        }else{
+            logger.info(`Skipping language transports.`);
         }
-        logger.success(`Transports imported.`);
-        logger.success(`LANG import finished.`);
     }
 
     logger.loading(`Finalizing install...`);
