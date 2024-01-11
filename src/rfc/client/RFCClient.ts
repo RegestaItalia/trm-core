@@ -49,7 +49,7 @@ export class RFCClient {
         if (options) {
             //line must not exceede 72 chars length
             //it must not break on an operator
-            const aSplit = options.split('AND');
+            const aSplit = options.split(/\s+AND\s+/);
             if(aSplit.length > 1){
                 aSplit.forEach((s, i) => {
                     var sText = s.trim();
