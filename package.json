@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
