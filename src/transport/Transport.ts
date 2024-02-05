@@ -171,6 +171,8 @@ export class Transport {
                 `ID EQ 'TA' AND OBJECT EQ '${this.trkorr}'`
             );
             this._docs = Transport.doktlToDoc(doktl);
+            //sort by version descending
+            this._docs = this._docs.sort((a, b) => b.version - a.version);
             logger.success(`Found ${this.trkorr} ${this._docs.length} documentation.`);
         }
         return this._docs;
