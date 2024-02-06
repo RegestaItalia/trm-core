@@ -45,6 +45,7 @@ export async function install(data: {
     transportLayer?: string,
     targetSystem?: string,
     integrity?: string,
+    safe?: boolean,
     ci?: boolean
 }, inquirer: Inquirer, system: SystemConnector, registry: Registry, logger: Logger) {
     const ignoreSapEntries = data.ignoreSapEntries ? true : false;
@@ -59,6 +60,7 @@ export async function install(data: {
     const targetSystem = data.targetSystem;
     const packageName = data.packageName.trim();
     const integrity = data.integrity;
+    const safe = data.safe ? true : false;
     var version;
     if (!data.version || data.version.trim().toLowerCase() === 'latest') {
         version = 'latest';
@@ -159,7 +161,7 @@ export async function install(data: {
                 await installDependency({
                     packageName: dependency.name,
                     versionRange: dependency.version,
-                    integrity: dependency.integrity,
+                    integrity: safe ? dependency.integrity : null,
                     originalInstallOptions: data,
                     installedPackages
                 }, inquirer, system, oDependencyRegistry, logger);
@@ -190,8 +192,11 @@ export async function install(data: {
             logger.warning(`ATTENTION!! Integrity check failed on package ${manifest.name}, version ${manifest.version}.`);
             logger.warning(`            Local:  ${integrity}`);
             logger.warning(`            Remote: ${fetchedIntegrity}`);
-            logger.warning(`            This package MIGHT BE COMPROMISED.`);
-            throw new Error(`Package installation aborted due to integrity check failure.`);
+            if(safe){
+                logger.warning(`            Install will continue.`);
+            }else{
+                throw new Error(`Package installation aborted due to integrity check failure and running in safe mode.`);
+            }
         }
     }
     const aTransports = await oArtifact.getTransportBinaries();

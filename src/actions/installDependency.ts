@@ -7,6 +7,7 @@ import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 import { Manifest, TrmManifest } from "../manifest";
 import { install } from "./install";
+import { createHash } from "crypto";
 
 export async function installDependency(data: {
     packageName: string,
@@ -30,32 +31,61 @@ export async function installDependency(data: {
     }
     const installedPackages = data.installedPackages || await system.getInstalledPackages();
 
-    var alreadyInstalled: boolean = false;
+    var aPackages: TrmPackage[] = [];
     rangeVersions.forEach(o => {
+        const dummyManifest: TrmManifest = {
+            name: packageName,
+            version: o.version,
+            registry: registry.getRegistryType() === RegistryType.PUBLIC ? undefined : registry.endpoint
+        };
+        const oDummyManifest = new Manifest(dummyManifest);
+        aPackages.push(new TrmPackage(packageName, registry, oDummyManifest, logger));
+    })
+
+    var alreadyInstalled: boolean = false;
+    aPackages.forEach(o => {
         if (!alreadyInstalled) {
-            const dummyManifest: TrmManifest = {
-                name: packageName,
-                version: o.version,
-                registry: registry.getRegistryType() === RegistryType.PUBLIC ? undefined : registry.endpoint
-            };
-            const oDummyManifest = new Manifest(dummyManifest);
-            alreadyInstalled = installedPackages.find(ip => Manifest.compare(ip.manifest, oDummyManifest, true)) ? true : false;
+            alreadyInstalled = installedPackages.find(ip => Manifest.compare(ip.manifest, o.manifest, true)) ? true : false;
         }
     });
     if (alreadyInstalled && !forceInstall) {
         logger.info(`Dependency "${packageName}" already installed, skipping installation.`);
         return;
     }
-    //proceed to the normal install flow
+
+    var version: string;
+    //with integrity, keep the only package that matches checksum
     const sortedVersions = semverSort.desc(rangeVersions.map(o => o.version));
-    const version = sortedVersions[0];
+    var aSortedPackages: TrmPackage[] = [];
+    for(const v of sortedVersions){
+        aSortedPackages = aSortedPackages.concat(aPackages.filter(o => o.manifest.get().version === v));
+    }
+    if(integrity){
+        for(const oPackage of aSortedPackages){
+            if(!version){
+                const oArtifact = await oPackage.fetchRemoteArtifact(oPackage.manifest.get().version);
+                const fetchedIntegrity = createHash("sha512").update(oArtifact.binary).digest("hex");
+                if(integrity === fetchedIntegrity){
+                    version = oPackage.manifest.get().version;
+                }
+            }
+        }
+    }else{
+        version = sortedVersions[0];
+    }
+    if(!version){
+        throw new Error(`Couldn't find dependency "${packageName}" on registry. Try manual install.`);
+    }
+    
+    //proceed to the normal install flow
     //keeping the original install options but overwriting package data
     await install({
         ...(data.originalInstallOptions || {}),
         ...{
             packageName,
             version,
-            integrity
+            integrity,
+            safe: integrity ? true : false
         }
     }, inquirer, system, registry, logger);
 }
