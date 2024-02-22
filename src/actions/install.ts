@@ -53,7 +53,7 @@ export async function install(data: {
     const skipLang = data.skipLang ? true : false;
     const ci = data.ci ? true : false;
     const importTimeout = data.importTimeout || 180;
-    const forceInstall = data.forceInstall || ci ? true : false;
+    const forceInstall = data.forceInstall ? true : false;
     const skipWbTransport = data.skipWbTransport ? true : false;
     const keepOriginalPackages = data.keepOriginalPackages ? true : false;
     const transportLayer = data.transportLayer;
