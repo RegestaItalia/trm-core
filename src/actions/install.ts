@@ -345,16 +345,18 @@ export async function install(data: {
                     dlvunit,
                     pdevclass
                 });
-                if(dlvunit === 'HOME'){
-                    /*wbObjects.push({
+                /*if(dlvunit === 'HOME'){
+                    wbObjects.push({
                         pgmid: 'LIMU',
                         object: 'ADIR',
                         objName: `R3TRDEVC${packageReplacement.installDevclass}`
-                    });*/
-                }
+                    });
+                }*/
             }
-            await system.rfcClient.tadirInterface(oDevcTadir);
-            aTadir.push(oDevcTadir);
+            if(dlvunit !== 'LOCAL'){
+                await system.rfcClient.tadirInterface(oDevcTadir);
+                aTadir.push(oDevcTadir);
+            }
         }
         //build the new package hierarchy, based on the original
         const aDummyTdevc: TDEVC[] = [];
