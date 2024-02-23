@@ -66,9 +66,9 @@ export class SystemConnector {
             [{ fieldName: 'TRKORR' }, { fieldName: 'TRSTATUS' }],
             `TRKORR EQ '${trkorr}'`
         ));
-        if(aTrkorrStatusCheck.length !== 1){
+        if (aTrkorrStatusCheck.length !== 1) {
             throw new Error(`Transport not found.`);
-        }else{
+        } else {
             return aTrkorrStatusCheck[0].trstatus;
         }
     }
@@ -86,12 +86,12 @@ export class SystemConnector {
         var aSkipTrkorr: string[] = [];
         for (const sTrkorr of aTrkorr) {
             var canBeReleased = false;
-            try{
+            try {
                 canBeReleased = (await this.getTransportStatus(sTrkorr)) === 'D';
-            }catch(e){
+            } catch (e) {
                 canBeReleased = false;
             }
-            if(!canBeReleased){
+            if (!canBeReleased) {
                 aSkipTrkorr.push(sTrkorr);
             }
         }
@@ -185,28 +185,42 @@ export class SystemConnector {
         //exclude trm-server and add manually
         //this is to ensure the version is correct
         //say it was installed via trm, then pulled from abapgit, the version would refer to the old trm version
-        //TODO getDevclass is on the linked transport -> create a dummy?
+        try {
+            const trmServerPackage = trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry('public')));
+            var generatedTrmServerPackage = await this.generateTrmServerPackage();
+            if(trmServerPackage && trmServerPackage.manifest){
+                if(trmServerPackage.manifest.get().version === generatedTrmServerPackage.manifest.get().version){
+                    generatedTrmServerPackage.manifest.setLinkedTransport(trmServerPackage.manifest.getLinkedTransport());
+                }
+            }
+            trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry('public'))));
+            trmPackages.push(generatedTrmServerPackage);
+        } catch (e) {
+            //trm-server is not installed
+        }
+        return trmPackages;
+    }
+
+    public async generateTrmServerPackage(): Promise<TrmPackage> {
+        var oPackage: TrmPackage;
         const oPublicRegistry = new Registry('public');
-        trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(oPublicRegistry)));
-        //if (!trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(oPublicRegistry))) {
-        const fugrExists: any[] = await this.rfcClient.readTable('TADIR',
-            [{ fieldName: 'OBJ_NAME' }],
-            `PGMID EQ 'R3TR' AND OBJECT EQ 'FUGR' AND OBJ_NAME EQ 'ZTRM'`);
-        if (fugrExists.length === 1) {
+        const fugr = await this.getObject('R3TR', 'FUGR', 'ZTRM');
+        if(fugr){
             try {
                 const trmServerVersion = await this.rfcClient.getTrmServerVersion();
+                const oManifest = new Manifest({
+                    name: TRM_SERVER_PACKAGE_NAME,
+                    version: trmServerVersion
+                });
                 if (semverValid(trmServerVersion)) {
-                    trmPackages.push(new TrmPackage(TRM_SERVER_PACKAGE_NAME,
-                        oPublicRegistry,
-                        new Manifest({
-                            name: TRM_SERVER_PACKAGE_NAME,
-                            version: trmServerVersion
-                        })));
+                    oPackage = new TrmPackage(TRM_SERVER_PACKAGE_NAME, oPublicRegistry, oManifest).setDevclass(fugr.devclass);
                 }
             } catch (e) { }
         }
-        //}
-        return trmPackages;
+        if (!oPackage) {
+            throw new Error(`Package ${TRM_SERVER_PACKAGE_NAME} was not found.`);
+        }
+        return oPackage;
     }
 
     public async getDevclass(devclass: DEVCLASS): Promise<TDEVC> {

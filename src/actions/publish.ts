@@ -547,8 +547,6 @@ export async function publish(data: {
         logger.loading(`Publishing...`);
         await oTrmPackage.publish({
             artifact: trmArtifact,
-            packageName: oTrmPackage.manifest.get().name,
-            packageVersion: oTrmPackage.manifest.get().version,
             readme
         });
         //add to publish trkorr

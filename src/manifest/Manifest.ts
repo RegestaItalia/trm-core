@@ -10,6 +10,7 @@ import { validate as validateEmail } from "email-validator";
 import * as SpdxLicenseIds from "spdx-license-ids/index.json";
 import { TrmManifestAuthor } from "./TrmManifestAuthor";
 import { DOMParser } from 'xmldom';
+import * as _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
 
 
@@ -226,71 +227,72 @@ export class Manifest {
         //this function is also used for method get()
         //only keys will throw error
         //always check if property has value
+        var manifestClone = _.cloneDeep(manifest);
         if (!keepRuntimeValues) {
-            delete manifest.linkedTransport;
-            delete manifest.registry;
+            delete manifestClone.linkedTransport;
+            delete manifestClone.registry;
         }
-        if (!manifest.name) {
+        if (!manifestClone.name) {
             throw new Error('Package name missing.')
         } else {
-            manifest.name = manifest.name.trim().toLowerCase().replace(/\s/g, '');
+            manifestClone.name = manifestClone.name.trim().toLowerCase().replace(/\s/g, '');
         }
-        if (!manifest.version) {
+        if (!manifestClone.version) {
             throw new Error('Package version missing.');
         } else {
-            manifest.version = semver.clean(manifest.version);
-            if (!manifest.version) {
+            manifestClone.version = semver.clean(manifestClone.version);
+            if (!manifestClone.version) {
                 throw new Error('Invalid package version declared.');
             }
         }
-        manifest.private = manifest.private ? true : false;
-        manifest.backwardsCompatible = manifest.backwardsCompatible ? true : false;
-        if (manifest.git) {
+        manifestClone.private = manifestClone.private ? true : false;
+        manifestClone.backwardsCompatible = manifestClone.backwardsCompatible ? true : false;
+        if (manifestClone.git) {
             try {
-                manifest.git = normalizeUrl(manifest.git);
+                manifestClone.git = normalizeUrl(manifestClone.git);
             } catch (e) {
-                delete manifest.git;
+                delete manifestClone.git;
             }
         } else {
-            delete manifest.git;
+            delete manifestClone.git;
         }
-        if (manifest.website) {
+        if (manifestClone.website) {
             try {
-                manifest.website = normalizeUrl(manifest.website);
+                manifestClone.website = normalizeUrl(manifestClone.website);
             } catch (e) {
-                delete manifest.website;
+                delete manifestClone.website;
             }
         } else {
-            delete manifest.website;
+            delete manifestClone.website;
         }
-        if (manifest.license) {
+        if (manifestClone.license) {
             try {
                 const spdxLicenseIdsWrapper: any = SpdxLicenseIds;
                 const aSpdxLicenseIds = spdxLicenseIdsWrapper.default;
-                const inLicense = manifest.license.trim();
+                const inLicense = manifestClone.license.trim();
                 const lLicense = inLicense.toLowerCase();
                 const uLicense = inLicense.toUpperCase();
                 if (aSpdxLicenseIds.includes(inLicense)) {
-                    manifest.license = inLicense;
+                    manifestClone.license = inLicense;
                 } else if (aSpdxLicenseIds.includes(lLicense)) {
-                    manifest.license = lLicense;
+                    manifestClone.license = lLicense;
                 } else if (aSpdxLicenseIds.includes(uLicense)) {
-                    manifest.license = uLicense;
+                    manifestClone.license = uLicense;
                 } else {
-                    delete manifest.license;
+                    delete manifestClone.license;
                 }
             } catch (e) {
-                delete manifest.license;
+                delete manifestClone.license;
             }
         } else {
-            delete manifest.license;
+            delete manifestClone.license;
         }
-        if (manifest.authors) {
+        if (manifestClone.authors) {
             var aAuthors;
-            if (typeof (manifest.authors) === 'string') {
-                aAuthors = manifest.authors.split(',');
+            if (typeof (manifestClone.authors) === 'string') {
+                aAuthors = manifestClone.authors.split(',');
             } else {
-                aAuthors = manifest.authors;
+                aAuthors = manifestClone.authors;
             }
             for (var i = 0; i < aAuthors.length; i++) {
                 try {
@@ -307,36 +309,36 @@ export class Manifest {
                     aAuthors[i] = author;
                 } catch (e) { }
             }
-            manifest.authors = aAuthors;
-            if (manifest.authors.length === 0) {
-                delete manifest.authors;
+            manifestClone.authors = aAuthors;
+            if (manifestClone.authors.length === 0) {
+                delete manifestClone.authors;
             }
         } else {
-            delete manifest.authors;
+            delete manifestClone.authors;
         }
-        if (manifest.keywords) {
+        if (manifestClone.keywords) {
             var originalKeywords;
-            if (typeof (manifest.keywords) === 'string') {
-                originalKeywords = manifest.keywords.split(',');
+            if (typeof (manifestClone.keywords) === 'string') {
+                originalKeywords = manifestClone.keywords.split(',');
             } else {
-                originalKeywords = manifest.keywords;
+                originalKeywords = manifestClone.keywords;
             }
-            manifest.keywords = [];
+            manifestClone.keywords = [];
             for (var originalKeyword of originalKeywords) {
                 try {
                     originalKeyword = originalKeyword.replace(/\s/g, '').toLowerCase();
-                    manifest.keywords.push(originalKeyword);
+                    manifestClone.keywords.push(originalKeyword);
                 } catch (e) { }
             }
-            if (manifest.keywords.length === 0) {
-                delete manifest.keywords;
+            if (manifestClone.keywords.length === 0) {
+                delete manifestClone.keywords;
             }
         } else {
-            delete manifest.keywords;
+            delete manifestClone.keywords;
         }
-        if (manifest.dependencies) {
-            const originalDependencies = manifest.dependencies;
-            manifest.dependencies = [];
+        if (manifestClone.dependencies) {
+            const originalDependencies = manifestClone.dependencies;
+            manifestClone.dependencies = [];
             for (var originalDependency of originalDependencies) {
                 try {
                     var dependency: any = {};
@@ -348,31 +350,31 @@ export class Manifest {
                             if(originalDependency.registry){
                                 dependency.registry = originalDependency.registry;
                             }
-                            manifest.dependencies.push(dependency);
+                            manifestClone.dependencies.push(dependency);
                         }
                     }
                 } catch (e) { }
             }
-            if (manifest.dependencies.length === 0) {
-                delete manifest.dependencies;
+            if (manifestClone.dependencies.length === 0) {
+                delete manifestClone.dependencies;
             }
         } else {
-            delete manifest.dependencies;
+            delete manifestClone.dependencies;
         }
-        if (!manifest.sapEntries) {
-            delete manifest.sapEntries;
+        if (!manifestClone.sapEntries) {
+            delete manifestClone.sapEntries;
         }
-        if (manifest.distFolder) {
+        if (manifestClone.distFolder) {
             try {
-                manifest.distFolder = manifest.distFolder.replace(/^\//, '');
-                manifest.distFolder = manifest.distFolder.replace(/\/$/, '');
+                manifestClone.distFolder = manifestClone.distFolder.replace(/^\//, '');
+                manifestClone.distFolder = manifestClone.distFolder.replace(/\/$/, '');
             } catch (e) {
-                delete manifest.distFolder;
+                delete manifestClone.distFolder;
             }
         } else {
-            delete manifest.distFolder;
+            delete manifestClone.distFolder;
         }
-        return manifest;
+        return manifestClone;
     }
 
     public static fromAbapXml(sXml: string): Manifest {
