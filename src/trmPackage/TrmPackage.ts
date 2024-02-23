@@ -4,15 +4,26 @@ import { Manifest } from "../manifest";
 import { Registry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { UserAuthorization, View } from "trm-registry-types";
+import { DEVCLASS } from "../rfc";
 
 export const DEFAULT_VERSION: string = "1.0.0";
 
 export class TrmPackage {
     private _userAuthorizations: UserAuthorization;
     private _remoteArtifacts: any = {};
+    private _devclass: DEVCLASS;
 
     constructor(public packageName: string, public registry: Registry, public manifest?: Manifest, private _logger?: Logger) {
         this._logger = this._logger || Logger.getDummy();
+    }
+
+    public setDevclass(devclass: DEVCLASS): TrmPackage {
+        this._devclass = devclass;
+        return this;
+    }
+
+    public getDevclass(): DEVCLASS {
+        return this._devclass;
     }
 
     public async exists(version: string = 'latest'): Promise<boolean> {
@@ -54,22 +65,24 @@ export class TrmPackage {
     }
 
     public async publish(data: {
-        artifact: TrmArtifact,
-        packageName: string,
-        packageVersion: string,
+        artifact: TrmArtifact
         readme?: string
     }, skipLog: boolean = false): Promise<TrmPackage> {
         const logger = skipLog ? Logger.getDummy() : this._logger;
         const artifact = data.artifact;
-        const packageName = data.packageName;
-        const packageVersion = data.packageVersion;
+        const trmManifest = artifact.getManifest().get();
+        const packageName = trmManifest.name;
+        if(packageName !== this.packageName){
+            throw new Error(`Cannot publish package ${packageName}: expected name is ${this.packageName}`);
+        }
+        const packageVersion = trmManifest.version;
         const readme = data.readme || '';
         logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`);
         await this.registry.publishArtifact(packageName, packageVersion, artifact, readme);
         logger.success(`"${packageName}" ${packageVersion} published.`);
 
         //set
-        this.manifest = new Manifest(artifact.getManifest().get());
+        this.manifest = new Manifest(trmManifest);
         return this;
     }
 
