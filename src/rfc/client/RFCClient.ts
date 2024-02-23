@@ -222,7 +222,8 @@ export class RFCClient {
             iv_object: tadir.object,
             iv_obj_name: tadir.objName,
             iv_devclass: tadir.devclass,
-            iv_set_genflag: tadir.genflag ? 'X' : ' '
+            iv_set_genflag: tadir.genflag ? 'X' : ' ',
+            iv_srcsystem: tadir.srcsystem
         });
     }
 
