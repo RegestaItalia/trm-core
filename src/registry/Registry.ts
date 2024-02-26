@@ -34,9 +34,22 @@ export class Registry {
         if (this.endpoint.length > 100) {
             throw new Error(`Registry address length is too long! Maximum allowed is 100.`);
         }
-        this._axiosInstance = axios.create({
+        this._axiosInstance = this.getAxiosInstance({
             baseURL: this.endpoint
         });
+    }
+
+    private getAxiosInstance(config: CreateAxiosDefaults<any>): AxiosInstance {
+        const instance = axios.create(config);
+        axios.interceptors.request.use(request => {
+            console.log('Starting Request', JSON.stringify(request));
+            return request;
+        });
+        axios.interceptors.response.use(response => {
+            console.log('Response:', JSON.stringify(response));
+            return response;
+        });
+        return instance;
     }
 
     public getRegistryType(): RegistryType {
@@ -90,7 +103,7 @@ export class Registry {
         const basicAuth = `${username}:${password}`;
         const encodedBasicAuth = Buffer.from(basicAuth).toString('base64');
         axiosHeaders.setAuthorization(`Basic ${encodedBasicAuth}`);
-        this._axiosInstance = axios.create(axiosDefaults);
+        this._axiosInstance = this.getAxiosInstance(axiosDefaults);
         this._authData = {
             username,
             password
@@ -119,7 +132,7 @@ export class Registry {
         }]);
         token = token || inq1.token;
         axiosHeaders.setAuthorization(`token ${token}`);
-        this._axiosInstance = axios.create(axiosDefaults);
+        this._axiosInstance = this.getAxiosInstance(axiosDefaults);
         this._authData = {
             token
         };
@@ -146,7 +159,7 @@ export class Registry {
                             grant_type: "refresh_token",
                             refresh_token: refreshToken
                         };
-                        oAuth2Response = (await (axios.create({
+                        oAuth2Response = (await (this.getAxiosInstance({
                             baseURL: this.endpoint
                         })).post('/auth', oAuth2Request)).data;
                         runAuthFlow = false;
@@ -200,7 +213,7 @@ export class Registry {
                     grant_type: "authorization_code",
                     redirect_uri: sRedirectUri
                 };
-                oAuth2Response = (await (axios.create({
+                oAuth2Response = (await (this.getAxiosInstance({
                     baseURL: this.endpoint
                 })).post('/auth', oAuth2Request)).data;
                 if (oAuth2Response.token_type !== "Bearer") {
@@ -223,7 +236,7 @@ export class Registry {
             headers: axiosHeaders
         };
         axiosHeaders.setAuthorization(`Bearer ${this._authData.access_token}`);
-        this._axiosInstance = axios.create(axiosDefaults);
+        this._axiosInstance = this.getAxiosInstance(axiosDefaults);
     }
 
     public getAuthData(): any {
