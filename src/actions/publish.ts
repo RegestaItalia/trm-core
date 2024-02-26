@@ -5,7 +5,7 @@ import { Logger } from "../logger";
 import { Manifest, TrmManifest } from "../manifest";
 import { Registry, RegistryType } from "../registry";
 import { DEVCLASS, TR_TARGET } from "../rfc/components";
-import { LXE_TT_PACKG_LINE, TADIR } from "../rfc/struct";
+import { TADIR } from "../rfc/struct";
 import { SystemConnector } from "../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../transport";
 import { DEFAULT_VERSION, TrmPackage } from "../trmPackage";
@@ -13,6 +13,8 @@ import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import { TadirDependency, findTadirDependencies } from "./findTadirDependencies";
 import { parsePackageName } from "../commons";
 import { createHash } from "crypto";
+import { CliLogger } from "../logger/CliLogger";
+import { CliLogFileLogger } from "../logger/CliLogFileLogger";
 
 async function getTrmPackage(data: {
     manifest: TrmManifest,
@@ -20,7 +22,7 @@ async function getTrmPackage(data: {
     overwriteManifestValues: boolean,
     forceManifestInput: boolean,
     ci: boolean
-}, inquirer: Inquirer, logger: Logger) {
+}, inquirer: Inquirer) {
     var manifest = data.manifest;
     const ci = data.ci || false;
     const registry = data.registry;
@@ -49,7 +51,7 @@ async function getTrmPackage(data: {
         if (!await trmPackage.canPublishReleases()) {
             throw new Error(`You are not not authorized to publish "${trmPackage.packageName}" releases.`);
         }
-        logger.warning(`A package named "${trmPackage.packageName}" is already pubished in registry "${trmPackage.registry.name}".`);
+        Logger.warning(`A package named "${trmPackage.packageName}" is already pubished in registry "${trmPackage.registry.name}".`);
 
         const latestPublishedManifest = (await trmPackage.fetchRemoteManifest('latest')).get();
         latestPublishedVersion = semver.clean(latestPublishedManifest.version);
@@ -61,7 +63,7 @@ async function getTrmPackage(data: {
             }
         } else {
             manifest.version = semver.inc(latestPublishedManifest.version, 'patch');
-            logger.info(`Latest version used, generated as ${manifest.version}`);
+            Logger.info(`Latest version used, generated as ${manifest.version}`);
         }
 
 
@@ -86,10 +88,10 @@ async function getTrmPackage(data: {
             manifest.dependencies[arrayIndex].version = o.version; //make sure to use the newer version
         });*/
     } else {
-        logger.info(`First time publishing "${trmPackage.packageName}". Congratulations!`);
+        Logger.info(`First time publishing "${trmPackage.packageName}". Congratulations!`);
         if (usingLatest) {
             manifest.version = DEFAULT_VERSION;
-            logger.info(`Latest version used, generated as ${manifest.version}`);
+            Logger.info(`Latest version used, generated as ${manifest.version}`);
         }
     }
 
@@ -180,7 +182,7 @@ async function getTrmPackage(data: {
                 fullName: manifest.name
             });
             if (!parsedName.organization) {
-                logger.warning(`Publishing a private package without a scope, this may not be allowed by the registry.`);
+                Logger.warning(`Publishing a private package without a scope, this may not be allowed by the registry.`);
             }
         }
     }
@@ -205,7 +207,7 @@ export async function publish(data: {
     readme?: string,
     releaseTimeout?: number,
     tmpFolder?: string
-}, inquirer: Inquirer, system: SystemConnector, registry: Registry, logger: Logger) {
+}, inquirer: Inquirer, system: SystemConnector, registry: Registry) {
     var manifest = data.package;
     var devclass = data.devclass;
     var trTarget = data.target;
@@ -220,7 +222,7 @@ export async function publish(data: {
         data.skipReadme = true;
     }
     manifest.name = manifest.name.toLowerCase().trim();
-    logger.loading(`Checking package...`);
+    Logger.loading(`Checking package...`);
     manifest.version = await TrmPackage.normalizeVersion(manifest.name, manifest.version, registry);
 
     //before anything, check on registry if this package can be released
@@ -237,7 +239,7 @@ export async function publish(data: {
     if (!publishAllowed) {
         throw new Error(`You are not not authorized to publish "${manifest.name}" releases.`);
     } else {
-        logger.success(`Package check successful.`);
+        Logger.success(`Package check successful.`);
     }
 
     if (!devclass) {
@@ -286,7 +288,7 @@ export async function publish(data: {
     }
 
     //get all tadir objects
-    logger.loading(`Reading package objects...`);
+    Logger.loading(`Reading package objects...`);
     const allTadir: TADIR[] = await system.getDevclassObjects(devclass, true);
 
     //find dependencies
@@ -298,14 +300,14 @@ export async function publish(data: {
     }
     var tadirDependencies: TadirDependency[] = [];
     if (!skipDependencies) {
-        logger.loading(`Searching dependencies...`);
+        Logger.loading(`Searching dependencies...`);
         tadirDependencies = await findTadirDependencies({
             devclass,
             tadir: allTadir
-        }, system, logger);
+        }, system);
     } else {
-        logger.info(`Skipping dependencies.`);
-        logger.warning(`Skipping dependencies can cause your package to fail activation. Make sure to manually edit the dependencies if necessary.`);
+        Logger.info(`Skipping dependencies.`);
+        Logger.warning(`Skipping dependencies can cause your package to fail activation. Make sure to manually edit the dependencies if necessary.`);
     }
     var dependenciesError: string;
     tadirDependencies.forEach(d => {
@@ -329,7 +331,7 @@ export async function publish(data: {
             } else {
                 dependenciesError = `All objects must be included in a TRM Package in order to continue.`;
                 d.tadir.forEach(t => {
-                    logger.error(`Object ${t.object} ${t.objName} of devclass ${t.devclass} has no TRM Package.`);
+                    Logger.error(`Object ${t.object} ${t.objName} of devclass ${t.devclass} has no TRM Package.`);
                 });
             }
         } else {
@@ -352,10 +354,10 @@ export async function publish(data: {
             manifest.dependencies[arrayIndex].version = dependencyVersion;
             manifest.dependencies[arrayIndex].integrity = dependencyIntegrity;
             if (Registry.compare(d.trmPackage.registry, registry)) {
-                logger.info(`Found dependency with package "${dependencyName}", version "${dependencyVersion}"`);
+                Logger.info(`Found dependency with package "${dependencyName}", version "${dependencyVersion}"`);
             } else {
                 const dependencyRegistryName = d.trmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : d.trmPackage.registry.endpoint;
-                logger.warning(`Found dependency with package "${dependencyName}", version "${dependencyVersion}", on a "${dependencyRegistryName}" registry!`)
+                Logger.warning(`Found dependency with package "${dependencyName}", version "${dependencyVersion}", on a "${dependencyRegistryName}" registry!`)
             }
             if (!dependencyIntegrity) {
                 dependenciesError = `Dependency "${dependencyName}", package integrity not found.`;
@@ -369,12 +371,12 @@ export async function publish(data: {
         const skipEditDependencies = data.skipEditDependencies || false;
 
         if (manifest.sapEntries && manifest.sapEntries['TADIR']) {
-            logger.info(`This package requires ${manifest.sapEntries['TADIR'].length} SAP objects.`);
+            Logger.info(`This package requires ${manifest.sapEntries['TADIR'].length} SAP objects.`);
         }
         if (manifest.dependencies.length > 0) {
-            logger.info(`Found ${manifest.dependencies.length} dependencies.`);
+            Logger.info(`Found ${manifest.dependencies.length} dependencies.`);
         } else {
-            logger.info(`No dependencies with TRM packages found.`);
+            Logger.info(`No dependencies with TRM packages found.`);
         }
         const inq3 = await inquirer.prompt([{
             message: `Manually edit required SAP entries? (MIGHT NEED ENTER TWICE)`,
@@ -443,7 +445,7 @@ export async function publish(data: {
         overwriteManifestValues: data.overwriteManifestValues,
         forceManifestInput: data.forceManifestInput,
         ci
-    }, inquirer, logger);
+    }, inquirer);
     const sManifestXml = oTrmPackage.manifest.getAbapXml();
 
     const skipReadme = data.skipReadme || false;
@@ -477,29 +479,29 @@ export async function publish(data: {
     const objectsOnly: TADIR[] = allTadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
     const devcOnly: TADIR[] = allTadir.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
 
-    logger.loading(`Generating transports...`);
+    Logger.loading(`Generating transports...`);
     const devcToc: Transport = await Transport.createToc({
         trmIdentifier: TrmTransportIdentifier.DEVC,
         target: trTarget,
         text: `@X1@TRM: ${manifest.name} v${manifest.version} (D)`
-    }, system, true, logger);
+    }, system, true);
     const tadirToc: Transport = await Transport.createToc({
         trmIdentifier: TrmTransportIdentifier.TADIR,
         target: trTarget,
         text: `@X1@TRM: ${manifest.name} v${manifest.version}`
-    }, system, true, logger);
+    }, system, true);
     var langTr: Transport;
     if(!skipLang){
         langTr = await Transport.createLang({
             target: trTarget,
             text: `@X1@TRM: ${manifest.name} v${manifest.version} (L)`
-        }, system, true, logger);
+        }, system, true);
         var iLanguageObjects: number = 0;
         try{
             await langTr.addTranslations(devcOnly.map(o => o.objName));
             iLanguageObjects = (await langTr.getE071()).length;
         }catch(e){
-            logger.warning(`Language transport generation error (${e.toString()})`);
+            Logger.warning(`Language transport generation error (${e.toString()})`);
         }finally{
             if(iLanguageObjects === 0){
                 await langTr.delete();
@@ -507,7 +509,7 @@ export async function publish(data: {
             }
         }
     }else{
-        logger.info(`Skipping language transport.`);
+        Logger.info(`Skipping language transport.`);
     }
 
     try {
@@ -532,19 +534,21 @@ export async function publish(data: {
 
     try {
         var aTransports = [tadirToc, devcToc];
-        logger.forceStop();
+        if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
+            Logger.logger.forceStop();
+        }
         await tadirToc.release(false, false, tmpFolder, timeout);
-        logger.loading(`Finalizing release...`);
+        Logger.loading(`Finalizing release...`);
         await devcToc.release(false, true, tmpFolder, timeout);
         if(langTr){
             aTransports.push(langTr);
             await langTr.release(false, true, tmpFolder, timeout);
         }
 
-        logger.loading(`Creating TRM Artifact...`);
+        Logger.loading(`Creating TRM Artifact...`);
         const trmArtifact = await TrmArtifact.create(aTransports, oTrmPackage.manifest, true);
 
-        logger.loading(`Publishing...`);
+        Logger.loading(`Publishing...`);
         await oTrmPackage.publish({
             artifact: trmArtifact,
             readme
@@ -563,7 +567,7 @@ export async function publish(data: {
                 integrity
             });
         }
-        logger.success(`+ ${oTrmPackage.manifest.get().name} v${oTrmPackage.manifest.get().version}`);
+        Logger.success(`+ ${oTrmPackage.manifest.get().name} v${oTrmPackage.manifest.get().version}`);
     } catch (e) {
         //rollBackTransports = e['trkorrRollback'] ? true : false;
         rollBackTransports = true;
@@ -571,14 +575,14 @@ export async function publish(data: {
     } finally {
         if (rollBackTransports) {
             await system.addToIgnoredTrkorr(tadirToc.trkorr);
-            logger.error(`Transport ${tadirToc.trkorr} rollback.`);
+            Logger.error(`Transport ${tadirToc.trkorr} rollback.`);
             if ((await devcToc.canBeDeleted())) {
                 await devcToc.delete();
-                logger.error(`Transport ${devcToc.trkorr} rollback.`);
+                Logger.error(`Transport ${devcToc.trkorr} rollback.`);
             }
             if(langTr && (await langTr.canBeDeleted())){
                 await langTr.delete();
-                logger.error(`Transport ${langTr.trkorr} rollback.`);
+                Logger.error(`Transport ${langTr.trkorr} rollback.`);
             }
         }
     }

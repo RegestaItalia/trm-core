@@ -1,13 +1,13 @@
-import { Logger, TraceLevel } from "../logger";
+import { Logger } from "../logger";
 import { SystemConnector } from "../systemConnector";
-import { AS4TEXT, DEVCLASS, PGMID, SOBJ_NAME, TMSSYSNAM, TRKORR, TROBJTYPE, TROBJ_NAME, TR_TARGET } from "../rfc/components";
+import { AS4TEXT, DEVCLASS, PGMID, SOBJ_NAME, TRKORR, TROBJTYPE, TROBJ_NAME, TR_TARGET } from "../rfc/components";
 import { BinaryTransport } from "./BinaryTransport";
-import { CoreEnv, fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
+import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
 import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
 import { R3trans, R3transLogParser, ReleaseLogStep } from "node-r3trans";
 import { TransportContent } from "./TransportContent";
-import { E070, E071, LXE_TT_PACKG_LINE, TADIR, TLINE } from "../rfc/struct";
+import { E070, E071, LXE_TT_PACKG_LINE, TLINE } from "../rfc/struct";
 import { Documentation } from "./Documentation";
 import { TrmTransportIdentifier } from "./TrmTransportIdentifier";
 import { TrmPackage } from "../trmPackage";
@@ -16,6 +16,8 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import * as cliProgress from "cli-progress";
+import { CliLogger } from "../logger/CliLogger";
+import { CliLogFileLogger } from "../logger/CliLogFileLogger";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
 
@@ -26,8 +28,7 @@ export class Transport {
     private _docs: Documentation[];
     public trmIdentifier?: TrmTransportIdentifier;
 
-    constructor(public trkorr: TRKORR, private _systemConnector: SystemConnector, private _trTarget?: TR_TARGET, private _logger?: Logger) {
-        this._logger = this._logger || Logger.getDummy();
+    constructor(public trkorr: TRKORR, private _systemConnector: SystemConnector, private _trTarget?: TR_TARGET) {
         this._fileNames = Transport._getFileNames(trkorr, this._systemConnector.getDest());
     }
 
@@ -117,12 +118,11 @@ export class Transport {
             header: null,
             data: null
         };
-        const logger = skipLog ? Logger.getDummy() : this._logger;
-        const filePaths = await Transport._getFilePaths(this._fileNames, this._systemConnector, logger);
-        logger.loading(`Reading ${this.trkorr} binary files...`);
+        const filePaths = await Transport._getFilePaths(this._fileNames, this._systemConnector);
+        Logger.loading(`Reading ${this.trkorr} binary files...`, skipLog);
         binaryTransport.header = await this._systemConnector.rfcClient.getBinaryFile(filePaths.header);
         binaryTransport.data = await this._systemConnector.rfcClient.getBinaryFile(filePaths.data);
-        logger.success(`${this.trkorr} file read success.`);
+        Logger.success(`${this.trkorr} file read success.`, skipLog);
         return {
             binaries: binaryTransport,
             filenames: this._fileNames
@@ -130,7 +130,6 @@ export class Transport {
     }
 
     public async setDocumentation(sDocumentation: string, skipLog: boolean = false): Promise<Transport> {
-        const logger = skipLog ? Logger.getDummy() : this._logger;
         this._docs = undefined; //clear
         var doc: TLINE[] = [];
         //split at /n to preserve indentation, then split every line that exceedes 67 chars (TDLINE limit)
@@ -151,16 +150,15 @@ export class Transport {
                 });
             }
         });
-        logger.loading(`Setting ${this.trkorr} documentation...`);
+        Logger.loading(`Setting ${this.trkorr} documentation...`, skipLog);
         await this._systemConnector.rfcClient.setTransportDoc(this.trkorr, doc);
-        logger.success(`${this.trkorr} documentation updated.`);
+        Logger.success(`${this.trkorr} documentation updated.`, skipLog);
         return this;
     }
 
     public async getDocumentation(skipLog: boolean = false): Promise<Documentation[]> {
-        const logger = skipLog ? Logger.getDummy() : this._logger;
         if (!this._docs || this._docs.length === 0) {
-            logger.loading(`Reading ${this.trkorr} documentation...`);
+            Logger.loading(`Reading ${this.trkorr} documentation...`, skipLog);
             const doktl: {
                 langu: string,
                 dokversion: string,
@@ -173,7 +171,7 @@ export class Transport {
             this._docs = Transport.doktlToDoc(doktl);
             //sort by version descending
             this._docs = this._docs.sort((a, b) => b.version - a.version);
-            logger.success(`Found ${this.trkorr} ${this._docs.length} documentation.`);
+            Logger.success(`Found ${this.trkorr} ${this._docs.length} documentation.`, skipLog);
         }
         return this._docs;
     }
@@ -279,23 +277,24 @@ export class Transport {
     }
 
     public async release(lock: boolean, skipLog: boolean = false, tmpFolder?: string, secondsTimeout?: number): Promise<Transport> {
+        //TODO check skipLog
         //TODO fix this -> publish step creates a transport with dummy logger
-        const logger = skipLog ? Logger.getDummy() : new Logger(CoreEnv.CLI, TraceLevel.TRACE_ALL); //this._logger;
-        logger.loading('Releasing...');
+        Logger.loading('Releasing...');
         await this._systemConnector.rfcClient.releaseTrkorr(this.trkorr, lock, secondsTimeout);
         await this._systemConnector.rfcClient.dequeueTransport(this.trkorr);
         if (!skipLog && tmpFolder) {
-            logger.forceStop();
+            if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
+                Logger.logger.forceStop();
+            }
             await this.readReleaseLog(tmpFolder, secondsTimeout);
-            logger.loading(`Finalizing release...`);
+            Logger.loading(`Finalizing release...`);
         }
         await this._isInTmsQueue(skipLog, false, secondsTimeout);
         return this;
     }
 
     public async readReleaseLog(tmpFolder: string, secondsTimeout: number): Promise<void> {
-        const logger = new Logger(CoreEnv.CLI, TraceLevel.TRACE_ALL);
-        const filePaths = await Transport._getFilePaths(this._fileNames, this._systemConnector, this._logger);
+        const filePaths = await Transport._getFilePaths(this._fileNames, this._systemConnector);
         const localPath = path.join(tmpFolder, this._fileNames.releaseLog);
         const oParser = new R3transLogParser(localPath);
 
@@ -426,10 +425,10 @@ export class Transport {
                 error = new Error(`Error occurred during transport ${this.trkorr} release.`);
             }
             if(whileResult === "SUCCESS"){
-                logger.success(`Transport ${this.trkorr} released with success.`);
+                Logger.success(`Transport ${this.trkorr} released with success.`);
             }
             if(whileResult === "WARNING"){
-                logger.warning(`Transport ${this.trkorr} released with warning.`);
+                Logger.warning(`Transport ${this.trkorr} released with warning.`);
             }
         }
 
@@ -444,7 +443,6 @@ export class Transport {
     }
 
     private async _isInTmsQueue(skipLog: boolean = false, checkImpSing: boolean = false, secondsTimeout): Promise<boolean> {
-        const logger = skipLog ? Logger.getDummy() : this._logger;
         const timeoutDate = new Date((new Date()).getTime() + (secondsTimeout * 1000));
 
         var inQueue = false;
@@ -452,7 +450,7 @@ export class Transport {
             var inQueueAttempts = 0;
             while (!inQueue && (new Date()).getTime() < timeoutDate.getTime()) {
                 inQueueAttempts++;
-                logger.loading(`Reading transport queue, attempt ${inQueueAttempts}...`);
+                Logger.loading(`Reading transport queue, attempt ${inQueueAttempts}...`, skipLog);
                 var tmsQueue = await this._systemConnector.rfcClient.readTmsQueue(this._trTarget);
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
@@ -471,7 +469,7 @@ export class Transport {
             if (!inQueue) {
                 throw new Error(`Transport request not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
             } else {
-                logger.success(`Transport was released.`);
+                Logger.success(`Transport was released.`, skipLog);
             }
         }
         return inQueue;
@@ -502,12 +500,12 @@ export class Transport {
         }
     }
 
-    public static async _getFilePaths(fileNames: FileNames, systemConnector: SystemConnector, logger: Logger = Logger.getDummy()): Promise<FilePaths> {
-        logger.loading(`Reading system data...`);
+    public static async _getFilePaths(fileNames: FileNames, systemConnector: SystemConnector): Promise<FilePaths> {
+        Logger.loading(`Reading system data...`);
         const dirTrans = await systemConnector.rfcClient.getDirTrans();
         const fileSys = await systemConnector.rfcClient.getFileSystem();
         const pathSeparator = getFileSysSeparator(fileSys.filesys);
-        logger.success(`Data read success.`);
+        Logger.success(`Data read success.`);
         return {
             header: `${dirTrans}${pathSeparator}cofiles${pathSeparator}${fileNames.header}`,
             data: `${dirTrans}${pathSeparator}data${pathSeparator}${fileNames.data}`,
@@ -525,34 +523,31 @@ export class Transport {
         text: AS4TEXT,
         target: TR_TARGET,
         trmIdentifier?: TrmTransportIdentifier
-    }, systemConnector: SystemConnector, skipLog: boolean = false, logger?: Logger): Promise<Transport> {
-        logger = skipLog ? Logger.getDummy() : logger;
-        logger.loading(`Creating transport request (TOC)...`);
+    }, systemConnector: SystemConnector, skipLog: boolean = false): Promise<Transport> {
+        Logger.loading(`Creating transport request (TOC)...`, skipLog);
         const trkorr = await systemConnector.rfcClient.createTocTransport(data.text, data.target);
-        logger.success(`Transport request ${trkorr} generated successfully.`);
-        return new Transport(trkorr, systemConnector, data.target, logger).setTrmIdentifier(data.trmIdentifier);
+        Logger.success(`Transport request ${trkorr} generated successfully.`, skipLog);
+        return new Transport(trkorr, systemConnector, data.target).setTrmIdentifier(data.trmIdentifier);
     }
 
     public static async createLang(data: {
         text: AS4TEXT,
         target: TR_TARGET
-    }, systemConnector: SystemConnector, skipLog: boolean = false, logger?: Logger): Promise<Transport> {
-        logger = skipLog ? Logger.getDummy() : logger;
-        logger.loading(`Creating transport request (LANG)...`);
+    }, systemConnector: SystemConnector, skipLog: boolean = false): Promise<Transport> {
+        Logger.loading(`Creating transport request (LANG)...`, skipLog);
         const trkorr = await systemConnector.rfcClient.createWbTransport(data.text, data.target);
-        logger.success(`Transport request ${trkorr} generated successfully.`);
-        return new Transport(trkorr, systemConnector, data.target, logger).setTrmIdentifier(TrmTransportIdentifier.LANG);
+        Logger.success(`Transport request ${trkorr} generated successfully.`, skipLog);
+        return new Transport(trkorr, systemConnector, data.target).setTrmIdentifier(TrmTransportIdentifier.LANG);
     }
 
     public static async createWb(data: {
         text: AS4TEXT,
         target?: TR_TARGET
-    }, systemConnector: SystemConnector, skipLog: boolean = false, logger?: Logger): Promise<Transport> {
-        logger = skipLog ? Logger.getDummy() : logger;
-        logger.loading(`Creating transport request (WB)...`);
+    }, systemConnector: SystemConnector, skipLog: boolean = false): Promise<Transport> {
+        Logger.loading(`Creating transport request (WB)...`, skipLog);
         const trkorr = await systemConnector.rfcClient.createWbTransport(data.text, data.target);
-        logger.success(`Transport request ${trkorr} generated successfully.`);
-        return new Transport(trkorr, systemConnector, null, logger);
+        Logger.success(`Transport request ${trkorr} generated successfully.`, skipLog);
+        return new Transport(trkorr, systemConnector, null);
     }
 
     public static async getContent(data: Buffer, tmpFolder: string): Promise<TransportContent> {
@@ -577,24 +572,21 @@ export class Transport {
         systemConnector: SystemConnector,
         tmpFolder?: string
         trTarget?: TR_TARGET
-    }, skipLog: boolean = false, logger?: Logger): Promise<Transport> {
-        const transportLogger = logger;
-        logger = skipLog ? Logger.getDummy() : logger;
-
-        logger.loading(`Reading binary content...`);
+    }, skipLog: boolean = false): Promise<Transport> {
+        Logger.loading(`Reading binary content...`, skipLog);
         const fileContent = await Transport.getContent(data.binary.data, data.tmpFolder);
         const trkorr = fileContent.trkorr;
-        logger.success(`Transport ${trkorr} read success.`);
+        Logger.success(`Transport ${trkorr} read success.`, skipLog);
         const fileNames = Transport._getFileNames(trkorr, data.systemConnector.getDest());
-        const filePaths = await Transport._getFilePaths(fileNames, data.systemConnector, logger);
-        logger.loading(`Uploading ${trkorr} header to "${filePaths.header}"...`);
+        const filePaths = await Transport._getFilePaths(fileNames, data.systemConnector);
+        Logger.loading(`Uploading ${trkorr} header to "${filePaths.header}"...`, skipLog);
         await data.systemConnector.rfcClient.writeBinaryFile(filePaths.header, data.binary.header);
-        logger.success(`Header uploaded successfully.`);
-        logger.loading(`Uploading ${trkorr} data to "${filePaths.data}"...`);
+        Logger.success(`Header uploaded successfully.`, skipLog);
+        Logger.loading(`Uploading ${trkorr} data to "${filePaths.data}"...`, skipLog);
         await data.systemConnector.rfcClient.writeBinaryFile(filePaths.data, data.binary.data);
-        logger.success(`Data uploaded successfully.`);
-        logger.success(`Transport request ${trkorr} uploaded successfully.`);
-        return new Transport(trkorr, data.systemConnector, data.trTarget, transportLogger);
+        Logger.success(`Data uploaded successfully.`, skipLog);
+        Logger.success(`Transport request ${trkorr} uploaded successfully.`, skipLog);
+        return new Transport(trkorr, data.systemConnector, data.trTarget);
     }
 
     public static async getTransportsFromObject(objectKeys: {

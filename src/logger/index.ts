@@ -1,4 +1,4 @@
-export * from "./Logger";
+export * from "./CliLogger";
 export * from "./ILogger";
 export * from "./JSONLog";
-export * from "./TraceLevel";
+export * from "./Logger";

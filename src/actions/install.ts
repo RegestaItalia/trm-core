@@ -47,7 +47,7 @@ export async function install(data: {
     integrity?: string,
     safe?: boolean,
     ci?: boolean
-}, inquirer: Inquirer, system: SystemConnector, registry: Registry, logger: Logger) {
+}, inquirer: Inquirer, system: SystemConnector, registry: Registry) {
     const ignoreSapEntries = data.ignoreSapEntries ? true : false;
     const skipDependencies = data.skipDependencies ? true : false;
     const skipLang = data.skipLang ? true : false;
@@ -76,9 +76,9 @@ export async function install(data: {
         fullName: packageName
     });
 
-    logger.loading(`Reading system data...`);
+    Logger.loading(`Reading system data...`);
     const installedPackages = await system.getInstalledPackages();
-    const oTrmPackage = new TrmPackage(packageName, registry, null, logger);
+    const oTrmPackage = new TrmPackage(packageName, registry, null);
     const oManifest = await oTrmPackage.fetchRemoteManifest(version);
     //Before installing, check if the same package, same version and same registry is already installed
     var alreadyInstalled = installedPackages.find(o => Manifest.compare(o.manifest, oManifest, true)) ? true : false;
@@ -87,18 +87,18 @@ export async function install(data: {
         alreadyInstalled = alreadyInstalled && installedIntegrity === integrity;
     }
     if (alreadyInstalled && !forceInstall) {
-        logger.info(`Package "${packageName}" already installed, skipping installation. Run with --force.`);
+        Logger.info(`Package "${packageName}" already installed, skipping installation. Run with --force.`);
         return;
     }
     const manifest = oManifest.get();
     if (!ignoreSapEntries) {
-        logger.loading(`Checking system compatibility...`);
+        Logger.loading(`Checking system compatibility...`);
         const sapEntries = manifest.sapEntries || {};
         const oCheckSapEntries = await checkSapEntries(sapEntries, system);
         const missingSapEntries = oCheckSapEntries.missingSapEntries;
         if (missingSapEntries.length > 0) {
-            logger.error(`Missing SAP table entries.`);
-            logger.error(`Please check the list below and, if necessary, check notes.`);
+            Logger.error(`Missing SAP table entries.`);
+            Logger.error(`Please check the list below and, if necessary, check notes.`);
             missingSapEntries.forEach(o => {
                 var tableHead = [];
                 var tableData = [];
@@ -118,23 +118,23 @@ export async function install(data: {
                     }
                     tableData.push(tableRow);
                 });
-                logger.error(` `);
-                logger.error(`Table ${o.table}:`);
-                logger.table(tableHead, tableData);
+                Logger.error(` `);
+                Logger.error(`Table ${o.table}:`);
+                Logger.table(tableHead, tableData);
             });
             throw new Error(`There are a total of ${missingSapEntries.length} missing SAP table entries.`);
         }
     }
 
-    logger.loading(`Checking dependencies...`);
+    Logger.loading(`Checking dependencies...`);
     const dependencies = manifest.dependencies || [];
     const dependencyCheck = await checkDependencies({
         dependencies,
         installedPackages
     }, system);
     if(dependencyCheck.requiredDependenciesTab){
-        logger.info(`Package "${packageName}" has ${dependencyCheck.requiredDependenciesTab.data.length} dependencies.`);
-        logger.table(dependencyCheck.requiredDependenciesTab.head, dependencyCheck.requiredDependenciesTab.data);
+        Logger.info(`Package "${packageName}" has ${dependencyCheck.requiredDependenciesTab.data.length} dependencies.`);
+        Logger.table(dependencyCheck.requiredDependenciesTab.head, dependencyCheck.requiredDependenciesTab.data);
     }
     if (!skipDependencies) {
         for (const dependency of dependencyCheck.missingDependencies) {
@@ -157,19 +157,19 @@ export async function install(data: {
                 continueInstall = inq1.continueInstall;
             }
             if(continueInstall){
-                logger.info(`Installing dependency ${dependency.name} version ${dependency.version}`);
+                Logger.info(`Installing dependency ${dependency.name} version ${dependency.version}`);
                 await installDependency({
                     packageName: dependency.name,
                     versionRange: dependency.version,
                     integrity: safe ? dependency.integrity : null,
                     originalInstallOptions: data,
                     installedPackages
-                }, inquirer, system, oDependencyRegistry, logger);
+                }, inquirer, system, oDependencyRegistry);
             }
         }
     }
 
-    logger.info(`Ready to install "${packageName}".`);
+    Logger.info(`Ready to install "${packageName}".`);
 
     if (alreadyInstalled) {
         const alreadyInstalledPackage = installedPackages.find(o => Manifest.compare(o.manifest, oManifest, false));
@@ -178,22 +178,22 @@ export async function install(data: {
         //not everything can be upgraded and downgraded without warning
         //dependencies, for example, might not be in ranges anymore
         if (semver.gt(manifest.version, alreadyInstalledManifest.version)) {
-            logger.info(`Upgrading "${packageName}", ${alreadyInstalledManifest.version} -> ${manifest.version}`);
+            Logger.info(`Upgrading "${packageName}", ${alreadyInstalledManifest.version} -> ${manifest.version}`);
         } else if (semver.lt(manifest.version, alreadyInstalledManifest.version)) {
-            logger.warning(`Downgrading "${packageName}", ${alreadyInstalledManifest.version} -> ${manifest.version}`);
+            Logger.warning(`Downgrading "${packageName}", ${alreadyInstalledManifest.version} -> ${manifest.version}`);
         }
     }
 
-    logger.loading(`Getting transports...`);
+    Logger.loading(`Getting transports...`);
     const oArtifact = await oTrmPackage.fetchRemoteArtifact(manifest.version);
     const fetchedIntegrity = createHash("sha512").update(oArtifact.binary).digest("hex");
     if(integrity){
         if(integrity !== fetchedIntegrity){
-            logger.warning(`ATTENTION!! Integrity check failed on package ${manifest.name}, version ${manifest.version}.`);
-            logger.warning(`            Local:  ${integrity}`);
-            logger.warning(`            Remote: ${fetchedIntegrity}`);
+            Logger.warning(`ATTENTION!! Integrity check failed on package ${manifest.name}, version ${manifest.version}.`);
+            Logger.warning(`            Local:  ${integrity}`);
+            Logger.warning(`            Remote: ${fetchedIntegrity}`);
             if(safe){
-                logger.warning(`            Install will continue.`);
+                Logger.warning(`            Install will continue.`);
             }else{
                 throw new Error(`Package installation aborted due to integrity check failure and running in safe mode.`);
             }
@@ -202,8 +202,8 @@ export async function install(data: {
     const aTransports = await oArtifact.getTransportBinaries();
     const r3trans = new R3trans();
     const r3transVersion = await r3trans.getVersion();
-    logger.info(r3transVersion);
-    logger.loading(`Reading transports...`);
+    Logger.info(r3transVersion);
+    Logger.loading(`Reading transports...`);
     for (const transport of aTransports) {
         try {
             await r3trans.isTransportValid(transport.binaries.data);
@@ -230,7 +230,7 @@ export async function install(data: {
         //registry should have done this check already..
         //all tadir object must have the corresponding devc devclass object
         //also, check all objects in transport are recognized by the system
-        logger.loading(`Checking transport content...`);
+        Logger.loading(`Checking transport content...`);
         var aTadir: TADIR[] = [];
         for (const tadirTr of aTadirTransports) {
             aTadir = aTadir.concat(normalize(await r3trans.getTableEntries(tadirTr.binaries.data, 'TADIR')));
@@ -275,7 +275,7 @@ export async function install(data: {
         if (!rootDevclass) {
             rootDevclass = originalPackageHierarchy.devclass;
         }
-        logger.success(`Transport content ok.`);
+        Logger.success(`Transport content ok.`);
         const packagesNamespace = getPackageNamespace(rootDevclass);
         var inq1Prompts: Question[] = [];
         tdevc.forEach(t => {
@@ -309,7 +309,7 @@ export async function install(data: {
             });
         }
         //update z table
-        logger.loading(`Updating install packages...`);
+        Logger.loading(`Updating install packages...`);
         var installDevc: ZTRM_INSTALLDEVC[] = [];
         packageReplacements.forEach(o => {
             installDevc.push({
@@ -321,7 +321,7 @@ export async function install(data: {
         });
         await system.rfcClient.setInstallDevc(installDevc);
 
-        logger.loading(`Generating devclass...`);
+        Logger.loading(`Generating devclass...`);
         var pdevclass = transportLayer;
         const dlvunit = getPackageNamespace(packageReplacements[0].installDevclass) === '$' ? 'LOCAL' : 'HOME';
         for (const packageReplacement of packageReplacements) {
@@ -388,34 +388,34 @@ export async function install(data: {
                 }
             }
         }
-        logger.success(`Devclass generated.`);
+        Logger.success(`Devclass generated.`);
 
         //import tadir transports
-        logger.loading(`Importing transports...`);
+        Logger.loading(`Importing transports...`);
         for (const tadirTr of aTadirTransports) {
             const oTransport = await Transport.upload({
                 binary: tadirTr.binaries,
                 systemConnector: system,
                 trTarget: system.getDest()
-            }, true, logger);
+            }, true);
             await oTransport.import(false, importTimeout);
         }
-        logger.success(`Transports imported.`);
+        Logger.success(`Transports imported.`);
 
         //for all tadir objects, run tadir interface with replacement devclass
-        logger.loading(`Finishing TADIR import...`);
+        Logger.loading(`Finishing TADIR import...`);
         for (var tadir of aTadir) {
             const replacementDevclass = packageReplacements.find(o => o.originalDevclass === tadir.devclass).installDevclass;
             tadir.devclass = replacementDevclass;
             tadir.srcsystem = 'TRM';
             await system.rfcClient.tadirInterface(tadir);
         }
-        logger.success(`TADIR import finished.`);
+        Logger.success(`TADIR import finished.`);
     }
     if(aLangTransports.length > 0){
         if(!skipLang){
             //import lang transports
-            logger.loading(`Importing transports...`);
+            Logger.loading(`Importing transports...`);
             for (const langTransport of aLangTransports) {
                 //const langEntries = normalize(await r3trans.getTableEntries(langTransport.binaries.data, 'E071'));
                 trCopy.push(langTransport.trkorr);
@@ -423,17 +423,17 @@ export async function install(data: {
                     binary: langTransport.binaries,
                     systemConnector: system,
                     trTarget: system.getDest()
-                }, true, logger);
+                }, true);
                 await oTransport.import(false, importTimeout);
             }
-            logger.success(`Transports imported.`);
-            logger.success(`LANG import finished.`);
+            Logger.success(`Transports imported.`);
+            Logger.success(`LANG import finished.`);
         }else{
-            logger.info(`Skipping language transports.`);
+            Logger.info(`Skipping language transports.`);
         }
     }
 
-    logger.loading(`Finalizing install...`);
+    Logger.loading(`Finalizing install...`);
 
     //set integrity
     await system.rfcClient.setPackageIntegrity({
@@ -479,7 +479,7 @@ export async function install(data: {
             wbTransport = await Transport.createWb({
                 text: `TRM generated transport`, //temporary name
                 target: targetSystem
-            }, system, true, logger);
+            }, system, true);
         }
         await wbTransport.addComment(`name=${manifest.name}`);
         await wbTransport.addComment(`version=${manifest.version}`);
@@ -507,8 +507,8 @@ export async function install(data: {
                 //TODO better handle this case
             }
         }
-        logger.success(`Use ${wbTransport.trkorr} for transports.`);
+        Logger.success(`Use ${wbTransport.trkorr} for transports.`);
     }
 
-    logger.success(`Install of package "${packageName}" finished.`);
+    Logger.success(`Install of package "${packageName}" finished.`);
 }

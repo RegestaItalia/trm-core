@@ -1,13 +1,13 @@
 import { ResponseMessage } from "trm-registry-types";
 
 export interface ILogger {
-    loading: (text: string) => void,
-    success: (text: string) => void,
-    error: (text: string) => void,
-    warning: (text: string) => void,
-    info: (text: string) => void,
-    log: (text: string) => void,
-    table: (header: any, data: any) => void,
-    registryResponse: (response: ResponseMessage) => void,
-    forceStop: () => void
+    debug: boolean,
+    loading: (text: string, debug?: boolean) => void,
+    success: (text: string, debug?: boolean) => void,
+    error: (text: string, debug?: boolean) => void,
+    warning: (text: string, debug?: boolean) => void,
+    info: (text: string, debug?: boolean) => void,
+    log: (text: string, debug?: boolean) => void,
+    table: (header: any, data: any, debug?: boolean) => void,
+    registryResponse: (response: ResponseMessage, debug?: boolean) => void
 }

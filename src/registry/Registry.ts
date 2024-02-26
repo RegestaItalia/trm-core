@@ -10,6 +10,11 @@ import { randomUUID } from "crypto";
 import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
+import { v4 as uuidv4 } from 'uuid';
+import { inspect } from "util";
+import _ from 'lodash';
+
+const AXIOS_INTERNAL_ID_KEY = 'INTERNAL_ID';
 
 export class Registry {
     private _registryType: RegistryType;
@@ -20,6 +25,7 @@ export class Registry {
     private _whoami: WhoAmI;
 
     constructor(public endpoint: string, public name: string = 'Unknown') {
+        Logger.log(`TRM_PUBLIC_REGISTRY_ENDPOINT Environment variable: ${process.env.TRM_PUBLIC_REGISTRY_ENDPOINT}`, true);
         if (endpoint.trim().toLowerCase() === 'public') {
             this.endpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT || 'https://www.trmregistry.com/registry';
             this._registryType = RegistryType.PUBLIC;
@@ -27,10 +33,13 @@ export class Registry {
             this.endpoint = endpoint;
             this._registryType = RegistryType.PRIVATE;
         }
+        Logger.log(`Endpoint type: ${this._registryType}`, true);
+        Logger.log(`Endpoint before normalize: ${this.endpoint}`, true);
         this.endpoint = normalizeUrl(this.endpoint, {
             stripHash: true,
             removeQueryParameters: true
         });
+        Logger.log(`Endpoint after normalize: ${this.endpoint}`, true);
         if (this.endpoint.length > 100) {
             throw new Error(`Registry address length is too long! Maximum allowed is 100.`);
         }
@@ -41,13 +50,24 @@ export class Registry {
 
     private getAxiosInstance(config: CreateAxiosDefaults<any>): AxiosInstance {
         const instance = axios.create(config);
-        axios.interceptors.request.use(request => {
-            console.log('Starting Request', JSON.stringify(request));
+        instance.interceptors.request.use((request) => {
+            const internalId = uuidv4();
+            request[AXIOS_INTERNAL_ID_KEY] = internalId;
+            const requestClone = _.cloneDeep(request);
+            requestClone.headers.delete('Authorization');
+            Logger.log(`Starting registry request ${internalId}: ${inspect(requestClone, { breakLength: Infinity, compact: true })}`, true);
             return request;
+        }, (error) => {
+            Logger.error(`Registry request error: ${error}`, true);
+            return Promise.reject(error);
         });
-        axios.interceptors.response.use(response => {
-            console.log('Response:', JSON.stringify(response));
+        instance.interceptors.response.use((response) => {
+            const internalId = response.request && response.request[AXIOS_INTERNAL_ID_KEY] ? response.request[AXIOS_INTERNAL_ID_KEY] : 'Unknown';
+            Logger.log(`Ending registry request ${internalId}: ${inspect(response, { breakLength: Infinity, compact: true })}`, true);
             return response;
+        }, (error) => {
+            Logger.error(`Registry response error: ${error}`, true);
+            return Promise.reject(error);
         });
         return instance;
     }
@@ -56,24 +76,26 @@ export class Registry {
         return this._registryType;
     }
 
-    public async authenticate(inquirer: Inquirer, logger: Logger, defaultData: any = {}): Promise<Registry> {
+    public async authenticate(inquirer: Inquirer, defaultData: any = {}): Promise<Registry> {
+        Logger.log(`Registry authentication request`, true);
         const ping = await this.ping();
+        Logger.log(`Registry authentication type is: ${ping.authenticationType}`, true);
         if (ping.authenticationType !== AuthenticationType.NO_AUTH) {
             if (ping.authenticationType === AuthenticationType.BASIC) {
-                await this._basicAuth(inquirer, logger, defaultData);
+                await this._basicAuth(inquirer, defaultData);
             }
             if (ping.authenticationType === AuthenticationType.OAUTH2) {
-                await this._oauth2(inquirer, logger, defaultData);
+                await this._oauth2(inquirer, defaultData);
             }
             if (ping.authenticationType === AuthenticationType.TOKEN) {
-                await this._tokenAuth(inquirer, logger, defaultData);
+                await this._tokenAuth(inquirer, defaultData);
             }
         }
         this._whoami = null;
         return this;
     }
 
-    private async _basicAuth(inquirer: Inquirer, logger: Logger, defaultData: any = {}) {
+    private async _basicAuth(inquirer: Inquirer, defaultData: any = {}) {
         var axiosHeaders: AxiosHeaders = new AxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
@@ -110,7 +132,7 @@ export class Registry {
         };
     }
 
-    private async _tokenAuth(inquirer: Inquirer, logger: Logger, defaultData: any = {}) {
+    private async _tokenAuth(inquirer: Inquirer, defaultData: any = {}) {
         var axiosHeaders: AxiosHeaders = new AxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
@@ -118,8 +140,8 @@ export class Registry {
         };
         var token = defaultData.token;
         if (!token && this._registryType == RegistryType.PUBLIC) {
-            logger.info(`To authenticate, generate a new token.`);
-            logger.info(`Follow the instructions https://docs.trmregistry.com/#/registry/public/authentication.`);
+            Logger.info(`To authenticate, generate a new token.`);
+            Logger.info(`Follow the instructions https://docs.trmregistry.com/#/registry/public/authentication.`);
         }
         const inq1 = await inquirer.prompt([{
             type: "input",
@@ -138,7 +160,7 @@ export class Registry {
         };
     }
 
-    private async _oauth2(inquirer: Inquirer, logger: Logger, defaultData: any = {}) {
+    private async _oauth2(inquirer: Inquirer, defaultData: any = {}) {
         const ping = await this.ping();
         var runAuthFlow = false;
         const accessToken = defaultData.access_token;
@@ -201,7 +223,7 @@ export class Registry {
             if (oAuth2.scope) {
                 sAuth2Url = `${sAuth2Url}&scope=${oAuth2.scope}`;
             }
-            logger.info(`Open login url at ${sAuth2Url}`);
+            Logger.info(`Open login url at ${sAuth2Url}`);
             opener(sAuth2Url);
             const oAuth2Callback = await new Protocol().run();
             if (oAuth2Callback.path.startsWith(sRedirectUri)) {

@@ -13,8 +13,7 @@ export class TrmPackage {
     private _remoteArtifacts: any = {};
     private _devclass: DEVCLASS;
 
-    constructor(public packageName: string, public registry: Registry, public manifest?: Manifest, private _logger?: Logger) {
-        this._logger = this._logger || Logger.getDummy();
+    constructor(public packageName: string, public registry: Registry, public manifest?: Manifest) {
     }
 
     public setDevclass(devclass: DEVCLASS): TrmPackage {
@@ -68,7 +67,6 @@ export class TrmPackage {
         artifact: TrmArtifact
         readme?: string
     }, skipLog: boolean = false): Promise<TrmPackage> {
-        const logger = skipLog ? Logger.getDummy() : this._logger;
         const artifact = data.artifact;
         const trmManifest = artifact.getManifest().get();
         const packageName = trmManifest.name;
@@ -77,9 +75,9 @@ export class TrmPackage {
         }
         const packageVersion = trmManifest.version;
         const readme = data.readme || '';
-        logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`);
+        Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, skipLog);
         await this.registry.publishArtifact(packageName, packageVersion, artifact, readme);
-        logger.success(`"${packageName}" ${packageVersion} published.`);
+        Logger.success(`"${packageName}" ${packageVersion} published.`, skipLog);
 
         //set
         this.manifest = new Manifest(trmManifest);
@@ -98,8 +96,8 @@ export class TrmPackage {
         return (await this.registry.view(this.packageName, 'latest'));
     }
 
-    public static async create(manifest: Manifest, registry: Registry, logger?: Logger): Promise<TrmPackage> {
-        return new TrmPackage(manifest.get().name, registry, manifest, logger);
+    public static async create(manifest: Manifest, registry: Registry): Promise<TrmPackage> {
+        return new TrmPackage(manifest.get().name, registry, manifest);
     }
 
     public static compare(o1: TrmPackage, o2: TrmPackage): boolean {

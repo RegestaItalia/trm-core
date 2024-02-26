@@ -19,7 +19,7 @@ export type TadirDependency = {
 export async function findTadirDependencies(data: {
     devclass: DEVCLASS,
     tadir?: TADIR[]
-}, system: SystemConnector, logger?: Logger): Promise<TadirDependency[]> {
+}, system: SystemConnector): Promise<TadirDependency[]> {
     const senviParser = new SenviParser(system);
     var tadir = data.tadir;
     var devclass = data.devclass;

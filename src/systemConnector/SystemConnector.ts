@@ -21,7 +21,7 @@ export class SystemConnector {
     address: string;
     rfcClient: RFCClient;
 
-    constructor(private _connection: Connection, private _login: Login, private _logger?: Logger) {
+    constructor(private _connection: Connection, private _login: Login) {
         this._dest = this._connection.dest;
         this._lang = this._login.lang;
         this._user = this._login.user;
@@ -30,7 +30,6 @@ export class SystemConnector {
             delete this._connection.saprouter;
         }
         this.rfcClient = new RFCClient({ ...this._connection, ...this._login });
-        this._logger = this._logger || Logger.getDummy();
     }
 
     public getDest(): string {
@@ -50,13 +49,12 @@ export class SystemConnector {
     }
 
     public async connect(skipLog: boolean = false) {
-        const logger = skipLog ? Logger.getDummy() : this._logger;
-        logger.loading(`Connecting to ${this._dest}...`);
+        Logger.loading(`Connecting to ${this._dest}...`);
         try {
             await this.rfcClient.open();
-            logger.success(`Connected to ${this._dest} as ${this._user}.`);
+            Logger.success(`Connected to ${this._dest} as ${this._user}.`, skipLog);
         } catch (e) {
-            logger.error(`Connection to ${this._dest} as ${this._user} failed.`);
+            Logger.error(`Connection to ${this._dest} as ${this._user} failed.`, skipLog);
             throw e;
         }
     }

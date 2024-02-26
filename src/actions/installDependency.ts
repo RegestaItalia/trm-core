@@ -15,7 +15,7 @@ export async function installDependency(data: {
     integrity: string,
     installedPackages?: TrmPackage[],
     originalInstallOptions?: any
-}, inquirer: Inquirer, system: SystemConnector, registry: Registry, logger: Logger) {
+}, inquirer: Inquirer, system: SystemConnector, registry: Registry) {
     //this command is similar to install, however it's dedicated to dependencies
     //it shouldn't be used outside the install package flow
     const packageName = data.packageName;
@@ -39,7 +39,7 @@ export async function installDependency(data: {
             registry: registry.getRegistryType() === RegistryType.PUBLIC ? undefined : registry.endpoint
         };
         const oDummyManifest = new Manifest(dummyManifest);
-        aPackages.push(new TrmPackage(packageName, registry, oDummyManifest, logger));
+        aPackages.push(new TrmPackage(packageName, registry, oDummyManifest));
     })
 
     var alreadyInstalled: boolean = false;
@@ -49,7 +49,7 @@ export async function installDependency(data: {
         }
     });
     if (alreadyInstalled && !forceInstall) {
-        logger.info(`Dependency "${packageName}" already installed, skipping installation.`);
+        Logger.info(`Dependency "${packageName}" already installed, skipping installation.`);
         return;
     }
 
@@ -87,5 +87,5 @@ export async function installDependency(data: {
             integrity,
             safe: integrity ? true : false
         }
-    }, inquirer, system, registry, logger);
+    }, inquirer, system, registry);
 }
