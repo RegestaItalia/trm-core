@@ -1,9 +1,10 @@
 import { ResponseMessage } from "trm-registry-types";
 import { ILogger } from "./ILogger";
+import { DummyLogger } from "./DummyLogger";
 
 export namespace Logger {
 
-    export var logger: ILogger;
+    export var logger: ILogger = new DummyLogger();
     
     function checkLogger(){
         if(!logger){

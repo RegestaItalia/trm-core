@@ -55,7 +55,8 @@ export class Registry {
             request[AXIOS_INTERNAL_ID_KEY] = internalId;
             const requestClone = _.cloneDeep(request);
             requestClone.headers.delete('Authorization');
-            Logger.log(`Starting registry request ${internalId}: ${inspect(requestClone, { breakLength: Infinity, compact: true })}`, true);
+            Logger.info(`Registry ${request.method} ${request.url}`, true);
+            Logger.log(`Starting AXIOS request ${internalId}: ${inspect(requestClone, { breakLength: Infinity, compact: true })}`, true);
             return request;
         }, (error) => {
             Logger.error(`Registry request error: ${error}`, true);
@@ -63,7 +64,7 @@ export class Registry {
         });
         instance.interceptors.response.use((response) => {
             const internalId = response.request && response.request[AXIOS_INTERNAL_ID_KEY] ? response.request[AXIOS_INTERNAL_ID_KEY] : 'Unknown';
-            Logger.log(`Ending registry request ${internalId}: ${inspect(response, { breakLength: Infinity, compact: true })}`, true);
+            Logger.log(`Ending AXIOS request ${internalId}: ${inspect(response, { breakLength: Infinity, compact: true })}`, true);
             return response;
         }, (error) => {
             Logger.error(`Registry response error: ${error}`, true);

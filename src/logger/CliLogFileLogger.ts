@@ -3,6 +3,7 @@ import { CliLogger } from "./CliLogger";
 import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
 import { v4 as uuidv4 } from 'uuid';
 import { join } from "path";
+import { getStackTrace } from "get-stack-trace";
 
 export class CliLogFileLogger extends CliLogger {
 
@@ -21,8 +22,28 @@ export class CliLogFileLogger extends CliLogger {
         writeFileSync(this.getFilePath(), `*** STARTING LOG SESSION ID ${this._sessionId}, ${new Date().toISOString()} ***`);
     }
 
+    public getSessionId(): string {
+        return this._sessionId;
+    }
+
+    private _getStackTrace(): string {
+        var sStackTrace: string;
+        try{
+            const aStackTrace = getStackTrace();
+            const oStackTrace = aStackTrace[5];
+
+            //extract trm-module
+            const moduleName = /(trm-[^\\\/]*)(?:\\{1,2}|\/{1,2})dist/gmi.exec(oStackTrace.fileName)[1];
+            sStackTrace = `[${moduleName}] ${oStackTrace.functionName} ${oStackTrace.lineNumber},${oStackTrace.columnNumber}`;
+        }catch(e){
+            sStackTrace = ``;
+        }
+        return sStackTrace;
+    }
+
     private _getDebugString(text: string, type: string) {
-        return `${type} [${new Date().toISOString()}] ${text}`;
+        const sStackTrace = this._getStackTrace();
+        return `${type} ${new Date().toISOString()} ${sStackTrace}   ${text}`;
     }
 
     private _append(text: string, type: string) {
