@@ -29,7 +29,7 @@ export async function installDependency(data: {
     if(rangeVersions.length === 0){
         throw new Error(`Package "${packageName}", release not found in range ${versionRange}`);
     }
-    const installedPackages = data.installedPackages || await SystemConnector.getInstalledPackages(true, true);
+    const installedPackages = data.installedPackages || await SystemConnector.getInstalledPackages(true);
 
     var aPackages: TrmPackage[] = [];
     rangeVersions.forEach(o => {

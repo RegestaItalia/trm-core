@@ -39,9 +39,9 @@ export namespace SystemConnector {
         return systemConnector.getLogonUser();
     }
     
-    export async function connect(skipLog: boolean): Promise<void> {
+    export async function connect(): Promise<void> {
         await checkSystemConnector();
-        return systemConnector.connect(skipLog);
+        return systemConnector.connect();
     }
     
     export async function checkConnection(): Promise<boolean> {
@@ -59,9 +59,9 @@ export namespace SystemConnector {
         return systemConnector.getPackageWorkbenchTransport(oPackage);
     }
     
-    export async function getInstalledPackages(skipLog: boolean, includeSources: boolean): Promise<TrmPackage[]> {
+    export async function getInstalledPackages(includeSources: boolean): Promise<TrmPackage[]> {
         await checkSystemConnector();
-        return systemConnector.getInstalledPackages(skipLog, includeSources);
+        return systemConnector.getInstalledPackages(includeSources);
     }
     
     export async function generateTrmServerPackage(): Promise<TrmPackage> {

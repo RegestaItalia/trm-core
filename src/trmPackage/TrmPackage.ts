@@ -66,7 +66,7 @@ export class TrmPackage {
     public async publish(data: {
         artifact: TrmArtifact
         readme?: string
-    }, skipLog: boolean = false): Promise<TrmPackage> {
+    }): Promise<TrmPackage> {
         const artifact = data.artifact;
         const trmManifest = artifact.getManifest().get();
         const packageName = trmManifest.name;
@@ -75,9 +75,9 @@ export class TrmPackage {
         }
         const packageVersion = trmManifest.version;
         const readme = data.readme || '';
-        Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, skipLog);
+        Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
         await this.registry.publishArtifact(packageName, packageVersion, artifact, readme);
-        Logger.success(`"${packageName}" ${packageVersion} published.`, skipLog);
+        Logger.success(`"${packageName}" ${packageVersion} published.`, false);
 
         //set
         this.manifest = new Manifest(trmManifest);

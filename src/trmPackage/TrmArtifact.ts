@@ -76,7 +76,7 @@ export class TrmArtifact {
         return aResult;
     }
 
-    public static async create(transports: Transport[], manifest: Manifest, skipLog: boolean = false, distFolder: string = DIST_FOLDER): Promise<TrmArtifact> {
+    public static async create(transports: Transport[], manifest: Manifest, distFolder: string = DIST_FOLDER): Promise<TrmArtifact> {
         const artifact = new AdmZip.default();
         artifact.addZipComment(`TRM Package`);
         var binaries: {
@@ -91,7 +91,7 @@ export class TrmArtifact {
             comment?: string,
         }[] = [];
         for(const transport of transports){
-            const trBinary = await transport.download(skipLog);
+            const trBinary = await transport.download();
             binaries.push({
                 trkorr: transport.trkorr,
                 type: transport.trmIdentifier,

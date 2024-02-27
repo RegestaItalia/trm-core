@@ -483,18 +483,18 @@ export async function publish(data: {
         trmIdentifier: TrmTransportIdentifier.DEVC,
         target: trTarget,
         text: `@X1@TRM: ${manifest.name} v${manifest.version} (D)`
-    }, true);
+    });
     const tadirToc: Transport = await Transport.createToc({
         trmIdentifier: TrmTransportIdentifier.TADIR,
         target: trTarget,
         text: `@X1@TRM: ${manifest.name} v${manifest.version}`
-    }, true);
+    });
     var langTr: Transport;
     if(!skipLang){
         langTr = await Transport.createLang({
             target: trTarget,
             text: `@X1@TRM: ${manifest.name} v${manifest.version} (L)`
-        }, true);
+        });
         var iLanguageObjects: number = 0;
         try{
             await langTr.addTranslations(devcOnly.map(o => o.objName));
@@ -536,16 +536,16 @@ export async function publish(data: {
         if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
             Logger.logger.forceStop();
         }
-        await tadirToc.release(false, false, tmpFolder, timeout);
+        await tadirToc.release(false, tmpFolder, timeout);
         Logger.loading(`Finalizing release...`);
-        await devcToc.release(false, true, tmpFolder, timeout);
+        await devcToc.release(false, tmpFolder, timeout);
         if(langTr){
             aTransports.push(langTr);
-            await langTr.release(false, true, tmpFolder, timeout);
+            await langTr.release(false, tmpFolder, timeout);
         }
 
         Logger.loading(`Creating TRM Artifact...`);
-        const trmArtifact = await TrmArtifact.create(aTransports, oTrmPackage.manifest, true);
+        const trmArtifact = await TrmArtifact.create(aTransports, oTrmPackage.manifest);
 
         Logger.loading(`Publishing...`);
         await oTrmPackage.publish({

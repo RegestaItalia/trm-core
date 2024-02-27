@@ -109,7 +109,7 @@ export class Transport {
         return (hasName && hasVersion) ? true : false;
     }
 
-    public async download(skipLog: boolean = false): Promise<{
+    public async download(): Promise<{
         binaries: BinaryTransport,
         filenames: FileNames
     }> {
@@ -118,17 +118,17 @@ export class Transport {
             data: null
         };
         const filePaths = await Transport._getFilePaths(this._fileNames);
-        Logger.loading(`Reading ${this.trkorr} binary files...`, skipLog);
+        Logger.loading(`Reading ${this.trkorr} binary files...`, true);
         binaryTransport.header = await SystemConnector.getBinaryFile(filePaths.header);
         binaryTransport.data = await SystemConnector.getBinaryFile(filePaths.data);
-        Logger.success(`${this.trkorr} file read success.`, skipLog);
+        Logger.success(`${this.trkorr} file read success.`, true);
         return {
             binaries: binaryTransport,
             filenames: this._fileNames
         };
     }
 
-    public async setDocumentation(sDocumentation: string, skipLog: boolean = false): Promise<Transport> {
+    public async setDocumentation(sDocumentation: string): Promise<Transport> {
         this._docs = undefined; //clear
         var doc: TLINE[] = [];
         //split at /n to preserve indentation, then split every line that exceedes 67 chars (TDLINE limit)
@@ -149,15 +149,15 @@ export class Transport {
                 });
             }
         });
-        Logger.loading(`Setting ${this.trkorr} documentation...`, skipLog);
+        Logger.loading(`Setting ${this.trkorr} documentation...`, true);
         await SystemConnector.setTransportDoc(this.trkorr, doc);
-        Logger.success(`${this.trkorr} documentation updated.`, skipLog);
+        Logger.success(`${this.trkorr} documentation updated.`, true);
         return this;
     }
 
-    public async getDocumentation(skipLog: boolean = false): Promise<Documentation[]> {
+    public async getDocumentation(): Promise<Documentation[]> {
         if (!this._docs || this._docs.length === 0) {
-            Logger.loading(`Reading ${this.trkorr} documentation...`, skipLog);
+            Logger.loading(`Reading ${this.trkorr} documentation...`, true);
             const doktl: {
                 langu: string,
                 dokversion: string,
@@ -170,7 +170,7 @@ export class Transport {
             this._docs = Transport.doktlToDoc(doktl);
             //sort by version descending
             this._docs = this._docs.sort((a, b) => b.version - a.version);
-            Logger.success(`Found ${this.trkorr} ${this._docs.length} documentation.`, skipLog);
+            Logger.success(`Found ${this.trkorr} ${this._docs.length} documentation.`, true);
         }
         return this._docs;
     }
@@ -245,13 +245,13 @@ export class Transport {
         await SystemConnector.addTranslationToTr(this.trkorr, aDevclassLangFilter);
     }
 
-    public async getLinkedPackage(skipLog: boolean = true): Promise<TrmPackage> {
+    public async getLinkedPackage(): Promise<TrmPackage> {
         const trmRelevant = await this.isTrmRelevant();
         if (!trmRelevant) {
             return;
         }
         var oTrmPackage: TrmPackage;
-        const aDocumentation = await this.getDocumentation(skipLog);
+        const aDocumentation = await this.getDocumentation();
         const logonLanguage = SystemConnector.getLogonLanguage(true);
         const oDocumentationLang = aDocumentation.find(o => o.langu === logonLanguage);
         var docVal: string;
@@ -275,20 +275,20 @@ export class Transport {
         return null;
     }
 
-    public async release(lock: boolean, skipLog: boolean = false, tmpFolder?: string, secondsTimeout?: number): Promise<Transport> {
+    public async release(lock: boolean, tmpFolder?: string, secondsTimeout?: number): Promise<Transport> {
         //TODO check skipLog
         //TODO fix this -> publish step creates a transport with dummy logger
         Logger.loading('Releasing...');
         await SystemConnector.releaseTrkorr(this.trkorr, lock, secondsTimeout);
         await SystemConnector.dequeueTransport(this.trkorr);
-        if (!skipLog && tmpFolder) {
+        /*if (!skipLog && tmpFolder) {
             if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
                 Logger.logger.forceStop();
             }
             await this.readReleaseLog(tmpFolder, secondsTimeout);
             Logger.loading(`Finalizing release...`);
         }
-        await this._isInTmsQueue(skipLog, false, secondsTimeout);
+        await this._isInTmsQueue(skipLog, false, secondsTimeout);*/
         return this;
     }
 
@@ -441,7 +441,7 @@ export class Transport {
         //TODO
     }
 
-    private async _isInTmsQueue(skipLog: boolean = false, checkImpSing: boolean = false, secondsTimeout): Promise<boolean> {
+    private async _isInTmsQueue(checkImpSing: boolean = false, secondsTimeout): Promise<boolean> {
         const timeoutDate = new Date((new Date()).getTime() + (secondsTimeout * 1000));
 
         var inQueue = false;
@@ -449,7 +449,7 @@ export class Transport {
             var inQueueAttempts = 0;
             while (!inQueue && (new Date()).getTime() < timeoutDate.getTime()) {
                 inQueueAttempts++;
-                Logger.loading(`Reading transport queue, attempt ${inQueueAttempts}...`, skipLog);
+                Logger.loading(`Reading transport queue, attempt ${inQueueAttempts}...`, false);
                 var tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
@@ -468,7 +468,7 @@ export class Transport {
             if (!inQueue) {
                 throw new Error(`Transport request not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
             } else {
-                Logger.success(`Transport was released.`, skipLog);
+                Logger.success(`Transport was released.`, false);
             }
         }
         return inQueue;
@@ -522,30 +522,30 @@ export class Transport {
         text: AS4TEXT,
         target: TR_TARGET,
         trmIdentifier?: TrmTransportIdentifier
-    }, skipLog: boolean = false): Promise<Transport> {
-        Logger.loading(`Creating transport request (TOC)...`, skipLog);
+    }): Promise<Transport> {
+        Logger.loading(`Creating transport request (TOC)...`, true);
         const trkorr = await SystemConnector.createTocTransport(data.text, data.target);
-        Logger.success(`Transport request ${trkorr} generated successfully.`, skipLog);
+        Logger.success(`Transport request ${trkorr} generated successfully.`, true);
         return new Transport(trkorr, data.target).setTrmIdentifier(data.trmIdentifier);
     }
 
     public static async createLang(data: {
         text: AS4TEXT,
         target: TR_TARGET
-    }, skipLog: boolean = false): Promise<Transport> {
-        Logger.loading(`Creating transport request (LANG)...`, skipLog);
+    }): Promise<Transport> {
+        Logger.loading(`Creating transport request (LANG)...`, true);
         const trkorr = await SystemConnector.createWbTransport(data.text, data.target);
-        Logger.success(`Transport request ${trkorr} generated successfully.`, skipLog);
+        Logger.success(`Transport request ${trkorr} generated successfully.`, true);
         return new Transport(trkorr, data.target).setTrmIdentifier(TrmTransportIdentifier.LANG);
     }
 
     public static async createWb(data: {
         text: AS4TEXT,
         target?: TR_TARGET
-    }, skipLog: boolean = false): Promise<Transport> {
-        Logger.loading(`Creating transport request (WB)...`, skipLog);
+    }): Promise<Transport> {
+        Logger.loading(`Creating transport request (WB)...`, true);
         const trkorr = await SystemConnector.createWbTransport(data.text, data.target);
-        Logger.success(`Transport request ${trkorr} generated successfully.`, skipLog);
+        Logger.success(`Transport request ${trkorr} generated successfully.`, true);
         return new Transport(trkorr, null);
     }
 
@@ -570,20 +570,20 @@ export class Transport {
         binary: BinaryTransport,
         tmpFolder?: string
         trTarget?: TR_TARGET
-    }, skipLog: boolean = false): Promise<Transport> {
-        Logger.loading(`Reading binary content...`, skipLog);
+    }): Promise<Transport> {
+        Logger.loading(`Reading binary content...`, true);
         const fileContent = await Transport.getContent(data.binary.data, data.tmpFolder);
         const trkorr = fileContent.trkorr;
-        Logger.success(`Transport ${trkorr} read success.`, skipLog);
+        Logger.success(`Transport ${trkorr} read success.`, true);
         const fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
         const filePaths = await Transport._getFilePaths(fileNames);
-        Logger.loading(`Uploading ${trkorr} header to "${filePaths.header}"...`, skipLog);
+        Logger.loading(`Uploading ${trkorr} header to "${filePaths.header}"...`, true);
         await SystemConnector.writeBinaryFile(filePaths.header, data.binary.header);
-        Logger.success(`Header uploaded successfully.`, skipLog);
-        Logger.loading(`Uploading ${trkorr} data to "${filePaths.data}"...`, skipLog);
+        Logger.success(`Header uploaded successfully.`, true);
+        Logger.loading(`Uploading ${trkorr} data to "${filePaths.data}"...`, true);
         await SystemConnector.writeBinaryFile(filePaths.data, data.binary.data);
-        Logger.success(`Data uploaded successfully.`, skipLog);
-        Logger.success(`Transport request ${trkorr} uploaded successfully.`, skipLog);
+        Logger.success(`Data uploaded successfully.`, true);
+        Logger.success(`Transport request ${trkorr} uploaded successfully.`, true);
         return new Transport(trkorr, data.trTarget);
     }
 
@@ -618,13 +618,13 @@ export class Transport {
         return latest;
     }
 
-    public async import(skipLog: boolean = false, timeout: number = 180): Promise<void> {
+    public async import(timeout: number = 180): Promise<void> {
         if (!this._trTarget) {
            throw new Error('Missing transport target.');
         }
         await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
         await SystemConnector.importTransport(this.trkorr, this._trTarget);
-        await this._isInTmsQueue(skipLog, true, timeout);
+        await this._isInTmsQueue(true, timeout);
     }
 
     public async rename(as4text: string): Promise<void> {

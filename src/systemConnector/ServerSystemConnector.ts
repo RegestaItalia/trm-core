@@ -26,6 +26,7 @@ export class ServerSystemConnector implements ISystemConnector {
     private _client: RFCClient;
 
     constructor(private _connection: Connection, private _login: Login) {
+        this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
         this._user = this._login.user;
         if (!this._connection.saprouter) {
@@ -50,13 +51,13 @@ export class ServerSystemConnector implements ISystemConnector {
         return this._user;
     }
 
-    public async connect(skipLog: boolean = false): Promise<void> {
+    public async connect(): Promise<void> {
         Logger.loading(`Connecting to ${this.getDest()}...`);
         try {
             await this._client.open();
-            Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, skipLog);
+            Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, false);
         } catch (e) {
-            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, skipLog);
+            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, false);
             throw e;
         }
     }
@@ -121,7 +122,7 @@ export class ServerSystemConnector implements ISystemConnector {
         return null;
     }
 
-    public async getInstalledPackages(skipLog: boolean = false, includeSoruces: boolean = true): Promise<TrmPackage[]> {
+    public async getInstalledPackages(includeSoruces: boolean = true): Promise<TrmPackage[]> {
         var trmPackages: TrmPackage[] = [];
         var packageTransports: {
             package: TrmPackage,

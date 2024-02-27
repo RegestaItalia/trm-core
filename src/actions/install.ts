@@ -77,7 +77,7 @@ export async function install(data: {
     });
 
     Logger.loading(`Reading system data...`);
-    const installedPackages = await SystemConnector.getInstalledPackages(true, true);
+    const installedPackages = await SystemConnector.getInstalledPackages(true);
     const oTrmPackage = new TrmPackage(packageName, registry, null);
     const oManifest = await oTrmPackage.fetchRemoteManifest(version);
     //Before installing, check if the same package, same version and same registry is already installed
@@ -396,8 +396,8 @@ export async function install(data: {
             const oTransport = await Transport.upload({
                 binary: tadirTr.binaries,
                 trTarget: SystemConnector.getDest()
-            }, true);
-            await oTransport.import(false, importTimeout);
+            });
+            await oTransport.import(importTimeout);
         }
         Logger.success(`Transports imported.`);
 
@@ -421,8 +421,8 @@ export async function install(data: {
                 const oTransport = await Transport.upload({
                     binary: langTransport.binaries,
                     trTarget: SystemConnector.getDest()
-                }, true);
-                await oTransport.import(false, importTimeout);
+                });
+                await oTransport.import(importTimeout);
             }
             Logger.success(`Transports imported.`);
             Logger.success(`LANG import finished.`);
@@ -477,7 +477,7 @@ export async function install(data: {
             wbTransport = await Transport.createWb({
                 text: `TRM generated transport`, //temporary name
                 target: targetSystem
-            }, true);
+            });
         }
         await wbTransport.addComment(`name=${manifest.name}`);
         await wbTransport.addComment(`version=${manifest.version}`);

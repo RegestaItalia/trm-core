@@ -30,7 +30,7 @@ export async function checkDependencies(data: {
         });
         //logger.table(tableHead, tableData);
     }
-    const aSystemPackages = data.installedPackages || await SystemConnector.getInstalledPackages(true, true);
+    const aSystemPackages = data.installedPackages || await SystemConnector.getInstalledPackages(true);
     var missingDependencies: TrmManifestDependency[] = [];
     var installedDependencies: TrmManifestDependency[] = [];
     for(const d of dependencies){
