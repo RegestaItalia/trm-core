@@ -14,42 +14,42 @@ export namespace Logger {
     
     export function loading(text: string, debug?: boolean): void {
         checkLogger();
-        logger.loading(text, debug);
+        return logger.loading(text, debug);
     }
 
-    export function success(text: string, debug?: boolean) {
+    export function success(text: string, debug?: boolean): void {
         checkLogger();
-        logger.success(text, debug);
+        return logger.success(text, debug);
     }
 
-    export function error(text: string, debug?: boolean) {
+    export function error(text: string, debug?: boolean): void {
         checkLogger();
-        logger.error(text, debug);
+        return logger.error(text, debug);
     }
 
-    export function warning(text: string, debug?: boolean) {
+    export function warning(text: string, debug?: boolean): void {
         checkLogger();
-        logger.warning(text, debug);
+        return logger.warning(text, debug);
     }
 
-    export function info(text: string, debug?: boolean) {
+    export function info(text: string, debug?: boolean): void {
         checkLogger();
-        logger.info(text, debug);
+        return logger.info(text, debug);
     }
     
-    export function log(text: string, debug?: boolean) {
+    export function log(text: string, debug?: boolean): void {
         checkLogger();
-        logger.log(text, debug);
+        return logger.log(text, debug);
     }
 
-    export function table(header: any, data: any, debug?: boolean) {
+    export function table(header: any, data: any, debug?: boolean): void {
         checkLogger();
-        logger.table(header, data, debug);
+        return logger.table(header, data, debug);
     }
 
-    export function registryResponse(response: ResponseMessage, debug?: boolean) {
+    export function registryResponse(response: ResponseMessage, debug?: boolean): void {
         checkLogger();
-        logger.registryResponse(response, debug);
+        return logger.registryResponse(response, debug);
     }
 
 }
