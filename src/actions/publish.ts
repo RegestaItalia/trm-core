@@ -536,13 +536,13 @@ export async function publish(data: {
         if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
             Logger.logger.forceStop();
         }
-        await tadirToc.release(false, tmpFolder, timeout);
-        Logger.loading(`Finalizing release...`);
-        await devcToc.release(false, tmpFolder, timeout);
+        await tadirToc.release(false, false, tmpFolder, timeout);
         if(langTr){
             aTransports.push(langTr);
-            await langTr.release(false, tmpFolder, timeout);
+            await langTr.release(false, false, tmpFolder, timeout);
         }
+        Logger.loading(`Finalizing release...`);
+        await devcToc.release(false, true, tmpFolder, timeout);
 
         Logger.loading(`Creating TRM Artifact...`);
         const trmArtifact = await TrmArtifact.create(aTransports, oTrmPackage.manifest);

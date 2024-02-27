@@ -275,20 +275,18 @@ export class Transport {
         return null;
     }
 
-    public async release(lock: boolean, tmpFolder?: string, secondsTimeout?: number): Promise<Transport> {
-        //TODO check skipLog
-        //TODO fix this -> publish step creates a transport with dummy logger
-        Logger.loading('Releasing...');
+    public async release(lock: boolean, skipLog: boolean, tmpFolder?: string, secondsTimeout?: number): Promise<Transport> {
+        Logger.loading('Releasing...', skipLog);
         await SystemConnector.releaseTrkorr(this.trkorr, lock, secondsTimeout);
         await SystemConnector.dequeueTransport(this.trkorr);
-        /*if (!skipLog && tmpFolder) {
+        if (tmpFolder) {
             if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
                 Logger.logger.forceStop();
             }
             await this.readReleaseLog(tmpFolder, secondsTimeout);
-            Logger.loading(`Finalizing release...`);
+            Logger.loading(`Finalizing release...`, skipLog);
         }
-        await this._isInTmsQueue(skipLog, false, secondsTimeout);*/
+        await this._isInTmsQueue(skipLog, false, secondsTimeout);
         return this;
     }
 
@@ -441,7 +439,7 @@ export class Transport {
         //TODO
     }
 
-    private async _isInTmsQueue(checkImpSing: boolean = false, secondsTimeout): Promise<boolean> {
+    private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false, secondsTimeout): Promise<boolean> {
         const timeoutDate = new Date((new Date()).getTime() + (secondsTimeout * 1000));
 
         var inQueue = false;
@@ -449,7 +447,7 @@ export class Transport {
             var inQueueAttempts = 0;
             while (!inQueue && (new Date()).getTime() < timeoutDate.getTime()) {
                 inQueueAttempts++;
-                Logger.loading(`Reading transport queue, attempt ${inQueueAttempts}...`, false);
+                Logger.loading(`Reading transport queue, attempt ${inQueueAttempts}...`, skipLog);
                 var tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
@@ -468,7 +466,7 @@ export class Transport {
             if (!inQueue) {
                 throw new Error(`Transport request not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
             } else {
-                Logger.success(`Transport was released.`, false);
+                Logger.success(`Transport was released.`, skipLog);
             }
         }
         return inQueue;
@@ -624,7 +622,7 @@ export class Transport {
         }
         await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
         await SystemConnector.importTransport(this.trkorr, this._trTarget);
-        await this._isInTmsQueue(true, timeout);
+        await this._isInTmsQueue(false, true, timeout);
     }
 
     public async rename(as4text: string): Promise<void> {
