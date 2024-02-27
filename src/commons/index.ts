@@ -1,5 +1,4 @@
 export * from "./normalize";
-export * from "./CoreEnv";
 export * from "./getFileSysSeparator";
 export * from "./fromAbapToDate";
 export * from "./PackageName";

@@ -4,7 +4,6 @@ import axios, { AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
 import { AuthOAuth2, AuthenticationType, OAuth2Data, Ping, Release, View, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
-import { Inquirer } from "../inquirer";
 import { Logger } from "../logger";
 import { randomUUID } from "crypto";
 import { Protocol } from "../protocol";
@@ -13,6 +12,7 @@ import { OAuth2Body } from "trm-registry-types";
 import { v4 as uuidv4 } from 'uuid';
 import { inspect } from "util";
 import _ from 'lodash';
+import { Inquirer } from "../inquirer/Inquirer";
 
 const AXIOS_INTERNAL_ID_KEY = 'INTERNAL_ID';
 
@@ -77,26 +77,26 @@ export class Registry {
         return this._registryType;
     }
 
-    public async authenticate(inquirer: Inquirer, defaultData: any = {}): Promise<Registry> {
+    public async authenticate(defaultData: any = {}): Promise<Registry> {
         Logger.log(`Registry authentication request`, true);
         const ping = await this.ping();
         Logger.log(`Registry authentication type is: ${ping.authenticationType}`, true);
         if (ping.authenticationType !== AuthenticationType.NO_AUTH) {
             if (ping.authenticationType === AuthenticationType.BASIC) {
-                await this._basicAuth(inquirer, defaultData);
+                await this._basicAuth(defaultData);
             }
             if (ping.authenticationType === AuthenticationType.OAUTH2) {
-                await this._oauth2(inquirer, defaultData);
+                await this._oauth2(defaultData);
             }
             if (ping.authenticationType === AuthenticationType.TOKEN) {
-                await this._tokenAuth(inquirer, defaultData);
+                await this._tokenAuth(defaultData);
             }
         }
         this._whoami = null;
         return this;
     }
 
-    private async _basicAuth(inquirer: Inquirer, defaultData: any = {}) {
+    private async _basicAuth(defaultData: any = {}) {
         var axiosHeaders: AxiosHeaders = new AxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
@@ -104,7 +104,7 @@ export class Registry {
         };
         var username = defaultData.username;
         var password = defaultData.password;
-        const inq1 = await inquirer.prompt([{
+        const inq1 = await Inquirer.prompt([{
             type: "input",
             name: "username",
             message: "Registry username",
@@ -133,7 +133,7 @@ export class Registry {
         };
     }
 
-    private async _tokenAuth(inquirer: Inquirer, defaultData: any = {}) {
+    private async _tokenAuth(defaultData: any = {}) {
         var axiosHeaders: AxiosHeaders = new AxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
@@ -144,7 +144,7 @@ export class Registry {
             Logger.info(`To authenticate, generate a new token.`);
             Logger.info(`Follow the instructions https://docs.trmregistry.com/#/registry/public/authentication.`);
         }
-        const inq1 = await inquirer.prompt([{
+        const inq1 = await Inquirer.prompt([{
             type: "input",
             name: "token",
             message: "Registry token",
@@ -161,7 +161,7 @@ export class Registry {
         };
     }
 
-    private async _oauth2(inquirer: Inquirer, defaultData: any = {}) {
+    private async _oauth2(defaultData: any = {}) {
         const ping = await this.ping();
         var runAuthFlow = false;
         const accessToken = defaultData.access_token;

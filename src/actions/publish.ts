@@ -1,5 +1,4 @@
 import * as semver from "semver";
-import { Inquirer } from "../inquirer";
 import { validateDevclass, validateTransportTarget } from "../inquirer/validators";
 import { Logger } from "../logger";
 import { Manifest, TrmManifest } from "../manifest";
@@ -14,6 +13,7 @@ import { createHash } from "crypto";
 import { CliLogger } from "../logger/CliLogger";
 import { CliLogFileLogger } from "../logger/CliLogFileLogger";
 import { DEVCLASS, TR_TARGET, TADIR } from "../client";
+import { Inquirer } from "../inquirer/Inquirer";
 
 async function getTrmPackage(data: {
     manifest: TrmManifest,
@@ -21,7 +21,7 @@ async function getTrmPackage(data: {
     overwriteManifestValues: boolean,
     forceManifestInput: boolean,
     ci: boolean
-}, inquirer: Inquirer) {
+}) {
     var manifest = data.manifest;
     const ci = data.ci || false;
     const registry = data.registry;
@@ -101,7 +101,7 @@ async function getTrmPackage(data: {
         if (ci && typeof (manifest.backwardsCompatible) !== 'boolean') {
             throw new Error('Missing parameter "backwardsCompatible"');
         }
-        const inq1 = await inquirer.prompt({
+        const inq1 = await Inquirer.prompt({
             type: "confirm",
             message: `Is this release backwards compatible with the current latest release ${latestPublishedVersion}?`,
             name: "backwardsCompatible",
@@ -115,7 +115,7 @@ async function getTrmPackage(data: {
     if (ci && typeof (manifest.private) !== 'boolean') {
         throw new Error('Missing parameter "private"');
     }
-    const inq2 = await inquirer.prompt([{
+    const inq2 = await Inquirer.prompt([{
         type: "list",
         message: "Package type",
         name: "packageType",
@@ -130,7 +130,7 @@ async function getTrmPackage(data: {
         when: !alreadyPublished && !ci
     }]);
     if (!alreadyPublished || forceManifestInput) {
-        const inq3 = await inquirer.prompt([{
+        const inq3 = await Inquirer.prompt([{
             type: "input",
             message: "Package short description",
             name: "description",
@@ -206,7 +206,7 @@ export async function publish(data: {
     readme?: string,
     releaseTimeout?: number,
     tmpFolder?: string
-}, inquirer: Inquirer, registry: Registry) {
+}, registry: Registry) {
     var manifest = data.package;
     var devclass = data.devclass;
     var trTarget = data.target;
@@ -244,7 +244,7 @@ export async function publish(data: {
     if (!devclass) {
         //devclass default value could be provided (if the package already exists in the system)
         //TODO find
-        const inq1 = await inquirer.prompt({
+        const inq1 = await Inquirer.prompt({
             type: "input",
             message: "Package devclass",
             name: "devclass",
@@ -263,7 +263,7 @@ export async function publish(data: {
 
     const systemTmscsys = await SystemConnector.getTransportTargets();
     if (!trTarget) {
-        const inq2 = await inquirer.prompt({
+        const inq2 = await Inquirer.prompt({
             type: "list",
             message: "Transport request target",
             name: "trTarget",
@@ -377,7 +377,7 @@ export async function publish(data: {
         } else {
             Logger.info(`No dependencies with TRM packages found.`);
         }
-        const inq3 = await inquirer.prompt([{
+        const inq3 = await Inquirer.prompt([{
             message: `Manually edit required SAP entries? (MIGHT NEED ENTER TWICE)`,
             type: 'confirm',
             name: 'editSapEntries',
@@ -401,7 +401,7 @@ export async function publish(data: {
                 }
             }
         }]);
-        const inq4 = await inquirer.prompt([{
+        const inq4 = await Inquirer.prompt([{
             message: `Manually edit dependencies? ${skipEditSapEntries ? '(MIGHT NEED ENTER TWICE)' : ''}`,
             type: 'confirm',
             name: 'editDependencies',
@@ -444,12 +444,12 @@ export async function publish(data: {
         overwriteManifestValues: data.overwriteManifestValues,
         forceManifestInput: data.forceManifestInput,
         ci
-    }, inquirer);
+    });
     const sManifestXml = oTrmPackage.manifest.getAbapXml();
 
     const skipReadme = data.skipReadme || false;
     var readme = data.readme;
-    const inq4 = await inquirer.prompt([{
+    const inq4 = await Inquirer.prompt([{
         message: 'Write readme?',
         type: 'confirm',
         name: 'editReadme',

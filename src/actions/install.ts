@@ -1,4 +1,3 @@
-import { Inquirer, Question } from "../inquirer";
 import { Logger } from "../logger";
 import { Registry, RegistryType } from "../registry";
 import * as semver from "semver";
@@ -13,6 +12,8 @@ import { checkDependencies } from "./checkDependencies";
 import { createHash } from "crypto";
 import { SystemConnector } from "../systemConnector";
 import { TRKORR, TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../client";
+import { Inquirer } from "../inquirer/Inquirer";
+import { Question } from "../inquirer";
 
 function _validateDevclass(input: string, packagesNamespace: string): string | true {
     const sInput: string = input.trim().toUpperCase();
@@ -47,7 +48,7 @@ export async function install(data: {
     integrity?: string,
     safe?: boolean,
     ci?: boolean
-}, inquirer: Inquirer, registry: Registry) {
+}, registry: Registry) {
     const ignoreSapEntries = data.ignoreSapEntries ? true : false;
     const skipDependencies = data.skipDependencies ? true : false;
     const skipLang = data.skipLang ? true : false;
@@ -148,7 +149,7 @@ export async function install(data: {
             }
             var continueInstall = true;
             if (!ci) {
-                const inq1: any = await inquirer.prompt({
+                const inq1: any = await Inquirer.prompt({
                     type: 'confirm',
                     name: 'continueInstall',
                     default: true,
@@ -164,7 +165,7 @@ export async function install(data: {
                     integrity: safe ? dependency.integrity : null,
                     originalInstallOptions: data,
                     installedPackages
-                }, inquirer, oDependencyRegistry);
+                }, oDependencyRegistry);
             }
         }
     }
@@ -298,7 +299,7 @@ export async function install(data: {
             }
         });
         if (inq1Prompts.length > 0) {
-            const inq1 = await inquirer.prompt(inq1Prompts);
+            const inq1 = await Inquirer.prompt(inq1Prompts);
             Object.keys(inq1).forEach(k => {
                 //clear before pushing
                 packageReplacements = packageReplacements.filter(o => o.originalDevclass !== k);

@@ -1,4 +1,3 @@
-import { Inquirer } from "../inquirer";
 import { Logger } from "../logger";
 import { Registry, RegistryType } from "../registry";
 import * as semver from "semver";
@@ -15,7 +14,7 @@ export async function installDependency(data: {
     integrity: string,
     installedPackages?: TrmPackage[],
     originalInstallOptions?: any
-}, inquirer: Inquirer, registry: Registry) {
+}, registry: Registry) {
     //this command is similar to install, however it's dedicated to dependencies
     //it shouldn't be used outside the install package flow
     const packageName = data.packageName;
@@ -87,5 +86,5 @@ export async function installDependency(data: {
             integrity,
             safe: integrity ? true : false
         }
-    }, inquirer, registry);
+    }, registry);
 }
