@@ -1,18 +1,32 @@
 import * as noderfc from "node-rfc";
-import * as components from "../components";
-import * as struct from "../struct";
-import { normalize } from "../../commons";
+import * as components from "./components";
+import * as struct from "./struct";
+import { IClient } from "./IClient";
+import { normalize } from "../commons";
+import { Logger } from "../logger";
 
-export class RFCClient {
+export class RFCClient implements IClient {
     private _rfcClient: noderfc.Client;
 
     constructor(arg1: any, traceDir?: string) {
         process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
+        Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
         this._rfcClient = new noderfc.Client(arg1);
     }
 
     public async open() {
+        Logger.loading(`Opening RFC connection`, true);
         await this._rfcClient.open();
+        Logger.success(`RFC open`, true);
+    }
+
+    public async checkConnection(): Promise<boolean> {
+        if(this._rfcClient.alive){
+            Logger.success(`RFC open`, true);
+        }else{
+            Logger.warning(`RFC closed`, true);
+        }
+        return this._rfcClient.alive;
     }
 
     private async _call(fm: any, arg?: any, timeout?: number): Promise<any> {
@@ -37,8 +51,10 @@ export class RFCClient {
                 timeout
             };
         }
+        Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(argNormalized)}, opts ${JSON.stringify(callOptions)}`, true);
         const response = await this._rfcClient.call(fm, argNormalized, callOptions);
         const responseNormalized = normalize(response);
+        Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
         return responseNormalized;
     }
 
@@ -233,7 +249,7 @@ export class RFCClient {
         });
     }
 
-    public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean = true) {
+    public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean = true): Promise<void> {
         await this._call("ZTRM_FORWARD_TR", {
             iv_trkorr: trkorr.trim().toUpperCase(),
             iv_target: target.trim().toUpperCase(),
@@ -242,7 +258,7 @@ export class RFCClient {
         });
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM) {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await this._call("ZTRM_IMPORT_TR", {
             iv_system: system.trim().toUpperCase(),
             iv_trkorr: trkorr.trim().toUpperCase()

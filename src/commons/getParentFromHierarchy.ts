@@ -1,4 +1,4 @@
-import { DEVCLASS } from "../rfc";
+import { DEVCLASS } from "../client";
 import { PackageHierarchy } from "./PackageHierarchy";
 
 export function getParentFromHierarchy(hierarchy: PackageHierarchy, targetDevclass: DEVCLASS) {

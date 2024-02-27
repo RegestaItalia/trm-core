@@ -4,8 +4,6 @@ import { validateDevclass, validateTransportTarget } from "../inquirer/validator
 import { Logger } from "../logger";
 import { Manifest, TrmManifest } from "../manifest";
 import { Registry, RegistryType } from "../registry";
-import { DEVCLASS, TR_TARGET } from "../rfc/components";
-import { TADIR } from "../rfc/struct";
 import { SystemConnector } from "../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../transport";
 import { DEFAULT_VERSION, TrmPackage } from "../trmPackage";
@@ -15,6 +13,7 @@ import { parsePackageName } from "../commons";
 import { createHash } from "crypto";
 import { CliLogger } from "../logger/CliLogger";
 import { CliLogFileLogger } from "../logger/CliLogFileLogger";
+import { DEVCLASS, TR_TARGET, TADIR } from "../client";
 
 async function getTrmPackage(data: {
     manifest: TrmManifest,
@@ -207,7 +206,7 @@ export async function publish(data: {
     readme?: string,
     releaseTimeout?: number,
     tmpFolder?: string
-}, inquirer: Inquirer, system: SystemConnector, registry: Registry) {
+}, inquirer: Inquirer, registry: Registry) {
     var manifest = data.package;
     var devclass = data.devclass;
     var trTarget = data.target;
@@ -250,19 +249,19 @@ export async function publish(data: {
             message: "Package devclass",
             name: "devclass",
             validate: async (input: string) => {
-                return await validateDevclass(input, system);
+                return await validateDevclass(input);
             }
         });
         devclass = inq1.devclass;
     }
     devclass = devclass.trim().toUpperCase();
 
-    const devclassValid = await validateDevclass(devclass, system);
+    const devclassValid = await validateDevclass(devclass);
     if (devclassValid && devclassValid !== true) {
         throw new Error(devclassValid);
     }
 
-    const systemTmscsys = await system.getTransportTargets();
+    const systemTmscsys = await SystemConnector.getTransportTargets();
     if (!trTarget) {
         const inq2 = await inquirer.prompt({
             type: "list",
@@ -289,7 +288,7 @@ export async function publish(data: {
 
     //get all tadir objects
     Logger.loading(`Reading package objects...`);
-    const allTadir: TADIR[] = await system.getDevclassObjects(devclass, true);
+    const allTadir: TADIR[] = await SystemConnector.getDevclassObjects(devclass, true);
 
     //find dependencies
     if (!manifest.dependencies) {
@@ -304,7 +303,7 @@ export async function publish(data: {
         tadirDependencies = await findTadirDependencies({
             devclass,
             tadir: allTadir
-        }, system);
+        });
     } else {
         Logger.info(`Skipping dependencies.`);
         Logger.warning(`Skipping dependencies can cause your package to fail activation. Make sure to manually edit the dependencies if necessary.`);
@@ -484,18 +483,18 @@ export async function publish(data: {
         trmIdentifier: TrmTransportIdentifier.DEVC,
         target: trTarget,
         text: `@X1@TRM: ${manifest.name} v${manifest.version} (D)`
-    }, system, true);
+    }, true);
     const tadirToc: Transport = await Transport.createToc({
         trmIdentifier: TrmTransportIdentifier.TADIR,
         target: trTarget,
         text: `@X1@TRM: ${manifest.name} v${manifest.version}`
-    }, system, true);
+    }, true);
     var langTr: Transport;
     if(!skipLang){
         langTr = await Transport.createLang({
             target: trTarget,
             text: `@X1@TRM: ${manifest.name} v${manifest.version} (L)`
-        }, system, true);
+        }, true);
         var iLanguageObjects: number = 0;
         try{
             await langTr.addTranslations(devcOnly.map(o => o.objName));
@@ -554,14 +553,14 @@ export async function publish(data: {
             readme
         });
         //add to publish trkorr
-        await system.addToSrcTrkorr(tadirToc.trkorr);
+        await SystemConnector.addSrcTrkorr(tadirToc.trkorr);
         //set integrity
         if (process.env.TRM_ENV === 'DEV') {
             rollBackTransports = true;
         } else {
             //generate integrity
             const integrity = createHash("sha512").update(trmArtifact.binary).digest("hex");
-            await system.rfcClient.setPackageIntegrity({
+            await SystemConnector.setPackageIntegrity({
                 package_name: oTrmPackage.manifest.get().name,
                 package_registry: oTrmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : oTrmPackage.registry.endpoint,
                 integrity
@@ -574,7 +573,7 @@ export async function publish(data: {
         throw e;
     } finally {
         if (rollBackTransports) {
-            await system.addToIgnoredTrkorr(tadirToc.trkorr);
+            await SystemConnector.addSkipTrkorr(tadirToc.trkorr);
             Logger.error(`Transport ${tadirToc.trkorr} rollback.`);
             if ((await devcToc.canBeDeleted())) {
                 await devcToc.delete();

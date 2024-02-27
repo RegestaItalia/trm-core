@@ -2,13 +2,13 @@ import { satisfies } from "semver";
 import { LogTableStruct } from "../commons";
 import { TrmManifestDependency } from "../manifest";
 import { Registry } from "../registry";
-import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
+import { SystemConnector } from "../systemConnector";
 
 export async function checkDependencies(data: {
     dependencies: TrmManifestDependency[],
     installedPackages?: TrmPackage[]
-}, system: SystemConnector): Promise<{
+}): Promise<{
     requiredDependenciesTab?: LogTableStruct,
     missingDependencies: TrmManifestDependency[],
     installedDependencies: TrmManifestDependency[]
@@ -30,7 +30,7 @@ export async function checkDependencies(data: {
         });
         //logger.table(tableHead, tableData);
     }
-    const aSystemPackages = data.installedPackages || await system.getInstalledPackages(true);
+    const aSystemPackages = data.installedPackages || await SystemConnector.getInstalledPackages(true, true);
     var missingDependencies: TrmManifestDependency[] = [];
     var installedDependencies: TrmManifestDependency[] = [];
     for(const d of dependencies){
@@ -41,7 +41,7 @@ export async function checkDependencies(data: {
         if(!installedPackage || !installedPackage.manifest){
             missingDependencies.push(d);
         }else{
-            const installedPackageIntegrity = await system.getPackageIntegrity(installedPackage);
+            const installedPackageIntegrity = await SystemConnector.getPackageIntegrity(installedPackage);
             const installedVersion = installedPackage.manifest.get().version;
             if(!satisfies(installedVersion, dependencyVersionRange) || d.integrity !== installedPackageIntegrity){
                 missingDependencies.push(d);

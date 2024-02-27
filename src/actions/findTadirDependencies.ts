@@ -1,10 +1,9 @@
 import { Logger } from "../logger";
-import { DEVCLASS } from "../rfc/components";
-import { SENVI, TADIR } from "../rfc/struct";
 import { SenviParser } from "../dependency";
 import { SystemConnector } from "../systemConnector";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
+import { TADIR, DEVCLASS, SENVI } from "../client";
 
 const SAP_SOURCE_SYSTEMS = ['SAP'];
 const SAP_AUTHORS = ['SAP'];
@@ -19,19 +18,19 @@ export type TadirDependency = {
 export async function findTadirDependencies(data: {
     devclass: DEVCLASS,
     tadir?: TADIR[]
-}, system: SystemConnector): Promise<TadirDependency[]> {
-    const senviParser = new SenviParser(system);
+}): Promise<TadirDependency[]> {
+    const senviParser = new SenviParser();
     var tadir = data.tadir;
     var devclass = data.devclass;
     var aSenvi: SENVI[] = [];
     var tadirDependencies: TADIR[] = [];
     var aIgnoredDevclass: DEVCLASS[] = [devclass];
-    aIgnoredDevclass = aIgnoredDevclass.concat((await system.getSubpackages(devclass)).map(o => o.devclass));
+    aIgnoredDevclass = aIgnoredDevclass.concat((await SystemConnector.getSubpackages(devclass)).map(o => o.devclass));
     if (!tadir) {
-        tadir = await system.getDevclassObjects(devclass, true);
+        tadir = await SystemConnector.getDevclassObjects(devclass, true);
     }
     for (const tadirObj of tadir) {
-        aSenvi = aSenvi.concat(await system.rfcClient.repositoryEnvironment(tadirObj.object, tadirObj.objName));
+        aSenvi = aSenvi.concat(await SystemConnector.repositoryEnvironment(tadirObj.object, tadirObj.objName));
     }
     for (const senvi of aSenvi) {
         const tadirDependency = await senviParser.parse(senvi);
@@ -60,7 +59,7 @@ export async function findTadirDependencies(data: {
                 pgmid: tadirDependency.pgmid,
                 object: tadirDependency.object,
                 objName: tadirDependency.objName
-            }, system);
+            });
             for (const transport of allTransports) {
                 if (await transport.isTrmRelevant()) {
                     trmRelevantTransports.push(transport);
@@ -73,7 +72,7 @@ export async function findTadirDependencies(data: {
             const linkedPackage = await latestTransport.getLinkedPackage();
             arrayIndex = packageDependencies.findIndex(o => o.trmPackage && TrmPackage.compare(o.trmPackage, linkedPackage));
             if (arrayIndex < 0) {
-                const integrity = await system.getPackageIntegrity(linkedPackage);
+                const integrity = await SystemConnector.getPackageIntegrity(linkedPackage);
                 arrayIndex = packageDependencies.push({
                     trmPackage: linkedPackage,
                     integrity,

@@ -1,7 +1,7 @@
-import { DEVCLASS } from "../../rfc/components";
+import { DEVCLASS } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 
-export async function validateDevclass(devclass: DEVCLASS, system: SystemConnector): Promise<string|true|void> {
+export async function validateDevclass(devclass: DEVCLASS): Promise<string|true|void> {
     if (devclass) {
         devclass = devclass.trim().toUpperCase();
         const c = devclass.charAt(0);
@@ -10,7 +10,7 @@ export async function validateDevclass(devclass: DEVCLASS, system: SystemConnect
         } else {
             //return true;
             //check if this package exists
-            const tdevc = await system.getDevclass(devclass);
+            const tdevc = await SystemConnector.getDevclass(devclass);
             if(!tdevc){
                 return `Package ${devclass} does not exist.`;
             }else{

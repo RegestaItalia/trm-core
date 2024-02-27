@@ -2,17 +2,17 @@ import { Inquirer, Question } from "../inquirer";
 import { Logger } from "../logger";
 import { Registry, RegistryType } from "../registry";
 import * as semver from "semver";
-import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 import { Manifest } from "../manifest";
 import { installDependency } from "./installDependency";
 import { Transport, TrmTransportIdentifier } from "../transport";
 import { getPackageHierarchy, getPackageNamespace, normalize, parsePackageName } from "../commons";
 import { R3trans } from "node-r3trans";
-import { TADIR, TDEVC, TDEVCT, TRKORR, ZTRM_INSTALLDEVC } from "../rfc";
 import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { createHash } from "crypto";
+import { SystemConnector } from "../systemConnector";
+import { TRKORR, TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../client";
 
 function _validateDevclass(input: string, packagesNamespace: string): string | true {
     const sInput: string = input.trim().toUpperCase();
@@ -47,7 +47,7 @@ export async function install(data: {
     integrity?: string,
     safe?: boolean,
     ci?: boolean
-}, inquirer: Inquirer, system: SystemConnector, registry: Registry) {
+}, inquirer: Inquirer, registry: Registry) {
     const ignoreSapEntries = data.ignoreSapEntries ? true : false;
     const skipDependencies = data.skipDependencies ? true : false;
     const skipLang = data.skipLang ? true : false;
@@ -77,13 +77,13 @@ export async function install(data: {
     });
 
     Logger.loading(`Reading system data...`);
-    const installedPackages = await system.getInstalledPackages();
+    const installedPackages = await SystemConnector.getInstalledPackages(true, true);
     const oTrmPackage = new TrmPackage(packageName, registry, null);
     const oManifest = await oTrmPackage.fetchRemoteManifest(version);
     //Before installing, check if the same package, same version and same registry is already installed
     var alreadyInstalled = installedPackages.find(o => Manifest.compare(o.manifest, oManifest, true)) ? true : false;
     if(integrity){
-        const installedIntegrity = await system.getPackageIntegrity(oTrmPackage);
+        const installedIntegrity = await SystemConnector.getPackageIntegrity(oTrmPackage);
         alreadyInstalled = alreadyInstalled && installedIntegrity === integrity;
     }
     if (alreadyInstalled && !forceInstall) {
@@ -94,7 +94,7 @@ export async function install(data: {
     if (!ignoreSapEntries) {
         Logger.loading(`Checking system compatibility...`);
         const sapEntries = manifest.sapEntries || {};
-        const oCheckSapEntries = await checkSapEntries(sapEntries, system);
+        const oCheckSapEntries = await checkSapEntries(sapEntries);
         const missingSapEntries = oCheckSapEntries.missingSapEntries;
         if (missingSapEntries.length > 0) {
             Logger.error(`Missing SAP table entries.`);
@@ -131,7 +131,7 @@ export async function install(data: {
     const dependencyCheck = await checkDependencies({
         dependencies,
         installedPackages
-    }, system);
+    });
     if(dependencyCheck.requiredDependenciesTab){
         Logger.info(`Package "${packageName}" has ${dependencyCheck.requiredDependenciesTab.data.length} dependencies.`);
         Logger.table(dependencyCheck.requiredDependenciesTab.head, dependencyCheck.requiredDependenciesTab.data);
@@ -164,7 +164,7 @@ export async function install(data: {
                     integrity: safe ? dependency.integrity : null,
                     originalInstallOptions: data,
                     installedPackages
-                }, inquirer, system, oDependencyRegistry);
+                }, inquirer, oDependencyRegistry);
             }
         }
     }
@@ -244,7 +244,7 @@ export async function install(data: {
         }));
         const tdevc: TDEVC[] = normalize(await r3trans.getTableEntries(aDevcTransports[0].binaries.data, 'TDEVC'));
         const tdevct: TDEVCT[] = normalize(await r3trans.getTableEntries(aDevcTransports[0].binaries.data, 'TDEVCT'));
-        const systemObjectList = await system.rfcClient.getObjectsList();
+        const systemObjectList = await SystemConnector.getObjectsList();
         aTadir.forEach(o => {
             if (!tdevc.find(k => k.devclass === o.devclass)) {
                 throw new Error(`Package includes objects without devclass.`);
@@ -268,7 +268,7 @@ export async function install(data: {
                 packageReplacements = data.packageReplacements;
             } else {
                 //get from the trm table devclass replacements the corresponding name
-                packageReplacements = await system.getInstallPackages(packageName, registry);
+                packageReplacements = await SystemConnector.getInstallPackages(packageName, registry);
             }
         }
         var rootDevclass = packageReplacements.find(o => o.originalDevclass === originalPackageHierarchy.devclass)?.installDevclass;
@@ -319,13 +319,13 @@ export async function install(data: {
                 install_devclass: o.installDevclass
             });
         });
-        await system.rfcClient.setInstallDevc(installDevc);
+        await SystemConnector.setInstallDevc(installDevc);
 
         Logger.loading(`Generating devclass...`);
         var pdevclass = transportLayer;
         const dlvunit = getPackageNamespace(packageReplacements[0].installDevclass) === '$' ? 'LOCAL' : 'HOME';
         for (const packageReplacement of packageReplacements) {
-            const devclassExists = await system.getDevclass(packageReplacement.installDevclass);
+            const devclassExists = await SystemConnector.getDevclass(packageReplacement.installDevclass);
             const oDevcTadir = {
                 pgmid: 'R3TR',
                 object: 'DEVC',
@@ -335,12 +335,12 @@ export async function install(data: {
             if (!devclassExists) {
                 //generate
                 if (!pdevclass) {
-                    pdevclass = await system.rfcClient.getDefaultTransportLayer();
+                    pdevclass = await SystemConnector.getDefaultTransportLayer();
                 }
                 const ctext = tdevct.find(o => o.devclass === packageReplacement.originalDevclass)?.ctext || `TRM ${packageName}`;
-                await system.rfcClient.createPackage({
+                await SystemConnector.createPackage({
                     devclass: packageReplacement.installDevclass,
-                    as4user: system.getLogonUser(),
+                    as4user: SystemConnector.getLogonUser(),
                     ctext,
                     dlvunit,
                     pdevclass
@@ -354,7 +354,7 @@ export async function install(data: {
                 }*/
             }
             if(dlvunit !== 'LOCAL'){
-                await system.rfcClient.tadirInterface(oDevcTadir);
+                await SystemConnector.tadirInterface(oDevcTadir);
                 aTadir.push(oDevcTadir);
             }
         }
@@ -372,7 +372,7 @@ export async function install(data: {
         for (const packageReplacement of packageReplacements) {
             const installRoot = installPackageHierarchy.devclass === packageReplacement.installDevclass;
             if (!installRoot) {
-                await system.clearPackageSuperpackage(packageReplacement.installDevclass);
+                await SystemConnector.clearPackageSuperpackage(packageReplacement.installDevclass);
             }
         }
         //add parentcl
@@ -383,7 +383,7 @@ export async function install(data: {
                 const installParentCl = packageReplacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass;
                 if(installParentCl){
                     if (!installRoot) {
-                        await system.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
+                        await SystemConnector.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
                     }
                 }
             }
@@ -395,8 +395,7 @@ export async function install(data: {
         for (const tadirTr of aTadirTransports) {
             const oTransport = await Transport.upload({
                 binary: tadirTr.binaries,
-                systemConnector: system,
-                trTarget: system.getDest()
+                trTarget: SystemConnector.getDest()
             }, true);
             await oTransport.import(false, importTimeout);
         }
@@ -408,7 +407,7 @@ export async function install(data: {
             const replacementDevclass = packageReplacements.find(o => o.originalDevclass === tadir.devclass).installDevclass;
             tadir.devclass = replacementDevclass;
             tadir.srcsystem = 'TRM';
-            await system.rfcClient.tadirInterface(tadir);
+            await SystemConnector.tadirInterface(tadir);
         }
         Logger.success(`TADIR import finished.`);
     }
@@ -421,8 +420,7 @@ export async function install(data: {
                 trCopy.push(langTransport.trkorr);
                 const oTransport = await Transport.upload({
                     binary: langTransport.binaries,
-                    systemConnector: system,
-                    trTarget: system.getDest()
+                    trTarget: SystemConnector.getDest()
                 }, true);
                 await oTransport.import(false, importTimeout);
             }
@@ -436,7 +434,7 @@ export async function install(data: {
     Logger.loading(`Finalizing install...`);
 
     //set integrity
-    await system.rfcClient.setPackageIntegrity({
+    await SystemConnector.setPackageIntegrity({
         package_name: manifest.name,
         package_registry: registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : registry.endpoint,
         integrity: fetchedIntegrity
@@ -454,7 +452,7 @@ export async function install(data: {
         if (wbObject.pgmid === 'R3TR') {
             //if it's R3TR, get its devclass and check it's not $.
             //if it's not, add the object (as well as the devc)
-            const objTadir = await system.getObject(wbObject.pgmid, wbObject.object, wbObject.objName);
+            const objTadir = await SystemConnector.getObject(wbObject.pgmid, wbObject.object, wbObject.objName);
             const objPackageNs = getPackageNamespace(objTadir.devclass);
             if (objPackageNs !== '$') {
                 wbObjectsAdd.push(objTadir);
@@ -473,13 +471,13 @@ export async function install(data: {
 
     if ((wbObjectsAdd.length > 0 || trCopy.length > 0) && !skipWbTransport) {
         //if a non released trm request for this package is found, use it and rename
-        var wbTransport = await system.getPackageWorkbenchTransport(oTrmPackage);
+        var wbTransport = await SystemConnector.getPackageWorkbenchTransport(oTrmPackage);
         if (!wbTransport) {
             //if not, create a new workbench request
             wbTransport = await Transport.createWb({
                 text: `TRM generated transport`, //temporary name
                 target: targetSystem
-            }, system, true);
+            }, true);
         }
         await wbTransport.addComment(`name=${manifest.name}`);
         await wbTransport.addComment(`version=${manifest.version}`);

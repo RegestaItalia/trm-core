@@ -5,13 +5,13 @@ export type MissingSapEntries = {
     entries: any[]
 };
 
-export async function checkSapEntries(sapEntries: any, system: SystemConnector): Promise<{
+export async function checkSapEntries(sapEntries: any): Promise<{
     missingSapEntries: MissingSapEntries[]
 }> {
     var missingSapEntries: MissingSapEntries[] = [];
     for (const sapTable of Object.keys(sapEntries)) {
         for (const sapEntry of sapEntries[sapTable]) {
-            const exists = await system.checkSapEntryExists(sapTable, sapEntry);
+            const exists = await SystemConnector.checkSapEntryExists(sapTable, sapEntry);
             if (!exists) {
                 var arrayIndex = missingSapEntries.findIndex(o => o.table === sapTable);
                 if (arrayIndex < 0) {

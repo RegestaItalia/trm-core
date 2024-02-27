@@ -15,7 +15,7 @@ export async function installDependency(data: {
     integrity: string,
     installedPackages?: TrmPackage[],
     originalInstallOptions?: any
-}, inquirer: Inquirer, system: SystemConnector, registry: Registry) {
+}, inquirer: Inquirer, registry: Registry) {
     //this command is similar to install, however it's dedicated to dependencies
     //it shouldn't be used outside the install package flow
     const packageName = data.packageName;
@@ -29,7 +29,7 @@ export async function installDependency(data: {
     if(rangeVersions.length === 0){
         throw new Error(`Package "${packageName}", release not found in range ${versionRange}`);
     }
-    const installedPackages = data.installedPackages || await system.getInstalledPackages();
+    const installedPackages = data.installedPackages || await SystemConnector.getInstalledPackages(true, true);
 
     var aPackages: TrmPackage[] = [];
     rangeVersions.forEach(o => {
@@ -87,5 +87,5 @@ export async function installDependency(data: {
             integrity,
             safe: integrity ? true : false
         }
-    }, inquirer, system, registry);
+    }, inquirer, registry);
 }

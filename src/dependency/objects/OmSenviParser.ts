@@ -1,11 +1,10 @@
-import { SENVI, TADIR } from "../../rfc/struct";
-import { SystemConnector } from "../../systemConnector";
+import { SENVI, TADIR } from "../../client";
 import { IParser } from "../IParser";
 
 export class OmSenviParser implements IParser {
     type = 'OM';
     
-    constructor(public systemConnector: SystemConnector){ }
+    constructor(){ }
 
     public async parse(senvi: SENVI): Promise<TADIR> {
         //currently disabled

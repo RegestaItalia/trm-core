@@ -1,4 +1,4 @@
-import { TDEVC } from "../rfc/struct";
+import { TDEVC } from "../client";
 import { PackageHierarchy } from "./PackageHierarchy";
 
 export function getPackageHierarchy(input: TDEVC[]): PackageHierarchy {

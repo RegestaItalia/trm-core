@@ -1,4 +1,4 @@
-import { FILESYS_D } from "../rfc/components";
+import { FILESYS_D } from "../client";
 
 export function getFileSysSeparator(fileSys: FILESYS_D): string {
     if(fileSys === 'WINDOWS NT' || fileSys === 'DOS'){

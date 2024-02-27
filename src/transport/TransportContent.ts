@@ -1,5 +1,4 @@
-import { TRKORR } from "../rfc/components"
-import { TADIR, TDEVC, TDEVCT } from "../rfc/struct"
+import { TRKORR, TDEVC, TDEVCT, TADIR } from "../client"
 
 export type TransportContent = {
     trkorr: TRKORR,

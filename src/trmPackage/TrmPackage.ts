@@ -4,7 +4,7 @@ import { Manifest } from "../manifest";
 import { Registry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { UserAuthorization, View } from "trm-registry-types";
-import { DEVCLASS } from "../rfc";
+import { DEVCLASS } from "../client";
 
 export const DEFAULT_VERSION: string = "1.0.0";
 

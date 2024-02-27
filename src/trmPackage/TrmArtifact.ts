@@ -1,5 +1,5 @@
+import { TRKORR } from "../client";
 import { Manifest } from "../manifest";
-import { TRKORR } from "../rfc/components";
 import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from "../transport";
 import * as AdmZip from "adm-zip";
 import { R3trans } from "node-r3trans";

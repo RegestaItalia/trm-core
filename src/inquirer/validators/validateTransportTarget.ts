@@ -1,5 +1,4 @@
-import { TR_TARGET } from "../../rfc/components";
-import { TMSCSYS } from "../../rfc/struct";
+import { TR_TARGET, TMSCSYS } from "../../client";
 
 export async function validateTransportTarget(target: TR_TARGET, systemTmscsys: TMSCSYS[]): Promise<string|true|void> {
     if (target) {
