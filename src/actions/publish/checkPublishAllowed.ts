@@ -1,16 +1,15 @@
 import { Step } from "@sammarks/workflow";
 import { WorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { TrmPackage } from "../../trmPackage";
 
 export const checkPublishAllowed: Step<WorkflowContext> = {
     name: 'check-publish-allowed',
     run: async (context: WorkflowContext): Promise<void> => {
         const packageName = context.parsedInput.packageName;
-        const registry = context.runtime.registry;
-        
+
         //create a dummy TrmPackage, just to check if it can be published
-        const oDummyTrmPackage = new TrmPackage(packageName, registry);
+        Logger.loading(`Checking publish authorization...`);
+        const oDummyTrmPackage = context.runtime.dummyPackage;
         var publishAllowed = true;
         try {
             publishAllowed = await oDummyTrmPackage.canPublishReleases();

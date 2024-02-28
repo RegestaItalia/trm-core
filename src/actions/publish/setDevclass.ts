@@ -2,6 +2,7 @@ import { Step } from "@sammarks/workflow";
 import { WorkflowContext } from ".";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { validateDevclass } from "../../inquirer";
+import { Logger } from "../../logger";
 
 export const setDevclass: Step<WorkflowContext> = {
     name: 'set-devclass',
@@ -28,6 +29,7 @@ export const setDevclass: Step<WorkflowContext> = {
             throw new Error(devclassValid);
         }
         
+        Logger.log(`Publish devclass: ${devclass}`);
         context.parsedInput.devclass = devclass;
     }
 }

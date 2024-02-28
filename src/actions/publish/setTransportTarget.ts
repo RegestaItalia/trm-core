@@ -3,6 +3,7 @@ import { WorkflowContext } from ".";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { validateTransportTarget } from "../../inquirer";
 import { SystemConnector } from "../../systemConnector";
+import { Logger } from "../../logger";
 
 export const setTransportTarget: Step<WorkflowContext> = {
     name: 'set-transport-target',
@@ -33,7 +34,7 @@ export const setTransportTarget: Step<WorkflowContext> = {
                 throw new Error(trTargetValid);
             }
         }
-
+        Logger.log(`Publish target: ${trTarget}`);
         context.parsedInput.trTarget = trTarget;
     }
 }

@@ -1,4 +1,5 @@
 import { TRKORR } from "../client";
+import { Logger } from "../logger";
 import { Manifest } from "../manifest";
 import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from "../transport";
 import * as AdmZip from "adm-zip";
@@ -77,7 +78,9 @@ export class TrmArtifact {
     }
 
     public static async create(transports: Transport[], manifest: Manifest, distFolder: string = DIST_FOLDER): Promise<TrmArtifact> {
+        Logger.log(`Generating artifact with transports ${JSON.stringify(transports.map(o => o.trkorr))}`, true);
         const artifact = new AdmZip.default();
+        Logger.log(`Adding ZIP comment`, true);
         artifact.addZipComment(`TRM Package`);
         var binaries: {
             trkorr: TRKORR,
@@ -91,6 +94,7 @@ export class TrmArtifact {
             comment?: string,
         }[] = [];
         for(const transport of transports){
+            Logger.log(`Downloading transport ${transport.trmIdentifier}`, true);
             const trBinary = await transport.download();
             binaries.push({
                 trkorr: transport.trkorr,
@@ -101,6 +105,7 @@ export class TrmArtifact {
         }
         for(const bin of binaries){
             const packedTransport = new AdmZip.default();
+            Logger.log(`Packing header and data in single file`, true);
             packedTransport.addZipComment(`Transport request: ${bin.trkorr}\nContent type: ${bin.type || 'Unknown'}`);
             packedTransport.addFile(bin.filenames.header, bin.binaries.header, "header");
             packedTransport.addFile(bin.filenames.data, bin.binaries.data, "data");
@@ -112,11 +117,13 @@ export class TrmArtifact {
         }
         
         for(const file of packedTransports){
+            Logger.log(`Adding packed transport ${file.comment} to artifact`, true);
             artifact.addFile(`${distFolder}/${file.filename}`, file.binary, file.comment);
         }
 
         manifest.setDistFolder(distFolder);
         const manifestBuffer = Buffer.from(JSON.stringify(manifest.get(false), null, 2), 'utf8');
+        Logger.log(`Adding manifest.json`, true);
         artifact.addFile(`manifest.json`, manifestBuffer, `manifest`);
 
         return new TrmArtifact(artifact.toBuffer(), distFolder, manifest);

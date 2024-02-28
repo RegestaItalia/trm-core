@@ -1,8 +1,10 @@
 import { Step } from "@sammarks/workflow";
 import { WorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { TadirDependency } from "../findTadirDependencies";
-import { findTadirDependencies } from "../../actions/findTadirDependencies";
+import { FindDependencyActionInput } from "../findDependencies";
+import { findDependencies as findDependenciesWkf } from "../findDependencies";
+
+const SUBWORKFLOW_NAME = 'find-dependencies-sub-publish';
 
 export const findDependencies: Step<WorkflowContext> = {
     name: 'find-dependencies',
@@ -12,17 +14,22 @@ export const findDependencies: Step<WorkflowContext> = {
             Logger.warning(`Skipping dependencies can cause your package to fail activation. Make sure to manually edit the dependencies if necessary.`);
             return false;
         } else {
-            return true;
+            if (context.runtime.tadirObjects.length > 0) {
+                return true;
+            } else {
+                Logger.log(`Skipping dependencies search beacuse no objects were found`, true);
+                return false;
+            }
         }
     },
     run: async (context: WorkflowContext): Promise<void> => {
-        var tadirDependencies: TadirDependency[] = [];
-        const devclass = context.parsedInput.devclass;
-        const tadir = context.runtime.tadirObjects;
-        Logger.loading(`Searching dependencies...`);
-        /*tadirDependencies = await findTadirDependencies({
-            devclass,
-            tadir
-        });*/
+        const inputData: FindDependencyActionInput = {
+            devclass: context.parsedInput.devclass,
+            tadir: context.runtime.tadirObjects
+        };
+        Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${JSON.stringify(inputData)}`, true);
+        const result = await findDependenciesWkf(inputData);
+        Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${JSON.stringify(result)}`, true);
+        context.runtime.dependencies = result.dependencies;
     }
 }

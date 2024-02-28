@@ -8,6 +8,32 @@ import { checkPublishAllowed } from "./checkPublishAllowed";
 import { setTransportTarget } from "./setTransportTarget";
 import { setDevclassObjs } from "./setDevclassObjs";
 import { findDependencies } from "./findDependencies";
+import { TadirDependency } from "../findDependencies";
+import { Logger } from "../../logger";
+import { setTrmDependencies } from "./setTrmDependencies";
+import { setSapEntries } from "./setSapEntries";
+import { editSapEntries } from "./editSapEntries";
+import { editTrmDependencies } from "./editTrmDependencies";
+import { logDependencies } from "./logDependencies";
+import { inspect } from "util";
+import { TrmArtifact, TrmPackage } from "../../trmPackage";
+import { checkPackageExistance } from "./checkPackageExistance";
+import { overwriteManifestValues } from "./overwriteManifestValues";
+import { setBackwardsCompatible } from "./setBackwardsCompatible";
+import { setPrivate } from "./setPrivate";
+import { setManifestValues } from "./setManifestValues";
+import { buildTrmPackageInstance } from "./buildTrmPackageInstance";
+import { setReadme } from "./setReadme";
+import { Transport } from "../../transport";
+import { generateDevcTr } from "./generateDevcTr";
+import { generateTadirTr } from "./generateTadirTr";
+import { generateLangTr } from "./generateLangTr";
+import { releaseTadirTr } from "./releaseTadirTr";
+import { releaseLangTr } from "./releaseLangTr";
+import { releaseDevcTr } from "./releaseDevcTr";
+import { generateTrmArtifact } from "./generateTrmArtifact";
+import { publishTrmArtifact } from "./publishTrmArtifact";
+import { finalizePublish } from "./finalizePublish";
 
 export type PublishActionInput = {
     package: TrmManifest, //atleast name and version
@@ -28,32 +54,77 @@ export type PublishActionInput = {
 }
 
 type WorkflowParsedInput = {
-    packageName: string,
-    version: string,
-    devclass: string,
-    trTarget: string
+    packageName?: string,
+    version?: string,
+    devclass?: string,
+    trTarget?: string,
+    readme?: string,
+    releaseFolder?: string,
+    releaseTimeout?: number
 }
 
 type WorkflowRuntime = {
-    registry: Registry,
-    tadirObjects: TADIR[],
-    packageDependencies: TrmManifestDependency[]
+    registry?: Registry,
+    dummyPackage?: TrmPackage,
+    packageExistsOnRegistry?: boolean,
+    tadirObjects?: TADIR[],
+    dependencies?: TadirDependency[],
+    packageDependencies?: TrmManifestDependency[],
+    manifest?: TrmManifest,
+    trmPackage?: TrmPackage,
+    devcTransport?: Transport,
+    tadirTransport?: Transport,
+    langTransport?: Transport,
+    skipDevcTransportDelete?: boolean,
+    skipTadirTransportDelete?: boolean,
+    skipLangTransportDelete?: boolean,
+    artifact?: TrmArtifact
 }
 
 export type WorkflowContext = {
     rawInput: PublishActionInput,
-    parsedInput?: WorkflowParsedInput,
-    runtime?: WorkflowRuntime
+    parsedInput: WorkflowParsedInput,
+    runtime: WorkflowRuntime
 };
 
-export async function publish(inputData: PublishActionInput): Promise<void> {
+const WORKFLOW_NAME = 'publish';
+
+export async function publish(inputData: PublishActionInput): Promise<TrmPackage> {
     const workflow = [
         init,
+        checkPackageExistance,
         checkPublishAllowed,
         setDevclass,
         setTransportTarget,
         setDevclassObjs,
-        findDependencies
+        findDependencies,
+        setTrmDependencies,
+        setSapEntries,
+        editTrmDependencies,
+        editSapEntries,
+        logDependencies,
+        overwriteManifestValues,
+        setBackwardsCompatible,
+        setPrivate,
+        setManifestValues,
+        buildTrmPackageInstance,
+        setReadme,
+        generateDevcTr,
+        generateTadirTr,
+        generateLangTr,
+        releaseTadirTr,
+        releaseLangTr,
+        releaseDevcTr,
+        generateTrmArtifact,
+        publishTrmArtifact,
+        finalizePublish
     ];
-    await execute<WorkflowContext>('publish', workflow, { rawInput: inputData })
+    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
+    const result = await execute<WorkflowContext>(WORKFLOW_NAME, workflow, {
+        rawInput: inputData,
+        parsedInput: {},
+        runtime: {}
+    });
+    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
+    return result.runtime.trmPackage;
 }

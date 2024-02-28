@@ -7,13 +7,13 @@ import { SystemConnector } from "../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../transport";
 import { DEFAULT_VERSION, TrmPackage } from "../trmPackage";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
-import { TadirDependency, findTadirDependencies } from "./findTadirDependencies";
 import { parsePackageName } from "../commons";
 import { createHash } from "crypto";
 import { CliLogger } from "../logger/CliLogger";
 import { CliLogFileLogger } from "../logger/CliLogFileLogger";
 import { DEVCLASS, TR_TARGET, TADIR } from "../client";
 import { Inquirer } from "../inquirer/Inquirer";
+import { TadirDependency, findDependencies } from "./findDependencies";
 
 async function getTrmPackage(data: {
     manifest: TrmManifest,
@@ -191,7 +191,7 @@ async function getTrmPackage(data: {
     return new TrmPackage(manifest.name, registry, oManifest);
 }
 
-export async function publish(data: {
+export async function ex_publish(data: {
     package: TrmManifest, //atleast name and version
     devclass?: DEVCLASS,
     target?: TR_TARGET,
@@ -300,10 +300,10 @@ export async function publish(data: {
     var tadirDependencies: TadirDependency[] = [];
     if (!skipDependencies) {
         Logger.loading(`Searching dependencies...`);
-        tadirDependencies = await findTadirDependencies({
+        tadirDependencies = (await findDependencies({
             devclass,
             tadir: allTadir
-        });
+        })).dependencies;
     } else {
         Logger.info(`Skipping dependencies.`);
         Logger.warning(`Skipping dependencies can cause your package to fail activation. Make sure to manually edit the dependencies if necessary.`);
