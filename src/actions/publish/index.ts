@@ -81,7 +81,7 @@ type WorkflowRuntime = {
     artifact?: TrmArtifact
 }
 
-type WorkflowOutput = {
+export type PublishActionOutput = {
     trmPackage: TrmPackage
 }
 
@@ -89,7 +89,7 @@ export type PublishWorkflowContext = {
     rawInput: PublishActionInput,
     parsedInput: WorkflowParsedInput,
     runtime: WorkflowRuntime,
-    output?: WorkflowOutput
+    output?: PublishActionOutput
 };
 
 const WORKFLOW_NAME = 'publish';

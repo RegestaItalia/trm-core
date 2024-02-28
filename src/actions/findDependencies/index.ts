@@ -22,10 +22,6 @@ export type TadirDependency = {
     tadir: TADIR[]
 }
 
-export type FindDependencyActionOutput = {
-    dependencies?: TadirDependency[]
-}
-
 type WorkflowParsedInput = {
     devclass?: DEVCLASS,
     tadir?: TADIR[]
@@ -35,6 +31,10 @@ type WorkflowRuntime = {
     devclassIgnore?: DEVCLASS[],
     senvi?: SENVI[],
     tadirDependencies?: TADIR[]
+}
+
+export type FindDependencyActionOutput = {
+    dependencies?: TadirDependency[]
 }
 
 export type FindDependenciesPublishWorkflowContext = {
