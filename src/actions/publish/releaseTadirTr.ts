@@ -1,18 +1,17 @@
 import { Step } from "@sammarks/workflow";
 import { WorkflowContext } from ".";
-import { CliLogFileLogger, CliLogger, Logger } from "../../logger";
-import { SystemConnector } from "../../systemConnector";
-
+import { Logger } from "../../logger";
 
 export const releaseTadirTr: Step<WorkflowContext> = {
     name: 'release-tadir-tr',
     run: async (context: WorkflowContext): Promise<void> => {
         const tmpFolder = context.parsedInput.releaseFolder;
         const timeout = context.parsedInput.releaseTimeout;
-        if (Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger) {
-            Logger.logger.forceStop();
-        }
         await context.runtime.tadirTransport.release(false, false, tmpFolder, timeout);
+        //after trasport release tadir transport has no revert option
+        //adding this to skip trkorr table makes sense only after inserting it into src trkorr table
+        //so in this step, the revert is disabled
+        Logger.log(`TADIR released, setting try revert to false as it cannot be deleted`, true);
         context.runtime.tryTadirDeleteRevert = false;
     }
 }

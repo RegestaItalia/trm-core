@@ -9,6 +9,8 @@ export const releaseDevcTr: Step<WorkflowContext> = {
         const timeout = context.parsedInput.releaseTimeout;
         Logger.loading(`Finalizing release...`);
         await context.runtime.devcTransport.release(false, true, tmpFolder, timeout);
+        //after trasport release devc transport has no revert option
+        Logger.log(`DEVC released, setting try revert to false as it cannot be deleted`, true);
         context.runtime.tryDevcDeleteRevert = false;
     }
 }

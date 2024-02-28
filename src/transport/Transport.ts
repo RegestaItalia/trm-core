@@ -280,9 +280,6 @@ export class Transport {
         await SystemConnector.releaseTrkorr(this.trkorr, lock, secondsTimeout);
         await SystemConnector.dequeueTransport(this.trkorr);
         if (tmpFolder) {
-            if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
-                Logger.logger.forceStop();
-            }
             await this.readReleaseLog(tmpFolder, secondsTimeout);
             Logger.loading(`Finalizing release...`, skipLog);
         }
@@ -294,6 +291,10 @@ export class Transport {
         const filePaths = await Transport._getFilePaths(this._fileNames);
         const localPath = path.join(tmpFolder, this._fileNames.releaseLog);
         const oParser = new R3transLogParser(localPath);
+
+        if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
+            Logger.logger.forceStop();
+        }
 
         const multibar = new cliProgress.MultiBar({
             clearOnComplete: true,
@@ -430,7 +431,6 @@ export class Transport {
         }
 
         if(error){
-            error['trkorrRollback'] = true;
             throw error;
         }
     }

@@ -12,9 +12,16 @@ export const finalizePublish: Step<WorkflowContext> = {
         try {
             //add to publish trkorr
             await SystemConnector.addSrcTrkorr(context.runtime.tadirTransport.trkorr);
+            //in this step, it makes sense to turn tadir revert option on, it has been added to src trkorr table
+            //and if we don't remove it after an error it will end up in the list of source packages
+            Logger.log(`TADIR added to src trkorr table, setting try revert to true as reverting is possible`, true);
             context.runtime.tryTadirDeleteRevert = true;
+
             //generate integrity
+            Logger.log(`Generating SHA512`, true);
             const integrity = createHash("sha512").update(context.runtime.artifact.binary).digest("hex");
+            Logger.log(`SHA512: ${integrity}`, true);
+            Logger.log(`Setting package integrity`, true);
             await SystemConnector.setPackageIntegrity({
                 package_name: context.parsedInput.packageName,
                 package_registry: context.runtime.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : context.runtime.registry.endpoint,

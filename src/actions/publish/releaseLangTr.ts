@@ -20,5 +20,7 @@ export const releaseLangTr: Step<WorkflowContext> = {
         }
         await context.runtime.langTransport.release(false, false, tmpFolder, timeout);
         context.runtime.tryLangDeleteRevert = false;
+        //after trasport release lang transport has no revert option
+        Logger.log(`LANG released, setting try revert to false as it cannot be deleted`, true);
     }
 }
