@@ -1,6 +1,6 @@
 import { Step } from "@sammarks/workflow";
 import { WorkflowContext } from ".";
-import { CliLogFileLogger, CliLogger, Logger } from "../../logger";
+import { Logger } from "../../logger";
 import { SystemConnector } from "../../systemConnector";
 import { createHash } from "crypto";
 import { RegistryType } from "../../registry";
@@ -27,12 +27,22 @@ export const finalizePublish: Step<WorkflowContext> = {
                 package_registry: context.runtime.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : context.runtime.registry.endpoint,
                 integrity
             });
+
+            context.output = {
+                trmPackage: context.runtime.trmPackage
+            };
         } catch (e) {
             Logger.error(e.toString(), true);
             Logger.error(`An error occurred during publish finalize. The package has been published, however TRM is inconsistent.`);
         }
         if (process.env.TRM_ENV === 'DEV') {
             throw new Error(`Running in development, rolling back publish`);
+        }
+    },
+    revert: async (context: WorkflowContext): Promise<void> => {
+        //TODO: delete record in integrity table
+        if(context.output){
+            delete context.output.trmPackage;
         }
     }
 }

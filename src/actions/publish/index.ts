@@ -81,10 +81,15 @@ type WorkflowRuntime = {
     artifact?: TrmArtifact
 }
 
+type WorkflowOutput = {
+    trmPackage: TrmPackage
+}
+
 export type WorkflowContext = {
     rawInput: PublishActionInput,
     parsedInput: WorkflowParsedInput,
-    runtime: WorkflowRuntime
+    runtime: WorkflowRuntime,
+    output?: WorkflowOutput
 };
 
 const WORKFLOW_NAME = 'publish';
@@ -126,5 +131,9 @@ export async function publish(inputData: PublishActionInput): Promise<TrmPackage
         runtime: {}
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    return result.runtime.trmPackage;
+    if(result.output && result.output.trmPackage){
+        return result.output.trmPackage;
+    }else{
+        throw new Error(`An error occurred during publish.`);
+    }
 }
