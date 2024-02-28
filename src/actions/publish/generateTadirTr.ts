@@ -21,20 +21,23 @@ export const generateTadirTr: Step<WorkflowContext> = {
         await context.runtime.tadirTransport.addComment(`version=${context.runtime.manifest.version}`);
         await context.runtime.tadirTransport.setDocumentation(sManifestXml);
         await context.runtime.tadirTransport.addObjects(objectsOnly, false);
+        context.runtime.tryTadirDeleteRevert = true;
     },
     revert: async (context: WorkflowContext): Promise<void> => {
-        Logger.loading(`Rollback TADIR transport ${context.runtime.tadirTransport.trkorr}...`);
-        try {
-            const canBeDeleted = await context.runtime.tadirTransport.canBeDeleted();
-            if (canBeDeleted) {
-                await context.runtime.tadirTransport.delete();
-                Logger.info(`Executed rollback on transport ${context.runtime.tadirTransport.trkorr}`);
-            } else {
-                await SystemConnector.addSkipTrkorr(context.runtime.tadirTransport.trkorr);
+        if (context.runtime.tryTadirDeleteRevert) {
+            Logger.loading(`Rollback TADIR transport ${context.runtime.tadirTransport.trkorr}...`);
+            try {
+                const canBeDeleted = await context.runtime.tadirTransport.canBeDeleted();
+                if (canBeDeleted) {
+                    await context.runtime.tadirTransport.delete();
+                    Logger.info(`Executed rollback on transport ${context.runtime.tadirTransport.trkorr}`);
+                } else {
+                    await SystemConnector.addSkipTrkorr(context.runtime.tadirTransport.trkorr);
+                }
+            } catch (e) {
+                Logger.info(`Unable to rollback transport ${context.runtime.tadirTransport.trkorr}`);
+                Logger.error(e.toString(), true);
             }
-        } catch (e) {
-            Logger.info(`Unable to rollback transport ${context.runtime.tadirTransport.trkorr}`);
-            Logger.error(e.toString(), true);
         }
     }
 }

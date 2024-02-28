@@ -73,8 +73,11 @@ type WorkflowRuntime = {
     manifest?: TrmManifest,
     trmPackage?: TrmPackage,
     devcTransport?: Transport,
+    tryDevcDeleteRevert?: boolean,
     tadirTransport?: Transport,
+    tryTadirDeleteRevert?: boolean,
     langTransport?: Transport,
+    tryLangDeleteRevert?: boolean,
     artifact?: TrmArtifact
 }
 

@@ -9,5 +9,6 @@ export const releaseDevcTr: Step<WorkflowContext> = {
         const timeout = context.parsedInput.releaseTimeout;
         Logger.loading(`Finalizing release...`);
         await context.runtime.devcTransport.release(false, true, tmpFolder, timeout);
+        context.runtime.tryDevcDeleteRevert = false;
     }
 }

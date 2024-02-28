@@ -498,11 +498,11 @@ export class Transport {
     }
 
     public static async _getFilePaths(fileNames: FileNames): Promise<FilePaths> {
-        Logger.loading(`Reading system data...`);
+        Logger.loading(`Reading system data...`, true);
         const dirTrans = await SystemConnector.getDirTrans();
         const fileSys = await SystemConnector.getFileSystem();
         const pathSeparator = getFileSysSeparator(fileSys.filesys);
-        Logger.success(`Data read success.`);
+        Logger.success(`Data read success.`, true);
         return {
             header: `${dirTrans}${pathSeparator}cofiles${pathSeparator}${fileNames.header}`,
             data: `${dirTrans}${pathSeparator}data${pathSeparator}${fileNames.data}`,

@@ -29,7 +29,7 @@ export const setDevclass: Step<WorkflowContext> = {
             throw new Error(devclassValid);
         }
         
-        Logger.log(`Publish devclass: ${devclass}`);
+        Logger.log(`Publish devclass: ${devclass}`, true);
         context.parsedInput.devclass = devclass;
     }
 }

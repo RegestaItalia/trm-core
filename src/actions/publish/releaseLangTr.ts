@@ -19,5 +19,6 @@ export const releaseLangTr: Step<WorkflowContext> = {
             Logger.logger.forceStop();
         }
         await context.runtime.langTransport.release(false, false, tmpFolder, timeout);
+        context.runtime.tryLangDeleteRevert = false;
     }
 }

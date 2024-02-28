@@ -13,5 +13,6 @@ export const releaseTadirTr: Step<WorkflowContext> = {
             Logger.logger.forceStop();
         }
         await context.runtime.tadirTransport.release(false, false, tmpFolder, timeout);
+        context.runtime.tryTadirDeleteRevert = false;
     }
 }

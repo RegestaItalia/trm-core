@@ -26,28 +26,32 @@ export const generateLangTr: Step<WorkflowContext> = {
         try {
             await context.runtime.langTransport.addTranslations(devcOnly.map(o => o.objName));
             iLanguageObjects = (await context.runtime.langTransport.getE071()).length;
+            context.runtime.tryLangDeleteRevert = true;
         } catch (e) {
             Logger.warning(`Language transport generation error (${e.toString()})`);
         } finally {
             if (iLanguageObjects === 0) {
                 await context.runtime.langTransport.delete();
                 delete context.runtime.langTransport;
+                context.runtime.tryLangDeleteRevert = false;
             }
         }
     },
     revert: async (context: WorkflowContext): Promise<void> => {
-        Logger.loading(`Rollback LANG transport ${context.runtime.langTransport.trkorr}...`);
-        try {
-            const canBeDeleted = await context.runtime.langTransport.canBeDeleted();
-            if (canBeDeleted) {
-                await context.runtime.langTransport.delete();
-                Logger.info(`Executed rollback on transport ${context.runtime.langTransport.trkorr}`);
-            } else {
-                throw new Error(`Transport ${context.runtime.langTransport.trkorr} cannot be deleted`);
+        if(context.runtime.tryLangDeleteRevert && context.runtime.langTransport.trkorr){
+            Logger.loading(`Rollback LANG transport ${context.runtime.langTransport.trkorr}...`);
+            try {
+                const canBeDeleted = await context.runtime.langTransport.canBeDeleted();
+                if (canBeDeleted) {
+                    await context.runtime.langTransport.delete();
+                    Logger.info(`Executed rollback on transport ${context.runtime.langTransport.trkorr}`);
+                } else {
+                    throw new Error(`Transport ${context.runtime.langTransport.trkorr} cannot be deleted`);
+                }
+            } catch (e) {
+                Logger.info(`Unable to rollback transport ${context.runtime.langTransport.trkorr}`);
+                Logger.error(e.toString(), true);
             }
-        } catch (e) {
-            Logger.info(`Unable to rollback transport ${context.runtime.langTransport.trkorr}`);
-            Logger.error(e.toString(), true);
         }
     }
 }

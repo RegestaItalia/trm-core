@@ -34,7 +34,7 @@ export const setTransportTarget: Step<WorkflowContext> = {
                 throw new Error(trTargetValid);
             }
         }
-        Logger.log(`Publish target: ${trTarget}`);
+        Logger.log(`Publish target: ${trTarget}`, true);
         context.parsedInput.trTarget = trTarget;
     }
 }

@@ -12,6 +12,7 @@ export const finalizePublish: Step<WorkflowContext> = {
         try {
             //add to publish trkorr
             await SystemConnector.addSrcTrkorr(context.runtime.tadirTransport.trkorr);
+            context.runtime.tryTadirDeleteRevert = true;
             //generate integrity
             const integrity = createHash("sha512").update(context.runtime.artifact.binary).digest("hex");
             await SystemConnector.setPackageIntegrity({
