@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Manifest } from "../../manifest";
 import { TrmPackage } from "../../trmPackage";
 
-export const buildTrmPackageInstance: Step<WorkflowContext> = {
+export const buildTrmPackageInstance: Step<PublishWorkflowContext> = {
     name: 'build-trm-package-instance',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         context.runtime.manifest = Manifest.normalize(context.runtime.manifest, false);
         const oManifest = new Manifest(context.runtime.manifest);
         context.runtime.trmPackage = new TrmPackage(context.runtime.manifest.name, context.runtime.registry, oManifest);

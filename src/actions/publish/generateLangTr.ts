@@ -1,13 +1,13 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Transport } from "../../transport";
 import { Logger } from "../../logger";
 import { TADIR } from "../../client";
 
 
-export const generateLangTr: Step<WorkflowContext> = {
+export const generateLangTr: Step<PublishWorkflowContext> = {
     name: 'generate-lang-tr',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if (context.rawInput.skipLang) {
             Logger.log(`Skipping LANG transport (input)`, true);
             return false;
@@ -15,7 +15,7 @@ export const generateLangTr: Step<WorkflowContext> = {
             return true;
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.loading(`Generating LANG transport...`);
         const devcOnly: TADIR[] = context.runtime.tadirObjects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
         context.runtime.langTransport = await Transport.createLang({
@@ -37,7 +37,7 @@ export const generateLangTr: Step<WorkflowContext> = {
             }
         }
     },
-    revert: async (context: WorkflowContext): Promise<void> => {
+    revert: async (context: PublishWorkflowContext): Promise<void> => {
         if(context.runtime.tryLangDeleteRevert && context.runtime.langTransport.trkorr){
             Logger.loading(`Rollback LANG transport ${context.runtime.langTransport.trkorr}...`);
             try {

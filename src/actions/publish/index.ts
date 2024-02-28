@@ -85,7 +85,7 @@ type WorkflowOutput = {
     trmPackage: TrmPackage
 }
 
-export type WorkflowContext = {
+export type PublishWorkflowContext = {
     rawInput: PublishActionInput,
     parsedInput: WorkflowParsedInput,
     runtime: WorkflowRuntime,
@@ -125,7 +125,7 @@ export async function publish(inputData: PublishActionInput): Promise<TrmPackage
         finalizePublish
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-    const result = await execute<WorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData,
         parsedInput: {},
         runtime: {}

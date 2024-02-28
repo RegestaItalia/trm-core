@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 
 
-export const logDependencies: Step<WorkflowContext> = {
+export const logDependencies: Step<PublishWorkflowContext> = {
     name: 'log-dependencies',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         if (context.runtime.manifest.sapEntries) {
             var sapEntriesCount = 0;
             Object.keys(context.runtime.manifest.sapEntries).forEach(k => {

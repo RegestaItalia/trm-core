@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 
 
-export const overwriteManifestValues: Step<WorkflowContext> = {
+export const overwriteManifestValues: Step<PublishWorkflowContext> = {
     name: 'overwrite-manifest-values',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if (!context.rawInput.overwriteManifestValues) {
             if (context.runtime.packageExistsOnRegistry) {
                 return true;
@@ -17,7 +17,7 @@ export const overwriteManifestValues: Step<WorkflowContext> = {
             Logger.log(`Skip owerwrite manifest values step (input)`, true);
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         try {
             const latestManifest = (await context.runtime.dummyPackage.fetchRemoteManifest('latest')).get();
             context.runtime.manifest.description = latestManifest.description;

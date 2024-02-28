@@ -1,12 +1,12 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { validateDevclass } from "../../inquirer";
 import { Logger } from "../../logger";
 
-export const setDevclass: Step<WorkflowContext> = {
+export const setDevclass: Step<PublishWorkflowContext> = {
     name: 'set-devclass',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         var devclass = context.rawInput.devclass;
         
         if (!devclass) {

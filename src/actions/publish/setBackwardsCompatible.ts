@@ -1,13 +1,13 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { clean } from "semver";
 
 
-export const setBackwardsCompatible: Step<WorkflowContext> = {
+export const setBackwardsCompatible: Step<PublishWorkflowContext> = {
     name: 'set-backwards-compatible',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         if (context.runtime.packageExistsOnRegistry) {
             if (typeof (context.rawInput.package.backwardsCompatible) !== 'boolean') {
                 var latestPublishedVersion: string;

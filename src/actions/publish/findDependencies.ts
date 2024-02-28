@@ -1,14 +1,14 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { FindDependencyActionInput } from "../findDependencies";
 import { findDependencies as findDependenciesWkf } from "../findDependencies";
 
 const SUBWORKFLOW_NAME = 'find-dependencies-sub-publish';
 
-export const findDependencies: Step<WorkflowContext> = {
+export const findDependencies: Step<PublishWorkflowContext> = {
     name: 'find-dependencies',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if (context.rawInput.skipDependencies) {
             Logger.info(`Skipping dependencies.`);
             Logger.warning(`Skipping dependencies can cause your package to fail activation. Make sure to manually edit the dependencies if necessary.`);
@@ -22,7 +22,7 @@ export const findDependencies: Step<WorkflowContext> = {
             }
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const inputData: FindDependencyActionInput = {
             devclass: context.parsedInput.devclass,
             tadir: context.runtime.tadirObjects

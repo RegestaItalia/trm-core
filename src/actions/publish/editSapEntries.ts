@@ -1,12 +1,12 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 
 
-export const editSapEntries: Step<WorkflowContext> = {
+export const editSapEntries: Step<PublishWorkflowContext> = {
     name: 'edit-sap-entries',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if(context.rawInput.skipEditSapEntries){
             Logger.log(`Skip edit of SAP entries (input)`, true);
             return false;
@@ -14,7 +14,7 @@ export const editSapEntries: Step<WorkflowContext> = {
             return true;
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         var editorValue = '{}';
         if(context.runtime.manifest.sapEntries){
             editorValue = JSON.stringify(context.runtime.manifest.sapEntries, null, 2);

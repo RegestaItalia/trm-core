@@ -1,13 +1,13 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { validateTransportTarget } from "../../inquirer";
 import { SystemConnector } from "../../systemConnector";
 import { Logger } from "../../logger";
 
-export const setTransportTarget: Step<WorkflowContext> = {
+export const setTransportTarget: Step<PublishWorkflowContext> = {
     name: 'set-transport-target',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         var trTarget = context.rawInput.target;
 
         const systemTmscsys = await SystemConnector.getTransportTargets();

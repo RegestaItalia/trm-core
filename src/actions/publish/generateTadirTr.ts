@@ -1,14 +1,14 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { Logger } from "../../logger";
 import { TADIR } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 
 
-export const generateTadirTr: Step<WorkflowContext> = {
+export const generateTadirTr: Step<PublishWorkflowContext> = {
     name: 'generate-tadir-tr',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.loading(`Generating TADIR transport...`);
         const sManifestXml = context.runtime.trmPackage.manifest.getAbapXml();
         const objectsOnly: TADIR[] = context.runtime.tadirObjects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
@@ -23,7 +23,7 @@ export const generateTadirTr: Step<WorkflowContext> = {
         await context.runtime.tadirTransport.addObjects(objectsOnly, false);
         context.runtime.tryTadirDeleteRevert = true;
     },
-    revert: async (context: WorkflowContext): Promise<void> => {
+    revert: async (context: PublishWorkflowContext): Promise<void> => {
         if (context.runtime.tryTadirDeleteRevert) {
             Logger.loading(`Rollback TADIR transport ${context.runtime.tadirTransport.trkorr}...`);
             try {

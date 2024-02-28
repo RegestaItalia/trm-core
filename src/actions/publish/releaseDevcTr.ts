@@ -1,10 +1,10 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 
-export const releaseDevcTr: Step<WorkflowContext> = {
+export const releaseDevcTr: Step<PublishWorkflowContext> = {
     name: 'release-devc-tr',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const tmpFolder = context.parsedInput.releaseFolder;
         const timeout = context.parsedInput.releaseTimeout;
         Logger.loading(`Finalizing release...`);

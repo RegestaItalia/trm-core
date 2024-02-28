@@ -1,12 +1,12 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 
 
-export const setManifestValues: Step<WorkflowContext> = {
+export const setManifestValues: Step<PublishWorkflowContext> = {
     name: 'set-manifest-values',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if (context.rawInput.forceManifestInput || (!context.rawInput.forceManifestInput && !context.runtime.packageExistsOnRegistry)) {
             return true;
         } else {
@@ -14,7 +14,7 @@ export const setManifestValues: Step<WorkflowContext> = {
             return false;
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const inq1 = await Inquirer.prompt([{
             type: "input",
             message: "Package short description",

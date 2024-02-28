@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 
-export const setPrivate: Step<WorkflowContext> = {
+export const setPrivate: Step<PublishWorkflowContext> = {
     name: 'set-private',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         var localPrivate: boolean;
         var remotePrivate: boolean;
         try {

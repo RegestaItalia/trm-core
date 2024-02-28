@@ -1,12 +1,12 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Registry, RegistryType } from "../../registry";
 
 
-export const setTrmDependencies: Step<WorkflowContext> = {
+export const setTrmDependencies: Step<PublishWorkflowContext> = {
     name: 'set-trm-dependencies',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         const trmDependencies = (context.runtime.dependencies || []).filter(o => o.trmPackage);
         if (trmDependencies.length > 0) {
             return true;
@@ -15,7 +15,7 @@ export const setTrmDependencies: Step<WorkflowContext> = {
             return false;
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const trmDependencies = (context.runtime.dependencies || []).filter(o => o.trmPackage);
         trmDependencies.forEach(d => {
             const dependencyManifest = d.trmPackage.manifest.get();

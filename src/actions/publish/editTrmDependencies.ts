@@ -1,12 +1,12 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 
 
-export const editTrmDependencies: Step<WorkflowContext> = {
+export const editTrmDependencies: Step<PublishWorkflowContext> = {
     name: 'edit-trm-dependencies',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if(context.rawInput.skipEditDependencies){
             Logger.log(`Skip edit of TRM dependencies (input)`, true);
             return false;
@@ -14,7 +14,7 @@ export const editTrmDependencies: Step<WorkflowContext> = {
             return true;
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         var editorValue = '[]';
         if(context.runtime.manifest.dependencies){
             editorValue = JSON.stringify(context.runtime.manifest.dependencies, null, 2);

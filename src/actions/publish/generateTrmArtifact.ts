@@ -1,13 +1,13 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { TrmArtifact } from "../../trmPackage";
 import { Transport } from "../../transport";
 
 
-export const generateTrmArtifact: Step<WorkflowContext> = {
+export const generateTrmArtifact: Step<PublishWorkflowContext> = {
     name: 'generate-trm-artifact',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.loading(`Generating TRM Artifact...`);
         var aTransports: Transport[] = [];
         aTransports.push(context.runtime.tadirTransport);

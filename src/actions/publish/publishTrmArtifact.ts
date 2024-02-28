@@ -1,10 +1,10 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 
-export const publishTrmArtifact: Step<WorkflowContext> = {
+export const publishTrmArtifact: Step<PublishWorkflowContext> = {
     name: 'publish-trm-artifact',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.loading(`Publishing TRM Artifact...`);
         await context.runtime.trmPackage.publish({
             artifact: context.runtime.artifact,

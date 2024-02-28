@@ -1,5 +1,5 @@
 import { Step } from "@sammarks/workflow";
-import { TadirDependency, WorkflowContext } from ".";
+import { TadirDependency, FindDependenciesPublishWorkflowContext } from ".";
 import { TADIR } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
@@ -69,9 +69,9 @@ const _findDependency = async (tadirDependency: TADIR, packageDependencies: Tadi
     return packageDependencies;
 }
 
-export const setDependencies: Step<WorkflowContext> = {
+export const setDependencies: Step<FindDependenciesPublishWorkflowContext> = {
     name: 'set-dependencies',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
         var packageDependencies: TadirDependency[] = [];
         const tadirDependencies = context.runtime.tadirDependencies;
 

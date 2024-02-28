@@ -1,10 +1,10 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 
-export const checkPackageExistance: Step<WorkflowContext> = {
+export const checkPackageExistance: Step<PublishWorkflowContext> = {
     name: 'check-package-existance',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const packageName = context.parsedInput.packageName;
         Logger.loading(`Checking package "${packageName}"...`);
         if (await context.runtime.dummyPackage.exists()) {

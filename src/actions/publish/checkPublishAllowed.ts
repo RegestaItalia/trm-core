@@ -1,10 +1,10 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 
-export const checkPublishAllowed: Step<WorkflowContext> = {
+export const checkPublishAllowed: Step<PublishWorkflowContext> = {
     name: 'check-publish-allowed',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const packageName = context.parsedInput.packageName;
 
         //create a dummy TrmPackage, just to check if it can be published

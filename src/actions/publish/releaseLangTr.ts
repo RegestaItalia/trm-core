@@ -1,10 +1,10 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { CliLogFileLogger, CliLogger, Logger } from "../../logger";
 
-export const releaseLangTr: Step<WorkflowContext> = {
+export const releaseLangTr: Step<PublishWorkflowContext> = {
     name: 'release-tadir-tr',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if(context.runtime.langTransport){
             return true;
         }else{
@@ -12,7 +12,7 @@ export const releaseLangTr: Step<WorkflowContext> = {
             return false;
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const tmpFolder = context.parsedInput.releaseFolder;
         const timeout = context.parsedInput.releaseTimeout;
         if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){

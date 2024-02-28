@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 
 
-export const setSapEntries: Step<WorkflowContext> = {
+export const setSapEntries: Step<PublishWorkflowContext> = {
     name: 'set-sap-entries',
-    filter: async (context: WorkflowContext): Promise<boolean> => {
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         const sapEntries = (context.runtime.dependencies || []).filter(o => !o.trmPackage);
         if (sapEntries.length > 0) {
             return true;
@@ -14,7 +14,7 @@ export const setSapEntries: Step<WorkflowContext> = {
             return false;
         }
     },
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const sapEntries = (context.runtime.dependencies || []).filter(o => !o.trmPackage);
         sapEntries.forEach(d => {
             if (d.isSap) {

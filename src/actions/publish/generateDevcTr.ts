@@ -1,13 +1,13 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { Logger } from "../../logger";
 import { TADIR } from "../../client";
 
 
-export const generateDevcTr: Step<WorkflowContext> = {
+export const generateDevcTr: Step<PublishWorkflowContext> = {
     name: 'generate-devc-tr',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.loading(`Generating DEVC transport...`);
         const devcOnly: TADIR[] = context.runtime.tadirObjects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
         context.runtime.devcTransport = await Transport.createToc({
@@ -18,7 +18,7 @@ export const generateDevcTr: Step<WorkflowContext> = {
         await context.runtime.devcTransport.addObjects(devcOnly, false);
         context.runtime.tryDevcDeleteRevert = true;
     },
-    revert: async (context: WorkflowContext): Promise<void> => {
+    revert: async (context: PublishWorkflowContext): Promise<void> => {
         if(context.runtime.tryDevcDeleteRevert){
             Logger.loading(`Rollback DEVC transport ${context.runtime.devcTransport.trkorr}...`);
             try {

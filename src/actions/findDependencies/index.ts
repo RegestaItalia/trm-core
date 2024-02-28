@@ -37,7 +37,7 @@ type WorkflowRuntime = {
     tadirDependencies?: TADIR[]
 }
 
-export type WorkflowContext = {
+export type FindDependenciesPublishWorkflowContext = {
     rawInput: FindDependencyActionInput,
     parsedInput: WorkflowParsedInput,
     runtime: WorkflowRuntime,
@@ -56,7 +56,7 @@ export async function findDependencies(inputData: FindDependencyActionInput): Pr
         setDependencies
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-    const result = await execute<WorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await execute<FindDependenciesPublishWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData,
         parsedInput: {},
         runtime: {},

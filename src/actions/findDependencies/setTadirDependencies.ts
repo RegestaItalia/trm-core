@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { FindDependenciesPublishWorkflowContext } from ".";
 import { TADIR } from "../../client";
 import { SenviParser } from "../../dependency";
 
-export const setTadirDependencies: Step<WorkflowContext> = {
+export const setTadirDependencies: Step<FindDependenciesPublishWorkflowContext> = {
     name: 'set-tadir-dependencies',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
         var tadirDependencies: TADIR[] = [];
         const aSenvi = context.runtime.senvi;
         const aIgnoredDevclass = context.runtime.devclassIgnore;

@@ -1,13 +1,13 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { SystemConnector } from "../../systemConnector";
 import { createHash } from "crypto";
 import { RegistryType } from "../../registry";
 
-export const finalizePublish: Step<WorkflowContext> = {
+export const finalizePublish: Step<PublishWorkflowContext> = {
     name: 'finalize-publish',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.loading(`Finalizing...`);
         try {
             //add to publish trkorr
@@ -39,7 +39,7 @@ export const finalizePublish: Step<WorkflowContext> = {
             throw new Error(`Running in development, rolling back publish`);
         }
     },
-    revert: async (context: WorkflowContext): Promise<void> => {
+    revert: async (context: PublishWorkflowContext): Promise<void> => {
         //TODO: delete record in integrity table
         if(context.output){
             delete context.output.trmPackage;

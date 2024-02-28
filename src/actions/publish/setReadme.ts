@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Inquirer } from "../../inquirer/Inquirer";
 
 
-export const setReadme: Step<WorkflowContext> = {
+export const setReadme: Step<PublishWorkflowContext> = {
     name: 'set-readme',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         const inq1 = await Inquirer.prompt([{
             message: 'Write readme?',
             type: 'confirm',

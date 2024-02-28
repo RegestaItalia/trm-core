@@ -1,14 +1,14 @@
 import { Step } from "@sammarks/workflow";
-import { WorkflowContext } from ".";
+import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { clean } from "semver";
 import { parsePackageName } from "../../commons";
 
-export const init: Step<WorkflowContext> = {
+export const init: Step<PublishWorkflowContext> = {
     name: 'init',
-    run: async (context: WorkflowContext): Promise<void> => {
+    run: async (context: PublishWorkflowContext): Promise<void> => {
         var packageName: string;
         var packageVersion: string;
         const registry = context.rawInput.registry;
