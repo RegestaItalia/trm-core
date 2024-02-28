@@ -75,6 +75,7 @@ export const setDependencies: Step<WorkflowContext> = {
         var packageDependencies: TadirDependency[] = [];
         const tadirDependencies = context.runtime.tadirDependencies;
 
+        Logger.loading(`Searching for dependencies...`);
         for (const tadirDependency of tadirDependencies) {
             packageDependencies = await _findDependency(tadirDependency, packageDependencies);
         }

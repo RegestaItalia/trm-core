@@ -33,7 +33,7 @@ export const setBackwardsCompatible: Step<WorkflowContext> = {
                 context.runtime.manifest.backwardsCompatible = context.rawInput.package.backwardsCompatible;
             }
         } else {
-            Logger.log(`Setting package backwards compatible by default because it's the first publish`);
+            Logger.log(`Setting package backwards compatible by default because it's the first publish`, true);
             context.runtime.manifest.backwardsCompatible = true;
         }
     }

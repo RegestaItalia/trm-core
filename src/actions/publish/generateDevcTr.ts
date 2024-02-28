@@ -18,20 +18,18 @@ export const generateDevcTr: Step<WorkflowContext> = {
         await context.runtime.devcTransport.addObjects(devcOnly, false);
     },
     revert: async (context: WorkflowContext): Promise<void> => {
-        if(!context.runtime.skipDevcTransportDelete){
-            Logger.loading(`Rollback DEVC transport ${context.runtime.devcTransport.trkorr}...`);
-            try{
-                const canBeDeleted = await context.runtime.devcTransport.canBeDeleted();
-                if(canBeDeleted){
-                    await context.runtime.devcTransport.delete();
-                    Logger.info(`Executed rollback on transport ${context.runtime.devcTransport.trkorr}`);
-                }else{
-                    throw new Error(`Transport ${context.runtime.devcTransport.trkorr} cannot be deleted`);
-                }
-            }catch(e){
-                Logger.info(`Unable to rollback transport ${context.runtime.devcTransport.trkorr}`);
-                Logger.error(e.toString(), true);
+        Logger.loading(`Rollback DEVC transport ${context.runtime.devcTransport.trkorr}...`);
+        try {
+            const canBeDeleted = await context.runtime.devcTransport.canBeDeleted();
+            if (canBeDeleted) {
+                await context.runtime.devcTransport.delete();
+                Logger.info(`Executed rollback on transport ${context.runtime.devcTransport.trkorr}`);
+            } else {
+                throw new Error(`Transport ${context.runtime.devcTransport.trkorr} cannot be deleted`);
             }
+        } catch (e) {
+            Logger.info(`Unable to rollback transport ${context.runtime.devcTransport.trkorr}`);
+            Logger.error(e.toString(), true);
         }
     }
 }

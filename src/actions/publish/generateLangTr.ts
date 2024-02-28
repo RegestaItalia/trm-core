@@ -8,10 +8,10 @@ import { TADIR } from "../../client";
 export const generateLangTr: Step<WorkflowContext> = {
     name: 'generate-lang-tr',
     filter: async (context: WorkflowContext): Promise<boolean> => {
-        if(context.rawInput.skipLang){
+        if (context.rawInput.skipLang) {
             Logger.log(`Skipping LANG transport (input)`, true);
             return false;
-        }else{
+        } else {
             return true;
         }
     },
@@ -23,34 +23,31 @@ export const generateLangTr: Step<WorkflowContext> = {
             text: `@X1@TRM: ${context.runtime.manifest.name} v${context.runtime.manifest.version} (L)`
         });
         var iLanguageObjects: number = 0;
-        try{
+        try {
             await context.runtime.langTransport.addTranslations(devcOnly.map(o => o.objName));
             iLanguageObjects = (await context.runtime.langTransport.getE071()).length;
-        }catch(e){
+        } catch (e) {
             Logger.warning(`Language transport generation error (${e.toString()})`);
-        }finally{
-            if(iLanguageObjects === 0){
+        } finally {
+            if (iLanguageObjects === 0) {
                 await context.runtime.langTransport.delete();
                 delete context.runtime.langTransport;
-                context.runtime.skipLangTransportDelete = true;
             }
         }
     },
     revert: async (context: WorkflowContext): Promise<void> => {
-        if(context.runtime.langTransport && context.runtime.skipLangTransportDelete){
-            Logger.loading(`Rollback LANG transport ${context.runtime.langTransport.trkorr}...`);
-            try{
-                const canBeDeleted = await context.runtime.langTransport.canBeDeleted();
-                if(canBeDeleted){
-                    await context.runtime.langTransport.delete();
-                    Logger.info(`Executed rollback on transport ${context.runtime.langTransport.trkorr}`);
-                }else{
-                    throw new Error(`Transport ${context.runtime.langTransport.trkorr} cannot be deleted`);
-                }
-            }catch(e){
-                Logger.info(`Unable to rollback transport ${context.runtime.langTransport.trkorr}`);
-                Logger.error(e.toString(), true);
+        Logger.loading(`Rollback LANG transport ${context.runtime.langTransport.trkorr}...`);
+        try {
+            const canBeDeleted = await context.runtime.langTransport.canBeDeleted();
+            if (canBeDeleted) {
+                await context.runtime.langTransport.delete();
+                Logger.info(`Executed rollback on transport ${context.runtime.langTransport.trkorr}`);
+            } else {
+                throw new Error(`Transport ${context.runtime.langTransport.trkorr} cannot be deleted`);
             }
+        } catch (e) {
+            Logger.info(`Unable to rollback transport ${context.runtime.langTransport.trkorr}`);
+            Logger.error(e.toString(), true);
         }
     }
 }

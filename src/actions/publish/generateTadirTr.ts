@@ -3,6 +3,7 @@ import { WorkflowContext } from ".";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { Logger } from "../../logger";
 import { TADIR } from "../../client";
+import { SystemConnector } from "../../systemConnector";
 
 
 export const generateTadirTr: Step<WorkflowContext> = {
@@ -22,20 +23,18 @@ export const generateTadirTr: Step<WorkflowContext> = {
         await context.runtime.tadirTransport.addObjects(objectsOnly, false);
     },
     revert: async (context: WorkflowContext): Promise<void> => {
-        if(!context.runtime.skipTadirTransportDelete){
-            Logger.loading(`Rollback TADIR transport ${context.runtime.tadirTransport.trkorr}...`);
-            try{
-                const canBeDeleted = await context.runtime.tadirTransport.canBeDeleted();
-                if(canBeDeleted){
-                    await context.runtime.tadirTransport.delete();
-                    Logger.info(`Executed rollback on transport ${context.runtime.tadirTransport.trkorr}`);
-                }else{
-                    throw new Error(`Transport ${context.runtime.tadirTransport.trkorr} cannot be deleted`);
-                }
-            }catch(e){
-                Logger.info(`Unable to rollback transport ${context.runtime.tadirTransport.trkorr}`);
-                Logger.error(e.toString(), true);
+        Logger.loading(`Rollback TADIR transport ${context.runtime.tadirTransport.trkorr}...`);
+        try {
+            const canBeDeleted = await context.runtime.tadirTransport.canBeDeleted();
+            if (canBeDeleted) {
+                await context.runtime.tadirTransport.delete();
+                Logger.info(`Executed rollback on transport ${context.runtime.tadirTransport.trkorr}`);
+            } else {
+                await SystemConnector.addSkipTrkorr(context.runtime.tadirTransport.trkorr);
             }
+        } catch (e) {
+            Logger.info(`Unable to rollback transport ${context.runtime.tadirTransport.trkorr}`);
+            Logger.error(e.toString(), true);
         }
     }
 }

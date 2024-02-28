@@ -75,9 +75,6 @@ type WorkflowRuntime = {
     devcTransport?: Transport,
     tadirTransport?: Transport,
     langTransport?: Transport,
-    skipDevcTransportDelete?: boolean,
-    skipTadirTransportDelete?: boolean,
-    skipLangTransportDelete?: boolean,
     artifact?: TrmArtifact
 }
 
