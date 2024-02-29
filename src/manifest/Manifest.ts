@@ -436,7 +436,26 @@ export class Manifest {
                 }];
             }
         }
-        //TODO complete sapEntries dependencies
+        if(oAbapManifest.dependencies){
+            if (Array.isArray(oAbapManifest.dependencies.item)) {
+                manifest.dependencies = oAbapManifest.dependencies.item.map(o => {
+                    return {
+                        name: o.name?.text,
+                        integrity: o.integrity?.text,
+                        version: o.version?.text,
+                        registry: o.registry?.text
+                    };
+                });
+            } else {
+                manifest.dependencies = [{
+                    name: oAbapManifest.dependencies.item.name?.text,
+                    integrity: oAbapManifest.dependencies.item.integrity?.text,
+                    version: oAbapManifest.dependencies.item.version?.text,
+                    registry: oAbapManifest.dependencies.item.registry?.text
+                }];
+            }
+        }
+        //TODO complete sapEntries
         return new Manifest(Manifest.normalize(manifest, false));
     }
 
