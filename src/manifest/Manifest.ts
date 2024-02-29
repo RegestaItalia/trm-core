@@ -12,6 +12,7 @@ import { TrmManifestAuthor } from "./TrmManifestAuthor";
 import { DOMParser } from 'xmldom';
 import _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
+import { Logger } from "../logger";
 
 
 function getManifestAuthor(sAuthor: string) {
@@ -436,7 +437,7 @@ export class Manifest {
                 }];
             }
         }
-        if(oAbapManifest.dependencies){
+        if(oAbapManifest.dependencies && oAbapManifest.dependencies.item){
             if (Array.isArray(oAbapManifest.dependencies.item)) {
                 manifest.dependencies = oAbapManifest.dependencies.item.map(o => {
                     return {
@@ -455,8 +456,49 @@ export class Manifest {
                 }];
             }
         }
-        //TODO complete sapEntries
+        if(oAbapManifest.sapEntries && oAbapManifest.sapEntries.item){
+            manifest.sapEntries = {};
+            try{
+                const aParsedXml = this._parseAbapXmlSapEntriesArray(oAbapManifest.sapEntries.item);
+                aParsedXml.forEach(o => {
+                    manifest.sapEntries[o.table] = [];
+                    o.entries.forEach(e => {
+                        var parsedEntry = {};
+                        Object.keys(e).forEach(field => {
+                            var parsedField = field.toUpperCase();
+                            if(o.table === 'TADIR' && parsedField === 'OBJNAME'){
+                                parsedField = 'OBJ_NAME';
+                            }
+                            parsedEntry[parsedField] = e[field];
+                        });
+                        manifest.sapEntries[o.table].push(parsedEntry);
+                    });
+                });
+            }catch(e){ }
+        }
         return new Manifest(Manifest.normalize(manifest, false));
+    }
+
+    public static _parseAbapXmlSapEntriesArray(input: any): any[] {
+        var array = [];
+        if(Array.isArray(input)){
+            input.forEach(o => {
+                array = array.concat(this._parseAbapXmlSapEntriesArray(o));
+            });
+        }else{
+            var obj = {};
+            Object.keys(input).forEach(k => {
+                if(input[k].text){
+                    obj[k] = input[k].text;
+                }else{
+                    if(input[k].item){
+                        obj[k] = this._parseAbapXmlSapEntriesArray(input[k].item);
+                    }
+                }
+            });
+            array.push(obj);
+        }
+        return array;
     }
 
     public static fromJson(sJson: string): Manifest {

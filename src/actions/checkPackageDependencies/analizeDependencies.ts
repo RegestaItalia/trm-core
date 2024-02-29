@@ -9,12 +9,17 @@ import { SystemConnector } from "../../systemConnector";
 export const analizeDependencies: Step<CheckPackageDependencyWorkflowContext> = {
     name: 'analize-dependencies',
     filter: async (context: CheckPackageDependencyWorkflowContext): Promise<boolean> => {
-        return context.parsedInput.systemPackages && context.parsedInput.systemPackages.length > 0;
+        if(context.parsedInput.systemPackages && context.parsedInput.systemPackages.length > 0){
+            return true;
+        }else{
+            Logger.info(`Package ${context.parsedInput.packageName} has no TRM package dependencies`, context.parsedInput.print);
+            return false;
+        }
     },
     run: async (context: CheckPackageDependencyWorkflowContext): Promise<void> => {
         const dependencies = context.parsedInput.dependencies;
         const systemPackages = context.parsedInput.systemPackages;
-        Logger.info(`Package ${context.parsedInput.packageName} has ${dependencies.length} TRM package dependencies.`, context.parsedInput.print);
+        Logger.info(`Package ${context.parsedInput.packageName} has ${dependencies.length} TRM package dependencies`, context.parsedInput.print);
         context.runtime.versionOkDependencies = [];
         context.runtime.versionKoDependencies = [];
         context.runtime.integrityOkDependencies = [];
