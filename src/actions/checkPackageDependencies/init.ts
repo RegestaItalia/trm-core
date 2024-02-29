@@ -1,9 +1,9 @@
 import { Step } from "@sammarks/workflow";
-import { FindDependenciesPublishWorkflowContext } from ".";
+import { CheckPackageDependencyWorkflowContext } from ".";
 
-export const init: Step<FindDependenciesPublishWorkflowContext> = {
+export const init: Step<CheckPackageDependencyWorkflowContext> = {
     name: 'init',
-    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
+    run: async (context: CheckPackageDependencyWorkflowContext): Promise<void> => {
         context.parsedInput.packageName = context.rawInput.trmPackage.packageName;
         context.parsedInput.print = !(context.rawInput.print ? true : false);
         if(context.rawInput.trmPackage.manifest){

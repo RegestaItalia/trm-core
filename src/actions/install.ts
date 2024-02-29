@@ -8,7 +8,7 @@ import { Transport, TrmTransportIdentifier } from "../transport";
 import { getPackageHierarchy, getPackageNamespace, normalize, parsePackageName } from "../commons";
 import { R3trans } from "node-r3trans";
 import { checkSapEntries } from "./checkSapEntries";
-import { checkDependencies } from "./checkDependencies";
+//import { checkDependencies } from "./checkDependencies";
 import { createHash } from "crypto";
 import { SystemConnector } from "../systemConnector";
 import { TRKORR, TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../client";
@@ -129,10 +129,11 @@ export async function install(data: {
 
     Logger.loading(`Checking dependencies...`);
     const dependencies = manifest.dependencies || [];
-    const dependencyCheck = await checkDependencies({
+    const dependencyCheck = {} as any; 
+    /*await checkDependencies({
         dependencies,
         installedPackages
-    });
+    });*/
     if(dependencyCheck.requiredDependenciesTab){
         Logger.info(`Package "${packageName}" has ${dependencyCheck.requiredDependenciesTab.data.length} dependencies.`);
         Logger.table(dependencyCheck.requiredDependenciesTab.head, dependencyCheck.requiredDependenciesTab.data);

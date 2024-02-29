@@ -1,9 +1,9 @@
 import { Step } from "@sammarks/workflow";
-import { FindDependenciesPublishWorkflowContext } from ".";
+import { CheckPackageDependencyWorkflowContext } from ".";
 
-export const buildOutput: Step<FindDependenciesPublishWorkflowContext> = {
+export const buildOutput: Step<CheckPackageDependencyWorkflowContext> = {
     name: 'build-output',
-    filter: async (context: FindDependenciesPublishWorkflowContext): Promise<boolean> => {
+    filter: async (context: CheckPackageDependencyWorkflowContext): Promise<boolean> => {
         try {
             const items = context.runtime.versionOkDependencies.length +
                 context.runtime.versionKoDependencies.length +
@@ -14,7 +14,7 @@ export const buildOutput: Step<FindDependenciesPublishWorkflowContext> = {
             return false;
         }
     },
-    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
+    run: async (context: CheckPackageDependencyWorkflowContext): Promise<void> => {
         context.output.dependencyStatus = [];
         context.runtime.versionOkDependencies.forEach(o => {
             const i = context.output.dependencyStatus.findIndex(k => k.dependency.name === o.name && k.dependency.registry === o.registry);

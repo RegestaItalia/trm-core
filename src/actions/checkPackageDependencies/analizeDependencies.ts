@@ -1,17 +1,17 @@
 import { Step } from "@sammarks/workflow";
-import { FindDependenciesPublishWorkflowContext } from ".";
+import { CheckPackageDependencyWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
 import { Registry } from "../../registry";
 import { satisfies } from "semver";
 import { SystemConnector } from "../../systemConnector";
 
-export const analizeDependencies: Step<FindDependenciesPublishWorkflowContext> = {
+export const analizeDependencies: Step<CheckPackageDependencyWorkflowContext> = {
     name: 'analize-dependencies',
-    filter: async (context: FindDependenciesPublishWorkflowContext): Promise<boolean> => {
+    filter: async (context: CheckPackageDependencyWorkflowContext): Promise<boolean> => {
         return context.parsedInput.systemPackages && context.parsedInput.systemPackages.length > 0;
     },
-    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
+    run: async (context: CheckPackageDependencyWorkflowContext): Promise<void> => {
         const dependencies = context.parsedInput.dependencies;
         const systemPackages = context.parsedInput.systemPackages;
         Logger.info(`Package ${context.parsedInput.packageName} has ${dependencies.length} TRM package dependencies.`, context.parsedInput.print);
@@ -26,7 +26,7 @@ export const analizeDependencies: Step<FindDependenciesPublishWorkflowContext> =
         var tableData: string[];
         for(const dependency of dependencies){
             tableData = [dependency.name, dependency.registry || 'public', dependency.version];
-            const dependencyTrmPackage = new TrmPackage(dependency.name, new Registry(dependency.registry));
+            const dependencyTrmPackage = new TrmPackage(dependency.name, new Registry(dependency.registry || 'public'));
             const systemInstalledPackage = systemPackages.find(o => TrmPackage.compare(o, dependencyTrmPackage));
             if(systemInstalledPackage && systemInstalledPackage.manifest){
                 const installedVersion = systemInstalledPackage.manifest.get().version;

@@ -39,7 +39,7 @@ export type CheckPackageDependencyActionOutput = {
     }[]
 }
 
-export type FindDependenciesPublishWorkflowContext = {
+export type CheckPackageDependencyWorkflowContext = {
     rawInput: CheckPackageDependencyActionInput,
     parsedInput: WorkflowParsedInput,
     runtime: WorkflowRuntime,
@@ -56,7 +56,7 @@ export async function checkPackageDependencies(inputData: CheckPackageDependency
         buildOutput
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-    const result = await execute<FindDependenciesPublishWorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await execute<CheckPackageDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData,
         parsedInput: {},
         runtime: {},
