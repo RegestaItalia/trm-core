@@ -1,15 +1,12 @@
 import { Step } from "@sammarks/workflow";
 import { CheckSapEntriesWorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { TrmPackage } from "../../trmPackage";
-import { Registry } from "../../registry";
-import { satisfies } from "semver";
 import { SystemConnector } from "../../systemConnector";
 
 export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
     name: 'analize-sap-entries',
     filter: async (context: CheckSapEntriesWorkflowContext): Promise<boolean> => {
-        if (context.parsedInput.sapEntries && context.parsedInput.sapEntries.length > 0) {
+        if (context.parsedInput.sapEntries && Object.keys(context.parsedInput.sapEntries).length > 0) {
             return true;
         } else {
             Logger.info(`Package ${context.parsedInput.packageName} has no SAP entries`, context.parsedInput.print);
@@ -23,6 +20,7 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
         context.runtime.koEntries = [];
         context.runtime.tables = [];
 
+        var entriesCount = 0;
         var unknownTables: string[] = [];
         var tableFields: {
             tableName: string,
@@ -32,6 +30,7 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
         Object.keys(sapEntries).forEach(tableName => {
             var aFields: string[] = [];
             sapEntries[tableName].forEach(o => {
+                entriesCount++;
                 Object.keys(o).forEach(field => {
                     if(!aFields.includes(field)){
                         aFields.push(field);
@@ -43,6 +42,12 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
                 fields: aFields
             });
         });
+
+        if(entriesCount === 0){
+            return;
+        }
+
+        Logger.info(`Package ${context.parsedInput.packageName} has ${entriesCount} SAP entries`, context.parsedInput.print);
 
         for (const table of Object.keys(sapEntries)) {
             var tableExists: boolean;
@@ -71,13 +76,25 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
                         const exists = SystemConnector.checkSapEntryExists(table, tableEntry);
                         if(exists){
                             entryStatus = `OK`;
+                            context.runtime.okEntries.push({
+                                table,
+                                tableEntry
+                            });
                         }else{
                             entryStatus = `NOT FOUND`;
+                            context.runtime.koEntries.push({
+                                table,
+                                tableEntry
+                            });
                         }
                     }catch(e){
                         Logger.error(e.toString(), true);
                         Logger.error(`Error during check of SAP entry ${JSON.stringify(tableEntry)}`, true);
                         entryStatus = `Unknown`;
+                        context.runtime.koEntries.push({
+                            table,
+                            tableEntry
+                        });
                     }
                     Object.keys(tableEntry).forEach(field => {
                         const pushIndex = printTableHead.findIndex(headerName => headerName === field);
@@ -92,45 +109,8 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
                 });
             }
         }
-        debugger
-        /*
-        var tableData: string[];
-        for(const dependency of dependencies){
-            tableData = [dependency.name, dependency.registry || 'public', dependency.version];
-            const dependencyTrmPackage = new TrmPackage(dependency.name, new Registry(dependency.registry || 'public'));
-            const systemInstalledPackage = systemPackages.find(o => TrmPackage.compare(o, dependencyTrmPackage));
-            if(systemInstalledPackage && systemInstalledPackage.manifest){
-                const installedVersion = systemInstalledPackage.manifest.get().version;
-                tableData.push(installedVersion);
-                if(satisfies(installedVersion, dependency.version)){
-                    tableData.push('OK');
-                    context.runtime.versionOkDependencies.push(dependency);
-                }else{
-                    tableData.push('ERR!');
-                    context.runtime.versionKoDependencies.push(dependency);
-                }
-            }else{
-                tableData.push('Not found');
-                tableData.push('ERR!');
-                context.runtime.versionKoDependencies.push(dependency);
-            }
-            try{
-                const installedPackageIntegrity = await SystemConnector.getPackageIntegrity(systemInstalledPackage);
-                if(installedPackageIntegrity === dependency.integrity){
-                    tableData.push('Safe');
-                    context.runtime.integrityOkDependencies.push(dependency);
-                }else{
-                    tableData.push('Unsafe');
-                    context.runtime.integrityKoDependencies.push(dependency);
-                }
-            }catch(e){
-                tableData.push('Unknown');
-                context.runtime.integrityKoDependencies.push(dependency);
-                Logger.error(e.toString(), true);
-                Logger.error(`Couldn't retrieve package integrity`, true);
-            }
-            context.runtime.table.data.push(tableData);
-        }
-        Logger.table(context.runtime.table.head, context.runtime.table.data, context.parsedInput.print);*/
+        context.runtime.tables.forEach(t => {
+            Logger.table(t.head, t.data, context.parsedInput.print);
+        });
     }
 }

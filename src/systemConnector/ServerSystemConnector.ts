@@ -209,7 +209,8 @@ export class ServerSystemConnector implements ISystemConnector {
                 Logger.log(`trm-server was found (it was imported via transport)`, true);
                 if (trmServerPackage.manifest.get().version === generatedTrmServerPackage.manifest.get().version) {
                     Logger.log(`trm-server imported is the one currenlty in use`, true);
-                    generatedTrmServerPackage.manifest.setLinkedTransport(trmServerPackage.manifest.getLinkedTransport());
+                    //generatedTrmServerPackage.manifest.setLinkedTransport(trmServerPackage.manifest.getLinkedTransport());
+                    generatedTrmServerPackage.manifest = trmServerPackage.manifest;
                 }
             }
             trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry('public'))));

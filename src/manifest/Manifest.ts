@@ -382,8 +382,9 @@ export class Manifest {
         var manifest: TrmManifest;
         const oAbapXml = xml.xml2js(sXml, { compact: true });
         var oAbapManifest;
+        var sapEntries;
         try {
-            oAbapManifest = normalize(oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']);
+            oAbapManifest = normalize(_.cloneDeep(oAbapXml)['asx:abap']['asx:values']['TRM_MANIFEST']);
             manifest = {
                 name: oAbapManifest.name.text,
                 version: oAbapManifest.version.text,
@@ -393,6 +394,12 @@ export class Manifest {
             };
         } catch (e) {
             throw new Error('XML Manifest is corrupted.');
+        }
+        try{
+            sapEntries = oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['SAP_ENTRIES'];
+        }catch(e){
+            Logger.error(e.toString(), true);
+            Logger.error(`Couldn't parse sapEntries in abap xml manifest`, true);
         }
         if (oAbapManifest.description && oAbapManifest.description.text) {
             manifest.description = oAbapManifest.description.text;
@@ -456,22 +463,21 @@ export class Manifest {
                 }];
             }
         }
-        if(oAbapManifest.sapEntries && oAbapManifest.sapEntries.item){
+        if(sapEntries && sapEntries.item){
             manifest.sapEntries = {};
             try{
-                const aParsedXml = this._parseAbapXmlSapEntriesArray(oAbapManifest.sapEntries.item);
+                const aParsedXml = this._parseAbapXmlSapEntriesArray(sapEntries.item);
                 aParsedXml.forEach(o => {
-                    manifest.sapEntries[o.table] = [];
-                    o.entries.forEach(e => {
+                    manifest.sapEntries[o.TABLE] = [];
+                    o.ENTRIES.forEach(e => {
                         var parsedEntry = {};
                         Object.keys(e).forEach(field => {
                             var parsedField = field.toUpperCase();
-                            if(o.table === 'TADIR' && parsedField === 'OBJNAME'){
-                                parsedField = 'OBJ_NAME';
-                            }
                             parsedEntry[parsedField] = e[field];
                         });
-                        manifest.sapEntries[o.table].push(parsedEntry);
+                        if(Object.keys(parsedEntry).length > 0){
+                            manifest.sapEntries[o.TABLE].push(parsedEntry);
+                        }
                     });
                 });
             }catch(e){ }
@@ -488,8 +494,8 @@ export class Manifest {
         }else{
             var obj = {};
             Object.keys(input).forEach(k => {
-                if(input[k].text){
-                    obj[k] = input[k].text;
+                if(input[k]._text){
+                    obj[k] = input[k]._text;
                 }else{
                     if(input[k].item){
                         obj[k] = this._parseAbapXmlSapEntriesArray(input[k].item);

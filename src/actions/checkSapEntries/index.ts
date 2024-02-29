@@ -5,6 +5,7 @@ import { inspect } from "util";
 import { LogTableStruct } from "../../commons";
 import { init } from "./init";
 import { analizeSapEntries } from "./analizeSapEntries";
+import { buildOutput } from "./buildOutput";
 
 export type CheckSapEntriesActionInput = {
     trmPackage: TrmPackage,
@@ -40,7 +41,8 @@ const WORKFLOW_NAME = 'check-sap-entries';
 export async function checkSapEntries(inputData: CheckSapEntriesActionInput): Promise<CheckSapEntriesActionOutput> {
     const workflow = [
         init,
-        analizeSapEntries
+        analizeSapEntries,
+        buildOutput
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<CheckSapEntriesWorkflowContext>(WORKFLOW_NAME, workflow, {
