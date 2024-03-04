@@ -41,6 +41,9 @@ const _findDependency = async (tadirDependency: TADIR, packageDependencies: Tadi
         arrayIndex = packageDependencies.findIndex(o => o.trmPackage && TrmPackage.compare(o.trmPackage, linkedPackage));
         if (arrayIndex < 0) {
             const integrity = await SystemConnector.getPackageIntegrity(linkedPackage);
+            if(!integrity){
+                throw new Error(`Package ${linkedPackage.packageName}, integrity not found!`);
+            }
             Logger.log(`Dependency with ${linkedPackage.packageName} found, integrity ${integrity}`, true);
             arrayIndex = packageDependencies.push({
                 trmPackage: linkedPackage,
