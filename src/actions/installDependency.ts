@@ -15,7 +15,7 @@ export async function installDependency(data: {
     installedPackages?: TrmPackage[],
     originalInstallOptions?: any
 }, registry: Registry) {
-    //this command is similar to install, however it's dedicated to dependencies
+    /*//this command is similar to install, however it's dedicated to dependencies
     //it shouldn't be used outside the install package flow
     const packageName = data.packageName;
     const versionRange = semver.validRange(data.versionRange);
@@ -86,5 +86,5 @@ export async function installDependency(data: {
             integrity,
             safe: integrity ? true : false
         }
-    }, registry);
+    }, registry);*/
 }

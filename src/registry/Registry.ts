@@ -29,6 +29,7 @@ export class Registry {
         if (endpoint.trim().toLowerCase() === 'public') {
             this.endpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT || 'https://www.trmregistry.com/registry';
             this._registryType = RegistryType.PUBLIC;
+            this.name = 'public';
         } else {
             this.endpoint = endpoint;
             this._registryType = RegistryType.PRIVATE;

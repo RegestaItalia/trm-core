@@ -37,8 +37,8 @@ import { finalizePublish } from "./finalizePublish";
 
 export type PublishActionInput = {
     package: TrmManifest, //atleast name and version
-    devclass?: DEVCLASS,
     registry: Registry,
+    devclass?: DEVCLASS,
     target?: TR_TARGET,
     ci?: boolean,
     skipDependencies?: boolean,
