@@ -4,6 +4,7 @@ import { appendFileSync, existsSync, mkdirSync, writeFileSync } from "fs";
 import { v4 as uuidv4 } from 'uuid';
 import { join } from "path";
 import { getStackTrace } from "get-stack-trace";
+import { TreeLog } from "./TreeLog";
 
 export class CliLogFileLogger extends CliLogger {
 
@@ -96,6 +97,11 @@ export class CliLogFileLogger extends CliLogger {
     public registryResponse(response: ResponseMessage, debug?: boolean) {
         this._append(`${JSON.stringify(response)}`, 'REG ');
         super.registryResponse(response, debug);
+    }
+
+    public tree(data: TreeLog, debug?: boolean) {
+        this._append(`${JSON.stringify(data)}`, 'TREE');
+        super.tree(data, debug);
     }
 
     public forceStop(): void {

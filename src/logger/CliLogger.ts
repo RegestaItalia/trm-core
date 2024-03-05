@@ -2,6 +2,8 @@ import cliLogger, { Loading } from "loading-cli";
 import cliTable from "cli-table3";
 import { MessageType, ResponseMessage } from "trm-registry-types";
 import { ILogger } from "./ILogger";
+import { TreeLog } from "./TreeLog";
+import * as printTree from "print-tree";
 
 export class CliLogger implements ILogger {
 
@@ -17,14 +19,14 @@ export class CliLogger implements ILogger {
     }
 
     public loading(text: string, debug?: boolean) {
-        if(debug && !this.debug){
+        if (debug && !this.debug) {
             return;
         }
         this._loader = this._cliObj.render().start(text);
     }
 
     public success(text: string, debug?: boolean) {
-        if(debug && !this.debug){
+        if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
@@ -39,7 +41,7 @@ export class CliLogger implements ILogger {
     }
 
     public error(text: string, debug?: boolean) {
-        if(debug && !this.debug){
+        if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
@@ -54,7 +56,7 @@ export class CliLogger implements ILogger {
     }
 
     public warning(text: string, debug?: boolean) {
-        if(debug && !this.debug){
+        if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
@@ -69,7 +71,7 @@ export class CliLogger implements ILogger {
     }
 
     public info(text: string, debug?: boolean) {
-        if(debug && !this.debug){
+        if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
@@ -84,7 +86,7 @@ export class CliLogger implements ILogger {
     }
 
     public log(text: string, debug?: boolean) {
-        if(debug && !this.debug){
+        if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
@@ -97,7 +99,7 @@ export class CliLogger implements ILogger {
     }
 
     public table(header: any, data: any, debug?: boolean) {
-        if(debug && !this.debug){
+        if (debug && !this.debug) {
             return;
         }
         var table = new cliTable({
@@ -111,7 +113,7 @@ export class CliLogger implements ILogger {
     }
 
     public registryResponse(response: ResponseMessage, debug?: boolean) {
-        if(debug && !this.debug){
+        if (debug && !this.debug) {
             return;
         }
         if (response.type === MessageType.ERROR) {
@@ -123,6 +125,32 @@ export class CliLogger implements ILogger {
         if (response.type === MessageType.WARNING) {
             this.warning(response.text, debug);
         }
+    }
+
+    public tree(data: TreeLog, debug?: boolean) {
+        if (debug && !this.debug) {
+            return;
+        }
+        const _parseBranch = (o: TreeLog) => {
+            var children = [];
+            o.children.forEach(k => {
+                children.push(_parseBranch(k));
+            });
+            return {
+                name: o.text,
+                children
+            };
+        }
+        const treeData = _parseBranch(data);
+        printTree.default(
+            treeData,
+            (node) => {
+                return node.name;
+            },
+            (node) => { 
+                return node.children;
+            }
+        );
     }
 
     public forceStop() {

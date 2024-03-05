@@ -1,5 +1,6 @@
 import { ResponseMessage } from "trm-registry-types";
 import { ILogger } from "./ILogger";
+import { TreeLog } from "./TreeLog";
 
 export class DummyLogger implements ILogger {
 
@@ -22,5 +23,7 @@ export class DummyLogger implements ILogger {
     public table(header: any, data: any, debug?: boolean) { }
 
     public registryResponse(response: ResponseMessage, debug?: boolean) { }
+
+    public tree(data: TreeLog, debug?: boolean) { }
 
 }

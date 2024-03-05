@@ -1,6 +1,7 @@
 import { ResponseMessage } from "trm-registry-types";
 import { ILogger } from "./ILogger";
 import { DummyLogger } from "./DummyLogger";
+import { TreeLog } from "./TreeLog";
 
 export namespace Logger {
 
@@ -50,6 +51,11 @@ export namespace Logger {
     export function registryResponse(response: ResponseMessage, debug?: boolean): void {
         checkLogger();
         return logger.registryResponse(response, debug);
+    }
+
+    export function tree(data: TreeLog, debug?: boolean): void {
+        checkLogger();
+        return logger.tree(data, debug);
     }
 
 }

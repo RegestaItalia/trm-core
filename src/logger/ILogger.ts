@@ -1,4 +1,5 @@
 import { ResponseMessage } from "trm-registry-types";
+import { TreeLog } from "./TreeLog";
 
 export interface ILogger {
     debug: boolean,
@@ -9,5 +10,6 @@ export interface ILogger {
     info: (text: string, debug?: boolean) => void,
     log: (text: string, debug?: boolean) => void,
     table: (header: any, data: any, debug?: boolean) => void,
-    registryResponse: (response: ResponseMessage, debug?: boolean) => void
+    registryResponse: (response: ResponseMessage, debug?: boolean) => void,
+    tree: (data: TreeLog, debug?: boolean) => void
 }
