@@ -84,5 +84,6 @@ export const setDependencies: Step<FindDependenciesPublishWorkflowContext> = {
         }
 
         context.output.dependencies = packageDependencies;
+        context.runtime.trmPackageDependencies = packageDependencies.filter(o => o.trmPackage).map(o => o.trmPackage);
     }
 }

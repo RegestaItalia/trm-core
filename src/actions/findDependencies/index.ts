@@ -9,10 +9,26 @@ import { TrmPackage } from "../../trmPackage";
 import { setDependencies } from "./setDependencies";
 import { Logger } from "../../logger";
 import { inspect } from "util";
+import { setSystemPackages } from "./setSystemPackages";
+import { deepCheckDependencies } from "./deepCheckDependencies";
+
+export type DependencyTreeBranch = {
+    packageName: string,
+    trmPackage: TrmPackage,
+    dependencies: DependencyTreeBranch[],
+    circular: boolean
+};
+
+export type DependencyTree = {
+    devclass: string,
+    dependencies: DependencyTreeBranch[]
+};
 
 export type FindDependencyActionInput = {
     devclass: DEVCLASS,
-    tadir?: TADIR[]
+    tadir?: TADIR[],
+    deepCheck?: boolean,
+    systemPackages?: TrmPackage[]
 }
 
 export type TadirDependency = {
@@ -24,17 +40,21 @@ export type TadirDependency = {
 
 type WorkflowParsedInput = {
     devclass?: DEVCLASS,
-    tadir?: TADIR[]
+    tadir?: TADIR[],
+    deepCheck?: boolean,
+    systemPackages?: TrmPackage[]
 }
 
 type WorkflowRuntime = {
     devclassIgnore?: DEVCLASS[],
     senvi?: SENVI[],
-    tadirDependencies?: TADIR[]
+    tadirDependencies?: TADIR[],
+    trmPackageDependencies?: TrmPackage[]
 }
 
 export type FindDependencyActionOutput = {
-    dependencies?: TadirDependency[]
+    dependencies?: TadirDependency[],
+    tree?: DependencyTree
 }
 
 export type FindDependenciesPublishWorkflowContext = {
@@ -49,11 +69,13 @@ const WORKFLOW_NAME = 'find-dependencies';
 export async function findDependencies(inputData: FindDependencyActionInput): Promise<FindDependencyActionOutput> {
     const workflow = [
         init,
+        setSystemPackages,
         readPackageData,
         readPackageObjects,
         readRepositoryEnvironment,
         setTadirDependencies,
-        setDependencies
+        setDependencies,
+        deepCheckDependencies
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<FindDependenciesPublishWorkflowContext>(WORKFLOW_NAME, workflow, {

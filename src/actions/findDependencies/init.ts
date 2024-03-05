@@ -13,5 +13,6 @@ export const init: Step<FindDependenciesPublishWorkflowContext> = {
         }
 
         context.parsedInput.devclass = devclass;
+        context.parsedInput.deepCheck = context.rawInput.deepCheck ? true : false;
     }
 }
