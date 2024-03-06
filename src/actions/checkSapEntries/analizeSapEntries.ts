@@ -9,19 +9,17 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
         if (context.parsedInput.sapEntries && Object.keys(context.parsedInput.sapEntries).length > 0) {
             return true;
         } else {
-            Logger.info(`Package ${context.parsedInput.packageName} has no SAP entries`, context.parsedInput.print);
+            Logger.info(`Package ${context.parsedInput.packageName} has no SAP entries`, context.parsedInput.printStatus);
             return false;
         }
     },
     run: async (context: CheckSapEntriesWorkflowContext): Promise<void> => {
         const sapEntries = context.parsedInput.sapEntries;
-        Logger.info(`Package ${context.parsedInput.packageName} has ${sapEntries.length} SAP entries`, context.parsedInput.print);
         context.runtime.okEntries = [];
         context.runtime.koEntries = [];
         context.runtime.tables = [];
 
         var entriesCount = 0;
-        var unknownTables: string[] = [];
         var tableFields: {
             tableName: string,
             fields: string[]
@@ -47,7 +45,7 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
             return;
         }
 
-        Logger.info(`Package ${context.parsedInput.packageName} has ${entriesCount} SAP entries`, context.parsedInput.print);
+        Logger.info(`Package ${context.parsedInput.packageName} has ${entriesCount} SAP entries`, context.parsedInput.printStatus);
 
         for (const table of Object.keys(sapEntries)) {
             var tableExists: boolean;
@@ -61,8 +59,8 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
                 tableExists = false;
             }
             if (!tableExists) {
-                unknownTables.push(table);
-                Logger.error(`Required ${sapEntries[table].length} entries in ${table}, but table was not found`, context.parsedInput.print);
+                context.output.unknownTables.push(table);
+                Logger.error(`Required ${sapEntries[table].length} entries in ${table}, but table was not found`, context.parsedInput.printUnknownTables);
             } else {
                 var printTableHead: string[] = ['Table name'];
                 var printTableData: string[][] = [];
@@ -73,7 +71,7 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
                     tableData = [table];
                     var entryStatus;
                     try{
-                        const exists = SystemConnector.checkSapEntryExists(table, tableEntry);
+                        const exists = await SystemConnector.checkSapEntryExists(table, tableEntry);
                         if(exists){
                             entryStatus = `OK`;
                             context.runtime.okEntries.push({

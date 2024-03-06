@@ -9,11 +9,18 @@ import { buildOutput } from "./buildOutput";
 
 export type CheckSapEntriesActionInput = {
     trmPackage: TrmPackage,
-    print: boolean
+    printAll: boolean,
+    printStatus?: boolean,
+    printOkEntries?: boolean,
+    printUnsafeEntries?: boolean,
+    printUnknownTables?: boolean
 }
 
 type WorkflowParsedInput = {
-    print?: boolean,
+    printStatus?: boolean,
+    printOk?: boolean,
+    printUnsafe?: boolean,
+    printUnknownTables?: boolean,
     packageName?: string,
     sapEntries?: any
 }
@@ -26,7 +33,8 @@ type WorkflowRuntime = {
 
 export type CheckSapEntriesActionOutput = {
     sapEntries?: any,
-    sapEntriesStatus?: any
+    sapEntriesStatus?: any,
+    unknownTables?: string[]
 }
 
 export type CheckSapEntriesWorkflowContext = {

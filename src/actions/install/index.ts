@@ -7,6 +7,7 @@ import { Manifest, TrmManifest } from "../../manifest";
 import { init } from "./init";
 import { setSystemPackages } from "./setSystemPackages";
 import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
+import { checkSapEntries } from "./checkSapEntries";
 
 export type InstallPackageReplacements = {
     originalDevclass: string,
@@ -40,6 +41,8 @@ type WorkflowParsedInput = {
     forceInstallSameVersion?: boolean,
     overwriteInstall?: boolean,
     systemPackages?: TrmPackage[],
+    checkSapEntries?: boolean,
+    checkDependencies?: boolean,
 }
 
 type WorkflowRuntime = {
@@ -66,7 +69,8 @@ export async function install(inputData: InstallActionInput): Promise<void> {
     const workflow = [
         init,
         setSystemPackages,
-        checkAlreadyInstalled
+        checkAlreadyInstalled,
+        checkSapEntries,
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {
