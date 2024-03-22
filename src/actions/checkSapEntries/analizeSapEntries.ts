@@ -9,7 +9,7 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
         if (context.parsedInput.sapEntries && Object.keys(context.parsedInput.sapEntries).length > 0) {
             return true;
         } else {
-            Logger.info(`Package ${context.parsedInput.packageName} has no SAP entries`, context.parsedInput.printStatus);
+            Logger.info(`Package ${context.parsedInput.packageName} has no SAP entries`, context.parsedInput.print);
             return false;
         }
     },
@@ -45,7 +45,7 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
             return;
         }
 
-        Logger.info(`Package ${context.parsedInput.packageName} has ${entriesCount} SAP entries`, context.parsedInput.printStatus);
+        Logger.info(`Package ${context.parsedInput.packageName} has ${entriesCount} SAP entries`, context.parsedInput.print);
 
         for (const table of Object.keys(sapEntries)) {
             var tableExists: boolean;
@@ -60,7 +60,7 @@ export const analizeSapEntries: Step<CheckSapEntriesWorkflowContext> = {
             }
             if (!tableExists) {
                 context.output.unknownTables.push(table);
-                Logger.error(`Required ${sapEntries[table].length} entries in ${table}, but table was not found`, context.parsedInput.printUnknownTables);
+                Logger.error(`Required ${sapEntries[table].length} entries in ${table}, but table was not found`, context.parsedInput.print);
             } else {
                 var printTableHead: string[] = ['Table name'];
                 var printTableData: string[][] = [];

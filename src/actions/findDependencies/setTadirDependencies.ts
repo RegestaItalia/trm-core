@@ -6,23 +6,31 @@ import { SenviParser } from "../../dependency";
 export const setTadirDependencies: Step<FindDependenciesPublishWorkflowContext> = {
     name: 'set-tadir-dependencies',
     run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
-        var tadirDependencies: TADIR[] = [];
+        var tadirDependencies: {
+            dependencyIn: TADIR
+            tadir: TADIR
+        }[] = [];
         const aSenvi = context.runtime.senvi;
         const aIgnoredDevclass = context.runtime.devclassIgnore;
         const senviParser = new SenviParser();
         
-        for (const senvi of aSenvi) {
-            const tadirDependency = await senviParser.parse(senvi);
-            if (tadirDependency) {
-                if (!tadirDependencies.find(o => o.pgmid === tadirDependency.pgmid &&
-                    o.object === tadirDependency.object &&
-                    o.objName === tadirDependency.objName)) {
-                    tadirDependencies.push(tadirDependency);
+        for (const oSenvi of aSenvi) {
+            for(const senvi of oSenvi.senvi){
+                const tadirDependency = await senviParser.parse(senvi);
+                if (tadirDependency) {
+                    if (!tadirDependencies.find(o => o.tadir.pgmid === tadirDependency.pgmid &&
+                        o.tadir.object === tadirDependency.object &&
+                        o.tadir.objName === tadirDependency.objName)) {
+                        tadirDependencies.push({
+                            tadir: tadirDependency,
+                            dependencyIn: oSenvi.tadir
+                        });
+                    }
                 }
             }
         }
 
         //remove object in current devclass and subpackages
-        context.runtime.tadirDependencies = tadirDependencies.filter(o => !aIgnoredDevclass.includes(o.devclass));
+        context.runtime.tadirDependencies = tadirDependencies.filter(o => !aIgnoredDevclass.includes(o.tadir.devclass));
     }
 }

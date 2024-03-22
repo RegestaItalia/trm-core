@@ -35,7 +35,8 @@ export type TadirDependency = {
     trmPackage?: TrmPackage,
     isSap: boolean,
     integrity?: string,
-    tadir: TADIR[]
+    tadir: TADIR[],
+    dependencyIn: TADIR[]
 }
 
 type WorkflowParsedInput = {
@@ -47,8 +48,14 @@ type WorkflowParsedInput = {
 
 type WorkflowRuntime = {
     devclassIgnore?: DEVCLASS[],
-    senvi?: SENVI[],
-    tadirDependencies?: TADIR[],
+    senvi?: {
+        tadir: TADIR,
+        senvi: SENVI[]
+    }[],
+    tadirDependencies?: {
+        dependencyIn: TADIR
+        tadir: TADIR
+    }[],
     trmPackageDependencies?: TrmPackage[]
 }
 

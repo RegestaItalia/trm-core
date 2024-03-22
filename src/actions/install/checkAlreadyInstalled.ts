@@ -2,6 +2,7 @@ import { Step } from "@sammarks/workflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Manifest } from "../../manifest";
+import { eq, gt } from "semver";
 
 export const checkAlreadyInstalled: Step<InstallWorkflowContext> = {
     name: 'check-already-installed',
@@ -21,7 +22,7 @@ export const checkAlreadyInstalled: Step<InstallWorkflowContext> = {
         if(installedPackage){
             const installVersion = trmManifest.version;
             const installedVersion = installedPackage.manifest.get().version;
-            if(installVersion === installedVersion){
+            if(eq(installVersion, installedVersion)){
                 if(context.parsedInput.forceInstallSameVersion){
                     Logger.log(`Package ${trmManifest.name} version ${installedVersion} already installed, but install is forced (input)`, true);
                 }else{
@@ -30,6 +31,11 @@ export const checkAlreadyInstalled: Step<InstallWorkflowContext> = {
             }else{
                 if(context.parsedInput.overwriteInstall){
                     Logger.log(`Package ${trmManifest.name} version ${installedVersion} already installed, but install is forced (input)`, true);
+                    if(gt(installVersion, installedVersion)){
+                        Logger.info(`Upgrading ${installedVersion} -> ${installVersion}`);
+                    }else{
+                        Logger.warning(`Downgrading ${installedVersion} -> ${installVersion}`);
+                    }
                 }else{
                     throw new Error(`Package ${trmManifest.name} version ${installedVersion} already installed.`);
                 }

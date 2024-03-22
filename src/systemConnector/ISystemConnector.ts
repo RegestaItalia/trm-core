@@ -47,7 +47,7 @@ export interface ISystemConnector {
     setTransportDoc: (trkorr: components.TRKORR, doc: struct.TLINE[]) => Promise<void>,
     getDevclassObjects: (devclass: components.DEVCLASS, includeSubpackages: boolean) => Promise<struct.TADIR[]>,
     addToTransportRequest: (trkorr: components.TRKORR, content: struct.E071[], lock: boolean) => Promise<void>,
-    repositoryEnvironment: (objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME) => Promise<struct.SENVI>,
+    repositoryEnvironment: (objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME) => Promise<struct.SENVI[]>,
     deleteTrkorr: (trkorr: components.TRKORR) => Promise<void>,
     releaseTrkorr: (trkorr: components.TRKORR, lock: boolean, timeout?: number) => Promise<void>,
     addSkipTrkorr: (trkorr: components.TRKORR) => Promise<void>,

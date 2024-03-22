@@ -2,12 +2,15 @@ import execute from "@sammarks/workflow";
 import { Logger } from "../../logger";
 import { inspect } from "util";
 import { Registry } from "../../registry";
-import { TrmPackage } from "../../trmPackage";
-import { Manifest, TrmManifest } from "../../manifest";
+import { TrmArtifact, TrmPackage } from "../../trmPackage";
+import { Manifest, TrmManifest, TrmManifestDependency } from "../../manifest";
 import { init } from "./init";
 import { setSystemPackages } from "./setSystemPackages";
 import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
 import { checkSapEntries } from "./checkSapEntries";
+import { checkDependencies } from "./checkDependencies";
+import { checkIntegrity } from "./checkIntegrity";
+import { installDependencies } from "./installDependencies";
 
 export type InstallPackageReplacements = {
     originalDevclass: string,
@@ -18,7 +21,8 @@ export type InstallActionInput = {
     packageName: string,
     registry: Registry,
     version?: string,
-    systemPackages?: TrmPackage[]
+    systemPackages?: TrmPackage[],
+    integrity?: string
     /*forceInstall?: boolean,
     ignoreSapEntries?: boolean,
     skipDependencies?: boolean,
@@ -43,13 +47,18 @@ type WorkflowParsedInput = {
     systemPackages?: TrmPackage[],
     checkSapEntries?: boolean,
     checkDependencies?: boolean,
+    installMissingDependencies?: boolean,
+    installIntegrity?: string,
+    safeInstall?: boolean
 }
 
 type WorkflowRuntime = {
     registry?: Registry,
     trmPackage?: TrmPackage,
     manifest?: Manifest,
-    trmManifest?: TrmManifest
+    trmManifest?: TrmManifest,
+    dependenciesToInstall?: TrmManifestDependency[],
+    trmArtifact?: TrmArtifact
 }
 
 export type InstallActionOutput = {
@@ -70,7 +79,11 @@ export async function install(inputData: InstallActionInput): Promise<void> {
         init,
         setSystemPackages,
         checkAlreadyInstalled,
+        checkIntegrity,
         checkSapEntries,
+        checkDependencies,
+        installDependencies,
+        
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {

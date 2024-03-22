@@ -199,7 +199,7 @@ export namespace SystemConnector {
         return systemConnector.addToTransportRequest(trkorr, content, lock);
     }
     
-    export async function repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI> {
+    export async function repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         await checkSystemConnector();
         return systemConnector.repositoryEnvironment(objectType, objectName);
     }

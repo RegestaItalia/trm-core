@@ -22,6 +22,7 @@ export const init: Step<InstallWorkflowContext> = {
 
         Logger.loading(`Searching TRM package in registry ${registry.name}...`);
         const trmPackage = new TrmPackage(packageName, registry);
+        const oArtifact = await trmPackage.fetchRemoteArtifact(packageVersion);
         const oManifest = await trmPackage.fetchRemoteManifest(packageVersion);
         const trmManifest = oManifest.get();
         var sVersion = trmManifest.version;
@@ -33,7 +34,11 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.registry = registry;
         context.runtime.manifest = oManifest;
         context.runtime.trmManifest = trmManifest;
-
-        context.parsedInput.skipAlreadyInstalledCheck = false;
+        context.runtime.trmPackage = trmPackage;
+        context.runtime.trmArtifact = oArtifact;
+        
+        context.parsedInput.skipAlreadyInstalledCheck = true;
+        context.parsedInput.checkSapEntries = true;
+        context.parsedInput.installIntegrity = context.rawInput.integrity;
     }
 }

@@ -173,7 +173,7 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI> {
+    public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         const result = await this._call("REPOSITORY_ENVIRONMENT_RFC", {
             obj_type: objectType.trim().toUpperCase(),
             object_name: objectName.trim().toUpperCase()

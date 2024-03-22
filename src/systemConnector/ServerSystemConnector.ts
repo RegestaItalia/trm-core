@@ -459,7 +459,7 @@ export class ServerSystemConnector implements ISystemConnector {
         return this._client.addToTransportRequest(trkorr, content, lock);
     }
 
-    public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI> {
+    public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         return this._client.repositoryEnvironment(objectType, objectName);
     }
 

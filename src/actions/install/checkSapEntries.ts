@@ -20,12 +20,10 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
         const trmPackage = context.runtime.trmPackage;
         const inputData: CheckSapEntriesActionInput = {
             trmPackage,
-            printAll: false,
-            printStatus: true,
-            printOkEntries: false,
-            printUnsafeEntries: false
+            print: false
         };
         Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
+        Logger.loading(`Checking SAP entries...`);
         const result = await checkSapEntriesWkf(inputData);
         Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
         const sapEntriesOutput = result.sapEntriesStatus;
@@ -36,6 +34,8 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
             });
             if(missingEntries.length > 0){
                 throw new Error(`Package requires SAP entries that don't exist on your system.`);
+            }else{
+                Logger.success(`SAP entries checked.`);
             }
         }
     }

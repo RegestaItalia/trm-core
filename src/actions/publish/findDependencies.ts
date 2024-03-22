@@ -28,8 +28,10 @@ export const findDependencies: Step<PublishWorkflowContext> = {
             tadir: context.runtime.tadirObjects
         };
         Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${JSON.stringify(inputData)}`, true);
+        Logger.loading(`Searching package dependencies...`);
         const result = await findDependenciesWkf(inputData);
         Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${JSON.stringify(result)}`, true);
         context.runtime.dependencies = result.dependencies;
+        //logger is stopped in logDependencies step
     }
 }
