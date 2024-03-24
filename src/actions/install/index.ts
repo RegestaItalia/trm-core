@@ -2,7 +2,7 @@ import execute from "@sammarks/workflow";
 import { Logger } from "../../logger";
 import { inspect } from "util";
 import { Registry } from "../../registry";
-import { TrmArtifact, TrmPackage } from "../../trmPackage";
+import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
 import { Manifest, TrmManifest, TrmManifestDependency } from "../../manifest";
 import { init } from "./init";
 import { setSystemPackages } from "./setSystemPackages";
@@ -11,6 +11,15 @@ import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { checkIntegrity } from "./checkIntegrity";
 import { installDependencies } from "./installDependencies";
+import { R3trans, R3transOptions } from "node-r3trans";
+import { checkTransports } from "./checkTransports";
+import { readDevcTransport } from "./readDevcTransport";
+import { E071, TADIR, TDEVC, TDEVCT } from "../../client";
+import { setR3trans } from "./setR3trans";
+import { checkTadirContent } from "./checkTadirContent";
+import { checkTadirObjectTypes } from "./checkTadirObjectTypes";
+import { setDevclass } from "./setDevclass";
+import { generateDevclass } from "./generateDevclass";
 
 export type InstallPackageReplacements = {
     originalDevclass: string,
@@ -22,7 +31,9 @@ export type InstallActionInput = {
     registry: Registry,
     version?: string,
     systemPackages?: TrmPackage[],
-    integrity?: string
+    integrity?: string,
+    r3transOptions?: R3transOptions,
+    transportLayer?: string,
     /*forceInstall?: boolean,
     ignoreSapEntries?: boolean,
     skipDependencies?: boolean,
@@ -49,7 +60,12 @@ type WorkflowParsedInput = {
     checkDependencies?: boolean,
     installMissingDependencies?: boolean,
     installIntegrity?: string,
-    safeInstall?: boolean
+    safeInstall?: boolean,
+    r3transOptions?: R3transOptions,
+    checkObjectTypes?: boolean,
+    keepOriginalPackages?: boolean,
+    forceDevclassInput?: boolean,
+    transportLayer?: string
 }
 
 type WorkflowRuntime = {
@@ -58,7 +74,16 @@ type WorkflowRuntime = {
     manifest?: Manifest,
     trmManifest?: TrmManifest,
     dependenciesToInstall?: TrmManifestDependency[],
-    trmArtifact?: TrmArtifact
+    trmArtifact?: TrmArtifact,
+    r3trans?: R3trans,
+    devcTransport?: TransportBinary,
+    tadirTransport?: TransportBinary,
+    langTransport?: TransportBinary,
+    tdevcData?: TDEVC[],
+    tdevctData?: TDEVCT[],
+    tadirData?: TADIR[],
+    workbenchObjects?: E071[],
+    packageReplacements?: InstallPackageReplacements[]
 }
 
 export type InstallActionOutput = {
@@ -83,7 +108,13 @@ export async function install(inputData: InstallActionInput): Promise<void> {
         checkSapEntries,
         checkDependencies,
         installDependencies,
-        
+        setR3trans,
+        checkTransports,
+        readDevcTransport,
+        setDevclass,
+        checkTadirContent,
+        checkTadirObjectTypes,
+        generateDevclass
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {

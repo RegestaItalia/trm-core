@@ -32,9 +32,9 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             var installCounter = 0;
             for(const installDependency of dependenciesToInstall){
                 installCounter++;
-                Logger.info(`-> (${installCounter}/${dependenciesToInstall.length}) Install dependency "${installDependency.name}" started.`);
+                Logger.info(`-> (${installCounter}/${dependenciesToInstall.length}) Dependency "${installDependency.name}" install started.`);
                 //await installDependencies
-                Logger.info(`   (${installCounter}/${dependenciesToInstall.length}) Install dependency "${installDependency.name}" completed.`);
+                Logger.info(`   (${installCounter}/${dependenciesToInstall.length}) Dependency "${installDependency.name}" install completed.`);
             }
             Logger.success(`-> ${dependenciesToInstall.length}/${dependenciesToInstall.length} dependencies installed, package "${mainPackageName}" install can continue.`);
         } else {

@@ -36,9 +36,14 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.trmManifest = trmManifest;
         context.runtime.trmPackage = trmPackage;
         context.runtime.trmArtifact = oArtifact;
+        context.runtime.workbenchObjects = [];
         
         context.parsedInput.skipAlreadyInstalledCheck = true;
         context.parsedInput.checkSapEntries = true;
         context.parsedInput.installIntegrity = context.rawInput.integrity;
+        context.parsedInput.r3transOptions = context.rawInput.r3transOptions;
+        context.parsedInput.checkObjectTypes = true;
+        context.parsedInput.keepOriginalPackages = true;
+        context.parsedInput.transportLayer = context.rawInput.transportLayer;
     }
 }

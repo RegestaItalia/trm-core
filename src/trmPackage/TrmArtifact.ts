@@ -4,6 +4,7 @@ import { Manifest } from "../manifest";
 import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from "../transport";
 import * as AdmZip from "adm-zip";
 import { R3trans } from "node-r3trans";
+import { TransportBinary } from "./TransportBinary";
 
 const DIST_FOLDER = 'dist';
 
@@ -39,11 +40,7 @@ export class TrmArtifact {
         return this._distFolder;
     }
 
-    public async getTransportBinaries(tmpFolder?: string): Promise<{
-        trkorr: TRKORR,
-        type?: TrmTransportIdentifier,
-        binaries: BinaryTransport
-    }[]>{
+    public async getTransportBinaries(tmpFolder?: string): Promise<TransportBinary[]>{
         const distFolder = this.getDistFolder();
         if(!distFolder){
             throw new Error(`Couldn't locate dist folder.`);
