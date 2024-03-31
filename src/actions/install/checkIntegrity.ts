@@ -29,5 +29,6 @@ export const checkIntegrity: Step<InstallWorkflowContext> = {
                 throw new Error(`Package installation aborted due to integrity check failure and running in safe mode.`);
             }
         }
+        context.runtime.fetchedIntegrity = installIntegrity;
     }
 }

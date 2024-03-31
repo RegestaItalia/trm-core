@@ -37,6 +37,7 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.trmPackage = trmPackage;
         context.runtime.trmArtifact = oArtifact;
         context.runtime.workbenchObjects = [];
+        context.runtime.trCopy = [];
         
         context.parsedInput.skipAlreadyInstalledCheck = true;
         context.parsedInput.checkSapEntries = true;
@@ -45,5 +46,7 @@ export const init: Step<InstallWorkflowContext> = {
         context.parsedInput.checkObjectTypes = true;
         context.parsedInput.keepOriginalPackages = true;
         context.parsedInput.transportLayer = context.rawInput.transportLayer;
+        context.parsedInput.importTimeout = 180;
+        context.parsedInput.skipWbTransportGen = false;
     }
 }

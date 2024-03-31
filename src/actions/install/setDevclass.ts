@@ -100,6 +100,7 @@ export const setDevclass: Step<InstallWorkflowContext> = {
             });
         });
         await SystemConnector.setInstallDevc(installDevc);
+        context.runtime.originalPackageHierarchy = originalPackageHierarchy;
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         //there's not real reason to revert? keeping records in ZTRM_INSTALLDEVC shouldn't have any impact

@@ -14,12 +14,17 @@ import { installDependencies } from "./installDependencies";
 import { R3trans, R3transOptions } from "node-r3trans";
 import { checkTransports } from "./checkTransports";
 import { readDevcTransport } from "./readDevcTransport";
-import { E071, TADIR, TDEVC, TDEVCT } from "../../client";
+import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT } from "../../client";
 import { setR3trans } from "./setR3trans";
 import { checkTadirContent } from "./checkTadirContent";
 import { checkTadirObjectTypes } from "./checkTadirObjectTypes";
 import { setDevclass } from "./setDevclass";
 import { generateDevclass } from "./generateDevclass";
+import { PackageHierarchy } from "../../commons";
+import { importTadirTransport } from "./importTadirTransport";
+import { importLangTransport } from "./importLangTransport";
+import { setPackageIntegrity } from "./setPackageIntegrity";
+import { generateWbTransport } from "./generateWbTransport";
 
 export type InstallPackageReplacements = {
     originalDevclass: string,
@@ -65,7 +70,11 @@ type WorkflowParsedInput = {
     checkObjectTypes?: boolean,
     keepOriginalPackages?: boolean,
     forceDevclassInput?: boolean,
-    transportLayer?: string
+    transportLayer?: string,
+    importTimeout?: number,
+    skipLangImport?: boolean,
+    skipWbTransportGen?: boolean,
+    wbTrTargetSystem?: string
 }
 
 type WorkflowRuntime = {
@@ -83,7 +92,11 @@ type WorkflowRuntime = {
     tdevctData?: TDEVCT[],
     tadirData?: TADIR[],
     workbenchObjects?: E071[],
-    packageReplacements?: InstallPackageReplacements[]
+    packageReplacements?: InstallPackageReplacements[],
+    generatedDevclass?: DEVCLASS[],
+    originalPackageHierarchy?: PackageHierarchy,
+    trCopy?: string[],
+    fetchedIntegrity?: string
 }
 
 export type InstallActionOutput = {
@@ -114,7 +127,11 @@ export async function install(inputData: InstallActionInput): Promise<void> {
         setDevclass,
         checkTadirContent,
         checkTadirObjectTypes,
-        generateDevclass
+        generateDevclass,
+        importTadirTransport,
+        importLangTransport,
+        setPackageIntegrity,
+        generateWbTransport
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {

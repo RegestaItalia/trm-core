@@ -441,9 +441,10 @@ export class Transport {
 
     private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false, secondsTimeout): Promise<boolean> {
         const timeoutDate = new Date((new Date()).getTime() + (secondsTimeout * 1000));
-
+        Logger.log(`TMS check for transport ${this.trkorr}, timeout date set to ${timeoutDate}`, true);
         var inQueue = false;
         if (this._trTarget) {
+            var sLog = `status unknown`;
             var inQueueAttempts = 0;
             while (!inQueue && (new Date()).getTime() < timeoutDate.getTime()) {
                 inQueueAttempts++;
@@ -452,9 +453,11 @@ export class Transport {
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
                 if(!checkImpSing){
+                    sLog = `released`;
                     inQueue = tmsQueue.length > 0;
                 }else{
                     //if importing, get the last transport in queue (if re installing, there are more than 1)
+                    sLog = `imported`;
                     if(tmsQueue.length > 0){
                         inQueue = tmsQueue[0].impsing !== 'X';
                     }else{
@@ -466,8 +469,10 @@ export class Transport {
             if (!inQueue) {
                 throw new Error(`Transport request not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
             } else {
-                Logger.success(`Transport was released.`, skipLog);
+                Logger.success(`Transport ${this.trkorr} ${sLog}.`, skipLog);
             }
+        }else{
+            Logger.error(`No target specified, unable to check queue!!`, true);
         }
         return inQueue;
     }
@@ -620,8 +625,12 @@ export class Transport {
         if (!this._trTarget) {
            throw new Error('Missing transport target.');
         }
+        Logger.log(`Starting transport ${this.trkorr} import, timeout set to ${timeout}`, true);
+        Logger.loading(`Forwarding transport ${this.trkorr}`, true);
         await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
+        Logger.loading(`Importing transport ${this.trkorr}`, true);
         await SystemConnector.importTransport(this.trkorr, this._trTarget);
+        Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
         await this._isInTmsQueue(false, true, timeout);
     }
 

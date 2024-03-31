@@ -30,10 +30,10 @@ export const generateTadirTr: Step<PublishWorkflowContext> = {
                 const canBeDeleted = await context.runtime.tadirTransport.canBeDeleted();
                 if (canBeDeleted) {
                     await context.runtime.tadirTransport.delete();
-                    Logger.info(`Executed rollback on transport ${context.runtime.tadirTransport.trkorr}`);
                 } else {
                     await SystemConnector.addSkipTrkorr(context.runtime.tadirTransport.trkorr);
                 }
+                Logger.info(`Executed rollback on transport ${context.runtime.tadirTransport.trkorr}`);
             } catch (e) {
                 Logger.info(`Unable to rollback transport ${context.runtime.tadirTransport.trkorr}`);
                 Logger.error(e.toString(), true);
