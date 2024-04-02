@@ -25,6 +25,7 @@ import { importTadirTransport } from "./importTadirTransport";
 import { importLangTransport } from "./importLangTransport";
 import { setPackageIntegrity } from "./setPackageIntegrity";
 import { generateWbTransport } from "./generateWbTransport";
+import { Transport } from "../../transport";
 
 export type InstallPackageReplacements = {
     originalDevclass: string,
@@ -96,11 +97,14 @@ type WorkflowRuntime = {
     generatedDevclass?: DEVCLASS[],
     originalPackageHierarchy?: PackageHierarchy,
     trCopy?: string[],
-    fetchedIntegrity?: string
+    fetchedIntegrity?: string,
+    wbTransport?: Transport
 }
 
 export type InstallActionOutput = {
-
+    trmPackage: TrmPackage,
+    registry: Registry,
+    wbTransport?: Transport
 }
 
 export type InstallWorkflowContext = {
@@ -112,7 +116,7 @@ export type InstallWorkflowContext = {
 
 const WORKFLOW_NAME = 'install';
 
-export async function install(inputData: InstallActionInput): Promise<void> {
+export async function install(inputData: InstallActionInput): Promise<InstallActionOutput> {
     const workflow = [
         init,
         setSystemPackages,
@@ -140,9 +144,12 @@ export async function install(inputData: InstallActionInput): Promise<void> {
         runtime: {}
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    /*if(result.output && result.output.trmPackage){
-        return result.output.trmPackage;
-    }else{
-        throw new Error(`An error occurred during publish.`);
-    }*/
+    const trmPackage = result.runtime.trmPackage;
+    const registry = result.runtime.registry;
+    const wbTransport = result.runtime.wbTransport;
+    return {
+        trmPackage,
+        registry,
+        wbTransport
+    }
 }

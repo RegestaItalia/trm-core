@@ -86,6 +86,7 @@ export const generateWbTransport: Step<InstallWorkflowContext> = {
                     //TODO better handle this case
                 }
             }
+            context.runtime.wbTransport = wbTransport;
             Logger.success(`Use ${wbTransport.trkorr} for transports.`);
         }
     }
