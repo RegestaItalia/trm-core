@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { FindDependenciesPublishWorkflowContext } from ".";
+import { FindDependenciesWorkflowContext } from ".";
 import { SystemConnector } from "../../systemConnector";
 import { Logger } from "../../logger";
 
-export const readPackageObjects: Step<FindDependenciesPublishWorkflowContext> = {
+export const readPackageObjects: Step<FindDependenciesWorkflowContext> = {
     name: 'read-package-objects',
-    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
+    run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
         const devclass = context.parsedInput.devclass;
         var tadirObjects = context.rawInput.tadir || [];
         if (tadirObjects.length === 0) {

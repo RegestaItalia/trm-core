@@ -65,5 +65,6 @@ export interface ISystemConnector {
     renameTransportRequest: (trkorr: components.TRKORR, as4text: components.AS4TEXT) => Promise<void>,
     setPackageIntegrity: (integrity: struct.ZTRM_INTEGRITY) => Promise<void>,
     addTranslationToTr: (trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]) => Promise<void>,
-    trCopy: (from: components.TRKORR, to: components.TRKORR, doc: boolean) => Promise<void>
+    trCopy: (from: components.TRKORR, to: components.TRKORR, doc: boolean) => Promise<void>,
+    getFunctionModule: (func: components.RS38L_FNAME) => Promise<struct.TFDIR>
 }

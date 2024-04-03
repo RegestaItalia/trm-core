@@ -273,4 +273,9 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.addTranslationToTr(trkorr, devclassFilter);
     }
+
+    export async function getFunctionModule(func: components.RS38L_FNAME): Promise<struct.TFDIR> {
+        await checkSystemConnector();
+        return systemConnector.getFunctionModule(func);
+    }
 }

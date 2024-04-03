@@ -17,3 +17,4 @@ export * from "./KO100";
 export * from "./T100";
 export * from "./ZTRM_INTEGRITY";
 export * from "./LXE_TT_PACKG_LINE";
+export * from "./TFDIR"

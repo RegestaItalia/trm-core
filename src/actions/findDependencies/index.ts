@@ -11,6 +11,7 @@ import { Logger } from "../../logger";
 import { inspect } from "util";
 import { setSystemPackages } from "./setSystemPackages";
 import { deepCheckDependencies } from "./deepCheckDependencies";
+import { printDependencies } from "./printDependencies";
 
 export type DependencyTreeBranch = {
     packageName: string,
@@ -28,7 +29,8 @@ export type FindDependencyActionInput = {
     devclass: DEVCLASS,
     tadir?: TADIR[],
     deepCheck?: boolean,
-    systemPackages?: TrmPackage[]
+    systemPackages?: TrmPackage[],
+    print?: boolean
 }
 
 export type TadirDependency = {
@@ -43,7 +45,8 @@ type WorkflowParsedInput = {
     devclass?: DEVCLASS,
     tadir?: TADIR[],
     deepCheck?: boolean,
-    systemPackages?: TrmPackage[]
+    systemPackages?: TrmPackage[],
+    print?: boolean
 }
 
 type WorkflowRuntime = {
@@ -61,10 +64,10 @@ type WorkflowRuntime = {
 
 export type FindDependencyActionOutput = {
     dependencies?: TadirDependency[],
-    tree?: DependencyTree
+    deepCheckTree?: DependencyTree
 }
 
-export type FindDependenciesPublishWorkflowContext = {
+export type FindDependenciesWorkflowContext = {
     rawInput: FindDependencyActionInput,
     parsedInput: WorkflowParsedInput,
     runtime: WorkflowRuntime,
@@ -82,10 +85,11 @@ export async function findDependencies(inputData: FindDependencyActionInput): Pr
         readRepositoryEnvironment,
         setTadirDependencies,
         setDependencies,
-        deepCheckDependencies
+        deepCheckDependencies,
+        printDependencies
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-    const result = await execute<FindDependenciesPublishWorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await execute<FindDependenciesWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData,
         parsedInput: {},
         runtime: {},

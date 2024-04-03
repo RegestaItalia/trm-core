@@ -1,5 +1,5 @@
 import { Step } from "@sammarks/workflow";
-import { DependencyTreeBranch, FindDependenciesPublishWorkflowContext } from ".";
+import { DependencyTreeBranch, FindDependenciesWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
 import { TrmManifestDependency } from "../../manifest";
@@ -49,10 +49,10 @@ const _getDependenciesFromTrmPackage = (trmPackage: TrmPackage, systemPackages: 
     return dependencyTreeBranches;
 }
 
-export const deepCheckDependencies: Step<FindDependenciesPublishWorkflowContext> = {
+export const deepCheckDependencies: Step<FindDependenciesWorkflowContext> = {
     name: 'deep-check-dependencies',
-    filter: async (context: FindDependenciesPublishWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.deepCheck) {
+    filter: async (context: FindDependenciesWorkflowContext): Promise<boolean> => {
+        if (context.parsedInput.deepCheck) {
             const trmDependencies = context.runtime.trmPackageDependencies;
             if (trmDependencies.length > 0) {
                 return true;
@@ -65,14 +65,14 @@ export const deepCheckDependencies: Step<FindDependenciesPublishWorkflowContext>
             return false;
         }
     },
-    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
+    run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
         const systemPackages = context.parsedInput.systemPackages;
         const trmDependencies = context.runtime.trmPackageDependencies;
         var dependencyTreeBranches: DependencyTreeBranch[] = [];
         trmDependencies.forEach(d => {
             dependencyTreeBranches = dependencyTreeBranches.concat(_getDependenciesFromTrmPackage(d, systemPackages, [d]));
         });
-        context.output.tree = {
+        context.output.deepCheckTree = {
             devclass: context.parsedInput.devclass,
             dependencies: dependencyTreeBranches
         };

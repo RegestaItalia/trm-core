@@ -1,12 +1,12 @@
 import { Step } from "@sammarks/workflow";
-import { FindDependenciesPublishWorkflowContext } from ".";
+import { FindDependenciesWorkflowContext } from ".";
 import { SystemConnector } from "../../systemConnector";
 import { SENVI, TADIR } from "../../client";
 import { Logger } from "../../logger";
 
-export const readRepositoryEnvironment: Step<FindDependenciesPublishWorkflowContext> = {
+export const readRepositoryEnvironment: Step<FindDependenciesWorkflowContext> = {
     name: 'read-repository-environment',
-    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
+    run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
         var aSenvi: {
             tadir: TADIR,
             senvi: SENVI[]

@@ -1,5 +1,5 @@
 import { Step } from "@sammarks/workflow";
-import { TadirDependency, FindDependenciesPublishWorkflowContext } from ".";
+import { TadirDependency, FindDependenciesWorkflowContext } from ".";
 import { TADIR } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
@@ -60,9 +60,13 @@ const _findDependency = async (tadirDependency: {
     } else {
         //dependency without a trm package
         Logger.log(`Object ${tadirDependency.tadir.pgmid} ${tadirDependency.tadir.object} ${tadirDependency.tadir.objName} has no TRM transport`, true);
-        arrayIndex = packageDependencies.findIndex(o => !o.trmPackage && o.isSap === isSap);
+        if(!isSap){
+            arrayIndex = packageDependencies.findIndex(o => !o.trmPackage && o.isSap === isSap && o.tadir && o.tadir.find(k => k.devclass === tadirDependency.tadir.devclass));
+        }else{
+            arrayIndex = packageDependencies.findIndex(o => !o.trmPackage && o.isSap === isSap);
+        }
         if (arrayIndex < 0) {
-            Logger.log(`Dependency non TRM package object found`, true);
+            Logger.log(`Dependency non TRM package (${tadirDependency.tadir.devclass}) object found`, true);
             arrayIndex = packageDependencies.push({
                 trmPackage: null,
                 isSap,
@@ -81,9 +85,9 @@ const _findDependency = async (tadirDependency: {
     return packageDependencies;
 }
 
-export const setDependencies: Step<FindDependenciesPublishWorkflowContext> = {
+export const setDependencies: Step<FindDependenciesWorkflowContext> = {
     name: 'set-dependencies',
-    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
+    run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
         var packageDependencies: TadirDependency[] = [];
         const tadirDependencies = context.runtime.tadirDependencies;
 

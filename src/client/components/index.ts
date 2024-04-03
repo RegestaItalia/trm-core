@@ -37,3 +37,5 @@ export * from "./ZTRM_PACKAGE_INTEGRITY";
 export * from "./DDSIGN";
 export * from "./DDOPTION";
 export * from "./TRPARFLAG";
+export * from "./RS38L_FNAME";
+export * from "./PNAME";

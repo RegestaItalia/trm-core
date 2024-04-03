@@ -534,4 +534,14 @@ export class ServerSystemConnector implements ISystemConnector {
     public async trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean): Promise<void> {
         return this._client.trCopy(from, to, doc);
     }
+
+    public async getFunctionModule(func: string): Promise<struct.TFDIR> {
+        const aTfdir: struct.TFDIR[] = await this.readTable('TFDIR',
+            [{ fieldName: 'FUNCNAME' }, { fieldName: 'PNAME' }],
+            `FUNCNAME EQ '${func.trim().toUpperCase()}'`
+        );
+        if(aTfdir.length === 1){
+            return aTfdir[0];
+        }
+    }
 }

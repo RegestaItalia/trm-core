@@ -1,11 +1,11 @@
 import { Step } from "@sammarks/workflow";
-import { FindDependenciesPublishWorkflowContext } from ".";
+import { FindDependenciesWorkflowContext } from ".";
 import { TADIR } from "../../client";
 import { SenviParser } from "../../dependency";
 
-export const setTadirDependencies: Step<FindDependenciesPublishWorkflowContext> = {
+export const setTadirDependencies: Step<FindDependenciesWorkflowContext> = {
     name: 'set-tadir-dependencies',
-    run: async (context: FindDependenciesPublishWorkflowContext): Promise<void> => {
+    run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
         var tadirDependencies: {
             dependencyIn: TADIR
             tadir: TADIR
