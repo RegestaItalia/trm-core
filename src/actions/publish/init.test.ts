@@ -1,3 +1,4 @@
+import e from 'express';
 import { PublishWorkflowContext, WorkflowParsedInput, WorkflowRuntime } from '.'
 import { DummyLogger, Logger } from '../../logger';
 import { Registry } from '../../registry';
@@ -54,6 +55,27 @@ describe('when init step is invoked', () => {
             // then
             expect(context.parsedInput).toEqual(expectedParsedInput);
             expect(context.runtime).toEqual(expectedRuntime);
+        });
+    });
+    describe('without a package version', () => {
+        it('should throw an exception', () => {
+            // given
+            let mockRegistry = new Registry('public');
+
+            let context: PublishWorkflowContext = {
+                rawInput: {
+                    package: {
+                        name: 'test-package',
+                        version: ''
+                    },
+                    registry: mockRegistry
+                },
+                parsedInput: {},
+                runtime: {}
+            };
+
+            // when - then
+            expect(init.run(context)).rejects.toEqual(new Error(`Package version empty.`));
         });
     });
 });

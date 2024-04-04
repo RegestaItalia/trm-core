@@ -9,31 +9,19 @@ import { parsePackageName } from "../../commons";
 export const init: Step<PublishWorkflowContext> = {
     name: 'init',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        var packageName: string;
-        var packageVersion: string;
         const registry = context.rawInput.registry;
         if (process.env.TRM_ENV === 'DEV') {
             Logger.warning(`Running in development, rolling back after publish (PACKAGE WON'T BE UNPUBLISHED FROM REGISTRY!)`);
         }
-        try {
-            packageName = context.rawInput.package.name.toLowerCase().trim();
-        } catch (e) {
-            throw new Error(`Missing package name.`);
-        }
+        var packageName = context.rawInput.package.name.toLowerCase().trim();
 
         //check package name doesn't throw error
         parsePackageName({
             fullName: packageName
         });
 
-        try {
-            packageVersion = context.rawInput.package.version;
-        } catch (e) {
-            throw new Error(`Missing package version.`);
-        }
-        if (!packageName) {
-            throw new Error(`Package name empty.`);
-        }
+        var packageVersion = context.rawInput.package.version;
+
         if (!packageVersion) {
             throw new Error(`Package version empty.`);
         }
