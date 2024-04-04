@@ -10,9 +10,6 @@ export const init: Step<PublishWorkflowContext> = {
     name: 'init',
     run: async (context: PublishWorkflowContext): Promise<void> => {
         const registry = context.rawInput.registry;
-        if (process.env.TRM_ENV === 'DEV') {
-            Logger.warning(`Running in development, rolling back after publish (PACKAGE WON'T BE UNPUBLISHED FROM REGISTRY!)`);
-        }
         var packageName = context.rawInput.package.name.toLowerCase().trim();
 
         //check package name doesn't throw error

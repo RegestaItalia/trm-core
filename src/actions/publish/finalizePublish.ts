@@ -35,9 +35,6 @@ export const finalizePublish: Step<PublishWorkflowContext> = {
             Logger.error(e.toString(), true);
             Logger.error(`An error occurred during publish finalize. The package has been published, however TRM is inconsistent.`);
         }
-        if (process.env.TRM_ENV === 'DEV') {
-            throw new Error(`Running in development, rolling back publish`);
-        }
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
         //TODO: delete record in integrity table
