@@ -1,6 +1,35 @@
 import { Step } from "@sammarks/workflow";
 import { FindDependenciesWorkflowContext } from ".";
 import { Logger, TreeLog } from "../../logger";
+import { ParsedSenvi } from "../../dependency";
+
+const _addTadirToBranch = (tadir: ParsedSenvi, branch: TreeLog) => {
+    const key = `${tadir.pgmid} ${tadir.object} ${tadir.objName}`;
+    if (tadir.subObject) {
+        var parentIndex = branch.children.findIndex(o => o.text === key);
+        if (parentIndex < 0) {
+            parentIndex = branch.children.push({
+                text: key,
+                children: []
+            });
+            parentIndex--;
+        }
+        if (tadir.subObject.func) {
+            branch.children[parentIndex].children.push({
+                text: `FM ${tadir.subObject.func}`,
+                children: []
+            });
+        }
+    } else {
+        if (!branch.children.find(o => o.text === key)) {
+            branch.children.push({
+                text: key,
+                children: []
+            });
+        }
+    }
+    return branch;
+}
 
 export const printDependencies: Step<FindDependenciesWorkflowContext> = {
     name: 'print-dependencies',
@@ -16,10 +45,10 @@ export const printDependencies: Step<FindDependenciesWorkflowContext> = {
         var treeLogData: TreeLog;
         const deepCheckTree = context.output.deepCheckTree;
         const dependencies = context.output.dependencies;
-        if(deepCheckTree){
+        if (deepCheckTree) {
             //TODO
-        }else{
-            if(dependencies){
+        } else {
+            if (dependencies) {
                 treeLogData = {
                     text: context.parsedInput.devclass,
                     children: []
@@ -36,7 +65,7 @@ export const printDependencies: Step<FindDependenciesWorkflowContext> = {
                         });
                     });
                 });
-                if(sapDependencyBranch.children.length > 0){
+                if (sapDependencyBranch.children.length > 0) {
                     treeLogData.children.push(sapDependencyBranch);
                 }
                 var noTrmDependencies: TreeLog = {
@@ -58,29 +87,23 @@ export const printDependencies: Step<FindDependenciesWorkflowContext> = {
                     };
                     o.tadir.forEach(k => {
                         packageBranch.text = k.devclass
-                        packageTadirBranch.children.push({
-                            text: `${k.pgmid} ${k.object} ${k.objName}`,
-                            children: []
-                        });
+                        packageTadirBranch = _addTadirToBranch(k, packageTadirBranch);
                     })
                     o.dependencyIn.forEach(k => {
-                        usedInBranch.children.push({
-                            text: `${k.pgmid} ${k.object} ${k.objName}`,
-                            children: []
-                        });
+                        usedInBranch = _addTadirToBranch(k, usedInBranch);
                     });
                     packageBranch.children.push(packageTadirBranch);
                     packageBranch.children.push(usedInBranch);
                     noTrmDependencies.children.push(packageBranch);
                 });
-                if(noTrmDependencies.children.length > 0){
+                if (noTrmDependencies.children.length > 0) {
                     treeLogData.children.push(noTrmDependencies);
                 }
                 dependencies.filter(o => !o.isSap && o.trmPackage).forEach(o => {
                     var sVersion: string;
-                    try{
+                    try {
                         sVersion = `^${o.trmPackage.manifest.get().version}`;
-                    }catch(e){
+                    } catch (e) {
                         sVersion = ``;
                     }
                     treeLogData.children.push({
@@ -90,7 +113,7 @@ export const printDependencies: Step<FindDependenciesWorkflowContext> = {
                 });
             }
         }
-        if(treeLogData){
+        if (treeLogData) {
             Logger.tree(treeLogData);
         }
     }

@@ -5,13 +5,14 @@ import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { TrmPackage } from "../../trmPackage";
 import { Logger } from "../../logger";
+import { ParsedSenvi } from "../../dependency";
 
 const SAP_SOURCE_SYSTEMS = ['SAP'];
 const SAP_AUTHORS = ['SAP'];
 
 const _findDependency = async (tadirDependency: {
     dependencyIn: TADIR;
-    tadir: TADIR;
+    tadir: ParsedSenvi;
 }, packageDependencies: TadirDependency[]): Promise<TadirDependency[]> => {
     var latestTransport: Transport;
     var isSap = false;
@@ -66,7 +67,7 @@ const _findDependency = async (tadirDependency: {
             arrayIndex = packageDependencies.findIndex(o => !o.trmPackage && o.isSap === isSap);
         }
         if (arrayIndex < 0) {
-            Logger.log(`Dependency non TRM package (${tadirDependency.tadir.devclass}) object found`, true);
+            Logger.log(`Dependency without TRM package (${tadirDependency.tadir.devclass}) found`, true);
             arrayIndex = packageDependencies.push({
                 trmPackage: null,
                 isSap,

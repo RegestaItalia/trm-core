@@ -1,12 +1,12 @@
-import { SENVI, TADIR } from "../client";
-import { IParser } from "./IParser";
+import { SENVI } from "../client";
+import { IParser, ParsedSenvi } from "./IParser";
 import * as ObjectParsers from "./objects";
 
 export class SenviParser {
 
     constructor() { }
 
-    public async parse(senvi: SENVI): Promise<TADIR> {
+    public async parse(senvi: SENVI): Promise<ParsedSenvi> {
         var parser: IParser;
         Object.keys(ObjectParsers).forEach((k) => {
             try {

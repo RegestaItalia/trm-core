@@ -1,10 +1,10 @@
 import execute from "@sammarks/workflow";
-import { DEVCLASS, SENVI, TADIR } from "../../client";
+import { DEVCLASS, SENVI, TADIR, TFDIR } from "../../client";
 import { init } from "./init";
 import { readPackageData } from "./readPackageData";
 import { readPackageObjects } from "./readPackageObjects";
 import { readRepositoryEnvironment } from "./readRepositoryEnvironment";
-import { setTadirDependencies } from "./setTadirDependencies";
+import { parseSenvi } from "./parseSenvi";
 import { TrmPackage } from "../../trmPackage";
 import { setDependencies } from "./setDependencies";
 import { Logger } from "../../logger";
@@ -12,6 +12,7 @@ import { inspect } from "util";
 import { setSystemPackages } from "./setSystemPackages";
 import { deepCheckDependencies } from "./deepCheckDependencies";
 import { printDependencies } from "./printDependencies";
+import { ParsedSenvi } from "../../dependency";
 
 export type DependencyTreeBranch = {
     packageName: string,
@@ -37,7 +38,7 @@ export type TadirDependency = {
     trmPackage?: TrmPackage,
     isSap: boolean,
     integrity?: string,
-    tadir: TADIR[],
+    tadir: ParsedSenvi[],
     dependencyIn: TADIR[]
 }
 
@@ -58,6 +59,10 @@ type WorkflowRuntime = {
     tadirDependencies?: {
         dependencyIn: TADIR
         tadir: TADIR
+    }[],
+    tfdirDependencies?: {
+        dependencyIn: TADIR
+        tfdir: TFDIR
     }[],
     trmPackageDependencies?: TrmPackage[]
 }
@@ -83,7 +88,7 @@ export async function findDependencies(inputData: FindDependencyActionInput): Pr
         readPackageData,
         readPackageObjects,
         readRepositoryEnvironment,
-        setTadirDependencies,
+        parseSenvi,
         setDependencies,
         deepCheckDependencies,
         printDependencies
