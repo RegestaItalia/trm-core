@@ -53,7 +53,7 @@ export type PublishActionInput = {
     tmpFolder?: string
 }
 
-type WorkflowParsedInput = {
+export type WorkflowParsedInput = {
     packageName?: string,
     version?: string,
     devclass?: string,
@@ -63,7 +63,7 @@ type WorkflowParsedInput = {
     releaseTimeout?: number
 }
 
-type WorkflowRuntime = {
+export type WorkflowRuntime = {
     registry?: Registry,
     dummyPackage?: TrmPackage,
     packageExistsOnRegistry?: boolean,
