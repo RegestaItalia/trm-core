@@ -2,6 +2,11 @@ import { Step } from "@sammarks/workflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
+import { InstallDependencyActionInput, installDependency as installDependencyWkf } from "../installDependency";
+import { inspect } from "util";
+import { Registry } from "../../registry";
+
+const SUBWORKFLOW_NAME = 'install-sub-install-dependency';
 
 export const installDependencies: Step<InstallWorkflowContext> = {
     name: 'install-dependencies',
@@ -33,7 +38,18 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             for(const installDependency of dependenciesToInstall){
                 installCounter++;
                 Logger.info(`-> (${installCounter}/${dependenciesToInstall.length}) Dependency "${installDependency.name}" install started.`);
-                //await installDependencies
+                const inputData: InstallDependencyActionInput = {
+                    packageName: installDependency.name,
+                    versionRange: installDependency.version,
+                    installOptions: context.rawInput,
+                    registry: new Registry(installDependency.registry || 'public'),
+                    integrity: installDependency.integrity,
+                    systemPackages: context.parsedInput.systemPackages,
+                    forceInstall: false //TODO 
+                };
+                Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
+                const result = await installDependencyWkf(inputData);
+                Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
                 Logger.info(`   (${installCounter}/${dependenciesToInstall.length}) Dependency "${installDependency.name}" install completed.`);
             }
             Logger.success(`-> ${dependenciesToInstall.length}/${dependenciesToInstall.length} dependencies installed, package "${mainPackageName}" install can continue.`);

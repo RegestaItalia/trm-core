@@ -12,9 +12,9 @@ export const init: Step<InstallWorkflowContext> = {
         const registry = context.rawInput.registry;
 
         //check package name doesn't throw error
-        parsePackageName({
+        packageName = parsePackageName({
             fullName: packageName
-        });
+        }).fullName;
 
         if (packageVersion.trim().toLowerCase() === 'latest') {
             packageVersion = 'latest';
