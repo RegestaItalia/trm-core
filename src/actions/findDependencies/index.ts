@@ -81,7 +81,7 @@ export type FindDependenciesWorkflowContext = {
 
 const WORKFLOW_NAME = 'find-dependencies';
 
-export async function findDependencies(inputData: FindDependencyActionInput): Promise<FindDependencyActionOutput> {
+export async function findDependenciesOld(inputData: FindDependencyActionInput): Promise<FindDependencyActionOutput> {
     const workflow = [
         init,
         setSystemPackages,

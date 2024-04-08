@@ -49,16 +49,16 @@ export const parseSenvi: Step<FindDependenciesWorkflowContext> = {
                         Logger.log(`Dependency with custom object`, true);
                     }
                     aParsedSenvi = _addEntry('TADIR', aParsedSenvi, objectSenvi.tadir, {
-                        pgmid: parsedSenvi.pgmid,
-                        object: parsedSenvi.object,
-                        objName: parsedSenvi.objName,
-                        devclass: parsedSenvi.devclass
+                        'PGMID': parsedSenvi.pgmid,
+                        'OBJECT': parsedSenvi.object,
+                        'OBJ_NAME': parsedSenvi.objName,
+                        'DEVCLASS': parsedSenvi.devclass
                     });
                     if(parsedSenvi.subObject){
                         if(parsedSenvi.subObject.func){
                             aParsedSenvi = _addEntry('TFDIR', aParsedSenvi, objectSenvi.tadir, {
-                                funcname: parsedSenvi.subObject.func,
-                                pname: `SAPL${parsedSenvi.objName}`
+                                'FUNCNAME': parsedSenvi.subObject.func,
+                                'PNAME': `SAPL${parsedSenvi.objName}`
                             });
                         }
                     }

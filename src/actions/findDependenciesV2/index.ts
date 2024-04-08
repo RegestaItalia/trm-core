@@ -1,9 +1,8 @@
 import execute from "@sammarks/workflow";
-import { DEVCLASS, SENVI, TADIR, TFDIR } from "../../client";
+import { DEVCLASS, SENVI, TADIR } from "../../client";
 import { TrmPackage } from "../../trmPackage";
 import { Logger } from "../../logger";
 import { inspect } from "util";
-import { ParsedSenvi } from "../../dependency";
 import { init } from "./init";
 import { setSystemPackages } from "./setSystemPackages";
 import { readPackageData } from "./readPackageData";
@@ -36,6 +35,7 @@ export type TrmDependency = {
 
 export type FindDependencyActionInput = {
     devclass: DEVCLASS,
+    tadir?: TADIR[],
     deepCheck?: boolean,
     systemPackages?: TrmPackage[],
     print?: boolean

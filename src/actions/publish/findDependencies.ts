@@ -1,8 +1,8 @@
 import { Step } from "@sammarks/workflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { FindDependencyActionInput } from "../findDependencies";
-import { findDependencies as findDependenciesWkf } from "../findDependencies";
+import { FindDependencyActionInput } from "../findDependenciesV2";
+import { findDependencies as findDependenciesWkf } from "../findDependenciesV2";
 
 const SUBWORKFLOW_NAME = 'find-dependencies-sub-publish';
 
@@ -31,7 +31,11 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         Logger.loading(`Searching package dependencies...`);
         const result = await findDependenciesWkf(inputData);
         Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${JSON.stringify(result)}`, true);
-        context.runtime.dependencies = result.dependencies;
+        const aUnknownDependencyDevclass = result.unknownDependencies.map(o => o.devclass);
+        if(aUnknownDependencyDevclass.length > 0){
+            throw new Error(`Dependencies found with packages ${aUnknownDependencyDevclass.join(', ')}: Unknown TRM package!`);
+        }
+        context.runtime.dependencies = result;
         //logger is stopped in logDependencies step
     }
 }

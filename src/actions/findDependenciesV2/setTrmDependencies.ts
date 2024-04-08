@@ -9,7 +9,12 @@ import { Logger } from "../../logger";
 const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Promise<TrmDependency[]> => {
     var trmDependencies: TrmDependency[] = [];
     for (const tadirDependency of tadirDependencies) {
-        const tadir: TADIR = tadirDependency.tableDependency;
+        const tadir: {
+            PGMID: string,
+            OBJ_NAME: string,
+            OBJECT: string,
+            DEVCLASS: string
+        } = tadirDependency.tableDependency;
         var trmRelevantTransports: Transport[] = [];
         var latestTransport: Transport;
         var devclass: DEVCLASS;
@@ -17,13 +22,13 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         var integrity: string;
         var arrayIndex1: number;
         var arrayIndex2: number;
-        Logger.log(`Searching transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
+        Logger.log(`Searching transports for object ${tadir.PGMID} ${tadir.OBJECT} ${tadir.OBJ_NAME}`, true);
         const allTransports = await Transport.getTransportsFromObject({
-            pgmid: tadir.pgmid,
-            object: tadir.object,
-            objName: tadir.objName
+            pgmid: tadir.PGMID,
+            object: tadir.OBJECT,
+            objName: tadir.OBJ_NAME
         });
-        Logger.log(`Found ${allTransports.length} transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
+        Logger.log(`Found ${allTransports.length} transports for object ${tadir.PGMID} ${tadir.OBJECT} ${tadir.OBJ_NAME}`, true);
         for (const transport of allTransports) {
             if (await transport.isTrmRelevant()) {
                 Logger.log(`Transport ${transport.trkorr} is TRM relevant`, true);
@@ -49,7 +54,7 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         } else {
             Logger.log(`Object without TRM package`, true);
             //doesn't have trm package
-            devclass = tadir.devclass;
+            devclass = tadir.DEVCLASS;
         }
         
         arrayIndex1 = trmDependencies.findIndex(o => o.devclass === devclass);

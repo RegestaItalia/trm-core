@@ -7,7 +7,7 @@ import { Registry, RegistryType } from "../../registry";
 export const setTrmDependencies: Step<PublishWorkflowContext> = {
     name: 'set-trm-dependencies',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        const trmDependencies = (context.runtime.dependencies || []).filter(o => o.trmPackage);
+        const trmDependencies = context.runtime.dependencies.trmDependencies;
         if (trmDependencies.length > 0) {
             return true;
         } else {
@@ -16,7 +16,7 @@ export const setTrmDependencies: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        const trmDependencies = (context.runtime.dependencies || []).filter(o => o.trmPackage);
+        const trmDependencies = context.runtime.dependencies.trmDependencies;
         trmDependencies.forEach(d => {
             const dependencyManifest = d.trmPackage.manifest.get();
             const dependencyName = dependencyManifest.name;

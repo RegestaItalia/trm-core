@@ -35,9 +35,14 @@ export class TrmPackage {
             try {
                 view = await this._viewLatest();
             } catch (e) {
-                if (e.response && e.response.data) {
+                /*if (e.response && e.response.data) {
                     view = e.response.data;
                 } else {
+                    throw e;
+                }*/
+                if(e.response){
+                    view = e.response;
+                }else{
                     throw e;
                 }
             }

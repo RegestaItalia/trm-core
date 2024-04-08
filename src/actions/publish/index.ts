@@ -8,7 +8,6 @@ import { checkPublishAllowed } from "./checkPublishAllowed";
 import { setTransportTarget } from "./setTransportTarget";
 import { setDevclassObjs } from "./setDevclassObjs";
 import { findDependencies } from "./findDependencies";
-import { TadirDependency } from "../findDependencies";
 import { Logger } from "../../logger";
 import { setTrmDependencies } from "./setTrmDependencies";
 import { setSapEntries } from "./setSapEntries";
@@ -34,6 +33,7 @@ import { releaseDevcTr } from "./releaseDevcTr";
 import { generateTrmArtifact } from "./generateTrmArtifact";
 import { publishTrmArtifact } from "./publishTrmArtifact";
 import { finalizePublish } from "./finalizePublish";
+import { FindDependencyActionOutput } from "../findDependenciesV2";
 
 export type PublishActionInput = {
     package: TrmManifest, //atleast name and version
@@ -68,8 +68,6 @@ export type WorkflowRuntime = {
     dummyPackage?: TrmPackage,
     packageExistsOnRegistry?: boolean,
     tadirObjects?: TADIR[],
-    dependencies?: TadirDependency[],
-    packageDependencies?: TrmManifestDependency[],
     manifest?: TrmManifest,
     trmPackage?: TrmPackage,
     devcTransport?: Transport,
@@ -78,7 +76,8 @@ export type WorkflowRuntime = {
     tryTadirDeleteRevert?: boolean,
     langTransport?: Transport,
     tryLangDeleteRevert?: boolean,
-    artifact?: TrmArtifact
+    artifact?: TrmArtifact,
+    dependencies?: FindDependencyActionOutput
 }
 
 export type PublishActionOutput = {

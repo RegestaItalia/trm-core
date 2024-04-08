@@ -77,7 +77,21 @@ export class Registry {
             return response;
         }, (error) => {
             Logger.error(`Registry response error: ${error}`, true);
-            return Promise.reject(error);
+            if(error.response){
+                var sError;
+                if(error.response.data && error.response.data.message && typeof(error.response.data.message) === 'string'){
+                    sError = error.response.data.message;
+                }else{
+                    sError = error.response.statusText;
+                }
+                var registryError = new Error(sError);
+                registryError.name = 'TrmRegistryError';
+                registryError['status'] = error.response.status;
+                registryError['response'] = error.response.data || {};
+                return Promise.reject(registryError);
+            }else{
+                return Promise.reject(error);
+            }
         });
         return instance;
     }

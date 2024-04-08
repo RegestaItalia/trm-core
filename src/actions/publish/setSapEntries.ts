@@ -6,7 +6,7 @@ import { Logger } from "../../logger";
 export const setSapEntries: Step<PublishWorkflowContext> = {
     name: 'set-sap-entries',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        const sapEntries = (context.runtime.dependencies || []).filter(o => !o.trmPackage);
+        const sapEntries = context.runtime.dependencies.sapEntries;
         if (sapEntries.length > 0) {
             return true;
         } else {
@@ -15,30 +15,23 @@ export const setSapEntries: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        const sapEntries = (context.runtime.dependencies || []).filter(o => !o.trmPackage);
-        sapEntries.forEach(d => {
-            if (d.isSap) {
-                if (!context.runtime.manifest.sapEntries['TADIR']) {
-                    context.runtime.manifest.sapEntries['TADIR'] = [];
-                }
-                d.tadir.forEach(t => {
-                    var arrayIndex = context.runtime.manifest.sapEntries['TADIR'].findIndex(o => o['PGMID'] === t.pgmid && o['OBJECT'] === t.object && o['OBJ_NAME'] === t.objName);
-                    if (arrayIndex < 0) {
-                        arrayIndex = context.runtime.manifest.sapEntries['TADIR'].push({
-                            "PGMID": t.pgmid,
-                            "OBJECT": t.object,
-                            "OBJ_NAME": t.objName
-                        });
-                        arrayIndex--;
-                    }
-                    Logger.info(`Found dependency with TADIR ${t.pgmid} ${t.object} ${t.objName}`, true);
-                });
-            } else {
-                d.tadir.forEach(t => {
-                    Logger.error(`Object ${t.object} ${t.objName} of devclass ${t.devclass} has no TRM Package.`);
-                });
-                throw new Error(`All objects must be included in a TRM Package in order to continue.`);
+        const sapEntries = context.runtime.dependencies.sapEntries;
+        var tablesCounter = 0;
+        var recordsCounter = 0;
+        sapEntries.forEach(o => {
+            if (!context.runtime.manifest.sapEntries[o.table]) {
+                context.runtime.manifest.sapEntries[o.table] = [];
             }
+            tablesCounter++;
+            o.dependencies.forEach(k => {
+                var tableKeys = k.tableDependency;
+                if (o.table === 'TADIR') {
+                    delete tableKeys['DEVCLASS'];
+                }
+                context.runtime.manifest.sapEntries[o.table].push(tableKeys);
+                recordsCounter++;
+            });
         });
+        Logger.info(`Found ${recordsCounter} SAP entries in ${tablesCounter} tables`);
     }
 }
