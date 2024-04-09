@@ -33,7 +33,7 @@ import { releaseDevcTr } from "./releaseDevcTr";
 import { generateTrmArtifact } from "./generateTrmArtifact";
 import { publishTrmArtifact } from "./publishTrmArtifact";
 import { finalizePublish } from "./finalizePublish";
-import { FindDependencyActionOutput } from "../findDependenciesV2";
+import { FindDependencyActionOutput } from "../findDependencies";
 
 export type PublishActionInput = {
     package: TrmManifest, //atleast name and version

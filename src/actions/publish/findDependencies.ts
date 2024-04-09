@@ -1,8 +1,8 @@
 import { Step } from "@sammarks/workflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { FindDependencyActionInput } from "../findDependenciesV2";
-import { findDependencies as findDependenciesWkf } from "../findDependenciesV2";
+import { FindDependencyActionInput } from "../findDependencies";
+import { findDependencies as findDependenciesWkf } from "../findDependencies";
 
 const SUBWORKFLOW_NAME = 'find-dependencies-sub-publish';
 
