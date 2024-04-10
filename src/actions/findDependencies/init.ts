@@ -14,5 +14,14 @@ export const init: Step<FindDependenciesWorkflowContext> = {
 
         context.parsedInput.devclass = devclass;
         context.parsedInput.print = context.rawInput.print ? true : false;
+        if(context.parsedInput.print){
+            context.parsedInput.printSapEntries = context.rawInput.printSapEntries ? true : false;
+        }else{
+            context.parsedInput.printSapEntries = false;
+        }
+
+        context.output.trmDependencies = [];
+        context.output.unknownDependencies = [];
+        context.output.sapEntries = [];
     }
 }

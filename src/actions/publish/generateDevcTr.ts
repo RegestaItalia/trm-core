@@ -15,8 +15,8 @@ export const generateDevcTr: Step<PublishWorkflowContext> = {
             target: context.parsedInput.trTarget,
             text: `@X1@TRM: ${context.runtime.manifest.name} v${context.runtime.manifest.version} (D)`
         });
-        await context.runtime.devcTransport.addObjects(devcOnly, false);
         context.runtime.tryDevcDeleteRevert = true;
+        await context.runtime.devcTransport.addObjects(devcOnly, false);
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
         if(context.runtime.tryDevcDeleteRevert){

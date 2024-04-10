@@ -71,6 +71,7 @@ export const init: Step<PublishWorkflowContext> = {
         context.parsedInput.version = normalizedVersion;
         context.parsedInput.releaseFolder = context.rawInput.tmpFolder;
         context.parsedInput.releaseTimeout = context.rawInput.releaseTimeout || 180;
+        context.parsedInput.customizingTransports = context.rawInput.customizingTransports || [];
 
         context.runtime.registry = registry;
         context.runtime.dummyPackage = new TrmPackage(packageName, registry);

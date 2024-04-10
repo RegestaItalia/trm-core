@@ -31,7 +31,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         Logger.loading(`Searching package dependencies...`);
         const result = await findDependenciesWkf(inputData);
         Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${JSON.stringify(result)}`, true);
-        const aUnknownDependencyDevclass = result.unknownDependencies.map(o => o.devclass);
+        const aUnknownDependencyDevclass = (result.unknownDependencies).map(o => o.devclass);
         if(aUnknownDependencyDevclass.length > 0){
             throw new Error(`Dependencies found with packages ${aUnknownDependencyDevclass.join(', ')}: Unknown TRM package!`);
         }

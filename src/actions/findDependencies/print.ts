@@ -105,7 +105,9 @@ export const print: Step<FindDependenciesWorkflowContext> = {
             });
         });
 
-        baseTree.children.push(sapEntriesTree);
+        if(context.parsedInput.printSapEntries){
+            baseTree.children.push(sapEntriesTree);
+        }
         baseTree.children.push(unknownDependenciesTree);
         baseTree.children.push(trmDependenciesTree);
 

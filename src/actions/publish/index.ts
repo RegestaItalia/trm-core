@@ -34,6 +34,8 @@ import { generateTrmArtifact } from "./generateTrmArtifact";
 import { publishTrmArtifact } from "./publishTrmArtifact";
 import { finalizePublish } from "./finalizePublish";
 import { FindDependencyActionOutput } from "../findDependencies";
+import { generateCustTr } from "./generateCustTr";
+import { releaseCustTr } from "./releaseCustTr";
 
 export type PublishActionInput = {
     package: TrmManifest, //atleast name and version
@@ -48,6 +50,8 @@ export type PublishActionInput = {
     skipEditDependencies?: boolean,
     skipReadme?: boolean,
     skipLang?: boolean,
+    skipCust?: boolean,
+    customizingTransports?: string[],
     readme?: string,
     releaseTimeout?: number,
     tmpFolder?: string
@@ -60,7 +64,8 @@ export type WorkflowParsedInput = {
     trTarget?: string,
     readme?: string,
     releaseFolder?: string,
-    releaseTimeout?: number
+    releaseTimeout?: number,
+    customizingTransports?: string[],
 }
 
 export type WorkflowRuntime = {
@@ -76,6 +81,8 @@ export type WorkflowRuntime = {
     tryTadirDeleteRevert?: boolean,
     langTransport?: Transport,
     tryLangDeleteRevert?: boolean,
+    custTransport?: Transport,
+    tryCustDeleteRevert?: boolean,
     artifact?: TrmArtifact,
     dependencies?: FindDependencyActionOutput
 }
@@ -116,8 +123,10 @@ export async function publish(inputData: PublishActionInput): Promise<TrmPackage
         generateDevcTr,
         generateTadirTr,
         generateLangTr,
+        generateCustTr,
         releaseTadirTr,
         releaseLangTr,
+        releaseCustTr,
         releaseDevcTr,
         generateTrmArtifact,
         publishTrmArtifact,

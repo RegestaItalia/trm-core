@@ -59,6 +59,20 @@ export class Transport {
         return this._e071;
     }
 
+    public async getTasks(): Promise<Transport[]> {
+        var tasks = [];
+        const sTrkorr: {
+            trkorr: string
+        }[] = await SystemConnector.readTable('E070',
+            [{ fieldName: 'TRKORR' }],
+            `STRKORR EQ '${this.trkorr}'`
+        );
+        sTrkorr.forEach(o => {
+            tasks.push(new Transport(o.trkorr));
+        });
+        return tasks;
+    }
+
     public async getDevclass(): Promise<DEVCLASS> {
         const aE071 = await this.getE071();
         var aDevclass = aE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC').map(o => o.objName);

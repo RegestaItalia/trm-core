@@ -1,10 +1,45 @@
 import { Step } from "@sammarks/workflow";
 import { FindDependenciesWorkflowContext, TableDependency, TrmDependency } from ".";
-import { DEVCLASS, TADIR } from "../../client";
+import { DEVCLASS } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { TrmPackage } from "../../trmPackage";
 import { Logger } from "../../logger";
+
+var aRootDevclass: {
+    devclass: string,
+    rootDevclass: string
+}[] = [];
+
+const _getRootDevclass = async (devclass) => {
+    const oRootDevclass = aRootDevclass.find(o => o.devclass === devclass);
+    if(oRootDevclass){
+        return oRootDevclass.rootDevclass;
+    }else{
+        Logger.loading(`Searching root of devclass ${devclass}...`, true);
+        var tdevcDevclass = devclass;
+        var rootDevclass = null;
+        while(rootDevclass === null){
+            const tdevc = await SystemConnector.getDevclass(tdevcDevclass);
+            Logger.log(`Parent of ${tdevcDevclass} is ${tdevc.parentcl}`, true);
+            if(tdevc.parentcl){
+                tdevcDevclass = tdevc.parentcl;
+                aRootDevclass.push({
+                    devclass: tdevcDevclass,
+                    rootDevclass: tdevc.parentcl
+                });
+            }else{
+                rootDevclass = tdevcDevclass;
+                aRootDevclass.push({
+                    devclass: tdevcDevclass,
+                    rootDevclass: tdevcDevclass
+                });
+            }
+        }
+        Logger.success(`Root devclass of ${devclass} is ${rootDevclass}`, true);
+        return rootDevclass;
+    }
+}
 
 const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Promise<TrmDependency[]> => {
     var trmDependencies: TrmDependency[] = [];
@@ -49,12 +84,17 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
                 if(!integrity){
                     throw new Error(`Package "${trmPackage.packageName}", integrity not found!`);
                 }
-                devclass = ''; //TODO
+                try{
+                    devclass = await latestTransport.getDevclass();
+                }catch(e){
+                    devclass = '';
+                }
             }
         } else {
             Logger.log(`Object without TRM package`, true);
             //doesn't have trm package
-            devclass = tadir.DEVCLASS;
+            //TODO search root devclass
+            devclass = await _getRootDevclass(tadir.DEVCLASS);
         }
         
         arrayIndex1 = trmDependencies.findIndex(o => o.devclass === devclass);

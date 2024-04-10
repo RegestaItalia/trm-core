@@ -38,14 +38,16 @@ export type FindDependencyActionInput = {
     devclass: DEVCLASS,
     tadir?: TADIR[],
     systemPackages?: TrmPackage[],
-    print?: boolean
+    print?: boolean,
+    printSapEntries?: boolean
 }
 
 type WorkflowParsedInput = {
     devclass?: DEVCLASS,
     tadir?: TADIR[],
     systemPackages?: TrmPackage[],
-    print?: boolean
+    print?: boolean,
+    printSapEntries?: boolean
 }
 
 type WorkflowRuntime = {
