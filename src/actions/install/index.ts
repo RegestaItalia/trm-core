@@ -26,6 +26,7 @@ import { importLangTransport } from "./importLangTransport";
 import { setPackageIntegrity } from "./setPackageIntegrity";
 import { generateWbTransport } from "./generateWbTransport";
 import { Transport } from "../../transport";
+import { importCustTransport } from "./importCustTransport";
 
 export type InstallPackageReplacements = {
     originalDevclass: string,
@@ -139,6 +140,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         generateDevclass,
         importTadirTransport,
         importLangTransport,
+        importCustTransport,
         setPackageIntegrity,
         generateWbTransport
     ];
