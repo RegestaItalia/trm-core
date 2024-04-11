@@ -40,7 +40,7 @@ export const finalizePublish: Step<PublishWorkflowContext> = {
         }
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
-        //TODO: delete record in integrity table
+        //TODO: delete record in integrity table - doesn't really make any difference for now
         if(context.output){
             delete context.output.trmPackage;
         }

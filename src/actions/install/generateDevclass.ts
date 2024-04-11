@@ -101,7 +101,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         for(const devclass of devclassDelete){
             Logger.loading(`Rollback "${devclass}"...`);
             try{
-                //TODO delete devclass
+                //TODO (abapGit integration #33) delete devclass
                 Logger.info(`Rollback "${devclass}"`);
             }catch(e){
                 Logger.info(`Unable to rollback "${devclass}"`);

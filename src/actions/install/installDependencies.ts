@@ -25,13 +25,18 @@ export const installDependencies: Step<InstallWorkflowContext> = {
         if (context.parsedInput.installMissingDependencies) {
             continueInstall = true;
         } else {
-            const inq1 = await Inquirer.prompt({
-                type: 'confirm',
-                name: 'continueInstall',
-                default: true,
-                message: `Do you wish to install all of the missing dependencies?`
-            });
-            continueInstall = inq1.continueInstall;
+            if(!context.parsedInput.noInquirer){
+                const inq1 = await Inquirer.prompt({
+                    type: 'confirm',
+                    name: 'continueInstall',
+                    default: true,
+                    message: `Do you wish to install all of the missing dependencies?`
+                });
+                continueInstall = inq1.continueInstall;
+            }else{
+                Logger.info(`Dependencies are not being installed: running in silent and no action was taken.`);
+                continueInstall = false;
+            }
         }
         if (continueInstall) {
             var installCounter = 0;
@@ -45,7 +50,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                     registry: new Registry(installDependency.registry || 'public'),
                     integrity: installDependency.integrity,
                     systemPackages: context.parsedInput.systemPackages,
-                    forceInstall: false //TODO 
+                    forceInstall: context.parsedInput.skipAlreadyInstalledCheck //check already installed? 
                 };
                 Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
                 const result = await installDependencyWkf(inputData);

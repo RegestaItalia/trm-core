@@ -47,7 +47,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
         Logger.loading(`Rollback TADIR transport ${context.runtime.tadirTransport.trkorr}...`);
         try {
             await SystemConnector.addSkipTrkorr(context.runtime.tadirTransport.trkorr);
-            //TODO abapgit delete?
+            //TODO (abapGit integration #33) delete objects in transport
             Logger.info(`Executed rollback on transport ${context.runtime.tadirTransport.trkorr}`);
         } catch (e) {
             Logger.info(`Unable to rollback transport ${context.runtime.tadirTransport.trkorr}`);

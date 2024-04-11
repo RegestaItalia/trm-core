@@ -33,6 +33,6 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         context.runtime.trCopy.push(transportData.trkorr);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        //TODO rollback lang transport?
+        Logger.error(`LANG transport ${context.runtime.langTransport} can't be removed.`);
     }
 }

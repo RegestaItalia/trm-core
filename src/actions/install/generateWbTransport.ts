@@ -75,7 +75,7 @@ export const generateWbTransport: Step<InstallWorkflowContext> = {
                     }
                 } catch (e) {
                     //object might be in transport already
-                    //TODO better handle this case
+                    //TODO handle this case better
                 }
             }
             for (const trFrom of trCopy) {
@@ -83,7 +83,7 @@ export const generateWbTransport: Step<InstallWorkflowContext> = {
                     await wbTransport.addObjectsFromTransport(trFrom);
                 } catch (e) {
                     //object might be in transport already
-                    //TODO better handle this case
+                    //TODO handle this case better
                 }
             }
             context.runtime.wbTransport = wbTransport;

@@ -40,19 +40,20 @@ export type InstallActionInput = {
     integrity?: string,
     r3transOptions?: R3transOptions,
     transportLayer?: string,
-    /*forceInstall?: boolean,
-    ignoreSapEntries?: boolean,
-    skipDependencies?: boolean,
-    skipLang?: boolean,
+    force?: boolean,
+    keepOriginalDevclass?: boolean,
     importTimeout?: number,
-    keepOriginalPackages?: boolean,
+    generateTransport?: boolean,
+    skipSapEntriesCheck?: boolean,
+    skipObjectTypesCheck?: boolean,
+    skipLangImport?: boolean,
+    skipCustImport?: boolean,
+    ignoreDependencies?: boolean,
+    safeInstall?: boolean,
+    wbTrTargetSystem?: string,
+    silent?: boolean,
     packageReplacements?: InstallPackageReplacements[],
-    skipWbTransport?: boolean,
-    transportLayer?: string,
-    targetSystem?: string,
-    integrity?: string,
-    safe?: boolean,
-    ci?: boolean*/
+    allowReplace?: boolean
 }
 
 type WorkflowParsedInput = {
@@ -74,8 +75,11 @@ type WorkflowParsedInput = {
     transportLayer?: string,
     importTimeout?: number,
     skipLangImport?: boolean,
+    skipCustImport?: boolean,
     skipWbTransportGen?: boolean,
-    wbTrTargetSystem?: string
+    wbTrTargetSystem?: string,
+    packageReplacements?: InstallPackageReplacements[],
+    noInquirer?: boolean
 }
 
 type WorkflowRuntime = {
@@ -89,6 +93,7 @@ type WorkflowRuntime = {
     devcTransport?: TransportBinary,
     tadirTransport?: TransportBinary,
     langTransport?: TransportBinary,
+    custTransport?: TransportBinary,
     tdevcData?: TDEVC[],
     tdevctData?: TDEVCT[],
     tadirData?: TADIR[],

@@ -16,9 +16,9 @@ export const init: Step<PublishWorkflowContext> = {
         var packageName = context.rawInput.package.name.toLowerCase().trim();
 
         //check package name doesn't throw error
-        parsePackageName({
+        packageName = parsePackageName({
             fullName: packageName
-        });
+        }).fullName;
 
         var packageVersion = context.rawInput.package.version;
 

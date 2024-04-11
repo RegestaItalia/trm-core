@@ -93,7 +93,6 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         } else {
             Logger.log(`Object without TRM package`, true);
             //doesn't have trm package
-            //TODO search root devclass
             devclass = await _getRootDevclass(tadir.DEVCLASS);
         }
         

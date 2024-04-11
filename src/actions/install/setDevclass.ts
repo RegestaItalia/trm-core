@@ -60,6 +60,10 @@ export const setDevclass: Step<InstallWorkflowContext> = {
         tdevc.forEach(t => {
             const replacement = packageReplacements.find(o => o.originalDevclass === t.devclass);
             if (!replacement || forceDevclassInput) {
+                if(context.parsedInput.noInquirer){
+                    Logger.error(`There's no replacement devclass for "${t.devclass}" and running in silent context: exit!`, true);
+                    throw new Error(`Can't continue install: running in silent and no action taken for devclass input`);
+                }
                 inq1Prompts.push({
                     type: "input",
                     name: t.devclass,

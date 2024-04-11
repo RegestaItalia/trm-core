@@ -28,6 +28,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         const aDevcTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.DEVC);
         const aTadirTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.TADIR);
         const aLangTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.LANG);
+        const aCustTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.CUST);
         if(aDevcTransports.length !== 1){
             throw new Error(`Unexpected declaration of devclass in package ${packageName}.`);
         }else{
@@ -47,6 +48,13 @@ export const checkTransports: Step<InstallWorkflowContext> = {
             }
             context.runtime.langTransport = aLangTransports[0];
             Logger.log(`LANG transport is ${aLangTransports[0].trkorr}.`, true);
+        }
+        if(aCustTransports.length > 0){
+            if(aCustTransports.length !== 1){
+                throw new Error(`Unexpected declaration of customizing in package ${packageName}.`);
+            }
+            context.runtime.custTransport = aCustTransports[0];
+            Logger.log(`CUST transport is ${aCustTransports[0].trkorr}.`, true);
         }
     }
 }

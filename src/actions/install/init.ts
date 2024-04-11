@@ -39,14 +39,36 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.workbenchObjects = [];
         context.runtime.trCopy = [];
         
-        context.parsedInput.skipAlreadyInstalledCheck = true;
-        context.parsedInput.checkSapEntries = true;
+        context.parsedInput.packageName = packageName;
+        context.parsedInput.version = trmManifest.version;
+        context.parsedInput.safeInstall = context.rawInput.safeInstall ? true : false;
+        context.parsedInput.noInquirer = context.rawInput.silent ? true : false;
+        context.parsedInput.forceDevclassInput = context.rawInput.silent ? false : true;
+        if(context.rawInput.force){
+            context.parsedInput.skipAlreadyInstalledCheck = true;
+            context.parsedInput.checkSapEntries = false;
+            context.parsedInput.checkObjectTypes = false;
+            context.parsedInput.forceInstallSameVersion = true;
+            context.parsedInput.overwriteInstall = true;
+            context.parsedInput.checkDependencies = false;
+        }else{
+            context.parsedInput.skipAlreadyInstalledCheck = false;
+            context.parsedInput.checkSapEntries = context.rawInput.skipSapEntriesCheck ? false : true;
+            context.parsedInput.checkObjectTypes = context.rawInput.skipObjectTypesCheck ? false : true;
+            context.parsedInput.forceInstallSameVersion = false;
+            context.parsedInput.overwriteInstall = context.rawInput.allowReplace ? true : false;
+            context.parsedInput.checkDependencies = context.rawInput.ignoreDependencies ? false : true;
+        }
+        context.parsedInput.keepOriginalPackages = context.rawInput.keepOriginalDevclass ? true : false;
+        context.parsedInput.installMissingDependencies = context.rawInput.ignoreDependencies ? false : true;
+        //TODO -> check transport layer exists
+        context.parsedInput.transportLayer = context.rawInput.transportLayer;
+        //TODO -> check target system exists
+        context.parsedInput.wbTrTargetSystem = context.rawInput.wbTrTargetSystem;
         context.parsedInput.installIntegrity = context.rawInput.integrity;
         context.parsedInput.r3transOptions = context.rawInput.r3transOptions;
-        context.parsedInput.checkObjectTypes = true;
-        context.parsedInput.keepOriginalPackages = true;
-        context.parsedInput.transportLayer = context.rawInput.transportLayer;
-        context.parsedInput.importTimeout = 180;
-        context.parsedInput.skipWbTransportGen = false;
+        context.parsedInput.importTimeout = context.rawInput.importTimeout || 180;
+        context.parsedInput.skipWbTransportGen = context.rawInput.generateTransport ? false : true;
+        context.parsedInput.packageReplacements = context.rawInput.packageReplacements || [];
     }
 }
