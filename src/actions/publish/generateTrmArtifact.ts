@@ -14,6 +14,9 @@ export const generateTrmArtifact: Step<PublishWorkflowContext> = {
         if(context.runtime.langTransport){
             aTransports.push(context.runtime.langTransport);
         }
+        if(context.runtime.custTransport){
+            aTransports.push(context.runtime.custTransport);
+        }
         aTransports.push(context.runtime.devcTransport);
         context.runtime.artifact = await TrmArtifact.create(aTransports, context.runtime.trmPackage.manifest);
     }
