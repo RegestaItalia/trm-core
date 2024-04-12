@@ -15,6 +15,7 @@ export const overwriteManifestValues: Step<PublishWorkflowContext> = {
             }
         } else {
             Logger.log(`Skip owerwrite manifest values step (input)`, true);
+            return false;
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
