@@ -79,8 +79,17 @@ export class Registry {
             Logger.error(`Registry response error: ${error}`, true);
             if(error.response){
                 var sError;
-                if(error.response.data && error.response.data.message && typeof(error.response.data.message) === 'string'){
-                    sError = error.response.data.message;
+                if(error.response.data){
+                    if(error.config.responseType === 'arraybuffer'){
+                        try{
+                            const charset = /^application\/json;.*charset=([^;]*)/i.exec(error.response.headers['content-type'])[1];
+                            const enc = new TextDecoder(charset);
+                            error.response.data = JSON.parse(enc.decode(error.response.data));
+                        }catch(e){ }
+                    }
+                    if(error.response.data.message && typeof(error.response.data.message) === 'string'){
+                        sError = error.response.data.message;
+                    }
                 }else{
                     sError = error.response.statusText;
                 }

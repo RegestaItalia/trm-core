@@ -32,7 +32,7 @@ export const setDevclass: Step<InstallWorkflowContext> = {
         const packageName = context.parsedInput.packageName;
         const registry = context.runtime.registry;
         const forceDevclassInput = context.parsedInput.forceDevclassInput;
-        var packageReplacements = context.runtime.packageReplacements;
+        var packageReplacements = context.parsedInput.packageReplacements;
 
         //build the package hierarchy
         const originalPackageHierarchy = getPackageHierarchy(tdevc);
@@ -53,7 +53,6 @@ export const setDevclass: Step<InstallWorkflowContext> = {
         if (!rootDevclass) {
             rootDevclass = originalPackageHierarchy.devclass;
         }
-        context.runtime.packageReplacements = packageReplacements;
 
         const packagesNamespace = getPackageNamespace(rootDevclass);
         var inq1Prompts: Question[] = [];
@@ -105,6 +104,7 @@ export const setDevclass: Step<InstallWorkflowContext> = {
         });
         await SystemConnector.setInstallDevc(installDevc);
         context.runtime.originalPackageHierarchy = originalPackageHierarchy;
+        context.runtime.packageReplacements = packageReplacements;
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         //there's not real reason to revert? keeping records in ZTRM_INSTALLDEVC shouldn't have any impact

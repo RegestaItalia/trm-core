@@ -1,7 +1,6 @@
 import { Step } from "@sammarks/workflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { createHash } from "crypto";
 
 export const checkIntegrity: Step<InstallWorkflowContext> = {
     name: 'check-integrity',
@@ -15,8 +14,7 @@ export const checkIntegrity: Step<InstallWorkflowContext> = {
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
         const trmManifest = context.runtime.trmManifest;
-        const oArtifact = context.runtime.trmArtifact;
-        const installIntegrity = createHash("sha512").update(oArtifact.binary).digest("hex");
+        const installIntegrity = context.runtime.fetchedIntegrity;
         const inputIntegrity = context.parsedInput.installIntegrity;
         const safe = context.parsedInput.safeInstall;
         if(installIntegrity !== inputIntegrity){
@@ -29,6 +27,5 @@ export const checkIntegrity: Step<InstallWorkflowContext> = {
                 throw new Error(`Package installation aborted due to integrity check failure and running in safe mode.`);
             }
         }
-        context.runtime.fetchedIntegrity = installIntegrity;
     }
 }

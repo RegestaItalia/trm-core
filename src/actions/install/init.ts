@@ -3,6 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
 import { parsePackageName } from "../../commons";
+import { createHash } from "crypto";
 
 export const init: Step<InstallWorkflowContext> = {
     name: 'init',
@@ -23,6 +24,7 @@ export const init: Step<InstallWorkflowContext> = {
         Logger.loading(`Searching TRM package in registry ${registry.name}...`);
         const trmPackage = new TrmPackage(packageName, registry);
         const oArtifact = await trmPackage.fetchRemoteArtifact(packageVersion);
+        const installIntegrity = createHash("sha512").update(oArtifact.binary).digest("hex");
         const oManifest = await trmPackage.fetchRemoteManifest(packageVersion);
         const trmManifest = oManifest.get();
         var sVersion = trmManifest.version;
@@ -38,6 +40,7 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.trmArtifact = oArtifact;
         context.runtime.workbenchObjects = [];
         context.runtime.trCopy = [];
+        context.runtime.fetchedIntegrity = installIntegrity;
         
         context.parsedInput.packageName = packageName;
         context.parsedInput.version = trmManifest.version;
