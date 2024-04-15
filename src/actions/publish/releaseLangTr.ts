@@ -13,12 +13,11 @@ export const releaseLangTr: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        const tmpFolder = context.parsedInput.releaseFolder;
         const timeout = context.parsedInput.releaseTimeout;
         if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
             Logger.logger.forceStop();
         }
-        await context.runtime.langTransport.release(false, false, tmpFolder, timeout);
+        await context.runtime.langTransport.release(false, true, null, timeout);
         context.runtime.tryLangDeleteRevert = false;
         //after trasport release lang transport has no revert option
         Logger.log(`LANG released, setting try revert to false as it cannot be deleted`, true);

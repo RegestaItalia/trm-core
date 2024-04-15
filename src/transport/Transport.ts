@@ -296,8 +296,10 @@ export class Transport {
         if (tmpFolder) {
             await this.readReleaseLog(tmpFolder, secondsTimeout);
             Logger.loading(`Finalizing release...`, skipLog);
+            await this._isInTmsQueue(true, false, secondsTimeout);
+        } else{
+            await this._isInTmsQueue(skipLog, false, secondsTimeout);
         }
-        await this._isInTmsQueue(skipLog, false, secondsTimeout);
         return this;
     }
 

@@ -13,12 +13,11 @@ export const releaseCustTr: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        const tmpFolder = context.parsedInput.releaseFolder;
         const timeout = context.parsedInput.releaseTimeout;
         if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
             Logger.logger.forceStop();
         }
-        await context.runtime.custTransport.release(false, false, tmpFolder, timeout);
+        await context.runtime.custTransport.release(false, true, null, timeout);
         context.runtime.tryCustDeleteRevert = false;
         //after trasport release cust transport has no revert option
         Logger.log(`CUST released, setting try revert to false as it cannot be deleted`, true);
