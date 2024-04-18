@@ -1,4 +1,4 @@
-import execute from "@sammarks/workflow";
+import execute from "@simonegaffurini/sammarksworkflow";
 import { DEVCLASS, SENVI, TADIR } from "../../client";
 import { TrmPackage } from "../../trmPackage";
 import { Logger } from "../../logger";

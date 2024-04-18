@@ -1,4 +1,4 @@
-import { Step } from "@sammarks/workflow";
+import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, SapEntriesDependency } from ".";
 import { SenviParser } from "../../dependency";
 import { TADIR } from "../../client";

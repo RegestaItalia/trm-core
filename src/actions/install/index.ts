@@ -1,4 +1,4 @@
-import execute from "@sammarks/workflow";
+import execute from "@simonegaffurini/sammarksworkflow";
 import { Logger } from "../../logger";
 import { inspect } from "util";
 import { Registry } from "../../registry";

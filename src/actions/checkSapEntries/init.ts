@@ -1,4 +1,4 @@
-import { Step } from "@sammarks/workflow";
+import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckSapEntriesWorkflowContext } from ".";
 
 export const init: Step<CheckSapEntriesWorkflowContext> = {

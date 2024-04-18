@@ -1,4 +1,4 @@
-import execute from "@sammarks/workflow";
+import execute from "@simonegaffurini/sammarksworkflow";
 import { DEVCLASS, TADIR, TR_TARGET } from "../../client";
 import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { Registry } from "../../registry";

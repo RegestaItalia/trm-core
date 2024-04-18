@@ -1,4 +1,4 @@
-import { Step } from "@sammarks/workflow";
+import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, TableDependency, TrmDependency } from ".";
 import { DEVCLASS } from "../../client";
 import { SystemConnector } from "../../systemConnector";

@@ -1,4 +1,4 @@
-import { Step } from "@sammarks/workflow";
+import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckPackageDependencyWorkflowContext } from ".";
 
 export const buildOutput: Step<CheckPackageDependencyWorkflowContext> = {

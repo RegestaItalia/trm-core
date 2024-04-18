@@ -1,4 +1,4 @@
-import { Step } from "@sammarks/workflow";
+import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { Logger } from "../../logger";

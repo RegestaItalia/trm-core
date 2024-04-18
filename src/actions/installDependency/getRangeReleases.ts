@@ -1,4 +1,4 @@
-import { Step } from "@sammarks/workflow";
+import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
 import { Manifest, TrmManifest } from "../../manifest";
 import { RegistryType } from "../../registry";

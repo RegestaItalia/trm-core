@@ -1,4 +1,4 @@
-import { Step } from "@sammarks/workflow";
+import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { validateTransportTarget } from "../../inquirer";
