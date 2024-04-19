@@ -255,9 +255,16 @@ export class ServerSystemConnector implements ISystemConnector {
     }
 
     public async getTransportTargets(): Promise<TMSCSYS[]> {
-        return await this.readTable('TMSCSYS',
-            [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }]
-        );
+        //systyp might not be available in some releases?
+        try {
+            return await this.readTable('TMSCSYS',
+                [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }, { fieldName: 'SYSTYP' }]
+            );
+        } catch (e) {
+            return await this.readTable('TMSCSYS',
+                [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }]
+            );
+        }
     }
 
     public async getSubpackages(devclass: DEVCLASS): Promise<TDEVC[]> {
@@ -540,7 +547,7 @@ export class ServerSystemConnector implements ISystemConnector {
             [{ fieldName: 'FUNCNAME' }, { fieldName: 'PNAME' }],
             `FUNCNAME EQ '${func.trim().toUpperCase()}'`
         );
-        if(aTfdir.length === 1){
+        if (aTfdir.length === 1) {
             return aTfdir[0];
         }
     }

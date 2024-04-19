@@ -10,7 +10,16 @@ export const setTransportTarget: Step<PublishWorkflowContext> = {
     run: async (context: PublishWorkflowContext): Promise<void> => {
         var trTarget = context.rawInput.target;
 
-        const systemTmscsys = await SystemConnector.getTransportTargets();
+        var systemTmscsys = await SystemConnector.getTransportTargets();
+        systemTmscsys = systemTmscsys.sort((a, b) => {
+            if (a.systyp === 'V') {
+                return -1;
+            } else if (b.systyp === 'V') {
+                return 1;
+            } else {
+                return 0;
+            }
+        });
         if (!trTarget) {
             const inq2 = await Inquirer.prompt({
                 type: "list",
