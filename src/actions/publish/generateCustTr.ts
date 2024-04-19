@@ -2,31 +2,20 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { Logger } from "../../logger";
-import { Inquirer } from "../../inquirer/Inquirer";
-import { SystemConnector } from "../../systemConnector";
 
 
 export const generateCustTr: Step<PublishWorkflowContext> = {
     name: 'generate-cust-tr',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.skipCust) {
-            Logger.log(`Skipping CUST transport (input)`, true);
+        if (context.runtime.inputCustTransports.length > 0) {
+            Logger.log(`Skipping CUST transport (no input in step)`, true);
             return false;
         } else {
             return true;
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        var customizingTransports = context.parsedInput.customizingTransports;
-        const inq1 = await Inquirer.prompt({
-            message: `Customizing transports (separated by comma, leave blank for no customizing)`,
-            name: 'transports',
-            type: 'input'
-        });
-        customizingTransports = customizingTransports.concat((inq1.transports || '').split(','));
-        if(customizingTransports.length === 0){
-            return;
-        }
+        const customizingTransports = context.runtime.inputCustTransports;
         Logger.loading(`Generating CUST transport...`);
         context.runtime.custTransport = await Transport.createToc({
             target: context.parsedInput.trTarget,
@@ -34,16 +23,8 @@ export const generateCustTr: Step<PublishWorkflowContext> = {
             trmIdentifier: TrmTransportIdentifier.CUST
         });
         context.runtime.tryCustDeleteRevert = true;
-        for(var trkorr of customizingTransports){
-            trkorr = trkorr.trim().toUpperCase();
-            //check transport exists
-            //check transport type workbench or customizing
-            const mainTransport = new Transport(trkorr);
-            const tasks = await mainTransport.getTasks();
-            const aTransports = [mainTransport].concat(tasks);
-            for(const transport of aTransports){
-                await context.runtime.custTransport.addObjectsFromTransport(transport.trkorr);
-            }
+        for(const transport of customizingTransports){
+            await context.runtime.custTransport.addObjectsFromTransport(transport.trkorr);
         }
         //check transport has content (else delete)
         var e071 = await context.runtime.custTransport.getE071();
