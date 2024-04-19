@@ -8,10 +8,10 @@ export const generateCustTr: Step<PublishWorkflowContext> = {
     name: 'generate-cust-tr',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if (context.runtime.inputCustTransports.length > 0) {
+            return true;
+        } else {
             Logger.log(`Skipping CUST transport (no input in step)`, true);
             return false;
-        } else {
-            return true;
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
