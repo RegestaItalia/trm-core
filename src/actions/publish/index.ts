@@ -43,7 +43,6 @@ export type PublishActionInput = {
     registry: Registry,
     devclass?: DEVCLASS,
     target?: TR_TARGET,
-    ci?: boolean,
     skipDependencies?: boolean,
     forceManifestInput?: boolean,
     overwriteManifestValues?: boolean,
