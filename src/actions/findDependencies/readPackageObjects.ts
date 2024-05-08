@@ -8,7 +8,7 @@ export const readPackageObjects: Step<FindDependenciesWorkflowContext> = {
     run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
         const devclass = context.parsedInput.devclass;
         Logger.loading(`Reading package objects...`);
-        var tadirObjects = context.rawInput.tadir || [];
+        var tadirObjects = context.parsedInput.tadir;
         if(tadirObjects.length === 0){
             tadirObjects = await SystemConnector.getDevclassObjects(devclass, true);
         }

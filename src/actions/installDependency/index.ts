@@ -26,6 +26,7 @@ type WorkflowParsedInput = {
     packageName?: string,
     versionRange?: string,
     forceInstall?: boolean,
+    installOptions?: InstallActionInput,
     integrity?: string,
     systemPackages?: TrmPackage[]
 }

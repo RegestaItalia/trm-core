@@ -8,7 +8,7 @@ import { Logger } from "../../logger";
 export const setTransportTarget: Step<PublishWorkflowContext> = {
     name: 'set-transport-target',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        var trTarget = context.rawInput.target;
+        var trTarget = context.parsedInput.target;
 
         var systemTmscsys = await SystemConnector.getTransportTargets();
         systemTmscsys = systemTmscsys.sort((a, b) => {

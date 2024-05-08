@@ -7,7 +7,7 @@ import { Logger } from "../../logger";
 export const setDevclass: Step<PublishWorkflowContext> = {
     name: 'set-devclass',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        var devclass = context.rawInput.devclass;
+        var devclass = context.parsedInput.devclass;
         
         if (!devclass) {
             //devclass default value could be provided (if the package already exists in the system)

@@ -15,10 +15,10 @@ export const setPrivate: Step<PublishWorkflowContext> = {
             Logger.error(e.toString(), true);
             Logger.error(`Couldn't fetch latest remote version for private prompt`, true);
         }
-        if (typeof (context.rawInput.package.private) !== 'boolean') {
+        if (typeof (context.parsedInput.packagePrivate) !== 'boolean') {
             localPrivate = remotePrivate;
         } else {
-            localPrivate = context.rawInput.package.private;
+            localPrivate = context.parsedInput.packagePrivate;
         }
         if (typeof (localPrivate) !== 'boolean') {
             const inq1 = await Inquirer.prompt([{

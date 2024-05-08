@@ -21,7 +21,7 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
         const version = context.output.version;
         const registry = context.runtime.registry;
         const integrity = context.parsedInput.integrity;
-        const installOptions = context.rawInput.installOptions;
+        const installOptions = context.parsedInput.installOptions;
 
         const inputData: InstallActionInput = {
             ...installOptions,

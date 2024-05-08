@@ -42,6 +42,7 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.trCopy = [];
         context.runtime.fetchedIntegrity = installIntegrity;
         
+        context.parsedInput.systemPackages = context.rawInput.systemPackages || [];
         context.parsedInput.packageName = packageName;
         context.parsedInput.version = trmManifest.version;
         context.parsedInput.safeInstall = context.rawInput.safeInstall ? true : false;

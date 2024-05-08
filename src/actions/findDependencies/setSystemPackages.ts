@@ -6,7 +6,7 @@ import { Logger } from "../../logger";
 export const setSystemPackages: Step<FindDependenciesWorkflowContext> = {
     name: 'set-system-packages',
     run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
-        var systemPackages = context.rawInput.systemPackages || [];
+        var systemPackages = context.parsedInput.systemPackages;
         if(systemPackages.length === 0){
             Logger.loading(`Reading system packages`, true);
             systemPackages = await SystemConnector.getInstalledPackages(true);

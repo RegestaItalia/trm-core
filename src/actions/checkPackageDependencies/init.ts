@@ -6,6 +6,7 @@ export const init: Step<CheckPackageDependencyWorkflowContext> = {
     run: async (context: CheckPackageDependencyWorkflowContext): Promise<void> => {
         context.parsedInput.packageName = context.rawInput.trmPackage.packageName;
         context.parsedInput.print = !(context.rawInput.print ? true : false);
+        context.parsedInput.systemPackages = context.rawInput.systemPackages || [];
         if(context.rawInput.trmPackage.manifest){
             const manifest = context.rawInput.trmPackage.manifest.get();
             context.parsedInput.dependencies = manifest.dependencies || [];

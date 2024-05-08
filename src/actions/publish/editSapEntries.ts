@@ -7,7 +7,7 @@ import { Inquirer } from "../../inquirer/Inquirer";
 export const editSapEntries: Step<PublishWorkflowContext> = {
     name: 'edit-sap-entries',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if(context.rawInput.skipEditSapEntries){
+        if(context.parsedInput.skipEditSapEntries){
             Logger.log(`Skip edit of SAP entries (input)`, true);
             return false;
         }else{

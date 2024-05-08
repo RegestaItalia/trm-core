@@ -7,10 +7,10 @@ import { Inquirer } from "../../inquirer/Inquirer";
 export const setManifestValues: Step<PublishWorkflowContext> = {
     name: 'set-manifest-values',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.forceManifestInput || (!context.rawInput.forceManifestInput && !context.runtime.packageExistsOnRegistry)) {
+        if (context.parsedInput.forceManifestInput || (!context.parsedInput.forceManifestInput && !context.runtime.packageExistsOnRegistry)) {
             return true;
         } else {
-            Logger.log(`Skip manifest input values step (force: ${context.rawInput.forceManifestInput}, already exists: ${context.runtime.packageExistsOnRegistry})`, true);
+            Logger.log(`Skip manifest input values step (force: ${context.parsedInput.forceManifestInput}, already exists: ${context.runtime.packageExistsOnRegistry})`, true);
             return false;
         }
     },

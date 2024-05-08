@@ -11,7 +11,7 @@ export const setReadme: Step<PublishWorkflowContext> = {
             type: 'confirm',
             name: 'editReadme',
             default: false,
-            when: !context.rawInput.skipReadme
+            when: !context.parsedInput.skipReadme
         }, {
             message: 'Write readme',
             type: 'editor',
@@ -20,12 +20,12 @@ export const setReadme: Step<PublishWorkflowContext> = {
             when: (hash) => {
                 return hash.editReadme
             },
-            default: context.rawInput.readme || ''
+            default: context.parsedInput.readme
         }]);
         if (inq1.readme) {
             context.parsedInput.readme = inq1.readme;
         } else {
-            context.parsedInput.readme = context.rawInput.readme || '';
+            context.parsedInput.readme = context.parsedInput.readme;
         }
     }
 }

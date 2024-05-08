@@ -8,7 +8,7 @@ import { TADIR } from "../../client";
 export const generateLangTr: Step<PublishWorkflowContext> = {
     name: 'generate-lang-tr',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.skipLang) {
+        if (context.parsedInput.skipLang) {
             Logger.log(`Skipping LANG transport (input)`, true);
             return false;
         } else {

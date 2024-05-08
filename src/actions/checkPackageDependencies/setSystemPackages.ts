@@ -9,7 +9,7 @@ export const setSystemPackages: Step<CheckPackageDependencyWorkflowContext> = {
         return context.parsedInput.dependencies.length > 0;
     },
     run: async (context: CheckPackageDependencyWorkflowContext): Promise<void> => {
-        var systemPackages = context.rawInput.systemPackages || [];
+        var systemPackages = context.parsedInput.systemPackages;
         if(systemPackages.length === 0){
             Logger.loading(`Reading system packages`, true);
             systemPackages = await SystemConnector.getInstalledPackages(true);

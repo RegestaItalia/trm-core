@@ -66,6 +66,17 @@ export type WorkflowParsedInput = {
     releaseFolder?: string,
     releaseTimeout?: number,
     customizingTransports?: string[],
+    skipEditSapEntries?: boolean,
+    skipEditDependencies?: boolean,
+    skipDependencies?: boolean,
+    skipLang?: boolean,
+    overwriteManifestValues?: boolean,
+    packageBackwardsCompatible?: boolean,
+    skipCust?: boolean,
+    forceManifestInput?: boolean,
+    packagePrivate?: boolean,
+    skipReadme?: boolean,
+    target?: string
 }
 
 export type WorkflowRuntime = {

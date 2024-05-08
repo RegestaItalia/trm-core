@@ -8,7 +8,7 @@ import { Transport } from "../../transport";
 export const setCustTransports: Step<PublishWorkflowContext> = {
     name: 'set-cust-transports',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.skipCust) {
+        if (context.parsedInput.skipCust) {
             Logger.log(`Skipping set CUST transports (input)`, true);
             return false;
         } else {

@@ -9,7 +9,7 @@ export const setBackwardsCompatible: Step<PublishWorkflowContext> = {
     name: 'set-backwards-compatible',
     run: async (context: PublishWorkflowContext): Promise<void> => {
         if (context.runtime.packageExistsOnRegistry) {
-            if (typeof (context.rawInput.package.backwardsCompatible) !== 'boolean') {
+            if (typeof (context.parsedInput.packageBackwardsCompatible) !== 'boolean') {
                 var latestPublishedVersion: string;
                 try{
                     const latestPublishedManifest = (await context.runtime.dummyPackage.fetchRemoteManifest('latest')).get();
@@ -29,8 +29,8 @@ export const setBackwardsCompatible: Step<PublishWorkflowContext> = {
                 });
                 context.runtime.manifest.backwardsCompatible = inq1.backwardsCompatible;
             } else {
-                Logger.log(`Setting package backwards compatible: ${context.rawInput.package.backwardsCompatible} (input)`);
-                context.runtime.manifest.backwardsCompatible = context.rawInput.package.backwardsCompatible;
+                Logger.log(`Setting package backwards compatible: ${context.parsedInput.packageBackwardsCompatible} (input)`);
+                context.runtime.manifest.backwardsCompatible = context.parsedInput.packageBackwardsCompatible;
             }
         } else {
             Logger.log(`Setting package backwards compatible by default because it's the first publish`, true);

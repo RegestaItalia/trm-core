@@ -6,7 +6,7 @@ import { Logger } from "../../logger";
 export const overwriteManifestValues: Step<PublishWorkflowContext> = {
     name: 'overwrite-manifest-values',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if (!context.rawInput.overwriteManifestValues) {
+        if (!context.parsedInput.overwriteManifestValues) {
             if (context.runtime.packageExistsOnRegistry) {
                 return true;
             } else {

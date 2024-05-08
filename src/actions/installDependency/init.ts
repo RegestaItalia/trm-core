@@ -27,6 +27,11 @@ export const init: Step<InstallDependencyWorkflowContext> = {
         context.parsedInput.versionRange = versionRange;
         context.parsedInput.forceInstall = context.rawInput.forceInstall ? true : false;
         context.parsedInput.integrity = context.rawInput.integrity;
+        context.parsedInput.installOptions = context.rawInput.installOptions || {
+            packageName,
+            registry
+        };
+        context.parsedInput.systemPackages = context.rawInput.systemPackages || []
 
         context.runtime.registry = registry;
     }

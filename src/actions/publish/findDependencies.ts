@@ -9,7 +9,7 @@ const SUBWORKFLOW_NAME = 'find-dependencies-sub-publish';
 export const findDependencies: Step<PublishWorkflowContext> = {
     name: 'find-dependencies',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.skipDependencies) {
+        if (context.parsedInput.skipDependencies) {
             Logger.info(`Skipping dependencies.`);
             Logger.warning(`Skipping dependencies can cause your package to fail activation. Make sure to manually edit the dependencies if necessary.`);
             return false;
