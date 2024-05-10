@@ -11,6 +11,7 @@ import { readRepositoryEnvironment } from "./readRepositoryEnvironment";
 import { parseSenvi } from "./parseSenvi";
 import { setTrmDependencies } from "./setTrmDependencies";
 import { print } from "./print";
+import { acknowledgementSize } from "./acknowledgementSize";
 
 export type TadirObjectSenvi = {
     tadir: TADIR,
@@ -77,6 +78,7 @@ export async function findDependencies(inputData: FindDependencyActionInput): Pr
         setSystemPackages,
         readPackageData,
         readPackageObjects,
+        acknowledgementSize,
         readRepositoryEnvironment,
         parseSenvi,
         setTrmDependencies,
