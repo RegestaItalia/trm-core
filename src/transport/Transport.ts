@@ -281,6 +281,11 @@ export class Transport {
         } catch (e) {
             //invalid manifest
         }
+        try {
+            oTrmPackage.setDevclass(await this.getDevclass());
+        }catch(e){
+            //devclass not found
+        }
         return oTrmPackage;
     }
 
