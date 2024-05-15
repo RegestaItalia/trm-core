@@ -35,6 +35,10 @@ export class ServerSystemConnector implements ISystemConnector {
         this._client = new RFCClient({ ...this._connection, ...this._login });
     }
 
+    public getConnectionData(): Connection {
+        return this._connection;
+    }
+
     public getDest(): string {
         return this._connection.dest;
     }

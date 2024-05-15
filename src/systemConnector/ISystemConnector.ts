@@ -15,6 +15,7 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 
 export interface ISystemConnector {
+    getConnectionData: () => any,
     getDest: () => string,
     getLogonLanguage: (c: boolean) => string,
     getLogonUser: () => string,

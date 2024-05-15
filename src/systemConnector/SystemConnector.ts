@@ -24,6 +24,12 @@ export namespace SystemConnector {
             });
         }
     }
+
+    export function getConnectionData(): any {
+        checkSystemConnector();
+        return systemConnector.getConnectionData();
+    }
+
     export function getDest(): string {
         checkSystemConnector();
         return systemConnector.getDest();
