@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, SapEntriesDependency } from ".";
-import { Logger, TreeLog } from "../../logger";
+import { CliLogger, Logger, TreeLog } from "../../logger";
 import { RegistryType } from "../../registry";
 
 const _getTableTreeText = (tableData: any): string => {

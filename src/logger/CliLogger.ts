@@ -142,6 +142,7 @@ export class CliLogger implements ILogger {
             };
         }
         const treeData = _parseBranch(data);
+        this.forceStop();
         printTree.default(
             treeData,
             (node) => {
