@@ -20,7 +20,8 @@ export const setCustTransports: Step<PublishWorkflowContext> = {
         const inq1 = await Inquirer.prompt({
             message: `Customizing transports (separated by comma, leave blank for no customizing)`,
             name: 'transports',
-            type: 'input'
+            type: 'input',
+            when: customizingTransports.length === 0
         });
         customizingTransports = customizingTransports.concat((inq1.transports || '').split(',')).filter(o => o);
         var aTransports: Transport[] = [];
