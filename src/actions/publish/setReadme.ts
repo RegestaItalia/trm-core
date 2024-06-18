@@ -1,10 +1,19 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Inquirer } from "../../inquirer/Inquirer";
+import { Logger } from "../../logger";
 
 
 export const setReadme: Step<PublishWorkflowContext> = {
     name: 'set-readme',
+    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
+        if (context.parsedInput.silent) {
+            Logger.log(`Skipping set readme (input)`, true);
+            return false;
+        } else {
+            return true;
+        }
+    },
     run: async (context: PublishWorkflowContext): Promise<void> => {
         const inq1 = await Inquirer.prompt([{
             message: 'Write readme?',
@@ -24,8 +33,6 @@ export const setReadme: Step<PublishWorkflowContext> = {
         }]);
         if (inq1.readme) {
             context.parsedInput.readme = inq1.readme;
-        } else {
-            context.parsedInput.readme = context.parsedInput.readme;
         }
     }
 }

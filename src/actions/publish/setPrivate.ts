@@ -21,6 +21,9 @@ export const setPrivate: Step<PublishWorkflowContext> = {
             localPrivate = context.parsedInput.packagePrivate;
         }
         if (typeof (localPrivate) !== 'boolean') {
+            if(context.parsedInput.silent){
+                throw new Error(`Running in silent mode and private flag was not set.`);
+            }
             const inq1 = await Inquirer.prompt([{
                 type: "list",
                 message: "Package type",

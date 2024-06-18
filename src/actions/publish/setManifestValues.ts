@@ -15,36 +15,76 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
+        var defaultAuthors: string;
+        var defaultKeywords: string;
+        if(context.runtime.manifest.authors){
+            if(typeof(context.runtime.manifest.authors) === 'string'){
+                defaultAuthors = context.runtime.manifest.authors;
+            }else{
+                try{
+                    defaultAuthors = context.runtime.manifest.authors.map(o => {
+                        if(o.name){
+                            if(o.email){
+                                return `${o.name} <${o.email}>`;
+                            }else{
+                                return o.name;
+                            }
+                        }else{
+                            return o.email;
+                        }
+                    }).filter(s => s).join(', ');
+                }catch(e){
+                    defaultAuthors = '';
+                }
+            }
+        }
+        if(context.runtime.manifest.keywords){
+            if(typeof(context.runtime.manifest.keywords) === 'string'){
+                defaultKeywords = context.runtime.manifest.keywords;
+            }else{
+                try{
+                    defaultKeywords = context.runtime.manifest.keywords.filter(s => s).join(', ');
+                }catch(e){
+                    defaultKeywords = '';
+                }
+            }
+        }
         const inq1 = await Inquirer.prompt([{
             type: "input",
             message: "Package short description",
             name: "description",
-            default: context.runtime.manifest.description
+            default: context.runtime.manifest.description,
+            when: !context.parsedInput.silent
         }, {
             type: "input",
             message: "Website",
             name: "website",
-            default: context.runtime.manifest.website
+            default: context.runtime.manifest.website,
+            when: !context.parsedInput.silent
         }, {
             type: "input",
             message: "Package Git repository",
             name: "git",
-            default: context.runtime.manifest.git
+            default: context.runtime.manifest.git,
+            when: !context.parsedInput.silent
         }, {
             type: "input",
             message: "Authors (separated by comma)",
             name: "authors",
-            //default: TODO
+            when: !context.parsedInput.silent,
+            default: defaultAuthors
         }, {
             type: "input",
             message: "Keywords (separated by comma)",
             name: "keywords",
-            //default: TODO
+            when: !context.parsedInput.silent,
+            default: defaultKeywords
         }, {
             type: "input",
             message: "License",
             name: "license",
             default: context.runtime.manifest.license,
+            when: !context.parsedInput.silent
         }]);
         context.runtime.manifest.description = context.runtime.manifest.description || inq1.description;
         context.runtime.manifest.website = context.runtime.manifest.website || inq1.website;

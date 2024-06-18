@@ -21,6 +21,9 @@ export const setTransportTarget: Step<PublishWorkflowContext> = {
             }
         });
         if (!trTarget) {
+            if(context.parsedInput.silent){
+                throw new Error(`Running in silent mode and transport target was not set.`);
+            }
             const inq2 = await Inquirer.prompt({
                 type: "list",
                 message: "Transport request target",

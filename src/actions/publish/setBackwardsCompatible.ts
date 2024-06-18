@@ -10,6 +10,9 @@ export const setBackwardsCompatible: Step<PublishWorkflowContext> = {
     run: async (context: PublishWorkflowContext): Promise<void> => {
         if (context.runtime.packageExistsOnRegistry) {
             if (typeof (context.parsedInput.packageBackwardsCompatible) !== 'boolean') {
+                if(context.parsedInput.silent){
+                    throw new Error(`Running in silent mode and backwards compatible flag was not set.`);
+                }
                 var latestPublishedVersion: string;
                 try{
                     const latestPublishedManifest = (await context.runtime.dummyPackage.fetchRemoteManifest('latest')).get();

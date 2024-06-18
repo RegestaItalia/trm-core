@@ -9,6 +9,5 @@ export const buildTrmPackageInstance: Step<PublishWorkflowContext> = {
         context.runtime.manifest = Manifest.normalize(context.runtime.manifest, false);
         const oManifest = new Manifest(context.runtime.manifest);
         context.runtime.trmPackage = new TrmPackage(context.runtime.manifest.name, context.runtime.registry, oManifest);
-        
     }
 }

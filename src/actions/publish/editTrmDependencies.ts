@@ -7,7 +7,7 @@ import { Inquirer } from "../../inquirer/Inquirer";
 export const editTrmDependencies: Step<PublishWorkflowContext> = {
     name: 'edit-trm-dependencies',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if(context.parsedInput.skipEditDependencies){
+        if(context.parsedInput.skipEditDependencies || context.parsedInput.silent){
             Logger.log(`Skip edit of TRM dependencies (input)`, true);
             return false;
         }else{

@@ -10,6 +10,9 @@ export const setDevclass: Step<PublishWorkflowContext> = {
         var devclass = context.parsedInput.devclass;
         
         if (!devclass) {
+            if(context.parsedInput.silent){
+                throw new Error(`Running in silent mode and devclass was not set.`);
+            }
             //devclass default value could be provided (if the package already exists in the system)
             //TODO find
             const inq1 = await Inquirer.prompt({

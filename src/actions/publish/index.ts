@@ -54,7 +54,8 @@ export type PublishActionInput = {
     customizingTransports?: string[],
     readme?: string,
     releaseTimeout?: number,
-    tmpFolder?: string
+    tmpFolder?: string,
+    silent?: boolean
 }
 
 export type WorkflowParsedInput = {
@@ -76,7 +77,8 @@ export type WorkflowParsedInput = {
     forceManifestInput?: boolean,
     packagePrivate?: boolean,
     skipReadme?: boolean,
-    target?: string
+    target?: string,
+    silent?: boolean
 }
 
 export type WorkflowRuntime = {

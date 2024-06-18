@@ -26,6 +26,8 @@ export const init: Step<PublishWorkflowContext> = {
             throw new Error(`Package version empty.`);
         }
 
+        context.parsedInput.silent = context.rawInput.silent;
+
         var normalizeVersion = true;
         var normalizedVersion: string;
         Logger.loading(`Checking package version...`);
@@ -36,7 +38,9 @@ export const init: Step<PublishWorkflowContext> = {
                 const inq1 = await Inquirer.prompt([{
                     name: 'acceptNormalized',
                     message: `Continue publish as version ${normalizedVersion}?`,
-                    type: 'confirm'
+                    type: 'confirm',
+                    default: true,
+                    when: !context.parsedInput.silent
                 }, {
                     name: 'inputVersion',
                     message: `Input version to publish`,
@@ -56,7 +60,7 @@ export const init: Step<PublishWorkflowContext> = {
                         }
                     }
                 }]);
-                if (inq1.acceptNormalized) {
+                if (inq1.acceptNormalized || !context.parsedInput.silent) {
                     normalizeVersion = false;
                 } else {
                     normalizeVersion = true;

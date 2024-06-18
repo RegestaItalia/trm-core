@@ -21,7 +21,7 @@ export const setCustTransports: Step<PublishWorkflowContext> = {
             message: `Customizing transports (separated by comma, leave blank for no customizing)`,
             name: 'transports',
             type: 'input',
-            when: customizingTransports.length === 0
+            when: !context.parsedInput.silent
         });
         customizingTransports = customizingTransports.concat((inq1.transports || '').split(',')).filter(o => o);
         var aTransports: Transport[] = [];
