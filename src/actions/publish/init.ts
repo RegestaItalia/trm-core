@@ -46,7 +46,7 @@ export const init: Step<PublishWorkflowContext> = {
                     message: `Input version to publish`,
                     type: 'input',
                     when: (hash) => {
-                        return !hash.acceptNormalized
+                        return !context.parsedInput.silent && !hash.acceptNormalized
                     },
                     validate: (input) => {
                         if (!input) {
@@ -60,7 +60,7 @@ export const init: Step<PublishWorkflowContext> = {
                         }
                     }
                 }]);
-                if (inq1.acceptNormalized || !context.parsedInput.silent) {
+                if (inq1.acceptNormalized || context.parsedInput.silent) {
                     normalizeVersion = false;
                 } else {
                     normalizeVersion = true;
