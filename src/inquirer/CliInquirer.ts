@@ -1,8 +1,9 @@
 import * as cliInquirer from "inquirer";
 import { Question } from "./Question";
 import { CliLogFileLogger, CliLogger, Logger } from "../logger";
+import { IInquirer } from "./IInquirer";
 
-export class CliInquirer {
+export class CliInquirer implements IInquirer {
 
     constructor() { }
 
