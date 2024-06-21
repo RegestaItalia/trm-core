@@ -1,17 +1,17 @@
-import * as cliInquirer from "inquirer";
-import { CoreEnv } from "../commons";
+import { IInquirer } from "./IInquirer";
 import { Question } from "./Question";
 
-export class Inquirer{
-    coreEnv: CoreEnv;
+export namespace Inquirer {
+    export var inquirer: IInquirer;
 
-    constructor(coreEnv: CoreEnv){
-        this.coreEnv = coreEnv;
-    }
-
-    public async prompt(arg1: Question | Question[]): Promise<any> {
-        if(this.coreEnv = CoreEnv.CLI){
-            return await cliInquirer.default.prompt(arg1);
+    function checkInquirer(){
+        if(!inquirer){
+            throw new Error('Inquirer not initialized.');
         }
+    }
+    
+    export function prompt(arg1: Question | Question[]): Promise<any> {
+        checkInquirer();
+        return inquirer.prompt(arg1);
     }
 }

@@ -1,4 +1,4 @@
-import { AS4DATE, AS4TIME } from "../rfc/components";
+import { AS4DATE, AS4TIME } from "../client";
 
 export function fromAbapToDate(as4date: AS4DATE, as4time: AS4TIME): Date {
     const aDate = Array.from(as4date);

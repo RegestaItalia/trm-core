@@ -1,0 +1,1 @@
+export type RS38L_FNAME = string;

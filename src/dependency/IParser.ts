@@ -1,9 +1,12 @@
-import { SEU_OBJ, TROBJTYPE } from "../rfc/components";
-import { SENVI, TADIR } from "../rfc/struct";
-import { SystemConnector } from "../systemConnector";
+import { SEU_OBJ, SENVI, TADIR } from "../client";
+
+export type ParsedSenvi = TADIR & {
+    subObject?: {
+        func?: string
+    }
+};
 
 export interface IParser {
     type: SEU_OBJ,
-    systemConnector: SystemConnector,
-    parse: (senvi: SENVI) => Promise<TADIR>
+    parse: (senvi: SENVI) => Promise<ParsedSenvi>
 }

@@ -10,8 +10,9 @@ import { validate as validateEmail } from "email-validator";
 import * as SpdxLicenseIds from "spdx-license-ids/index.json";
 import { TrmManifestAuthor } from "./TrmManifestAuthor";
 import { DOMParser } from 'xmldom';
-import * as _ from 'lodash';
+import _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
+import { Logger } from "../logger";
 
 
 function getManifestAuthor(sAuthor: string) {
@@ -381,8 +382,9 @@ export class Manifest {
         var manifest: TrmManifest;
         const oAbapXml = xml.xml2js(sXml, { compact: true });
         var oAbapManifest;
+        var sapEntries;
         try {
-            oAbapManifest = normalize(oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']);
+            oAbapManifest = normalize(_.cloneDeep(oAbapXml)['asx:abap']['asx:values']['TRM_MANIFEST']);
             manifest = {
                 name: oAbapManifest.name.text,
                 version: oAbapManifest.version.text,
@@ -392,6 +394,12 @@ export class Manifest {
             };
         } catch (e) {
             throw new Error('XML Manifest is corrupted.');
+        }
+        try{
+            sapEntries = oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['SAP_ENTRIES'];
+        }catch(e){
+            Logger.error(e.toString(), true);
+            Logger.error(`Couldn't parse sapEntries in abap xml manifest`, true);
         }
         if (oAbapManifest.description && oAbapManifest.description.text) {
             manifest.description = oAbapManifest.description.text;
@@ -436,8 +444,67 @@ export class Manifest {
                 }];
             }
         }
-        //TODO complete sapEntries dependencies
+        if(oAbapManifest.dependencies && oAbapManifest.dependencies.item){
+            if (Array.isArray(oAbapManifest.dependencies.item)) {
+                manifest.dependencies = oAbapManifest.dependencies.item.map(o => {
+                    return {
+                        name: o.name?.text,
+                        integrity: o.integrity?.text,
+                        version: o.version?.text,
+                        registry: o.registry?.text
+                    };
+                });
+            } else {
+                manifest.dependencies = [{
+                    name: oAbapManifest.dependencies.item.name?.text,
+                    integrity: oAbapManifest.dependencies.item.integrity?.text,
+                    version: oAbapManifest.dependencies.item.version?.text,
+                    registry: oAbapManifest.dependencies.item.registry?.text
+                }];
+            }
+        }
+        if(sapEntries && sapEntries.item){
+            manifest.sapEntries = {};
+            try{
+                const aParsedXml = this._parseAbapXmlSapEntriesArray(sapEntries.item);
+                aParsedXml.forEach(o => {
+                    manifest.sapEntries[o.TABLE] = [];
+                    o.ENTRIES.forEach(e => {
+                        var parsedEntry = {};
+                        Object.keys(e).forEach(field => {
+                            var parsedField = field.toUpperCase();
+                            parsedEntry[parsedField] = e[field];
+                        });
+                        if(Object.keys(parsedEntry).length > 0){
+                            manifest.sapEntries[o.TABLE].push(parsedEntry);
+                        }
+                    });
+                });
+            }catch(e){ }
+        }
         return new Manifest(Manifest.normalize(manifest, false));
+    }
+
+    public static _parseAbapXmlSapEntriesArray(input: any): any[] {
+        var array = [];
+        if(Array.isArray(input)){
+            input.forEach(o => {
+                array = array.concat(this._parseAbapXmlSapEntriesArray(o));
+            });
+        }else{
+            var obj = {};
+            Object.keys(input).forEach(k => {
+                if(input[k]._text){
+                    obj[k] = input[k]._text;
+                }else{
+                    if(input[k].item){
+                        obj[k] = this._parseAbapXmlSapEntriesArray(input[k].item);
+                    }
+                }
+            });
+            array.push(obj);
+        }
+        return array;
     }
 
     public static fromJson(sJson: string): Manifest {

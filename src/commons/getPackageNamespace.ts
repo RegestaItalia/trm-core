@@ -1,4 +1,4 @@
-import { DEVCLASS } from "../rfc";
+import { DEVCLASS } from "../client";
 
 export function getPackageNamespace(devclass: DEVCLASS): string{
     const aDevclass = Array.from(devclass.toUpperCase());

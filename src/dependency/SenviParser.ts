@@ -1,17 +1,16 @@
-import { SENVI, TADIR } from "../rfc/struct";
-import { SystemConnector } from "../systemConnector";
-import { IParser } from "./IParser";
+import { SENVI } from "../client";
+import { IParser, ParsedSenvi } from "./IParser";
 import * as ObjectParsers from "./objects";
 
 export class SenviParser {
 
-    constructor(private _systemConnector: SystemConnector) { }
+    constructor() { }
 
-    public async parse(senvi: SENVI): Promise<TADIR> {
+    public async parse(senvi: SENVI): Promise<ParsedSenvi> {
         var parser: IParser;
         Object.keys(ObjectParsers).forEach((k) => {
             try {
-                const instance: IParser = new ObjectParsers[k](this._systemConnector);
+                const instance: IParser = new ObjectParsers[k]();
                 if (instance.type === senvi.type.trim().toUpperCase()) {
                     parser = instance
                 }

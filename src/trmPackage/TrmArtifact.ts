@@ -1,8 +1,10 @@
+import { TRKORR } from "../client";
+import { Logger } from "../logger";
 import { Manifest } from "../manifest";
-import { TRKORR } from "../rfc/components";
 import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from "../transport";
 import * as AdmZip from "adm-zip";
 import { R3trans } from "node-r3trans";
+import { TransportBinary } from "./TransportBinary";
 
 const DIST_FOLDER = 'dist';
 
@@ -14,13 +16,23 @@ export class TrmArtifact {
     }
 
     public getManifest(): Manifest | null {
-        if(this._manifest === undefined){
+        if (this._manifest === undefined) {
             const zipEntries = this._zip.getEntries();
             const manifestEntry = zipEntries.find(o => o.entryName.trim().toLowerCase() === 'manifest.json');
-            if(!manifestEntry){
+            const sapEntriesEntry = zipEntries.find(o => o.entryName.trim().toLowerCase() === 'sap_entries.json');
+            if (!manifestEntry) {
                 this._manifest = null;
-            }else{
-                this._manifest = Manifest.fromJson(manifestEntry.getData().toString());
+            } else {
+                var jsonManifest = JSON.parse(manifestEntry.getData().toString());
+                if(!jsonManifest.sapEntries){
+                    jsonManifest.sapEntries = {};
+                }
+                if(sapEntriesEntry){
+                    const sapEntries = JSON.parse(sapEntriesEntry.getData().toString());
+                    jsonManifest.sapEntries = {...jsonManifest.sapEntries, ...sapEntries};
+                }
+                const trmManifest = Manifest.normalize(jsonManifest, false);
+                this._manifest = new Manifest(trmManifest);
             }
         }
         return this._manifest;
@@ -32,19 +44,15 @@ export class TrmArtifact {
     }
 
     public getDistFolder(): string | null {
-        if(!this._distFolder){
+        if (!this._distFolder) {
             this._distFolder = this.getManifest()?.get().distFolder;
         }
         return this._distFolder;
     }
 
-    public async getTransportBinaries(tmpFolder?: string): Promise<{
-        trkorr: TRKORR,
-        type?: TrmTransportIdentifier,
-        binaries: BinaryTransport
-    }[]>{
+    public async getTransportBinaries(tmpFolder?: string): Promise<TransportBinary[]> {
         const distFolder = this.getDistFolder();
-        if(!distFolder){
+        if (!distFolder) {
             throw new Error(`Couldn't locate dist folder.`);
         }
         const zipEntries = this._zip.getEntries();
@@ -53,14 +61,14 @@ export class TrmArtifact {
         const r3trans = new R3trans({
             tempDirPath: tmpFolder
         });
-        for(const entry of aTransportEntries){
-            try{
+        for (const entry of aTransportEntries) {
+            try {
                 const type = entry.comment;
                 const oPackedTransport = new AdmZip.default(entry.getData());
                 const aPackedTransportEntries = oPackedTransport.getEntries();
                 const oHeader = aPackedTransportEntries.find(o => o.comment === 'header')?.getData();
                 const oData = aPackedTransportEntries.find(o => o.comment === 'data')?.getData();
-                if(oHeader && oData){
+                if (oHeader && oData) {
                     const trkorr = await r3trans.getTransportTrkorr(oData);
                     aResult.push({
                         trkorr,
@@ -71,13 +79,15 @@ export class TrmArtifact {
                         }
                     });
                 }
-            }catch(e){ }
+            } catch (e) { }
         };
         return aResult;
     }
 
-    public static async create(transports: Transport[], manifest: Manifest, skipLog: boolean = false, distFolder: string = DIST_FOLDER): Promise<TrmArtifact> {
+    public static async create(transports: Transport[], manifest: Manifest, distFolder: string = DIST_FOLDER): Promise<TrmArtifact> {
+        Logger.log(`Generating artifact with transports ${JSON.stringify(transports.map(o => o.trkorr))}`, true);
         const artifact = new AdmZip.default();
+        Logger.log(`Adding ZIP comment`, true);
         artifact.addZipComment(`TRM Package`);
         var binaries: {
             trkorr: TRKORR,
@@ -90,8 +100,9 @@ export class TrmArtifact {
             binary: Buffer,
             comment?: string,
         }[] = [];
-        for(const transport of transports){
-            const trBinary = await transport.download(skipLog);
+        for (const transport of transports) {
+            Logger.log(`Downloading transport ${transport.trmIdentifier}`, true);
+            const trBinary = await transport.download();
             binaries.push({
                 trkorr: transport.trkorr,
                 type: transport.trmIdentifier,
@@ -99,8 +110,9 @@ export class TrmArtifact {
                 filenames: trBinary.filenames
             });
         }
-        for(const bin of binaries){
+        for (const bin of binaries) {
             const packedTransport = new AdmZip.default();
+            Logger.log(`Packing header and data in single file`, true);
             packedTransport.addZipComment(`Transport request: ${bin.trkorr}\nContent type: ${bin.type || 'Unknown'}`);
             packedTransport.addFile(bin.filenames.header, bin.binaries.header, "header");
             packedTransport.addFile(bin.filenames.data, bin.binaries.data, "data");
@@ -110,14 +122,25 @@ export class TrmArtifact {
                 comment: bin.type ? bin.type : ''
             });
         }
-        
-        for(const file of packedTransports){
+
+        for (const file of packedTransports) {
+            Logger.log(`Adding packed transport ${file.comment} to artifact`, true);
             artifact.addFile(`${distFolder}/${file.filename}`, file.binary, file.comment);
         }
 
         manifest.setDistFolder(distFolder);
-        const manifestBuffer = Buffer.from(JSON.stringify(manifest.get(false), null, 2), 'utf8');
+        var oManifest = manifest.get(false);
+        var oSapEntries = oManifest.sapEntries;
+        delete oManifest.sapEntries;
+
+        const manifestBuffer = Buffer.from(JSON.stringify(oManifest, null, 2), 'utf8');
+        Logger.log(`Adding manifest.json`, true);
         artifact.addFile(`manifest.json`, manifestBuffer, `manifest`);
+        if (oSapEntries && Object.keys(oSapEntries).length > 0) {
+            const sapEntriesBuffer = Buffer.from(JSON.stringify(oSapEntries, null, 2), 'utf8');
+            Logger.log(`Adding sap_entries.json`, true);
+            artifact.addFile(`sap_entries.json`, sapEntriesBuffer, `sap_entries`);
+        }
 
         return new TrmArtifact(artifact.toBuffer(), distFolder, manifest);
     }

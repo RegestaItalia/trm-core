@@ -4,7 +4,7 @@ import { Manifest } from "../manifest";
 import { Registry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { UserAuthorization, View } from "trm-registry-types";
-import { DEVCLASS } from "../rfc";
+import { DEVCLASS } from "../client";
 
 export const DEFAULT_VERSION: string = "1.0.0";
 
@@ -13,8 +13,7 @@ export class TrmPackage {
     private _remoteArtifacts: any = {};
     private _devclass: DEVCLASS;
 
-    constructor(public packageName: string, public registry: Registry, public manifest?: Manifest, private _logger?: Logger) {
-        this._logger = this._logger || Logger.getDummy();
+    constructor(public packageName: string, public registry: Registry, public manifest?: Manifest) {
     }
 
     public setDevclass(devclass: DEVCLASS): TrmPackage {
@@ -36,9 +35,14 @@ export class TrmPackage {
             try {
                 view = await this._viewLatest();
             } catch (e) {
-                if (e.response && e.response.data) {
+                /*if (e.response && e.response.data) {
                     view = e.response.data;
                 } else {
+                    throw e;
+                }*/
+                if(e.response){
+                    view = e.response;
+                }else{
                     throw e;
                 }
             }
@@ -67,8 +71,7 @@ export class TrmPackage {
     public async publish(data: {
         artifact: TrmArtifact
         readme?: string
-    }, skipLog: boolean = false): Promise<TrmPackage> {
-        const logger = skipLog ? Logger.getDummy() : this._logger;
+    }): Promise<TrmPackage> {
         const artifact = data.artifact;
         const trmManifest = artifact.getManifest().get();
         const packageName = trmManifest.name;
@@ -77,9 +80,9 @@ export class TrmPackage {
         }
         const packageVersion = trmManifest.version;
         const readme = data.readme || '';
-        logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`);
+        Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
         await this.registry.publishArtifact(packageName, packageVersion, artifact, readme);
-        logger.success(`"${packageName}" ${packageVersion} published.`);
+        Logger.success(`"${packageName}" ${packageVersion} published.`, false);
 
         //set
         this.manifest = new Manifest(trmManifest);
@@ -98,8 +101,8 @@ export class TrmPackage {
         return (await this.registry.view(this.packageName, 'latest'));
     }
 
-    public static async create(manifest: Manifest, registry: Registry, logger?: Logger): Promise<TrmPackage> {
-        return new TrmPackage(manifest.get().name, registry, manifest, logger);
+    public static async create(manifest: Manifest, registry: Registry): Promise<TrmPackage> {
+        return new TrmPackage(manifest.get().name, registry, manifest);
     }
 
     public static compare(o1: TrmPackage, o2: TrmPackage): boolean {
