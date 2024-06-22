@@ -626,7 +626,7 @@ export class Transport {
             try{
                 const oTransport = new Transport(trkorr);
                 const e070 = await oTransport.getE070();
-                if(e070.trfunction !== 'K' && e070.trfunction !== 'S' && e070.trfunction !== 'R'){
+                if(e070.trfunction !== 'K' && e070.trfunction !== 'S' && e070.trfunction !== 'R' && e070.trfunction !== 'T'){
                     throw new Error(`Unexpected TRFUNCTION for transport ${trkorr}: ${e070.trfunction}`);
                 }
                 transports.push(oTransport);
