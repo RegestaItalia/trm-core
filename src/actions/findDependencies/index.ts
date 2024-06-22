@@ -40,7 +40,8 @@ export type FindDependencyActionInput = {
     tadir?: TADIR[],
     systemPackages?: TrmPackage[],
     print?: boolean,
-    printSapEntries?: boolean
+    printSapEntries?: boolean,
+    silent?: boolean
 }
 
 type WorkflowParsedInput = {
@@ -48,7 +49,8 @@ type WorkflowParsedInput = {
     tadir?: TADIR[],
     systemPackages?: TrmPackage[],
     print?: boolean,
-    printSapEntries?: boolean
+    printSapEntries?: boolean,
+    silent?: boolean
 }
 
 type WorkflowRuntime = {
