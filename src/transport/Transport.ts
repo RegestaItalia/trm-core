@@ -39,7 +39,7 @@ export class Transport {
     public async getE070(): Promise<E070> {
         if (!this._e070) {
             const e070: E070[] = await SystemConnector.readTable('E070',
-                [{ fieldName: 'TRKORR' }, { fieldName: 'AS4DATE' }, { fieldName: 'AS4TIME' }],
+                [{ fieldName: 'TRKORR' }, { fieldName: 'TRFUNCTION' }, { fieldName: 'AS4DATE' }, { fieldName: 'AS4TIME' }],
                 `TRKORR EQ '${this.trkorr}'`
             );
             if (e070.length === 1) {
@@ -623,7 +623,16 @@ export class Transport {
             `PGMID EQ '${objectKeys.pgmid.trim().toUpperCase()}' AND OBJECT EQ '${objectKeys.object.trim().toUpperCase()}' AND OBJ_NAME EQ '${objectKeys.objName.trim().toUpperCase()}'`
         )).map(o => o.trkorr).filter(trkorr => !aSkipTrkorr.includes(trkorr));
         for (const trkorr of objectInTransport) {
-            transports.push(new Transport(trkorr));
+            try{
+                const oTransport = new Transport(trkorr);
+                const e070 = await oTransport.getE070();
+                if(e070.trfunction !== 'K' && e070.trfunction !== 'S' && e070.trfunction !== 'R'){
+                    throw new Error(`Unexpected TRFUNCTION for transport ${trkorr}: ${e070.trfunction}`);
+                }
+                transports.push(oTransport);
+            }catch(e){
+                Logger.error(`Transport instance skip for ${trkorr}: ${e.toString()}`, true);
+            }
         }
         return transports;
     }

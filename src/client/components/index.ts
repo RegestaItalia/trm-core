@@ -39,3 +39,4 @@ export * from "./DDOPTION";
 export * from "./TRPARFLAG";
 export * from "./RS38L_FNAME";
 export * from "./PNAME";
+export * from "./TRFUNCTION";
