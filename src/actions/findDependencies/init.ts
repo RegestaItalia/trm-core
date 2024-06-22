@@ -21,6 +21,7 @@ export const init: Step<FindDependenciesWorkflowContext> = {
         }
         context.parsedInput.tadir = context.rawInput.tadir || [];
         context.parsedInput.systemPackages = context.rawInput.systemPackages || [];
+        context.parsedInput.silent = context.rawInput.silent;
 
         context.output.trmDependencies = [];
         context.output.unknownDependencies = [];
