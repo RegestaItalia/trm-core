@@ -1,7 +1,7 @@
 import { valid as semverValid } from "semver";
 import { Logger } from "../logger";
 import { Manifest } from "../manifest";
-import { Registry, RegistryType } from "../registry";
+import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../registry";
 import { RFCClient } from "../client";
 import { DEVCLASS, PGMID, SOBJ_NAME, TRKORR, TROBJTYPE } from "../client/components";
 import { T100, TADIR, TDEVC, TMSCSYS } from "../client/struct";
@@ -207,7 +207,7 @@ export class ServerSystemConnector implements ISystemConnector {
         //this is to ensure the version is correct
         //say it was installed via trm, then pulled from abapgit, the version would refer to the old trm version
         try {
-            const trmServerPackage = trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry('public')));
+            const trmServerPackage = trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD)));
             var generatedTrmServerPackage = await this.generateTrmServerPackage();
             if (trmServerPackage && trmServerPackage.manifest) {
                 Logger.log(`trm-server was found (it was imported via transport)`, true);
@@ -217,7 +217,7 @@ export class ServerSystemConnector implements ISystemConnector {
                     generatedTrmServerPackage.manifest = trmServerPackage.manifest;
                 }
             }
-            trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry('public'))));
+            trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD))));
             trmPackages.push(generatedTrmServerPackage);
         } catch (e) {
             //trm-server is not installed
@@ -228,7 +228,7 @@ export class ServerSystemConnector implements ISystemConnector {
 
     public async generateTrmServerPackage(): Promise<TrmPackage> {
         var oPackage: TrmPackage;
-        const oPublicRegistry = new Registry('public');
+        const oPublicRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
         const fugr = await this.getObject('R3TR', 'FUGR', 'ZTRM');
         if (fugr) {
             try {
@@ -365,7 +365,7 @@ export class ServerSystemConnector implements ISystemConnector {
     }
 
     public async getInstallPackages(packageName: string, registry: Registry): Promise<InstallPackage[]> {
-        const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : registry.endpoint;
+        const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
         return await this.readTable('ZTRMVINSTALLDEVC',
             [{ fieldName: 'ORIGINAL_DEVCLASS' }, { fieldName: 'INSTALL_DEVCLASS' }],
             `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
@@ -422,7 +422,7 @@ export class ServerSystemConnector implements ISystemConnector {
 
     public async getPackageIntegrity(oPackage: TrmPackage): Promise<string> {
         const packageName = oPackage.packageName;
-        const registryEndpoint = oPackage.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : oPackage.registry.endpoint;
+        const registryEndpoint = oPackage.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : oPackage.registry.endpoint;
         const aIntegrity: { integrity: string }[] = await this.readTable('ZTRM_INTEGRITY',
             [{ fieldName: 'INTEGRITY' }],
             `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`

@@ -1,6 +1,6 @@
 import { PublishWorkflowContext } from '.'
 import { DummyLogger, Logger } from '../../logger';
-import { Registry } from '../../registry';
+import { PUBLIC_RESERVED_KEYWORD, Registry } from '../../registry';
 import { TrmPackage } from '../../trmPackage';
 import { checkPackageExistance } from './checkPackageExistance';
 
@@ -15,7 +15,7 @@ describe(`when checkPackageExistance step is invoked`, () => {
             const PACKAGE_NAME = 'test-package';
 
             // given
-            let mockRegistry = new Registry('public');
+            let mockRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
             let dummyPackage = new TrmPackage(PACKAGE_NAME, mockRegistry);
 
             //mock required calls

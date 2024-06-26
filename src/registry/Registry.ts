@@ -16,6 +16,8 @@ import { Inquirer } from "../inquirer/Inquirer";
 
 const AXIOS_INTERNAL_ID_KEY = 'INTERNAL_ID';
 
+export const PUBLIC_RESERVED_KEYWORD = 'public';
+
 export class Registry {
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
@@ -27,11 +29,11 @@ export class Registry {
     constructor(public endpoint: string, public name: string = 'Unknown') {
         var envEndpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT;
         Logger.log(`TRM_PUBLIC_REGISTRY_ENDPOINT Environment variable: ${envEndpoint}`, true);
-        if(!envEndpoint || envEndpoint.trim().toLowerCase() === 'public'){
+        if(!envEndpoint || envEndpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD){
             //no env var value or env var value = public
             envEndpoint = 'https://www.trmregistry.com/registry';
             this._registryType = RegistryType.PUBLIC;
-        }else if(endpoint.trim().toLowerCase() === 'public'){
+        }else if(endpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD){
             //if input endpoint is public
             this._registryType = RegistryType.PUBLIC;
         }else{
@@ -40,7 +42,7 @@ export class Registry {
         }
         if (this._registryType === RegistryType.PUBLIC) {
             this.endpoint = envEndpoint;
-            this.name = 'public';
+            this.name = PUBLIC_RESERVED_KEYWORD;
         } else {
             this.endpoint = endpoint;
         }

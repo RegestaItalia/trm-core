@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, SapEntriesDependency } from ".";
 import { CliLogger, Logger, TreeLog } from "../../logger";
-import { RegistryType } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 
 const _getTableTreeText = (tableData: any): string => {
     var aValues = [];
@@ -93,7 +93,7 @@ export const print: Step<FindDependenciesWorkflowContext> = {
             trmDependenciesTree.children.push({
                 text: o.trmPackage.packageName,
                 children: [{
-                    text: `Registry: ${o.trmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : o.trmPackage.registry.endpoint}`,
+                    text: `Registry: ${o.trmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : o.trmPackage.registry.endpoint}`,
                     children: []
                 }, {
                     text: `Version: ${o.trmPackage.manifest.get().version}`,

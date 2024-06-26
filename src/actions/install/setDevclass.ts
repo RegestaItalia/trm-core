@@ -6,7 +6,7 @@ import { getPackageHierarchy, getPackageNamespace } from "../../commons";
 import { Question } from "../../inquirer";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { ZTRM_INSTALLDEVC } from "../../client";
-import { RegistryType } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 
 function _validateDevclass(input: string, packagesNamespace: string): string | true {
     const sInput: string = input.trim().toUpperCase();
@@ -97,7 +97,7 @@ export const setDevclass: Step<InstallWorkflowContext> = {
         packageReplacements.forEach(o => {
             installDevc.push({
                 package_name: packageName,
-                package_registry: registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : registry.endpoint,
+                package_registry: registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint,
                 original_devclass: o.originalDevclass,
                 install_devclass: o.installDevclass
             });

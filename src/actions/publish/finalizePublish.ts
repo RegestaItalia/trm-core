@@ -3,7 +3,7 @@ import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { SystemConnector } from "../../systemConnector";
 import { createHash } from "crypto";
-import { RegistryType } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 
 export const finalizePublish: Step<PublishWorkflowContext> = {
     name: 'finalize-publish',
@@ -24,7 +24,7 @@ export const finalizePublish: Step<PublishWorkflowContext> = {
             Logger.log(`Setting package integrity`, true);
             await SystemConnector.setPackageIntegrity({
                 package_name: context.parsedInput.packageName,
-                package_registry: context.runtime.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : context.runtime.registry.endpoint,
+                package_registry: context.runtime.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : context.runtime.registry.endpoint,
                 integrity
             });
 

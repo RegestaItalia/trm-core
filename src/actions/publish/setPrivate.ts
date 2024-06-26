@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
+import { PUBLIC_RESERVED_KEYWORD } from "../../registry";
 
 export const setPrivate: Step<PublishWorkflowContext> = {
     name: 'set-private',
@@ -40,8 +41,8 @@ export const setPrivate: Step<PublishWorkflowContext> = {
             localPrivate = inq1.private;
         }
         if (typeof (remotePrivate) === 'boolean' && localPrivate !== remotePrivate) {
-            const localType = localPrivate ? 'private' : 'public';
-            const remoteType = remotePrivate ? 'private' : 'public';
+            const localType = localPrivate ? 'private' : PUBLIC_RESERVED_KEYWORD;
+            const remoteType = remotePrivate ? 'private' : PUBLIC_RESERVED_KEYWORD;
             Logger.warning(`Changing package visibility ${remoteType} -> ${localType}`);
         }
         context.runtime.manifest.private = localPrivate;
