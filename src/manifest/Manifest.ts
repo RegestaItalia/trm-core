@@ -4,7 +4,7 @@ import { TrmManifest } from "./TrmManifest";
 import { normalize } from "../commons";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
-import { Registry } from "../registry";
+import { PUBLIC_RESERVED_KEYWORD, Registry } from "../registry";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { validate as validateEmail } from "email-validator";
 import * as SpdxLicenseIds from "spdx-license-ids/index.json";
@@ -220,7 +220,7 @@ export class Manifest {
 
     public getPackage(): TrmPackage {
         const manifest = this.get(true);
-        const registry = new Registry(manifest.registry || 'public');
+        const registry = new Registry(manifest.registry || PUBLIC_RESERVED_KEYWORD);
         return new TrmPackage(manifest.name, registry, this);
     }
 
@@ -390,7 +390,7 @@ export class Manifest {
                 version: oAbapManifest.version.text,
                 backwardsCompatible: false, //default overwitten later
                 private: false, //default overwitten later,
-                registry: 'public' //default overwritten later
+                registry: PUBLIC_RESERVED_KEYWORD //default overwritten later
             };
         } catch (e) {
             throw new Error('XML Manifest is corrupted.');

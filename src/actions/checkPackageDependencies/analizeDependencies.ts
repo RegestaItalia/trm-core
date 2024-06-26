@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckPackageDependencyWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
-import { Registry } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, Registry } from "../../registry";
 import { satisfies } from "semver";
 import { SystemConnector } from "../../systemConnector";
 
@@ -30,8 +30,8 @@ export const analizeDependencies: Step<CheckPackageDependencyWorkflowContext> = 
         };
         var tableData: string[];
         for(const dependency of dependencies){
-            tableData = [dependency.name, dependency.registry || 'public', dependency.version];
-            const dependencyTrmPackage = new TrmPackage(dependency.name, new Registry(dependency.registry || 'public'));
+            tableData = [dependency.name, dependency.registry || PUBLIC_RESERVED_KEYWORD, dependency.version];
+            const dependencyTrmPackage = new TrmPackage(dependency.name, new Registry(dependency.registry || PUBLIC_RESERVED_KEYWORD));
             const systemInstalledPackage = systemPackages.find(o => TrmPackage.compare(o, dependencyTrmPackage));
             if(systemInstalledPackage && systemInstalledPackage.manifest){
                 const installedVersion = systemInstalledPackage.manifest.get().version;

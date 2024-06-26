@@ -16,6 +16,8 @@ import { Inquirer } from "../inquirer/Inquirer";
 
 const AXIOS_INTERNAL_ID_KEY = 'INTERNAL_ID';
 
+export const PUBLIC_RESERVED_KEYWORD = 'public';
+
 export class Registry {
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
@@ -25,14 +27,24 @@ export class Registry {
     private _whoami: WhoAmI;
 
     constructor(public endpoint: string, public name: string = 'Unknown') {
-        Logger.log(`TRM_PUBLIC_REGISTRY_ENDPOINT Environment variable: ${process.env.TRM_PUBLIC_REGISTRY_ENDPOINT}`, true);
-        if (endpoint.trim().toLowerCase() === 'public') {
-            this.endpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT || 'https://www.trmregistry.com/registry';
+        var envEndpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT;
+        Logger.log(`TRM_PUBLIC_REGISTRY_ENDPOINT Environment variable: ${envEndpoint}`, true);
+        if(!envEndpoint || envEndpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD){
+            //no env var value or env var value = public
+            envEndpoint = 'https://www.trmregistry.com/registry';
             this._registryType = RegistryType.PUBLIC;
-            this.name = 'public';
+        }else if(endpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD){
+            //if input endpoint is public
+            this._registryType = RegistryType.PUBLIC;
+        }else{
+            //all other cases
+            this._registryType = RegistryType.PRIVATE;
+        }
+        if (this._registryType === RegistryType.PUBLIC) {
+            this.endpoint = envEndpoint;
+            this.name = PUBLIC_RESERVED_KEYWORD;
         } else {
             this.endpoint = endpoint;
-            this._registryType = RegistryType.PRIVATE;
         }
         Logger.log(`Endpoint type: ${this._registryType}`, true);
         Logger.log(`Endpoint before normalize: ${this.endpoint}`, true);

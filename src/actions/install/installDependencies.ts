@@ -4,7 +4,7 @@ import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { InstallDependencyActionInput, installDependency as installDependencyWkf } from "../installDependency";
 import { inspect } from "util";
-import { Registry } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, Registry } from "../../registry";
 
 const SUBWORKFLOW_NAME = 'install-sub-install-dependency';
 
@@ -47,7 +47,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                     packageName: installDependency.name,
                     versionRange: installDependency.version,
                     installOptions: context.rawInput,
-                    registry: new Registry(installDependency.registry || 'public'),
+                    registry: new Registry(installDependency.registry || PUBLIC_RESERVED_KEYWORD),
                     integrity: installDependency.integrity,
                     systemPackages: context.parsedInput.systemPackages,
                     forceInstall: context.parsedInput.skipAlreadyInstalledCheck //check already installed? 

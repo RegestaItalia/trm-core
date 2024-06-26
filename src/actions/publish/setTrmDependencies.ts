@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { Registry, RegistryType } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../../registry";
 
 
 export const setTrmDependencies: Step<PublishWorkflowContext> = {
@@ -39,7 +39,7 @@ export const setTrmDependencies: Step<PublishWorkflowContext> = {
             if (Registry.compare(d.trmPackage.registry, context.runtime.registry)) {
                 Logger.info(`Found dependency with package "${dependencyName}", version "${dependencyVersion}"`);
             } else {
-                const dependencyRegistryName = d.trmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? 'public' : d.trmPackage.registry.endpoint;
+                const dependencyRegistryName = d.trmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : d.trmPackage.registry.endpoint;
                 Logger.info(`Found dependency with package "${dependencyName}", version "${dependencyVersion}", registry "${dependencyRegistryName}"`)
             }
             if (!dependencyIntegrity) {

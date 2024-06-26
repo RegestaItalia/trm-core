@@ -1,7 +1,6 @@
-import e from 'express';
 import { PublishWorkflowContext, WorkflowParsedInput, WorkflowRuntime } from '.'
 import { DummyLogger, Logger } from '../../logger';
-import { Registry } from '../../registry';
+import { PUBLIC_RESERVED_KEYWORD, Registry } from '../../registry';
 import { TrmPackage } from '../../trmPackage';
 import { init } from './init'
 
@@ -17,7 +16,7 @@ describe('when init step is invoked', () => {
             const VERSION = '1.0.0';
 
             // given
-            let mockRegistry = new Registry('public');
+            let mockRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
 
             let context: PublishWorkflowContext = {
                 rawInput: {
@@ -60,7 +59,7 @@ describe('when init step is invoked', () => {
     describe('without a package version', () => {
         it('should throw an exception', () => {
             // given
-            let mockRegistry = new Registry('public');
+            let mockRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
 
             let context: PublishWorkflowContext = {
                 rawInput: {
