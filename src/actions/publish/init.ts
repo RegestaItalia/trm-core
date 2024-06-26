@@ -102,5 +102,10 @@ export const init: Step<PublishWorkflowContext> = {
         if (!context.runtime.manifest.dependencies) {
             context.runtime.manifest.dependencies = [];
         }
+        context.runtime.dependencies = {
+            sapEntries: [],
+            trmDependencies: [],
+            unknownDependencies: []
+        };
     }
 }
