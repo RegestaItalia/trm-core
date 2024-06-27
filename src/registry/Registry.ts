@@ -4,13 +4,12 @@ import axios, { AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
 import { AuthOAuth2, AuthenticationType, OAuth2Data, Ping, Release, View, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
-import { Logger } from "../logger";
+import { Logger, inspect } from "../logger";
 import { randomUUID } from "crypto";
 import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
 import { v4 as uuidv4 } from 'uuid';
-import { inspect } from "util";
 import _ from 'lodash';
 import { Inquirer } from "../inquirer/Inquirer";
 
@@ -67,8 +66,11 @@ export class Registry {
             const internalId = uuidv4();
             request[AXIOS_INTERNAL_ID_KEY] = internalId;
             var sRequest = `${request.method} ${request.baseURL}${request.url}`;
+            if(request.params){
+                sRequest += `, parameters: ${inspect(request.params, { breakLength: Infinity, compact: true })}`;
+            }
             if(request.headers.getAuthorization()){
-                sRequest += `, authorization: ***`;
+                sRequest += `, authorization: HIDDEN`;
             }
             if(request.data){
                 sRequest += `, data: ${inspect(request.data, { breakLength: Infinity, compact: true })}`;

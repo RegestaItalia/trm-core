@@ -1,8 +1,7 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { DEVCLASS, SENVI, TADIR } from "../../client";
 import { TrmPackage } from "../../trmPackage";
-import { Logger } from "../../logger";
-import { inspect } from "util";
+import { Logger, inspect } from "../../logger";
 import { init } from "./init";
 import { setSystemPackages } from "./setSystemPackages";
 import { readPackageData } from "./readPackageData";

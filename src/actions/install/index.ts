@@ -1,6 +1,5 @@
 import execute from "@simonegaffurini/sammarksworkflow";
-import { Logger } from "../../logger";
-import { inspect } from "util";
+import { Logger, inspect } from "../../logger";
 import { Registry } from "../../registry";
 import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
 import { Manifest, TrmManifest, TrmManifestDependency } from "../../manifest";
