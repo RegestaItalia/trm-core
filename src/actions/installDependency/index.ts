@@ -1,6 +1,5 @@
 import execute from "@simonegaffurini/sammarksworkflow";
-import { Logger } from "../../logger";
-import { inspect } from "util";
+import { Logger, inspect } from "../../logger";
 import { Registry } from "../../registry";
 import { Release } from "trm-registry-types";
 import { TrmPackage } from "../../trmPackage";

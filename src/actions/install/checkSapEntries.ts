@@ -1,8 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger, inspect } from "../../logger";
 import { CheckSapEntriesActionInput, checkSapEntries as checkSapEntriesWkf } from "../checkSapEntries";
-import { inspect } from "util";
 
 const SUBWORKFLOW_NAME = 'check-sap-entries-sub-install';
 

@@ -1,9 +1,8 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger, inspect } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { InstallDependencyActionInput, installDependency as installDependencyWkf } from "../installDependency";
-import { inspect } from "util";
 import { PUBLIC_RESERVED_KEYWORD, Registry } from "../../registry";
 
 const SUBWORKFLOW_NAME = 'install-sub-install-dependency';

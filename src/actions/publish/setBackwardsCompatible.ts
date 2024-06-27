@@ -32,7 +32,7 @@ export const setBackwardsCompatible: Step<PublishWorkflowContext> = {
                 });
                 context.runtime.manifest.backwardsCompatible = inq1.backwardsCompatible;
             } else {
-                Logger.log(`Setting package backwards compatible: ${context.parsedInput.packageBackwardsCompatible} (input)`);
+                Logger.log(`Setting package backwards compatible: ${context.parsedInput.packageBackwardsCompatible} (input)`, true);
                 context.runtime.manifest.backwardsCompatible = context.parsedInput.packageBackwardsCompatible;
             }
         } else {

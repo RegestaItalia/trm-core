@@ -1,5 +1,5 @@
 import { valid as semverValid } from "semver";
-import { Logger } from "../logger";
+import { Logger, inspect } from "../logger";
 import { Manifest } from "../manifest";
 import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../registry";
 import { RFCClient } from "../client";
@@ -14,7 +14,6 @@ import { SapMessage } from "./SapMessage";
 import { InstallPackage } from "./InstallPackage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
-import { inspect } from "util";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';

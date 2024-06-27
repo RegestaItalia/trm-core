@@ -1,7 +1,6 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { TrmPackage } from "../../trmPackage";
-import { Logger } from "../../logger";
-import { inspect } from "util";
+import { Logger, inspect } from "../../logger";
 import { TrmManifestDependency } from "../../manifest";
 import { LogTableStruct } from "../../commons";
 import { init } from "./init";

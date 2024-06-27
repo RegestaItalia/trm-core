@@ -1,7 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
-import { inspect } from "util";
+import { Logger, inspect } from "../../logger";
 import { CheckPackageDependencyActionInput, checkPackageDependencies } from "../checkPackageDependencies";
 
 const SUBWORKFLOW_NAME = 'check-dependencies-sub-install';

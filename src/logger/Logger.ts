@@ -2,6 +2,15 @@ import { ResponseMessage } from "trm-registry-types";
 import { ILogger } from "./ILogger";
 import { DummyLogger } from "./DummyLogger";
 import { TreeLog } from "./TreeLog";
+import { InspectOptions } from "util";
+import { inspect as utilInspect } from "util";
+
+export function inspect(object: any, options?: InspectOptions): string {
+    var sInspect = utilInspect(object, options);
+    sInspect = sInspect.replace(/_authData:\s*{\s*.*?\s*}/gmi, '_authData: HIDDEN');
+    sInspect = sInspect.replace(/_login:\s*{\s*.*?\s*}/gmi, '_login: HIDDEN');
+    return sInspect;
+}
 
 export namespace Logger {
 
