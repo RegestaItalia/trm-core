@@ -34,14 +34,5 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
         const result = await install(inputData);
         Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
         context.output.installOutput = result;
-        /*await install({
-            ...(data.originalInstallOptions || {}),
-            ...{
-                packageName,
-                version,
-                integrity,
-                safe: integrity ? true : false
-            }
-        }, registry);*/
     }
 }

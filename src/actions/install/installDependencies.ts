@@ -53,7 +53,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                     versionRange: installDependency.version,
                     installOptions: context.rawInput,
                     registry: dependencyRegistry,
-                    integrity: installDependency.integrity,
+                    integrity: context.parsedInput.safeInstall ? installDependency.integrity : null,
                     systemPackages: context.parsedInput.systemPackages,
                     forceInstall: context.parsedInput.skipAlreadyInstalledCheck //check already installed? 
                 };
