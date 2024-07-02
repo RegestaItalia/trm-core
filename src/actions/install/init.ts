@@ -41,6 +41,7 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.workbenchObjects = [];
         context.runtime.trCopy = [];
         context.runtime.fetchedIntegrity = installIntegrity;
+        context.runtime.dependenciesToInstall = [];
         
         context.parsedInput.systemPackages = context.rawInput.systemPackages || [];
         context.parsedInput.packageName = packageName;
