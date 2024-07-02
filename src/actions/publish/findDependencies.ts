@@ -26,7 +26,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         const inputData: FindDependencyActionInput = {
             devclass: context.parsedInput.devclass,
             tadir: context.runtime.tadirObjects,
-            silent: context.parsedInput.silent
+            silent: context.parsedInput.silent || !context.parsedInput.skipDependencies
         };
         Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${JSON.stringify(inputData)}`, true);
         Logger.loading(`Searching package dependencies...`);
