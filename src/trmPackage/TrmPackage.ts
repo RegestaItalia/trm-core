@@ -55,9 +55,9 @@ export class TrmPackage {
         if(!this._remoteArtifacts[version]){
             const artifact = await this.registry.getArtifact(this.packageName, version);
             this._remoteArtifacts[version] = artifact;
-            this.manifest = artifact.getManifest();
-            this._remoteArtifacts[this.manifest.get().version] = artifact;
         }
+        this.manifest = this._remoteArtifacts[version].getManifest();
+        this._remoteArtifacts[this.manifest.get().version] = this._remoteArtifacts[version];
         return this._remoteArtifacts[version].getManifest();
     }
 

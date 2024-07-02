@@ -23,7 +23,8 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
         if(dependencies.length === 0){
             return;
         }
-        const trmPackage = context.runtime.trmPackage;
+        var trmPackage = context.runtime.trmPackage;
+        trmPackage.manifest = await trmPackage.fetchRemoteManifest(context.parsedInput.version);
         const systemPackages = context.parsedInput.systemPackages;
         const inputData: CheckPackageDependencyActionInput = {
             trmPackage,
@@ -49,7 +50,7 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
             if(dependenciesToInstall.length === 0){
                 Logger.success(`Package dependencies ok.`);
             }else{
-                Logger.info(`There's a total of ${dependenciesToInstall} dependencies needed in order to install "${trmManifest.name}".`);
+                Logger.info(`There's a total of ${dependenciesToInstall.length} dependencies needed in order to install "${trmManifest.name}".`);
             }
         }
         context.runtime.dependenciesToInstall = dependenciesToInstall;
