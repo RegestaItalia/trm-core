@@ -3,7 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Logger, inspect } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { InstallDependencyActionInput, installDependency as installDependencyWkf } from "../installDependency";
-import { PUBLIC_RESERVED_KEYWORD, Registry } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../../registry";
 
 const SUBWORKFLOW_NAME = 'install-sub-install-dependency';
 
@@ -42,11 +42,17 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             for(const installDependency of dependenciesToInstall){
                 installCounter++;
                 Logger.info(`-> (${installCounter}/${dependenciesToInstall.length}) Dependency "${installDependency.name}" install started.`);
+                var dependencyRegistry: Registry;
+                if((!installDependency.registry || installDependency.registry.trim() === PUBLIC_RESERVED_KEYWORD) && context.runtime.registry.getRegistryType() === RegistryType.PUBLIC){
+                    dependencyRegistry = context.runtime.registry;
+                }else{
+                    dependencyRegistry = new Registry(installDependency.registry || PUBLIC_RESERVED_KEYWORD);
+                }
                 const inputData: InstallDependencyActionInput = {
                     packageName: installDependency.name,
                     versionRange: installDependency.version,
                     installOptions: context.rawInput,
-                    registry: new Registry(installDependency.registry || PUBLIC_RESERVED_KEYWORD),
+                    registry: dependencyRegistry,
                     integrity: installDependency.integrity,
                     systemPackages: context.parsedInput.systemPackages,
                     forceInstall: context.parsedInput.skipAlreadyInstalledCheck //check already installed? 
