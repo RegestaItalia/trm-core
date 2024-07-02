@@ -34,5 +34,7 @@ export const init: Step<InstallDependencyWorkflowContext> = {
         context.parsedInput.systemPackages = context.rawInput.systemPackages || []
 
         context.runtime.registry = registry;
+
+        context.output = { };
     }
 }
