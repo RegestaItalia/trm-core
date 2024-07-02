@@ -67,9 +67,16 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         const tdevc = context.runtime.tdevcData;
         for (const packageReplacement of packageReplacements) {
             const originalRoot = originalPackageHierarchy.devclass === packageReplacement.originalDevclass;
+            var parentcl;
+            if(!originalRoot){
+                const originalParentCl = tdevc.find(o => o.devclass === packageReplacement.originalDevclass).parentcl;
+                if(originalParentCl){
+                    parentcl = packageReplacements.find(o => o.originalDevclass === originalParentCl).installDevclass;
+                }
+            }
             aDummyTdevc.push({
                 devclass: packageReplacement.installDevclass,
-                parentcl: originalRoot ? '' : tdevc.find(o => o.devclass === packageReplacement.originalDevclass).parentcl
+                parentcl: parentcl || ''
             });
         }
         const installPackageHierarchy = getPackageHierarchy(aDummyTdevc);
