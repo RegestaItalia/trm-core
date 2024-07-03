@@ -146,7 +146,7 @@ export class ServerSystemConnector implements ISystemConnector {
         aTrkorr = Array.from(new Set(aTrkorr))
 
         //for each transport, check it was installed and not created on the system
-        //read tms of current system and with maxrc <= 4 and impsing != X
+        //read tms of current system and with maxrc > 0 and impsing != X
         //if there's no match, ignore
         for (const sTrkorr of aTrkorr) {
             //check tms
@@ -160,7 +160,7 @@ export class ServerSystemConnector implements ISystemConnector {
                         [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
                         //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
                         `SYSNAM EQ '${this.getDest()}' AND TRKORR EQ '${sTrkorr}' AND IMPSING NE 'X'`
-                    )).filter(o => parseInt(o.maxrc) <= 4);
+                    )).filter(o => parseInt(o.maxrc) > 0);
                 } catch (e) {
                     aTrkorrStatusCheck = [];
                 }
