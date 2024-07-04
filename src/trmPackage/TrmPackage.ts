@@ -82,7 +82,6 @@ export class TrmPackage {
         const readme = data.readme || '';
         Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
         await this.registry.publishArtifact(packageName, packageVersion, artifact, readme);
-        Logger.success(`"${packageName}" ${packageVersion} published.`, false);
 
         //set
         this.manifest = new Manifest(trmManifest);
