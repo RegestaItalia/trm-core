@@ -23,7 +23,7 @@ export interface ISystemConnector {
     checkConnection: () => Promise<boolean>,
     getTransportStatus: (trkorr: TRKORR) => Promise<string>,
     getPackageWorkbenchTransport: (oPackage: TrmPackage) => Promise<Transport>,
-    getInstalledPackages: (includeSoruces: boolean) => Promise<TrmPackage[]>,
+    getInstalledPackages: (includeSoruces: boolean, refresh?: boolean) => Promise<TrmPackage[]>,
     generateTrmServerPackage: () => Promise<TrmPackage>,
     getDevclass: (devclass: DEVCLASS) => Promise<TDEVC>,
     getTransportTargets: () => Promise<TMSCSYS[]>,
