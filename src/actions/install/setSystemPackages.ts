@@ -8,7 +8,7 @@ export const setSystemPackages: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         var systemPackages = context.parsedInput.systemPackages;
         if(systemPackages.length === 0){
-            Logger.loading(`Reading system packages`, true);
+            Logger.loading(`Reading system data...`);
             systemPackages = await SystemConnector.getInstalledPackages(true);
         }
         context.parsedInput.systemPackages = systemPackages;
