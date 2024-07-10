@@ -24,6 +24,9 @@ export class ServerSystemConnector implements ISystemConnector {
     private _user: string;
     private _client: RFCClient;
 
+    private _installedPackages: TrmPackage[];
+    private _installedPackagesI: TrmPackage[];
+
     constructor(private _connection: Connection, private _login: Login) {
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
@@ -125,7 +128,16 @@ export class ServerSystemConnector implements ISystemConnector {
         return null;
     }
 
-    public async getInstalledPackages(includeSoruces: boolean = true): Promise<TrmPackage[]> {
+    public async getInstalledPackages(includeSoruces: boolean = true, refresh?: boolean): Promise<TrmPackage[]> {
+        if(!refresh){
+            if(includeSoruces && this._installedPackagesI){
+                Logger.log(`Cached version of installed packages with sources`, true);
+                return this._installedPackagesI;
+            }else if(!includeSoruces && this._installedPackages){
+                Logger.log(`Cached version of installed packages without sources`, true);
+                return this._installedPackages;
+            }
+        }
         var trmPackages: TrmPackage[] = [];
         var packageTransports: {
             package: TrmPackage,
@@ -221,6 +233,11 @@ export class ServerSystemConnector implements ISystemConnector {
         } catch (e) {
             //trm-server is not installed
             Logger.warning(`trm-server is not installed`, true);
+        }
+        if(includeSoruces){
+            this._installedPackagesI = trmPackages;
+        }else{
+            this._installedPackages = trmPackages;
         }
         return trmPackages;
     }

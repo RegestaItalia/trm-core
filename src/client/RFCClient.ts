@@ -7,6 +7,7 @@ import { Logger } from "../logger";
 
 export class RFCClient implements IClient {
     private _rfcClient: noderfc.Client;
+    private _aliveCheck: boolean = false;
 
     constructor(arg1: any, traceDir?: string) {
         process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
@@ -21,10 +22,13 @@ export class RFCClient implements IClient {
     }
 
     public async checkConnection(): Promise<boolean> {
-        if(this._rfcClient.alive){
-            Logger.success(`RFC open`, true);
-        }else{
-            Logger.warning(`RFC closed`, true);
+        if(!this._aliveCheck){
+            if(this._rfcClient.alive){
+                Logger.success(`RFC open`, true);
+            }else{
+                Logger.warning(`RFC closed`, true);
+            }
+            this._aliveCheck = true;
         }
         return this._rfcClient.alive;
     }
