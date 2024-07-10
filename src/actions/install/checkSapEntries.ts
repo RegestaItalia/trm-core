@@ -32,7 +32,8 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
                 missingEntries = missingEntries.concat(sapEntriesOutput[t].filter(o => !o.status));
             });
             if(missingEntries.length > 0){
-                throw new Error(`Package requires SAP entries that don't exist on your system.`);
+                Logger.error(JSON.stringify(missingEntries), true);
+                throw new Error(`Package requires ${missingEntries.length} SAP entries that don't exist on your system (run in verbose for more detail).`);
             }else{
                 Logger.success(`SAP entries checked.`);
             }
