@@ -24,9 +24,17 @@ export const checkTadirObjectTypes: Step<InstallWorkflowContext> = {
         Logger.loading(`Checking package objects types...`);
         const systemObjectList = await SystemConnector.getObjectsList();
         aTadir.forEach(o => {
+            var unknownObjects: string[] = [];
             if (!systemObjectList.find(k => k.pgmid === o.pgmid && k.object === o.object)) {
+                unknownObjects.push(`${o.pgmid} ${o.object}`);
                 Logger.error(`TADIR transport contains object ${o.pgmid} ${o.object} ${o.objName}, which is not supported by target install system`, true);
-                throw new Error(`Transport contains unknown object type ${o.pgmid} ${o.object}.`);
+            }
+            if(unknownObjects.length > 0){
+                if(unknownObjects.length === 1){
+                    throw new Error(`Transport contains unknown object type ${unknownObjects[0]}.`);
+                }else{
+                    throw new Error(`Transport contains ${unknownObjects.length} unknown object types (run in verbose for more detail).`);
+                }
             }
         });
         Logger.success(`All objects in package "${packageName}" supported.`);
