@@ -56,7 +56,7 @@ export class TrmArtifact {
             throw new Error(`Couldn't locate dist folder.`);
         }
         const zipEntries = this._zip.getEntries();
-        const aTransportEntries = zipEntries.filter(o => o.entryName.trim().toLowerCase().startsWith(`${distFolder}/`));
+        const aTransportEntries = zipEntries.filter(o => (new RegExp(`^${distFolder}(/|\\)`)).test(o.entryName.trim().toLowerCase()));
         var aResult = [];
         const r3trans = new R3trans({
             tempDirPath: tmpFolder
