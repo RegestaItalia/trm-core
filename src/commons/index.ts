@@ -9,3 +9,4 @@ export * from "./getPackageHierarchy";
 export * from "./getParentFromHierarchy";
 export * from "./getPackageNamespace";
 export * from "./LogTableStruct";
+export * from "./getAxiosInstance";
