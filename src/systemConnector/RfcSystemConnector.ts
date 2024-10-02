@@ -14,12 +14,13 @@ import { SapMessage } from "./SapMessage";
 import { InstallPackage } from "./InstallPackage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
+import { SystemConnectorBase } from "./SystemConnectorBase";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';
 export const SKIP_TRKORR_TABL = 'ZTRM_SKIP_TRKORR';
 
-export class RfcSystemConnector implements ISystemConnector {
+export class RfcSystemConnector extends SystemConnectorBase implements ISystemConnector {
     private _lang: string;
     private _user: string;
     private _client: RFCClient;
@@ -28,6 +29,7 @@ export class RfcSystemConnector implements ISystemConnector {
     private _installedPackagesI: TrmPackage[];
 
     constructor(private _connection: Connection, private _login: Login) {
+        super();
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
         this._user = this._login.user;
@@ -70,18 +72,6 @@ export class RfcSystemConnector implements ISystemConnector {
 
     public async checkConnection(): Promise<boolean> {
         return this._client.checkConnection();
-    }
-
-    public async getTransportStatus(trkorr: TRKORR): Promise<string> {
-        const aTrkorrStatusCheck: any[] = (await this.readTable('E070',
-            [{ fieldName: 'TRKORR' }, { fieldName: 'TRSTATUS' }],
-            `TRKORR EQ '${trkorr}'`
-        ));
-        if (aTrkorrStatusCheck.length !== 1) {
-            throw new Error(`Transport not found.`);
-        } else {
-            return aTrkorrStatusCheck[0].trstatus;
-        }
     }
 
     public async getPackageWorkbenchTransport(oPackage: TrmPackage): Promise<Transport> {
@@ -450,7 +440,7 @@ export class RfcSystemConnector implements ISystemConnector {
         }
     }
 
-    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+    protected async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
         return this._client.readTable(tableName, fields, options);
     }
 

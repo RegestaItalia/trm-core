@@ -13,15 +13,15 @@ import { InstallPackage } from "./InstallPackage";
 import { SapMessage } from "./SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
+import { ISystemConnectorBase } from "./ISystemConnectorBase";
 
-export interface ISystemConnector {
+export interface ISystemConnector extends ISystemConnectorBase {
     getConnectionData: () => any,
     getDest: () => string,
     getLogonLanguage: (c: boolean) => string,
     getLogonUser: () => string,
     connect: () => Promise<void>,
     checkConnection: () => Promise<boolean>,
-    getTransportStatus: (trkorr: TRKORR) => Promise<string>,
     getPackageWorkbenchTransport: (oPackage: TrmPackage) => Promise<Transport>,
     getInstalledPackages: (includeSoruces: boolean, refresh?: boolean) => Promise<TrmPackage[]>,
     generateTrmServerPackage: () => Promise<TrmPackage>,
@@ -38,7 +38,6 @@ export interface ISystemConnector {
     checkSapEntryExists: (table: string, sapEntry: any) => Promise<boolean>,
     ping: () => Promise<string>,
     getPackageIntegrity: (oPackage: TrmPackage) => Promise<string>,
-    readTable: (tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string) => Promise<any[]>,
     getFileSystem: () => Promise<struct.FILESYS>,
     getDirTrans: () => Promise<components.PFEVALUE>,
     getBinaryFile: (filePath: string) => Promise<Buffer>,
