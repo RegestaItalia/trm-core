@@ -19,7 +19,7 @@ export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';
 export const SKIP_TRKORR_TABL = 'ZTRM_SKIP_TRKORR';
 
-export class ServerSystemConnector implements ISystemConnector {
+export class RfcSystemConnector implements ISystemConnector {
     private _lang: string;
     private _user: string;
     private _client: RFCClient;

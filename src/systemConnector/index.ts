@@ -1,4 +1,4 @@
-export * from "./ServerSystemConnector";
+export * from "./RfcSystemConnector";
 export * from "./Connection";
 export * from "./Login";
 export * from "./InstallPackage";
