@@ -1,4 +1,3 @@
-import * as noderfc from ".";
 import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
@@ -20,7 +19,6 @@ export class RFCClient implements IClient {
         process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
         Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
         this._rfcClientArg = arg1;
-        //this._rfcClient = new noderfc.Client(arg1);
     }
 
     private async getRfcClient(): Promise<any> {
