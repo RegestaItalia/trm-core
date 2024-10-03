@@ -1,4 +1,4 @@
-export type Connection = {
+export type RFCConnection = {
     dest: string,
     ashost: string,
     sysnr: string,

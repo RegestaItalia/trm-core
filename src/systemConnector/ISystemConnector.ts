@@ -1,9 +1,11 @@
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
+import { RESTConnection } from "./RESTConnection";
+import { RFCConnection } from "./RFCConnection";
 
 export interface ISystemConnector extends ISystemConnectorBase {
-    getConnectionData: () => any,
+    getConnectionData: () => RFCConnection | RESTConnection,
     getDest: () => string,
     getLogonLanguage: (c: boolean) => string,
     getLogonUser: () => string,
