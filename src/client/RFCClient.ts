@@ -25,7 +25,7 @@ export class RFCClient implements IClient {
             const libPath = path.join(globalPath, nodeRfcLib);
             Logger.log(`Node RFC lib path: ${libPath}`, true);
             if(!existsSync(libPath)){
-                Logger.error(`${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
+                throw new Error(`${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
             }
             this._rfcClient = new (await import(libPath)).Client(this._rfcClientArg);
         }
