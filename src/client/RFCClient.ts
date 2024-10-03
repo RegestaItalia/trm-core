@@ -4,9 +4,7 @@ import { IClient } from "./IClient";
 import { getNpmGlobalPath, normalize } from "../commons";
 import { Logger } from "../logger";
 import { existsSync } from "fs";
-import { exec } from "child_process";
 import path from "path";
-import { promisify } from "util";
 
 const nodeRfcLib = 'node-rfc';
 
@@ -23,23 +21,11 @@ export class RFCClient implements IClient {
 
     private async getRfcClient(): Promise<any> {
         if(!this._rfcClient){
-            Logger.loading(`${nodeRfcLib} module not found: installing...`);
             const globalPath = await getNpmGlobalPath();
             const libPath = path.join(globalPath, nodeRfcLib);
             Logger.log(`Node RFC lib path: ${libPath}`, true);
             if(!existsSync(libPath)){
-                Logger.loading(`${nodeRfcLib} module not found: installing...`);
-                const execPromise = promisify(exec);
-                try{
-                    const { stdout } = await execPromise(`npm install ${nodeRfcLib} -g`);
-                    Logger.log(stdout, true);
-                }catch(e){
-                    Logger.error(e.toString(), true);
-                    throw new Error(`Unable to install module ${nodeRfcLib}`);
-                }
-                Logger.success(`${nodeRfcLib} module installed`, true);
-            }else{
-                Logger.success(`${nodeRfcLib} module found`, true);
+                Logger.error(`${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
             }
             this._rfcClient = new (await import(libPath)).Client(this._rfcClientArg);
         }
