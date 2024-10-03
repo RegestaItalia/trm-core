@@ -1,4 +1,4 @@
-import * as noderfc from "node-rfc";
+import * as noderfc from ".";
 import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
@@ -6,13 +6,13 @@ import { normalize } from "../commons";
 import { Logger } from "../logger";
 
 export class RESTClient implements IClient {
-    private _rfcClient: noderfc.Client;
+    private _rfcClient: any;
     private _aliveCheck: boolean = false;
 
     constructor(arg1: any, traceDir?: string) {
         process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
         Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
-        this._rfcClient = new noderfc.Client(arg1);
+        //this._rfcClient = new noderfc.Client(arg1);
     }
 
     public async open() {

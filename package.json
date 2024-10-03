@@ -42,7 +42,6 @@
     "loading-cli": "^1.1.0",
     "lodash": "^4.17.21",
     "node-r3trans": "^1.0.10",
-    "node-rfc": "^3.2.0",
     "object-keys-normalizer": "^1.0.1",
     "opener": "^1.5.2",
     "print-tree": "^0.1.5",

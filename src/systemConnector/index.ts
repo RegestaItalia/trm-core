@@ -1,6 +1,4 @@
-export * from "./RESTSystemConnector";
 export * from "./RFCConnection";
-export * from "./RESTConnection";
 export * from "./Login";
 export * from "./InstallPackage";
 export * from "./SapMessage";
@@ -8,4 +6,7 @@ export * from "./ISystemConnector";
 export * from "./SystemConnector";
 export * from "./ISystemConnectorBase";
 export * from "./SystemConnectorBase";
+export * from "./RFCSystemConnector";
+export * from "./RFCConnection";
 export * from "./RESTSystemConnector";
+export * from "./RESTConnection";

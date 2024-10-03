@@ -28,6 +28,10 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean): Promise<void>
 
+  constructor(){
+
+  }
+  
   public async getTransportStatus(trkorr: TRKORR): Promise<string> {
     const aTrkorrStatusCheck: any[] = (await this.readTable('E070',
       [{ fieldName: 'TRKORR' }, { fieldName: 'TRSTATUS' }],
