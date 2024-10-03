@@ -6,35 +6,21 @@ import { normalize } from "../commons";
 import { Logger } from "../logger";
 
 export class RESTClient implements IClient {
-    private _rfcClient: any;
-    private _aliveCheck: boolean = false;
 
-    constructor(arg1: any, traceDir?: string) {
-        process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
-        Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
-        //this._rfcClient = new noderfc.Client(arg1);
+    constructor(endpoint: string) {
+
     }
 
     public async open() {
-        Logger.loading(`Opening RFC connection`, true);
-        await this._rfcClient.open();
-        Logger.success(`RFC open`, true);
+        //
     }
 
     public async checkConnection(): Promise<boolean> {
-        if(!this._aliveCheck){
-            if(this._rfcClient.alive){
-                Logger.success(`RFC open`, true);
-            }else{
-                Logger.warning(`RFC closed`, true);
-            }
-            this._aliveCheck = true;
-        }
-        return this._rfcClient.alive;
+        return true;
     }
 
     private async _call(fm: any, arg?: any, timeout?: number): Promise<any> {
-        var argNormalized;
+        /*var argNormalized;
         if (arg) {
             var emptyKeys = [];
             argNormalized = normalize(arg, 'upper');
@@ -59,7 +45,7 @@ export class RESTClient implements IClient {
         const response = await this._rfcClient.call(fm, argNormalized, callOptions);
         const responseNormalized = normalize(response);
         Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
-        return responseNormalized;
+        return responseNormalized;*/
     }
 
     public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
