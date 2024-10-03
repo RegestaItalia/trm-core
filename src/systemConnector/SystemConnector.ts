@@ -70,11 +70,6 @@ export namespace SystemConnector {
         return systemConnector.getInstalledPackages(includeSources, refresh);
     }
     
-    export async function generateTrmServerPackage(): Promise<TrmPackage> {
-        await checkSystemConnector();
-        return systemConnector.generateTrmServerPackage();
-    }
-    
     export async function getDevclass(devclass: DEVCLASS): Promise<TDEVC> {
         await checkSystemConnector();
         return systemConnector.getDevclass(devclass);
