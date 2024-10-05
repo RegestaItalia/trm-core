@@ -161,7 +161,7 @@ export class RFCClient implements IClient {
     public async createWbTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = await this._call("ZTRM_CREATE_IMPORT_TR", {
             iv_text: text,
-            iv_target: target
+            iv_target: target.trim().toUpperCase()
         });
         return result['evTrkorr'];
     }

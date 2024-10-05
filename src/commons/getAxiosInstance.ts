@@ -5,7 +5,9 @@ import { v4 as uuidv4 } from 'uuid';
 
 const AXIOS_INTERNAL_ID_KEY = '_TRM_REQUEST_INTERNAL_ID';
 
-export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: 'Registry' | 'ServerRest') {
+export type AxiosCtx = 'Registry' | 'RestServer';
+
+export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCtx) {
     const instance = axios.create(config);
     instance.interceptors.request.use((request) => {
         const internalId = uuidv4();
