@@ -372,4 +372,9 @@ export class RESTClient implements IClient {
             }
         });
     }
+
+    public async getDest(): Promise<string> {
+        const result = (await this._axiosInstance.get('/get_dest')).data;
+        return result.dest;
+    }
 }
