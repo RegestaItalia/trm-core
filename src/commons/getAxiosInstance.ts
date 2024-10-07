@@ -3,7 +3,7 @@ import { inspect } from "util";
 import { Logger } from "../logger";
 import { v4 as uuidv4 } from 'uuid';
 
-const AXIOS_INTERNAL_ID_KEY = '_TRM_REQUEST_INTERNAL_ID';
+const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
 
 export type AxiosCtx = 'Registry' | 'RestServer';
 
@@ -11,7 +11,7 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
     const instance = axios.create(config);
     instance.interceptors.request.use((request) => {
         const internalId = uuidv4();
-        request[AXIOS_INTERNAL_ID_KEY] = internalId;
+        request.headers.set(AXIOS_INTERNAL_HEADER, internalId)
         var sRequest = `${request.method} ${request.baseURL}${request.url}`;
         if (request.params) {
             sRequest += `, parameters: ${inspect(request.params, { breakLength: Infinity, compact: true })}`;
@@ -29,7 +29,12 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         return Promise.reject(error);
     });
     instance.interceptors.response.use((response) => {
-        const internalId = response.request && response.request[AXIOS_INTERNAL_ID_KEY] ? response.request[AXIOS_INTERNAL_ID_KEY] : 'Unknown';
+        var internalId: string;
+        try{
+            internalId = response.request.getHeader(AXIOS_INTERNAL_HEADER)
+        }catch(e){
+            internalId = 'Unknown';
+        }
         var sResponse = `status: ${response.status}, status text: ${response.statusText}`;
         if (response.data) {
             sResponse += `, data: ${inspect(response.data, { breakLength: Infinity, compact: true })}`;
