@@ -34,7 +34,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     }
 
     protected getLangu(c: boolean): string {
-        return this.getLogonLanguage();
+        return this.getLogonLanguage(c);
     }
 
     public getLogonLanguage(c: boolean = false): string {

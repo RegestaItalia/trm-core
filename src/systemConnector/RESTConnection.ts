@@ -1,3 +1,6 @@
+import { RFCDEST } from "../client"
+
 export type RESTConnection = {
-    endpoint: string
+    endpoint: string,
+    rfcdest?: RFCDEST
 }

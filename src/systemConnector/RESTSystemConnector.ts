@@ -8,6 +8,9 @@ import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { RESTClient } from "../client";
+import normalizeUrl from "@esm2cjs/normalize-url";
+
+const ENDPOINT_RESOURCE_BASE = '/ztrmserver';
 
 export class RESTSystemConnector extends SystemConnectorBase implements ISystemConnector {
     private _dest: string;
@@ -20,7 +23,19 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
         this._user = this._login.user;
-        this._client = new RESTClient(this._connection.endpoint, this._login);
+        Logger.log(`REST connection data before normalize: ${JSON.stringify(this._connection)}`, true);
+        this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
+            removeTrailingSlash: true
+        });
+        if(!new RegExp(`${ENDPOINT_RESOURCE_BASE}$`, 'gmi').test(this._connection.endpoint)){
+            this._connection.endpoint = `${this._connection.endpoint}${ENDPOINT_RESOURCE_BASE}`;
+        }
+        if(!this._connection.rfcdest){
+            this._connection.rfcdest = 'NONE';
+        }
+        this._connection.rfcdest = this._connection.rfcdest.toUpperCase().trim();
+        Logger.log(`REST connection data after normalize: ${JSON.stringify(this._connection)}`, true);
+        this._client = new RESTClient(this._connection.endpoint, this._connection.rfcdest, this._login);
     }
     
     protected getSysname(): string {
@@ -32,7 +47,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     protected getLangu(c: boolean): string {
-        return this.getLogonLanguage();
+        return this.getLogonLanguage(c);
     }
 
     public getLogonLanguage(c: boolean = false): string {

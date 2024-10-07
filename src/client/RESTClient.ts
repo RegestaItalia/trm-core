@@ -1,9 +1,7 @@
-import * as noderfc from ".";
 import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
 import { getAxiosInstance, normalize } from "../commons";
-import { Logger } from "../logger";
 import { AxiosInstance } from "axios";
 import { Login } from "../systemConnector";
 
@@ -13,7 +11,7 @@ export class RESTClient implements IClient {
     private _axiosInstance: AxiosInstance;
     private _connected: boolean = false;
 
-    constructor(public endpoint: string, private _login: Login) {
+    constructor(public endpoint: string, public rfcdest: components.RFCDEST, private _login: Login) {
         this.endpoint = this.endpoint.trim();
         this._axiosInstance = getAxiosInstance({
             baseURL: this.endpoint,
@@ -37,35 +35,6 @@ export class RESTClient implements IClient {
 
     public async checkConnection(): Promise<boolean> {
         return this._connected;
-    }
-
-    private async _call(fm: any, arg?: any, timeout?: number): Promise<any> {
-        /*var argNormalized;
-        if (arg) {
-            var emptyKeys = [];
-            argNormalized = normalize(arg, 'upper');
-            Object.keys(argNormalized).forEach(key => {
-                if (argNormalized[key] === undefined || argNormalized === null) {
-                    emptyKeys.push(key);
-                }
-            });
-            emptyKeys.forEach(key => {
-                delete argNormalized[key];
-            });
-        } else {
-            argNormalized = {};
-        }
-        var callOptions = undefined;
-        if(timeout){
-            callOptions = {
-                timeout
-            };
-        }
-        Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(argNormalized)}, opts ${JSON.stringify(callOptions)}`, true);
-        const response = await this._rfcClient.call(fm, argNormalized, callOptions);
-        const responseNormalized = normalize(response);
-        Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
-        return responseNormalized;*/
     }
 
     public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
@@ -98,6 +67,9 @@ export class RESTClient implements IClient {
             }) || [];*/
         }
         const result = await this._axiosInstance.get('/read_table', {
+            params: {
+                rfcdest: this.rfcdest
+            },
             data: {
                 query_table: tableName.toUpperCase(),
                 delimiter,
@@ -201,6 +173,9 @@ export class RESTClient implements IClient {
 
     public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         const result = (await this._axiosInstance.get('/repository_environment', {
+            params: {
+                rfcdest: this.rfcdest
+            },
             data: {
                 obj_type: objectType.trim().toUpperCase(),
                 object_name: objectName.trim().toUpperCase()
@@ -374,7 +349,11 @@ export class RESTClient implements IClient {
     }
 
     public async getDest(): Promise<string> {
-        const result = (await this._axiosInstance.get('/get_dest')).data;
+        const result = (await this._axiosInstance.get('/get_dest', {
+            params: {
+                rfcdest: this.rfcdest
+            }
+        })).data;
         return result.dest;
     }
 }
