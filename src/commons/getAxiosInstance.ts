@@ -1,4 +1,4 @@
-import axios, { CreateAxiosDefaults } from "axios";
+import axios, { AxiosResponse, CreateAxiosDefaults } from "axios";
 import { inspect } from "util";
 import { Logger } from "../logger";
 import { v4 as uuidv4 } from 'uuid';
@@ -6,6 +6,14 @@ import { v4 as uuidv4 } from 'uuid';
 const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
 
 export type AxiosCtx = 'Registry' | 'RestServer';
+
+function _getInternalId(response: AxiosResponse<any, any>){
+    try{
+        return response.request.getHeader(AXIOS_INTERNAL_HEADER)
+    }catch(e){
+        return 'Unknown';
+    }
+}
 
 export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCtx) {
     const instance = axios.create(config);
@@ -29,12 +37,7 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         return Promise.reject(error);
     });
     instance.interceptors.response.use((response) => {
-        var internalId: string;
-        try{
-            internalId = response.request.getHeader(AXIOS_INTERNAL_HEADER)
-        }catch(e){
-            internalId = 'Unknown';
-        }
+        const internalId = _getInternalId(response);
         var sResponse = `status: ${response.status}, status text: ${response.statusText}`;
         if (response.data) {
             sResponse += `, data: ${inspect(response.data, { breakLength: Infinity, compact: true })}`;
@@ -42,8 +45,8 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         Logger.log(`Ending ${sCtx} AXIOS request ${internalId}: ${sResponse}`, true);
         return response;
     }, (error) => {
-        Logger.error(`${sCtx} response error: ${error}`, true);
         if (error.response) {
+            const internalId = _getInternalId(error.response);
             var sError;
             if (error.response.data) {
                 if (error.config.responseType === 'arraybuffer') {
@@ -65,8 +68,10 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
             oError.name = `Trm${sCtx}Error`;
             oError['status'] = error.response.status;
             oError['response'] = error.response.data || {};
+            Logger.error(`${sCtx} response id ${internalId} error: ${error} (${JSON.stringify(sError)})`, true);
             return Promise.reject(oError);
         } else {
+            Logger.error(`${sCtx} response error: ${error}`, true);
             return Promise.reject(error);
         }
     });
