@@ -76,14 +76,23 @@ export class Transport {
     public async getDevclass(): Promise<DEVCLASS> {
         const aE071 = await this.getE071();
         var aDevclass = aE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC').map(o => o.objName);
-        for (const oE071 of aE071) {
-            if (oE071.pgmid === 'R3TR') {
-                const tadir = await SystemConnector.getObject(oE071.pgmid, oE071.object, oE071.objName);
-                if (!aDevclass.includes(tadir.devclass)) {
-                    aDevclass.push(tadir.devclass);
+
+        //check support for bulk operations
+        if (!SystemConnector.getSupportedBulk().getTransportObjects) {
+            for (const oE071 of aE071) {
+                if (oE071.pgmid === 'R3TR') {
+                    const tadir = await SystemConnector.getObject(oE071.pgmid, oE071.object, oE071.objName);
+                    if (!aDevclass.includes(tadir.devclass)) {
+                        aDevclass.push(tadir.devclass);
+                    }
                 }
             }
+        } else {
+            const aTadirObjects = await SystemConnector.getTransportObjectsBulk(this.trkorr);
+            aDevclass = aDevclass.concat(aTadirObjects.map(o => o.devclass));
+            aDevclass = Array.from(new Set(aDevclass))
         }
+
         var aTdevc = [];
         //for each devclass in aDevclass, add all the parent devclasses (stop when parentcl is empty)
         for (var devclass of aDevclass) {
@@ -248,7 +257,7 @@ export class Transport {
     public async addTranslations(aDevclass: DEVCLASS[]) {
         var aDevclassLangFilter: LXE_TT_PACKG_LINE[] = [];
         aDevclass.forEach(d => {
-            if(!aDevclassLangFilter.find(o => o.low === d)){
+            if (!aDevclassLangFilter.find(o => o.low === d)) {
                 aDevclassLangFilter.push({
                     sign: 'I',
                     option: 'EQ',
@@ -283,7 +292,7 @@ export class Transport {
         }
         try {
             oTrmPackage.setDevclass(await this.getDevclass());
-        }catch(e){
+        } catch (e) {
             //devclass not found
         }
         return oTrmPackage;
@@ -302,7 +311,7 @@ export class Transport {
             await this.readReleaseLog(tmpFolder, secondsTimeout);
             Logger.loading(`Finalizing release...`, skipLog);
             await this._isInTmsQueue(true, false, secondsTimeout);
-        } else{
+        } else {
             await this._isInTmsQueue(skipLog, false, secondsTimeout);
         }
         return this;
@@ -313,7 +322,7 @@ export class Transport {
         const localPath = path.join(tmpFolder, this._fileNames.releaseLog);
         const oParser = new R3transLogParser(localPath);
 
-        if(Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger){
+        if (Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger) {
             Logger.logger.forceStop();
         }
 
@@ -344,21 +353,21 @@ export class Transport {
         const timeoutDate = new Date((new Date()).getTime() + (secondsTimeout * 1000));
 
         var exitWhile = false;
-        var whileResult : 'ERROR' | 'WARNING' | 'SUCCESS' = null;
+        var whileResult: 'ERROR' | 'WARNING' | 'SUCCESS' = null;
 
         while (!exitWhile && (new Date()).getTime() < timeoutDate.getTime()) {
             var logResult: ReleaseLogStep[] = [];
-            try{
+            try {
                 const logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
                 fs.writeFileSync(localPath, logBinary);
                 logResult = await oParser.getReleaseLog();
                 fs.unlinkSync(localPath);
-            }catch(e){
+            } catch (e) {
                 logResult = [];
             }
-            var etp182LogResult = logResult.find(o => o.id === 'ETP182') || {name: 'CHECK WRITEABILITY OF BUFFERS', exitCode: null};
-            var etp183LogResult = logResult.find(o => o.id === 'ETP183') || {name: 'EXPORT PREPARATION', exitCode: null};
-            var etp150LogResult = logResult.find(o => o.id === 'ETP150') || {name: 'MAIN EXPORT', exitCode: null};
+            var etp182LogResult = logResult.find(o => o.id === 'ETP182') || { name: 'CHECK WRITEABILITY OF BUFFERS', exitCode: null };
+            var etp183LogResult = logResult.find(o => o.id === 'ETP183') || { name: 'EXPORT PREPARATION', exitCode: null };
+            var etp150LogResult = logResult.find(o => o.id === 'ETP150') || { name: 'MAIN EXPORT', exitCode: null };
             etp183LogResult.name += '           ';
             etp150LogResult.name += '                  ';
             const etp182ExitCode = R3transLogParser.parseExitCode(etp182LogResult.exitCode);
@@ -367,13 +376,13 @@ export class Transport {
 
             exitWhile = (etp182LogResult.exitCode !== null) && (etp183LogResult.exitCode !== null) && (etp150LogResult.exitCode !== null);
 
-            if(etp182ExitCode.type === 'SUCCESS' || etp183ExitCode.type === 'SUCCESS' || etp150ExitCode.type === 'SUCCESS'){
+            if (etp182ExitCode.type === 'SUCCESS' || etp183ExitCode.type === 'SUCCESS' || etp150ExitCode.type === 'SUCCESS') {
                 whileResult = 'SUCCESS';
             }
-            if(etp182ExitCode.type === 'WARNING' || etp183ExitCode.type === 'WARNING' || etp150ExitCode.type === 'WARNING'){
+            if (etp182ExitCode.type === 'WARNING' || etp183ExitCode.type === 'WARNING' || etp150ExitCode.type === 'WARNING') {
                 whileResult = 'WARNING';
             }
-            if(etp182ExitCode.type === 'ERROR' || etp183ExitCode.type === 'ERROR' || etp150ExitCode.type === 'ERROR'){
+            if (etp182ExitCode.type === 'ERROR' || etp183ExitCode.type === 'ERROR' || etp150ExitCode.type === 'ERROR') {
                 whileResult = 'ERROR';
             }
 
@@ -394,39 +403,39 @@ export class Transport {
             }
 
             if (iEtp182 < 99) {
-                if(etp182ExitCode.type === 'UNKNOWN'){
+                if (etp182ExitCode.type === 'UNKNOWN') {
                     iEtp182++;
-                }else{
+                } else {
                     iEtp182 = 100;
                 }
             } else {
-                if(etp182ExitCode.type === 'UNKNOWN'){
+                if (etp182ExitCode.type === 'UNKNOWN') {
                     iEtp182++;
                 }
             }
             etp182.update(iEtp182, etp182Payload);
 
             if (iEtp183 < 99) {
-                if(etp183ExitCode.type === 'UNKNOWN'){
+                if (etp183ExitCode.type === 'UNKNOWN') {
                     iEtp183++;
-                }else{
+                } else {
                     iEtp183 = 100;
                 }
             } else {
-                if(etp183ExitCode.type === 'UNKNOWN'){
+                if (etp183ExitCode.type === 'UNKNOWN') {
                     iEtp183++;
                 }
             }
             etp183.update(iEtp183, etp183Payload);
-            
+
             if (iEtp150 < 99) {
-                if(etp150ExitCode.type === 'UNKNOWN'){
+                if (etp150ExitCode.type === 'UNKNOWN') {
                     iEtp150++;
-                }else{
+                } else {
                     iEtp150 = 100;
                 }
             } else {
-                if(etp150ExitCode.type === 'UNKNOWN'){
+                if (etp150ExitCode.type === 'UNKNOWN') {
                     iEtp150++;
                 }
             }
@@ -437,21 +446,21 @@ export class Transport {
         multibar.stop();
 
         var error: Error;
-        if(!exitWhile){
+        if (!exitWhile) {
             error = new Error(`Timed out waiting for release.`);
-        }else{
-            if(whileResult === "ERROR"){
+        } else {
+            if (whileResult === "ERROR") {
                 error = new Error(`Error occurred during transport ${this.trkorr} release.`);
             }
-            if(whileResult === "SUCCESS"){
+            if (whileResult === "SUCCESS") {
                 Logger.success(`Transport ${this.trkorr} released with success.`);
             }
-            if(whileResult === "WARNING"){
+            if (whileResult === "WARNING") {
                 Logger.warning(`Transport ${this.trkorr} released with warning.`);
             }
         }
 
-        if(error){
+        if (error) {
             throw error;
         }
     }
@@ -473,15 +482,15 @@ export class Transport {
                 var tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
-                if(!checkImpSing){
+                if (!checkImpSing) {
                     sLog = `released`;
                     inQueue = tmsQueue.length > 0;
-                }else{
+                } else {
                     //if importing, get the last transport in queue (if re installing, there are more than 1)
                     sLog = `imported`;
-                    if(tmsQueue.length > 0){
+                    if (tmsQueue.length > 0) {
                         inQueue = tmsQueue[0].impsing !== 'X';
-                    }else{
+                    } else {
                         inQueue = false;
                     }
                 }
@@ -492,7 +501,7 @@ export class Transport {
             } else {
                 Logger.success(`Transport ${this.trkorr} ${sLog}.`, skipLog);
             }
-        }else{
+        } else {
             Logger.error(`No target specified, unable to check queue!!`, true);
         }
         return inQueue;
@@ -623,14 +632,14 @@ export class Transport {
             `PGMID EQ '${objectKeys.pgmid.trim().toUpperCase()}' AND OBJECT EQ '${objectKeys.object.trim().toUpperCase()}' AND OBJ_NAME EQ '${objectKeys.objName.trim().toUpperCase()}'`
         )).map(o => o.trkorr).filter(trkorr => !aSkipTrkorr.includes(trkorr));
         for (const trkorr of objectInTransport) {
-            try{
+            try {
                 const oTransport = new Transport(trkorr);
                 const e070 = await oTransport.getE070();
-                if(e070.trfunction !== 'K' && e070.trfunction !== 'S' && e070.trfunction !== 'R' && e070.trfunction !== 'T'){
+                if (e070.trfunction !== 'K' && e070.trfunction !== 'S' && e070.trfunction !== 'R' && e070.trfunction !== 'T') {
                     throw new Error(`Unexpected TRFUNCTION for transport ${trkorr}: ${e070.trfunction}`);
                 }
                 transports.push(oTransport);
-            }catch(e){
+            } catch (e) {
                 Logger.error(`Transport instance skip for ${trkorr}: ${e.toString()}`, true);
             }
         }
@@ -653,7 +662,7 @@ export class Transport {
 
     public async import(timeout: number = 180): Promise<void> {
         if (!this._trTarget) {
-           throw new Error('Missing transport target.');
+            throw new Error('Missing transport target.');
         }
         Logger.log(`Starting transport ${this.trkorr} import, timeout set to ${timeout}`, true);
         Logger.loading(`Forwarding transport ${this.trkorr}`, true);

@@ -9,8 +9,10 @@ import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { RESTClient } from "../client";
 import normalizeUrl from "@esm2cjs/normalize-url";
+import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
 const ENDPOINT_RESOURCE_BASE = '/ztrmserver';
+const NONE_DEST = 'NONE';
 
 export class RESTSystemConnector extends SystemConnectorBase implements ISystemConnector {
     private _dest: string;
@@ -18,8 +20,13 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     private _user: string;
     private _client: RESTClient;
 
+    supportedBulk: SystemConnectorSupportedBulk;
+
     constructor(private _connection: RESTConnection, private _login: Login) {
         super();
+        this.supportedBulk = {
+            getTransportObjects: true
+        };
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
         this._user = this._login.user;
@@ -30,8 +37,11 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         if(!new RegExp(`${ENDPOINT_RESOURCE_BASE}$`, 'gmi').test(this._connection.endpoint)){
             this._connection.endpoint = `${this._connection.endpoint}${ENDPOINT_RESOURCE_BASE}`;
         }
-        if(!this._connection.rfcdest){
-            this._connection.rfcdest = 'NONE';
+        if(!this._connection.rfcdest || this._connection.rfcdest === NONE_DEST){
+            this._connection.rfcdest = NONE_DEST;
+        }else{
+            //bulk not supported in remote calls
+            this.supportedBulk.getTransportObjects = false;
         }
         this._connection.rfcdest = this._connection.rfcdest.toUpperCase().trim();
         Logger.log(`REST connection data after normalize: ${JSON.stringify(this._connection)}`, true);
@@ -204,6 +214,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean): Promise<void> {
         return this._client.trCopy(from, to, doc);
+    }
+
+    public async getTransportObjectsBulk(trkorr: components.TRKORR): Promise<TADIR[]> {
+        return this._client.getTransportObjectsBulk(trkorr);
     }
 
 }

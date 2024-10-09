@@ -356,4 +356,13 @@ export class RESTClient implements IClient {
         })).data;
         return result.dest;
     }
+
+    public async getTransportObjectsBulk(trkorr: components.TRKORR): Promise<struct.TADIR[]> {
+        const result = (await this._axiosInstance.get('/get_transport_objs_bulk', {
+            data: {
+                trkorr
+            }
+        })).data;
+        return result.tadir;
+    }
 }

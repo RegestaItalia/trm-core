@@ -8,11 +8,16 @@ import { ISystemConnector } from "./ISystemConnector";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
+import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
 export class RFCSystemConnector extends SystemConnectorBase implements ISystemConnector {
     private _lang: string;
     private _user: string;
     private _client: RFCClient;
+
+    supportedBulk: SystemConnectorSupportedBulk = {
+        getTransportObjects: false
+    };
 
     constructor(private _connection: RFCConnection, private _login: Login) {
         super();

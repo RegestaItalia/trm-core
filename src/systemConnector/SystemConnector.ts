@@ -7,6 +7,7 @@ import { InstallPackage } from "./InstallPackage";
 import { SapMessage } from "./SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
+import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -23,6 +24,11 @@ export namespace SystemConnector {
                 })
             });
         }
+    }
+
+    export function getSupportedBulk(): SystemConnectorSupportedBulk {
+        checkSystemConnector();
+        return systemConnector.supportedBulk;
     }
 
     export function getConnectionData(): any {
@@ -279,5 +285,10 @@ export namespace SystemConnector {
     export async function getFunctionModule(func: components.RS38L_FNAME): Promise<struct.TFDIR> {
         await checkSystemConnector();
         return systemConnector.getFunctionModule(func);
+    }
+
+    export async function getTransportObjectsBulk(trkorr: components.TRKORR): Promise<struct.TADIR[]> {
+        await checkSystemConnector();
+        return systemConnector.getTransportObjectsBulk(trkorr);
     }
 }

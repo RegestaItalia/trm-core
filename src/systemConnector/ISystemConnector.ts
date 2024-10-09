@@ -3,8 +3,10 @@ import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { RFCConnection } from "./RFCConnection";
+import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
 export interface ISystemConnector extends ISystemConnectorBase {
+    supportedBulk: SystemConnectorSupportedBulk,
     getConnectionData: () => RFCConnection | RESTConnection,
     getDest: () => string,
     getLogonLanguage: (c: boolean) => string,
@@ -37,5 +39,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     renameTransportRequest: (trkorr: components.TRKORR, as4text: components.AS4TEXT) => Promise<void>,
     setPackageIntegrity: (integrity: struct.ZTRM_INTEGRITY) => Promise<void>,
     addTranslationToTr: (trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]) => Promise<void>,
-    trCopy: (from: components.TRKORR, to: components.TRKORR, doc: boolean) => Promise<void>
+    trCopy: (from: components.TRKORR, to: components.TRKORR, doc: boolean) => Promise<void>,
+    getTransportObjectsBulk?: (trkorr: components.TRKORR) => Promise<struct.TADIR[]>
 }
