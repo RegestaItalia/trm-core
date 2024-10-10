@@ -4,6 +4,7 @@ import { IClient } from "./IClient";
 import { getAxiosInstance, normalize } from "../commons";
 import { AxiosInstance } from "axios";
 import { Login } from "../systemConnector";
+import * as FormData from "form-data";
 
 const AXIOS_CTX = "RestServer";
 
@@ -18,13 +19,16 @@ export class RESTClient implements IClient {
             auth: {
                 username: this._login.user,
                 password: this._login.passwd
-            }
+            },
+            timeout: 10000, //default timeout
         }, AXIOS_CTX);
     }
 
     public async open() {
         if (!this._connected) {
-            const response = await this._axiosInstance.get('/');
+            const response = await this._axiosInstance.get('/', {
+                timeout: 3000
+            });
             if (response.status !== 200) {
                 throw new Error(`Couldn't reach ${this.endpoint}!`);
             } else {
@@ -109,40 +113,40 @@ export class RESTClient implements IClient {
     }
 
     public async writeBinaryFile(filePath: string, binary: Buffer): Promise<void> {
-        await this._axiosInstance.post('/write_binary_file', {
-            data: {
-                file_path: filePath,
-                file: binary
-            }
+        const formData = new FormData.default();
+        var filename: string;
+        try{
+            filename = /[^\\\/]+$/gmi.exec(filePath)[0];
+        }catch(e){
+            filename = 'UNKNOWN_FILENAME';
+        }
+        formData.append('file', binary, filename);
+        formData.append('file_path', filePath,);
+        await this._axiosInstance.post('/write_binary_file', formData, {
+            headers: formData.getHeaders()
         });
     }
 
     public async createTocTransport(text: components.AS4TEXT, target: components.TR_TARGET): Promise<components.TRKORR> {
         const result = (await this._axiosInstance.post('/create_toc', {
-            data: {
-                text: text,
-                target: target.trim().toUpperCase()
-            }
+            text: text,
+            target: target.trim().toUpperCase()
         })).data;
         return result.trkorr;
     }
 
     public async createWbTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = (await this._axiosInstance.post('/create_import_tr', {
-            data: {
-                text: text,
-                target: target.trim().toUpperCase()
-            }
+            text: text,
+            target: target.trim().toUpperCase()
         })).data;
         return result.trkorr;
     }
 
     public async setTransportDoc(trkorr: components.TRKORR, doc: struct.TLINE[]): Promise<void> {
         await this._axiosInstance.put('/set_transport_doc', {
-            data: {
-                trkorr: trkorr.trim().toUpperCase(),
-                doc: doc
-            }
+            trkorr: trkorr.trim().toUpperCase(),
+            doc: doc
         });
     }
 
@@ -157,17 +161,15 @@ export class RESTClient implements IClient {
 
     public async addToTransportRequest(trkorr: components.TRKORR, content: struct.E071[], lock: boolean): Promise<void> {
         await this._axiosInstance.put('/add_objs_tr', {
-            data: {
-                iv_lock: lock ? 'X' : ' ',
-                iv_trkorr: trkorr.trim().toUpperCase(),
-                it_e071: content.map(o => {
-                    return {
-                        PGMID: o.pgmid,
-                        OBJECT: o.object,
-                        OBJ_NAME: o.objName
-                    }
-                })
-            }
+            lock: lock ? 'X' : ' ',
+            trkorr: trkorr.trim().toUpperCase(),
+            e071: content.map(o => {
+                return {
+                    pgmid: o.pgmid,
+                    object: o.object,
+                    obj_name: o.objName
+                }
+            })
         });
     }
 
@@ -187,59 +189,50 @@ export class RESTClient implements IClient {
     public async deleteTrkorr(trkorr: components.TRKORR): Promise<void> {
         await this._axiosInstance.delete('/delete_transport', {
             data: {
-                iv_trkorr: trkorr.trim().toUpperCase()
+                trkorr: trkorr.trim().toUpperCase()
             }
         });
     }
 
     public async releaseTrkorr(trkorr: components.TRKORR, lock: boolean, timeout?: number): Promise<void> {
         await this._axiosInstance.post('/release_tr', {
-            data: {
-                iv_trkorr: trkorr.trim().toUpperCase(),
-                iv_lock: lock ? 'X' : ' '
-            },
+            trkorr: trkorr.trim().toUpperCase(),
+            lock: lock ? 'X' : ' '
+        }, {
             timeout
         });
     }
 
     public async addSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
         await this._axiosInstance.put('/add_skip_trkorr', {
-            data: {
-                iv_trkorr: trkorr.trim().toUpperCase()
-            }
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async addSrcTrkorr(trkorr: components.TRKORR): Promise<void> {
         await this._axiosInstance.put('/add_src_trkorr', {
-            data: {
-                iv_trkorr: trkorr.trim().toUpperCase()
-            }
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async readTmsQueue(target: components.TMSSYSNAM): Promise<struct.STMSIQREQ[]> {
         const result = (await this._axiosInstance.get('/read_tms_queue', {
             data: {
-                iv_target: target
+                target: target
             }
         })).data;
         return result.requests;
     }
 
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
-        await this._axiosInstance.post('/create_package', {
-            data: scompkdtln
-        });
+        await this._axiosInstance.post('/create_package', scompkdtln);
     }
 
     public async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean): Promise<void> {
         await this._axiosInstance.post('/tdevc_interface', {
-            data: {
-                iv_devclass: devclass.trim().toUpperCase(),
-                iv_parentcl: parentcl ? parentcl.trim().toUpperCase() : '',
-                iv_rm_parentcl: rmParentCl ? 'X' : ' '
-            }
+            devclass: devclass.trim().toUpperCase(),
+            parentcl: parentcl ? parentcl.trim().toUpperCase() : '',
+            rm_parentcl: rmParentCl ? 'X' : ' '
         });
     }
 
@@ -250,50 +243,40 @@ export class RESTClient implements IClient {
 
     public async tadirInterface(tadir: struct.TADIR): Promise<void> {
         await this._axiosInstance.post('/tadir_interface', {
-            data: {
-                pgmid: tadir.pgmid,
-                object: tadir.object,
-                obj_name: tadir.objName,
-                devclass: tadir.devclass,
-                set_genflag: tadir.genflag ? 'X' : ' ',
-                srcsystem: tadir.srcsystem
-            }
+            pgmid: tadir.pgmid,
+            object: tadir.object,
+            obj_name: tadir.objName,
+            devclass: tadir.devclass,
+            set_genflag: tadir.genflag ? 'X' : ' ',
+            srcsystem: tadir.srcsystem
         });
     }
 
     public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
         await this._axiosInstance.post('/dequeue_tr', {
-            data: {
-                trkorr: trkorr.trim().toUpperCase()
-            }
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean = true): Promise<void> {
         await this._axiosInstance.post('/forward_tr', {
-            data: {
-                trkorr: trkorr.trim().toUpperCase(),
-                target: target.trim().toUpperCase(),
-                source: source.trim().toUpperCase(),
-                import_again: importAgain ? 'X' : ' '
-            }
+            trkorr: trkorr.trim().toUpperCase(),
+            target: target.trim().toUpperCase(),
+            source: source.trim().toUpperCase(),
+            import_again: importAgain ? 'X' : ' '
         });
     }
 
     public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await this._axiosInstance.post('/import_tr', {
-            data: {
-                iv_system: system.trim().toUpperCase(),
-                iv_trkorr: trkorr.trim().toUpperCase()
-            }
+            system: system.trim().toUpperCase(),
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         await this._axiosInstance.put('/set_install_devc', {
-            data: {
-                installdevc: installDevc
-            }
+            installdevc: installDevc
         });
     }
 
@@ -314,37 +297,29 @@ export class RESTClient implements IClient {
 
     public async renameTransportRequest(trkorr: components.TRKORR, as4text: components.AS4TEXT): Promise<void> {
         await this._axiosInstance.post('/rename_transport_request', {
-            data: {
-                trkorr: trkorr.trim().toUpperCase(),
-                as4text: as4text
-            }
+            trkorr: trkorr.trim().toUpperCase(),
+            as4text: as4text
         });
     }
 
     public async setPackageIntegrity(integrity: struct.ZTRM_INTEGRITY): Promise<void> {
         await this._axiosInstance.put('/set_integrity', {
-            data: {
                 integrity: integrity
-            }
         });
     }
 
     public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void> {
         await this._axiosInstance.put('/add_lang_tr', {
-            data: {
-                trkorr: trkorr,
-                devclass: devclassFilter
-            }
+            trkorr: trkorr,
+            devclass: devclassFilter
         });
     }
 
     public async trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean = false): Promise<void> {
         await this._axiosInstance.post('/tr_copy', {
-            data: {
-                from: from,
-                to: to,
-                doc: doc ? 'X' : ' '
-            }
+            from: from,
+            to: to,
+            doc: doc ? 'X' : ' '
         });
     }
 
