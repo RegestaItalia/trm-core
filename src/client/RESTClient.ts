@@ -95,12 +95,12 @@ export class RESTClient implements IClient {
 
     public async getFileSystem(): Promise<struct.FILESYS> {
         const result = (await this._axiosInstance.get('/get_file_sys')).data;
-        return result.file_sys;
+        return result.fileSys;
     }
 
     public async getDirTrans(): Promise<components.PFEVALUE> {
         const result = (await this._axiosInstance.get('/get_dir_trans')).data;
-        return result.dir_trans;
+        return result.dirTrans;
     }
 
     public async getBinaryFile(filePath: string): Promise<Buffer> {
@@ -183,7 +183,7 @@ export class RESTClient implements IClient {
                 object_name: objectName.trim().toUpperCase()
             }
         })).data;
-        return result.environment_tab;
+        return result.environmentTab;
     }
 
     public async deleteTrkorr(trkorr: components.TRKORR): Promise<void> {
@@ -282,7 +282,7 @@ export class RESTClient implements IClient {
 
     public async getObjectsList(): Promise<struct.KO100[]> {
         const result = (await this._axiosInstance.get('/list_object_types')).data;
-        return result.object_text;
+        return result.objectText;
     }
 
     public async getTrmServerVersion(): Promise<string> {
