@@ -202,7 +202,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
             [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
             //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
             `SYSNAM EQ '${this.getSysname()}' AND TRKORR EQ '${sTrkorr}' AND IMPSING NE 'X'`
-          )).filter(o => parseInt(o.maxrc) > 0);
+          )).filter(o => parseInt(o.maxrc) >= 0);
         } catch (e) {
           aTrkorrStatusCheck = [];
         }
