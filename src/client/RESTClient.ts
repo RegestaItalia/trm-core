@@ -199,7 +199,7 @@ export class RESTClient implements IClient {
             trkorr: trkorr.trim().toUpperCase(),
             lock: lock ? 'X' : ' '
         }, {
-            timeout
+            timeout: timeout * 1000
         });
     }
 
