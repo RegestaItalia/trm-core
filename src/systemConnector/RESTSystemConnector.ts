@@ -53,7 +53,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     public getDest(): string {
-        return this._dest;
+        return this._dest || this._connection.endpoint;
     }
 
     protected getLangu(c: boolean): string {
