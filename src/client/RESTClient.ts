@@ -105,6 +105,10 @@ export class RESTClient implements IClient {
 
     public async getBinaryFile(filePath: string): Promise<Buffer> {
         const result = (await this._axiosInstance.get('/get_binary_file', {
+            responseType: 'arraybuffer',
+            headers: {
+                'Content-Type': 'application/octet-stream'
+            },
             data: {
                 file_path: filePath
             }
