@@ -1,36 +1,53 @@
-import * as noderfc from "node-rfc";
 import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
-import { normalize } from "../commons";
+import { getNpmGlobalPath, normalize } from "../commons";
 import { Logger } from "../logger";
+import { existsSync } from "fs";
+import path from "path";
+
+const nodeRfcLib = 'node-rfc';
 
 export class RFCClient implements IClient {
-    private _rfcClient: noderfc.Client;
+    private _rfcClientArg: any;
+    private _rfcClient: any;
     private _aliveCheck: boolean = false;
 
     constructor(arg1: any, traceDir?: string) {
         process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
         Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
-        this._rfcClient = new noderfc.Client(arg1);
+        this._rfcClientArg = arg1;
+    }
+
+    private async getRfcClient(): Promise<any> {
+        if(!this._rfcClient){
+            const globalPath = await getNpmGlobalPath();
+            const libPath = path.join(globalPath, nodeRfcLib);
+            Logger.log(`Node RFC lib path: ${libPath}`, true);
+            if(!existsSync(libPath)){
+                throw new Error(`${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
+            }
+            this._rfcClient = new (await import(libPath)).Client(this._rfcClientArg);
+        }
+        return this._rfcClient;
     }
 
     public async open() {
         Logger.loading(`Opening RFC connection`, true);
-        await this._rfcClient.open();
+        await (await this.getRfcClient()).open();
         Logger.success(`RFC open`, true);
     }
 
     public async checkConnection(): Promise<boolean> {
         if(!this._aliveCheck){
-            if(this._rfcClient.alive){
+            if((await this.getRfcClient()).alive){
                 Logger.success(`RFC open`, true);
             }else{
                 Logger.warning(`RFC closed`, true);
             }
             this._aliveCheck = true;
         }
-        return this._rfcClient.alive;
+        return (await this.getRfcClient()).alive;
     }
 
     private async _call(fm: any, arg?: any, timeout?: number): Promise<any> {
@@ -56,7 +73,7 @@ export class RFCClient implements IClient {
             };
         }
         Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(argNormalized)}, opts ${JSON.stringify(callOptions)}`, true);
-        const response = await this._rfcClient.call(fm, argNormalized, callOptions);
+        const response = await (await this.getRfcClient()).call(fm, argNormalized, callOptions);
         const responseNormalized = normalize(response);
         Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
         return responseNormalized;
@@ -144,7 +161,7 @@ export class RFCClient implements IClient {
     public async createWbTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = await this._call("ZTRM_CREATE_IMPORT_TR", {
             iv_text: text,
-            iv_target: target
+            iv_target: target.trim().toUpperCase()
         });
         return result['evTrkorr'];
     }

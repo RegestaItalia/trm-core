@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "4.1.3",
+  "version": "5.0.0",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -41,8 +41,7 @@
     "get-stack-trace": "^3.1.1",
     "loading-cli": "^1.1.0",
     "lodash": "^4.17.21",
-    "node-r3trans": "^1.0.10",
-    "node-rfc": "^3.2.0",
+    "node-r3trans": "^1.3.0",
     "object-keys-normalizer": "^1.0.1",
     "opener": "^1.5.2",
     "print-tree": "^0.1.5",

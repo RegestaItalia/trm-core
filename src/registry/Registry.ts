@@ -1,19 +1,19 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
-import axios, { AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
+import { AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
 import { AuthOAuth2, AuthenticationType, OAuth2Data, Ping, Release, View, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
-import { Logger, inspect } from "../logger";
+import { Logger } from "../logger";
 import { randomUUID } from "crypto";
 import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
-import { v4 as uuidv4 } from 'uuid';
 import _ from 'lodash';
 import { Inquirer } from "../inquirer/Inquirer";
+import { getAxiosInstance } from "../commons";
 
-const AXIOS_INTERNAL_ID_KEY = 'INTERNAL_ID';
+const AXIOS_CTX = "Registry";
 
 export const PUBLIC_RESERVED_KEYWORD = 'public';
 
@@ -28,14 +28,14 @@ export class Registry {
     constructor(public endpoint: string, public name: string = 'Unknown') {
         var envEndpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT;
         Logger.log(`TRM_PUBLIC_REGISTRY_ENDPOINT Environment variable: ${envEndpoint}`, true);
-        if(!envEndpoint || envEndpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD){
+        if (!envEndpoint || envEndpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD) {
             //no env var value or env var value = public
             envEndpoint = 'https://www.trmregistry.com/registry';
             this._registryType = RegistryType.PUBLIC;
-        }else if(endpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD){
+        } else if (endpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD) {
             //if input endpoint is public
             this._registryType = RegistryType.PUBLIC;
-        }else{
+        } else {
             //all other cases
             this._registryType = RegistryType.PRIVATE;
         }
@@ -55,68 +55,9 @@ export class Registry {
         if (this.endpoint.length > 100) {
             throw new Error(`Registry address length is too long! Maximum allowed is 100.`);
         }
-        this._axiosInstance = this._getAxiosInstance({
+        this._axiosInstance = getAxiosInstance({
             baseURL: this.endpoint
-        });
-    }
-
-    private _getAxiosInstance(config: CreateAxiosDefaults<any>): AxiosInstance {
-        const instance = axios.create(config);
-        instance.interceptors.request.use((request) => {
-            const internalId = uuidv4();
-            request[AXIOS_INTERNAL_ID_KEY] = internalId;
-            var sRequest = `${request.method} ${request.baseURL}${request.url}`;
-            if(request.params){
-                sRequest += `, parameters: ${inspect(request.params, { breakLength: Infinity, compact: true })}`;
-            }
-            if(request.headers.getAuthorization()){
-                sRequest += `, authorization: HIDDEN`;
-            }
-            if(request.data){
-                sRequest += `, data: ${inspect(request.data, { breakLength: Infinity, compact: true })}`;
-            }
-            Logger.log(`Registry AXIOS request ${internalId}: ${sRequest}`, true);
-            return request;
-        }, (error) => {
-            Logger.error(`Registry AXIOS request error: ${error}`, true);
-            return Promise.reject(error);
-        });
-        instance.interceptors.response.use((response) => {
-            const internalId = response.request && response.request[AXIOS_INTERNAL_ID_KEY] ? response.request[AXIOS_INTERNAL_ID_KEY] : 'Unknown';
-            var sResponse = `status: ${response.status}, status text: ${response.statusText}`;
-            if(response.data){
-                sResponse += `, data: ${inspect(response.data, { breakLength: Infinity, compact: true })}`;
-            }
-            Logger.log(`Ending AXIOS request ${internalId}: ${sResponse}`, true);
-            return response;
-        }, (error) => {
-            Logger.error(`Registry response error: ${error}`, true);
-            if(error.response){
-                var sError;
-                if(error.response.data){
-                    if(error.config.responseType === 'arraybuffer'){
-                        try{
-                            const charset = /^application\/json;.*charset=([^;]*)/i.exec(error.response.headers['content-type'])[1];
-                            const enc = new TextDecoder(charset);
-                            error.response.data = JSON.parse(enc.decode(error.response.data));
-                        }catch(e){ }
-                    }
-                    if(error.response.data.message && typeof(error.response.data.message) === 'string'){
-                        sError = error.response.data.message;
-                    }
-                }else{
-                    sError = error.response.statusText;
-                }
-                var registryError = new Error(sError);
-                registryError.name = 'TrmRegistryError';
-                registryError['status'] = error.response.status;
-                registryError['response'] = error.response.data || {};
-                return Promise.reject(registryError);
-            }else{
-                return Promise.reject(error);
-            }
-        });
-        return instance;
+        }, AXIOS_CTX);
     }
 
     public getRegistryType(): RegistryType {
@@ -172,7 +113,7 @@ export class Registry {
         const basicAuth = `${username}:${password}`;
         const encodedBasicAuth = Buffer.from(basicAuth).toString('base64');
         axiosHeaders.setAuthorization(`Basic ${encodedBasicAuth}`);
-        this._axiosInstance = this._getAxiosInstance(axiosDefaults);
+        this._axiosInstance = getAxiosInstance(axiosDefaults, AXIOS_CTX);
         this._authData = {
             username,
             password
@@ -201,7 +142,7 @@ export class Registry {
         }]);
         token = token || inq1.token;
         axiosHeaders.setAuthorization(`token ${token}`);
-        this._axiosInstance = this._getAxiosInstance(axiosDefaults);
+        this._axiosInstance = getAxiosInstance(axiosDefaults, AXIOS_CTX);
         this._authData = {
             token
         };
@@ -228,9 +169,9 @@ export class Registry {
                             grant_type: "refresh_token",
                             refresh_token: refreshToken
                         };
-                        oAuth2Response = (await (this._getAxiosInstance({
+                        oAuth2Response = (await (getAxiosInstance({
                             baseURL: this.endpoint
-                        })).post('/auth', oAuth2Request)).data;
+                        }, AXIOS_CTX)).post('/auth', oAuth2Request)).data;
                         runAuthFlow = false;
                         authData = {
                             access_token: oAuth2Response.access_token,
@@ -282,9 +223,9 @@ export class Registry {
                     grant_type: "authorization_code",
                     redirect_uri: sRedirectUri
                 };
-                oAuth2Response = (await (this._getAxiosInstance({
+                oAuth2Response = (await (getAxiosInstance({
                     baseURL: this.endpoint
-                })).post('/auth', oAuth2Request)).data;
+                }, AXIOS_CTX)).post('/auth', oAuth2Request)).data;
                 if (oAuth2Response.token_type !== "Bearer") {
                     throw new Error('Unknown token type.');
                 }
@@ -305,7 +246,7 @@ export class Registry {
             headers: axiosHeaders
         };
         axiosHeaders.setAuthorization(`Bearer ${this._authData.access_token}`);
-        this._axiosInstance = this._getAxiosInstance(axiosDefaults);
+        this._axiosInstance = getAxiosInstance(axiosDefaults, AXIOS_CTX);
     }
 
     public getAuthData(): any {
