@@ -27,7 +27,7 @@ export class RESTClient implements IClient {
     public async open() {
         if (!this._connected) {
             const response = await this._axiosInstance.get('/', {
-                timeout: 3000
+                timeout: 5000
             });
             if (response.status !== 200) {
                 throw new Error(`Couldn't reach ${this.endpoint}!`);
