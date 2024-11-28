@@ -345,7 +345,7 @@ export class Manifest {
                     aAuthors[i] = author;
                 } catch (e) { }
             }
-            aAuthors = aAuthors.filter(o => !o.name && !o.email);
+            aAuthors = aAuthors.filter(o => !(!o.name && !o.email));
             manifestClone.authors = Array.from(
                 new Map(aAuthors.map(o => [`${o.name}${o.email}`, o])).values()
             );
