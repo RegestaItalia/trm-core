@@ -89,7 +89,7 @@ export class CliLogFileLogger extends CliLogger {
         super.log(text, debug);
     }
 
-    public table(header: any, data: any, debug?: boolean) {
+    public table(header: string[], data: string[][], debug?: boolean) {
         this._append(`${JSON.stringify(header)}${JSON.stringify(data)}`, 'TABL');
         super.table(header, data, debug);
     }

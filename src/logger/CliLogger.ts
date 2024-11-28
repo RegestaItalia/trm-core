@@ -4,17 +4,20 @@ import { MessageType, ResponseMessage } from "trm-registry-types";
 import { ILogger } from "./ILogger";
 import { TreeLog } from "./TreeLog";
 import * as printTree from "print-tree";
+import chalk from "chalk";
 
 export class CliLogger implements ILogger {
 
+    debug: boolean;
+
     private _cliObj: Loading;
     private _loader: Loading;
-    debug: boolean;
+    private _prefix: string = '';
 
     constructor(debug: boolean) {
         this._cliObj = cliLogger({
-            frames: ["⊶", "⊷"],
-            interval: 1000
+            frames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+            interval: 200
         });
     }
 
@@ -22,7 +25,7 @@ export class CliLogger implements ILogger {
         if (debug && !this.debug) {
             return;
         }
-        this._loader = this._cliObj.render().start(text);
+        this._loader = this._cliObj.render().start(this._prefix + text);
     }
 
     public success(text: string, debug?: boolean) {
@@ -31,6 +34,7 @@ export class CliLogger implements ILogger {
         }
         const aText = text.split('\n');
         aText.forEach(s => {
+            s = chalk.green(this._prefix + s);
             if (this._loader) {
                 this._loader.succeed(s);
                 this._clearLoader();
@@ -40,12 +44,13 @@ export class CliLogger implements ILogger {
         });
     }
 
-    public error(text: string, debug?: boolean) {
+    public error(text: string, debug?: boolean): void {
         if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
         aText.forEach(s => {
+            s = chalk.red(this._prefix + s);
             if (this._loader) {
                 this._loader.fail(s);
                 this._clearLoader();
@@ -55,12 +60,13 @@ export class CliLogger implements ILogger {
         });
     }
 
-    public warning(text: string, debug?: boolean) {
+    public warning(text: string, debug?: boolean): void {
         if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
         aText.forEach(s => {
+            s = chalk.yellow(this._prefix + s);
             if (this._loader) {
                 this._loader.warn(s);
                 this._clearLoader();
@@ -70,12 +76,13 @@ export class CliLogger implements ILogger {
         });
     }
 
-    public info(text: string, debug?: boolean) {
+    public info(text: string, debug?: boolean): void {
         if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
         aText.forEach(s => {
+            s = this._prefix + s;
             if (this._loader) {
                 this._loader.info(s);
                 this._clearLoader();
@@ -85,12 +92,13 @@ export class CliLogger implements ILogger {
         });
     }
 
-    public log(text: string, debug?: boolean) {
+    public log(text: string, debug?: boolean): void {
         if (debug && !this.debug) {
             return;
         }
         const aText = text.split('\n');
         aText.forEach(s => {
+            s = chalk.dim(this._prefix + s);
             if (this._loader) {
                 this.forceStop();
             }
@@ -98,21 +106,25 @@ export class CliLogger implements ILogger {
         });
     }
 
-    public table(header: any, data: any, debug?: boolean) {
+    public table(header: string[], data: string[][], debug?: boolean): void {
         if (debug && !this.debug) {
             return;
         }
         var table = new cliTable({
             head: header,
+            chars: { 'top': '═' , 'top-mid': '╤' , 'top-left': '╔' , 'top-right': '╗'
+                , 'bottom': '═' , 'bottom-mid': '╧' , 'bottom-left': '╚' , 'bottom-right': '╝'
+                , 'left': '║' , 'left-mid': '╟' , 'mid': '─' , 'mid-mid': '┼'
+                , 'right': '║' , 'right-mid': '╢' , 'middle': '│' }
             //colWidths: [300, 50]
         });
         data.forEach(arr => {
             table.push(arr);
         });
-        console.log(table.toString());
+        console.log(this._prefix + table.toString());
     }
 
-    public registryResponse(response: ResponseMessage, debug?: boolean) {
+    public registryResponse(response: ResponseMessage, debug?: boolean): void {
         if (debug && !this.debug) {
             return;
         }
@@ -127,7 +139,7 @@ export class CliLogger implements ILogger {
         }
     }
 
-    public tree(data: TreeLog, debug?: boolean) {
+    public tree(data: TreeLog, debug?: boolean): void {
         if (debug && !this.debug) {
             return;
         }
@@ -148,21 +160,33 @@ export class CliLogger implements ILogger {
             (node) => {
                 return node.name;
             },
-            (node) => { 
+            (node) => {
                 return node.children;
             }
         );
     }
 
-    public forceStop() {
+    public forceStop(): void {
         try {
             this._loader.stop();
             this._clearLoader();
         } catch (e) { }
     }
 
-    private _clearLoader() {
+    private _clearLoader(): void {
         delete this._loader;
+    }
+
+    public setPrefix(text: string): void {
+        this._prefix = text;
+    }
+
+    public removePrefix(): void {
+        this._prefix = '';
+    }
+
+    public getPrefix(): string {
+        return this._prefix;
     }
 
 }

@@ -1,57 +1,86 @@
 import execute from "@simonegaffurini/sammarksworkflow";
+import { inspect } from "util";
+import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
-import { Logger, inspect } from "../../logger";
-import { LogTableStruct } from "../../commons";
 import { init } from "./init";
-import { analizeSapEntries } from "./analizeSapEntries";
-import { buildOutput } from "./buildOutput";
+import { analyze } from "./analyze";
 
-export type CheckSapEntriesActionInput = {
-    trmPackage: TrmPackage,
-    print: boolean
-}
+/**
+ * Input data for check SAP Entries action.
+ */
+export interface CheckSapEntriesActionInput {
+    /**
+     * Data related to the package being checked.
+     */
+    packageData: {
+        /**
+         * TRM Package instance.
+         */
+        package: TrmPackage;
+    };
+    
+    /**
+     * Print options.
+     */
+    printOptions?: {
+        /**
+         * Print entries status.
+         */
+        entriesStatus?: boolean;
 
-type WorkflowParsedInput = {
-    packageName?: string,
-    sapEntries?: any,
-    print?: boolean
+        /**
+         * Print information data.
+         */
+        information?: boolean;
+    }
 }
 
 type WorkflowRuntime = {
-    tables?: LogTableStruct[],
-    okEntries?: any,
-    koEntries?: any
+    entriesStatus: {
+        good: {
+            table: string,
+            tableEntry: any
+        }[],
+        bad: {
+            table: string,
+            tableEntry: any
+        }[]
+    },
+    missingTables: string[]
 }
+
+export type SapEntriesStatus = {
+    [key: string]: {
+        status: boolean;
+        entry: any
+    }[];
+};
 
 export type CheckSapEntriesActionOutput = {
-    sapEntries?: any,
-    sapEntriesStatus?: any,
-    unknownTables?: string[]
+    sapEntries: any,
+    sapEntriesStatus: SapEntriesStatus
 }
 
-export type CheckSapEntriesWorkflowContext = {
+export interface CheckSapEntriesWorkflowContext {
     rawInput: CheckSapEntriesActionInput,
-    parsedInput: WorkflowParsedInput,
-    runtime: WorkflowRuntime,
-    output: CheckSapEntriesActionOutput
+    runtime?: WorkflowRuntime,
+    output?: CheckSapEntriesActionOutput
 };
 
 const WORKFLOW_NAME = 'check-sap-entries';
 
+/**
+ * Check TRM Package SAP entries status
+*/
 export async function checkSapEntries(inputData: CheckSapEntriesActionInput): Promise<CheckSapEntriesActionOutput> {
     const workflow = [
         init,
-        analizeSapEntries,
-        buildOutput
+        analyze
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<CheckSapEntriesWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData,
-        parsedInput: {},
-        runtime: {},
-        output: {}
+        rawInput: inputData
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    const output = result.output;
-    return output;
+    return result.output;
 }

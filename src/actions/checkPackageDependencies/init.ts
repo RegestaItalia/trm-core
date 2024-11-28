@@ -1,20 +1,40 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { CheckPackageDependencyWorkflowContext } from ".";
+import { CheckPackageDependenciesWorkflowContext } from ".";
+import { Logger } from "../../logger";
 
-export const init: Step<CheckPackageDependencyWorkflowContext> = {
+/**
+ * Init
+ * 
+ * 1- set dependencies (read manifest)
+ * 
+*/
+export const init: Step<CheckPackageDependenciesWorkflowContext> = {
     name: 'init',
-    run: async (context: CheckPackageDependencyWorkflowContext): Promise<void> => {
-        context.parsedInput.packageName = context.rawInput.trmPackage.packageName;
-        context.parsedInput.print = !(context.rawInput.print ? true : false);
-        context.parsedInput.systemPackages = context.rawInput.systemPackages || [];
-        if(context.rawInput.trmPackage.manifest){
-            const manifest = context.rawInput.trmPackage.manifest.get();
-            context.parsedInput.dependencies = manifest.dependencies || [];
-        }else{
-            context.parsedInput.dependencies = [];
-        }
+    run: async (context: CheckPackageDependenciesWorkflowContext): Promise<void> => {
+        Logger.log('Init step', true);
+
         context.output = {
-            dependencies: context.parsedInput.dependencies
+            dependencies: [],
+            dependencyStatus: []
         };
+        context.runtime = {
+            dependenciesStatus: {
+                goodVersion: [],
+                badVersion: [],
+                goodIntegrity: [],
+                badIntegrity: []
+            }
+        };
+
+        //1- set dependencies (read manifest)
+        if(context.rawInput.packageData.package.manifest){
+            const manifest = context.rawInput.packageData.package.manifest.get();
+            context.output.dependencies = manifest.dependencies || [];
+        }
+
+        //2- fill missing input data
+        if(!context.rawInput.printOptions){
+            context.rawInput.printOptions = {};
+        }
     }
 }

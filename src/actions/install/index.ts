@@ -1,126 +1,264 @@
 import execute from "@simonegaffurini/sammarksworkflow";
-import { Logger, inspect } from "../../logger";
+import { R3trans, R3transOptions } from "node-r3trans";
+import { inspect } from "util";
+import { Logger } from "../../logger";
 import { Registry } from "../../registry";
+import { Transport } from "../../transport";
 import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
-import { Manifest, TrmManifest, TrmManifestDependency } from "../../manifest";
 import { init } from "./init";
-import { setSystemPackages } from "./setSystemPackages";
+import { Manifest, TrmManifest, TrmManifestDependency } from "../../manifest";
+import { IActionContext } from "..";
+import { setSystemPackages } from "../commons/setSystemPackages";
 import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
+import { checkIntegrity } from "./checkIntegrity";
 import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
-import { checkIntegrity } from "./checkIntegrity";
 import { installDependencies } from "./installDependencies";
-import { R3trans, R3transOptions } from "node-r3trans";
-import { checkTransports } from "./checkTransports";
-import { readDevcTransport } from "./readDevcTransport";
-import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT } from "../../client";
 import { setR3trans } from "./setR3trans";
-import { checkTadirContent } from "./checkTadirContent";
-import { checkTadirObjectTypes } from "./checkTadirObjectTypes";
-import { setDevclass } from "./setDevclass";
+import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT } from "../../client";
+import { checkTransports } from "./checkTransports";
+import { readDevc } from "./readDevc";
+import { setInstallDevclass } from "./setInstallDevclass";
+import { checkObjectTypes } from "./checkObjectTypes";
 import { generateDevclass } from "./generateDevclass";
+import { readTadir } from "./readTadir";
 import { PackageHierarchy } from "../../commons";
+import { importDevcTransport } from "./importDevcTransport";
+import { addNamespace } from "./addNamespace";
 import { importTadirTransport } from "./importTadirTransport";
 import { importLangTransport } from "./importLangTransport";
-import { setPackageIntegrity } from "./setPackageIntegrity";
-import { generateWbTransport } from "./generateWbTransport";
-import { Transport } from "../../transport";
 import { importCustTransport } from "./importCustTransport";
+import { setPackageIntegrity } from "./setPackageIntegrity";
+import { generateInstallTransport } from "./generateInstallTransport";
+import { type } from "os";
 
+/**
+ * ABAP package replacement during install
+ */
 export type InstallPackageReplacements = {
+    /**
+     * Original publisher ABAP package name
+     */
     originalDevclass: string,
+
+    /**
+     * Install ABAP package name
+     */
     installDevclass: string
 }
 
-export type InstallActionInput = {
-    packageName: string,
-    registry: Registry,
-    version?: string,
-    systemPackages?: TrmPackage[],
-    integrity?: string,
-    r3transOptions?: R3transOptions,
-    transportLayer?: string,
-    force?: boolean,
-    keepOriginalDevclass?: boolean,
-    importTimeout?: number,
-    generateTransport?: boolean,
-    skipSapEntriesCheck?: boolean,
-    skipObjectTypesCheck?: boolean,
-    skipLangImport?: boolean,
-    skipCustImport?: boolean,
-    ignoreDependencies?: boolean,
-    safeInstall?: boolean,
-    wbTrTargetSystem?: string,
-    silent?: boolean,
-    packageReplacements?: InstallPackageReplacements[],
-    allowReplace?: boolean
+/**
+ * Optional context data.
+ */
+export type InstallActionInputContextData = {
+    /**
+     * Manually set installed packages on the system.
+     */
+    systemPackages?: TrmPackage[]; 
+    
+    /**
+     * Set r3trans options.
+     */
+    r3transOptions?: R3transOptions;
+
+    /**
+     * Skip printing R3trans info.
+     */
+    noR3transInfo?: boolean;
+
+    /**
+     * Use inquirer? (will force some decisions)
+     */
+    noInquirer?: boolean;
 }
 
-type WorkflowParsedInput = {
-    packageName?: string,
-    version?: string,
-    skipAlreadyInstalledCheck?: boolean,
-    forceInstallSameVersion?: boolean,
-    overwriteInstall?: boolean,
-    systemPackages?: TrmPackage[],
-    checkSapEntries?: boolean,
-    checkDependencies?: boolean,
-    installMissingDependencies?: boolean,
-    installIntegrity?: string,
-    safeInstall?: boolean,
-    r3transOptions?: R3transOptions,
-    checkObjectTypes?: boolean,
-    keepOriginalPackages?: boolean,
-    forceDevclassInput?: boolean,
-    transportLayer?: string,
-    importTimeout?: number,
-    skipLangImport?: boolean,
-    skipCustImport?: boolean,
-    skipWbTransportGen?: boolean,
-    wbTrTargetSystem?: string,
-    packageReplacements?: InstallPackageReplacements[],
-    noInquirer?: boolean
+/**
+ * Optional install-specific data.
+ */
+export type InstallActionInputInstallData = {
+    /**
+     * Import-related data.
+     */
+    import?: {
+        /**
+         * The timeout in milliseconds for TMS import.
+         */
+        timeout?: number;
+
+        /**
+         * Whether to skip importing language transports.
+         */
+        noLang?: boolean;
+
+        /**
+         * Whether to skip importing customizing transports.
+         */
+        noCust?: boolean;
+    };
+
+    /**
+     * Optional checks to perform during installation.
+     */
+    checks?: {
+        /**
+         * Install in safe mode.
+         */
+        safe?: boolean;
+
+        /**
+         * Whether to skip checking for all SAP entries.
+         */
+        noSapEntries?: boolean;
+
+        /**
+         * Whether to skip checking that all object types are supported.
+         */
+        noObjectTypes?: boolean;
+
+        /**
+         * Whether to skip checking for package dependencies.
+         */
+        noDependencies?: boolean;
+    };
+
+    /**
+     * Options related to the devclass installation.
+     */
+    installDevclass?: {
+        /**
+         * Whether to keep the original package names from the publisher.
+         */
+        keepOriginal?: boolean;
+
+        /**
+         * The transport layer of the package.
+         */
+        transportLayer?: string;
+
+        /**
+         * List of package replacements to apply during installation. Ignored if used with keep original.
+         */
+        replacements?: InstallPackageReplacements[];
+    };
+
+    /**
+     * Transport-related options for installation.
+     */
+    installTransport?: {
+        /**
+         * Whether to create an install transport for easy distribution across the landscape.
+         */
+        create?: boolean;
+
+        /**
+         * The target system for the install transport.
+         */
+        targetSystem?: string;
+    };
+}
+
+/**
+ * Input data for install package action.
+ */
+export interface InstallActionInput {
+
+    contextData?: InstallActionInputContextData,
+
+    /**
+     * Data related to the package being installed.
+     */
+    packageData: {
+        /**
+         * The name of the package.
+         */
+        name: string;
+
+        /**
+         * The version of the package (defaults to the latest version if not provided).
+         */
+        version?: string;
+
+        /**
+         * Package integrity checksum.
+         */
+        integrity?: string;
+
+        /**
+         * The registry where the package is stored.
+         */
+        registry: Registry;
+
+        /**
+         * Overwrite package if same version is already installed?
+         */
+        overwrite?: boolean;
+    };
+
+    installData?: InstallActionInputInstallData
+}
+
+type TransportRuntime = {
+    binaries?: TransportBinary,
+    instance?: Transport
 }
 
 type WorkflowRuntime = {
-    registry?: Registry,
-    trmPackage?: TrmPackage,
-    manifest?: Manifest,
-    trmManifest?: TrmManifest,
-    dependenciesToInstall?: TrmManifestDependency[],
-    trmArtifact?: TrmArtifact,
-    r3trans?: R3trans,
-    devcTransport?: TransportBinary,
-    tadirTransport?: TransportBinary,
-    langTransport?: TransportBinary,
-    custTransport?: TransportBinary,
-    tdevcData?: TDEVC[],
-    tdevctData?: TDEVCT[],
-    tadirData?: TADIR[],
-    workbenchObjects?: E071[],
-    packageReplacements?: InstallPackageReplacements[],
-    generatedDevclass?: DEVCLASS[],
-    originalPackageHierarchy?: PackageHierarchy,
-    trCopy?: string[],
-    fetchedIntegrity?: string,
-    wbTransport?: Transport
+    registry: Registry,
+    update: boolean,
+    rollback: boolean,
+    remotePackageData: {
+        version: string
+        trmPackage: TrmPackage,
+        artifact: TrmArtifact,
+        manifest: Manifest,
+        trmManifest: TrmManifest,
+        integrity: string
+    },
+    packageTransports: {
+        devc: TransportRuntime,
+        tadir: TransportRuntime,
+        lang: TransportRuntime,
+        cust: TransportRuntime
+    },
+    packageTransportsData: {
+        tdevc: TDEVC[],
+        tdevct: TDEVCT[],
+        tadir: TADIR[],
+        e071: E071[]
+    }
+    dependenciesToInstall: TrmManifestDependency[],
+    r3trans: R3trans,
+    originalData: {
+        hierarchy: PackageHierarchy
+    }
+    installData: {
+        namespace: string,
+        entries: E071[],
+        transport?: Transport
+    },
+    generatedData: {
+        devclass: DEVCLASS[],
+        namespace: NAMESPACE
+    }
 }
 
 export type InstallActionOutput = {
     trmPackage: TrmPackage,
     registry: Registry,
-    wbTransport?: Transport
+    installTransport?: Transport
 }
 
-export type InstallWorkflowContext = {
+export interface InstallWorkflowContext extends IActionContext {
     rawInput: InstallActionInput,
-    parsedInput: WorkflowParsedInput,
-    runtime: WorkflowRuntime,
+    runtime?: WorkflowRuntime,
     output?: InstallActionOutput
 };
 
 const WORKFLOW_NAME = 'install';
 
+/**
+ * Install TRM Package from registry to target system
+*/
 export async function install(inputData: InstallActionInput): Promise<InstallActionOutput> {
     const workflow = [
         init,
@@ -129,33 +267,33 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         checkIntegrity,
         checkSapEntries,
         checkDependencies,
-        installDependencies,
         setR3trans,
+        installDependencies,
         checkTransports,
-        readDevcTransport,
-        setDevclass,
-        checkTadirContent,
-        checkTadirObjectTypes,
+        readDevc,
+        readTadir,
+        checkObjectTypes,
+        setInstallDevclass,
+        addNamespace,
         generateDevclass,
+        importDevcTransport,
         importTadirTransport,
         importLangTransport,
         importCustTransport,
         setPackageIntegrity,
-        generateWbTransport
+        generateInstallTransport
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData,
-        parsedInput: {},
-        runtime: {}
+        rawInput: inputData
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    const trmPackage = result.runtime.trmPackage;
+    const trmPackage = result.runtime.remotePackageData.trmPackage;
     const registry = result.runtime.registry;
-    const wbTransport = result.runtime.wbTransport;
+    const installTransport = result.runtime.installData.transport;
     return {
         trmPackage,
         registry,
-        wbTransport
+        installTransport
     }
 }

@@ -1,25 +1,70 @@
 import execute from "@simonegaffurini/sammarksworkflow";
-import { DEVCLASS, SENVI, TADIR } from "../../client";
+import { inspect } from "util";
+import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
-import { Logger, inspect } from "../../logger";
+import { IActionContext } from "..";
+import { DEVCLASS, SENVI, TADIR } from "../../client";
 import { init } from "./init";
-import { setSystemPackages } from "./setSystemPackages";
-import { readPackageData } from "./readPackageData";
-import { readPackageObjects } from "./readPackageObjects";
+import { setObjects } from "./setObjects";
 import { readRepositoryEnvironment } from "./readRepositoryEnvironment";
 import { parseSenvi } from "./parseSenvi";
 import { setTrmDependencies } from "./setTrmDependencies";
 import { print } from "./print";
-import { acknowledgementSize } from "./acknowledgementSize";
 
-export type TadirObjectSenvi = {
+/**
+ * Input data for find dependencies action.
+ */
+export interface FindDependenciesActionInput {
+    /**
+     * Optional context data.
+     */
+    contextData?: {
+        /**
+         * Use inquirer? (will force some decisions).
+         */
+        noInquirer?: boolean;
+    };
+
+    /**
+     * Data related to the package being analyzed.
+     */
+    packageData: {
+
+        /**
+         * ABAP package name.
+         */
+        package: DEVCLASS;
+
+        /**
+         * Package objects.
+         */
+        objects?: TADIR[];
+    };
+    
+    /**
+     * Print options.
+     */
+    printOptions?: {
+        /**
+         * Print TRM dependencies.
+         */
+        trmDependencies?: boolean;
+
+        /**
+         * Print SAP objects dependencies.
+         */
+        sapObjectDependencies?: boolean;
+    }
+}
+
+type ObjectSenvi = {
     tadir: TADIR,
     senvi: SENVI[]
-};
+}
 
 export type TableDependency = {
-    dependencyIn: TADIR,
-    tableDependency: any
+    foundIn: TADIR,
+    object: any
 };
 
 export type SapEntriesDependency = {
@@ -29,57 +74,52 @@ export type SapEntriesDependency = {
 
 export type TrmDependency = {
     devclass: DEVCLASS,
-    trmPackage?: TrmPackage,
+    package: TrmPackage,
     integrity?: string,
     sapEntries: SapEntriesDependency[]
-}
-
-export type FindDependencyActionInput = {
-    devclass: DEVCLASS,
-    tadir?: TADIR[],
-    systemPackages?: TrmPackage[],
-    print?: boolean,
-    printSapEntries?: boolean,
-    silent?: boolean
-}
-
-type WorkflowParsedInput = {
-    devclass?: DEVCLASS,
-    tadir?: TADIR[],
-    systemPackages?: TrmPackage[],
-    print?: boolean,
-    printSapEntries?: boolean,
-    silent?: boolean
-}
+};
 
 type WorkflowRuntime = {
-    devclassIgnore?: DEVCLASS[],
-    objectsSenvi?: TadirObjectSenvi[],
-    parsedSenvi?: SapEntriesDependency[]
+    abort: boolean,
+    packageData: {
+        ignoredTadir: TADIR[]
+    },
+    repositoryEnvironment: {
+        senvi: ObjectSenvi[]
+    },
+    dependencies: {
+        customObjects: SapEntriesDependency[],
+        sapObjects: SapEntriesDependency[],
+        withTrmPackage: TrmDependency[],
+        withoutTrmPackage: TrmDependency[]
+    }
+}
+export type FindDependenciesActionOutput = {
+    trmPackageDependencies: {
+        withTrmPackage: TrmDependency[],
+        withoutTrmPackage: TrmDependency[]
+    },
+    objectDependencies: {
+        customObjects: SapEntriesDependency[],
+        sapObjects: SapEntriesDependency[]
+    }
 }
 
-export type FindDependencyActionOutput = {
-    sapEntries?: SapEntriesDependency[],
-    trmDependencies?: TrmDependency[],
-    unknownDependencies?: TrmDependency[]
-}
-
-export type FindDependenciesWorkflowContext = {
-    rawInput: FindDependencyActionInput,
-    parsedInput: WorkflowParsedInput,
-    runtime: WorkflowRuntime,
-    output: FindDependencyActionOutput
+export interface FindDependenciesWorkflowContext extends IActionContext {
+    rawInput: FindDependenciesActionInput,
+    runtime?: WorkflowRuntime,
+    output?: FindDependenciesActionOutput
 };
 
 const WORKFLOW_NAME = 'find-dependencies';
 
-export async function findDependencies(inputData: FindDependencyActionInput): Promise<FindDependencyActionOutput> {
+/**
+ * Find ABAP package dependencies with other ABAP packages/TRM packages
+*/
+export async function findDependencies(inputData: FindDependenciesActionInput): Promise<FindDependenciesActionOutput> {
     const workflow = [
         init,
-        setSystemPackages,
-        readPackageData,
-        readPackageObjects,
-        acknowledgementSize,
+        setObjects,
         readRepositoryEnvironment,
         parseSenvi,
         setTrmDependencies,
@@ -87,11 +127,17 @@ export async function findDependencies(inputData: FindDependencyActionInput): Pr
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<FindDependenciesWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData,
-        parsedInput: {},
-        runtime: {},
-        output: {}
+        rawInput: inputData
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    return result.output;
+    return {
+        trmPackageDependencies: {
+            withTrmPackage: result.runtime.dependencies.withTrmPackage,
+            withoutTrmPackage: result.runtime.dependencies.withoutTrmPackage,
+        },
+        objectDependencies: {
+            customObjects: result.runtime.dependencies.customObjects,
+            sapObjects: result.runtime.dependencies.sapObjects
+        }
+    }
 }

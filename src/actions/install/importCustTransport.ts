@@ -4,35 +4,46 @@ import { Logger } from "../../logger";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 
+/**
+ * Import CUST Transport.
+ * 
+ * 1- upload transport into system
+ * 
+ * 2- import transport into system
+ * 
+*/
 export const importCustTransport: Step<InstallWorkflowContext> = {
     name: 'import-cust-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if (context.runtime.custTransport) {
-            if(context.parsedInput.skipCustImport){
-                Logger.log(`Skip import CUST transport (input)`, true);
-                return false;
-            }else{
-                return true;
-            }
-        } else {
-            Logger.log(`Skip import CUST transport (no transport data in package)`, true);
+        if(context.rawInput.installData.import.noCust){
+            Logger.log(`Skipping import CUST transport (user input)`, true);
+            return false;
+        }else{
             return false;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        const importTimeout = context.parsedInput.importTimeout;
-        const transportData = context.runtime.custTransport;
-        const target = SystemConnector.getDest();
-        Logger.loading(`Importing transport to ${target}...`);
-        const transport = await Transport.upload({
-            binary: transportData.binaries,
-            trTarget: target
+        Logger.log('Import CUST Transport step', true);
+
+        Logger.loading(`Importing...`);
+        const importTimeout = context.rawInput.installData.import.timeout;
+
+        //1- upload transport into system
+        Logger.loading(`Uploading ${context.runtime.packageTransports.cust.binaries.trkorr}`, true);
+        context.runtime.packageTransports.cust.instance = await Transport.upload({
+            binary: context.runtime.packageTransports.cust.binaries.binaries,
+            trTarget: SystemConnector.getDest()
         });
-        await transport.import(importTimeout);
-        //loader stopped in transport import
-        context.runtime.trCopy.push(transportData.trkorr);
+
+        //2- import transport into system
+        Logger.loading(`Importing ${context.runtime.packageTransports.cust.binaries.trkorr}`, true);
+        await context.runtime.packageTransports.cust.instance.import(importTimeout);
+        Logger.success(`Transport ${context.runtime.packageTransports.cust.binaries.trkorr} imported`, true);
+
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.error(`CUST transport ${context.runtime.langTransport} can't be removed.`);
+        Logger.log('Rollback CUST Transport step', true);
+
+        Logger.warning(`Customizing transport ${context.runtime.packageTransports.cust.binaries.trkorr} can't be reverted.`);
     }
 }

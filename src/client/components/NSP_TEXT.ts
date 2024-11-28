@@ -1,0 +1,1 @@
+export type NSP_TEXT = string;

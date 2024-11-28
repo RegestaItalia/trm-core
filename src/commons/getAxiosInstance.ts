@@ -1,9 +1,10 @@
 import axios, { AxiosResponse, CreateAxiosDefaults } from "axios";
 import { inspect } from "util";
-import { Logger } from "../logger";
+import { CliLogFileLogger, Logger } from "../logger";
 import { v4 as uuidv4 } from 'uuid';
 
-const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
+export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';
+export const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
 
 export type AxiosCtx = 'Registry' | 'RestServer';
 
@@ -19,7 +20,10 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
     const instance = axios.create(config);
     instance.interceptors.request.use((request) => {
         const internalId = uuidv4();
-        request.headers.set(AXIOS_INTERNAL_HEADER, internalId)
+        request.headers.set(AXIOS_INTERNAL_HEADER, internalId);
+        if(Logger.logger instanceof CliLogFileLogger){
+            request.headers.set(AXIOS_SESSION_HEADER, Logger.logger.getSessionId());
+        }
         var sRequest = `${request.method} ${request.baseURL}${request.url}`;
         if (request.params) {
             sRequest += `, parameters: ${inspect(request.params, { breakLength: Infinity, compact: true })}`;
@@ -58,16 +62,19 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
                 }
                 if (error.response.data.message && typeof (error.response.data.message) === 'string') {
                     sError = error.response.data.message;
-                } else {
-                    sError = error.response.data;
+                } else if(typeof(error.response.data) === 'string'){
+                    sError = error.response.data
+                } else{
+                    sError = error.response.statusText;
                 }
             } else {
                 sError = error.response.statusText;
             }
-            var oError = new Error(sError);
+            var oError: any = new Error(sError);
             oError.name = `Trm${sCtx}Error`;
-            oError['status'] = error.response.status;
-            oError['response'] = error.response.data || {};
+            oError.status = error.response.status;
+            oError.response = error.response.data || {};
+            oError.axiosError = error;
             Logger.error(`${sCtx} response id ${internalId} error: ${error} (${JSON.stringify(sError)})`, true);
             return Promise.reject(oError);
         } else {

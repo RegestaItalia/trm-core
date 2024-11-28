@@ -1,67 +1,91 @@
 import execute from "@simonegaffurini/sammarksworkflow";
+import { inspect } from "util";
+import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
-import { Logger, inspect } from "../../logger";
+import { IActionContext, setSystemPackages } from "../commons";
 import { TrmManifestDependency } from "../../manifest";
-import { LogTableStruct } from "../../commons";
 import { init } from "./init";
-import { setSystemPackages } from "./setSystemPackages";
-import { analizeDependencies } from "./analizeDependencies";
-import { buildOutput } from "./buildOutput";
+import { analyze } from "./analyze";
 
-export type CheckPackageDependencyActionInput = {
-    trmPackage: TrmPackage,
-    print: boolean,
-    systemPackages?: TrmPackage[]
-}
+/**
+ * Input data for check package dependencies action.
+ */
+export interface CheckPackageDependenciesActionInput {
+    /**
+     * Optional context data.
+     */
+    contextData?: {
+        /**
+         * Manually set installed packages on the system.
+         */
+        systemPackages?: TrmPackage[]; 
+    };
 
-type WorkflowParsedInput = {
-    print?: boolean,
-    packageName?: string,
-    dependencies?: TrmManifestDependency[],
-    systemPackages?: TrmPackage[]
+    /**
+     * Data related to the package being checked.
+     */
+    packageData: {
+        /**
+         * TRM Package instance.
+         */
+        package: TrmPackage;
+    };
+    
+    /**
+     * Print options.
+     */
+    printOptions?: {
+        /**
+         * Print dependency status.
+         */
+        dependencyStatus?: boolean;
+
+        /**
+         * Print information data.
+         */
+        information?: boolean;
+    }
 }
 
 type WorkflowRuntime = {
-    table?: LogTableStruct,
-    versionOkDependencies?: TrmManifestDependency[],
-    versionKoDependencies?: TrmManifestDependency[],
-    integrityOkDependencies?: TrmManifestDependency[],
-    integrityKoDependencies?: TrmManifestDependency[]
+    dependenciesStatus: {
+        goodVersion: TrmManifestDependency[],
+        badVersion: TrmManifestDependency[],
+        goodIntegrity: TrmManifestDependency[],
+        badIntegrity: TrmManifestDependency[]
+    }
 }
 
-export type CheckPackageDependencyActionOutput = {
-    dependencies?: TrmManifestDependency[],
-    dependencyStatus?: {
+export type CheckPackageDependenciesActionOutput = {
+    dependencies: TrmManifestDependency[],
+    dependencyStatus: {
         dependency: TrmManifestDependency,
         match: boolean,
         safe: boolean
     }[]
 }
 
-export type CheckPackageDependencyWorkflowContext = {
-    rawInput: CheckPackageDependencyActionInput,
-    parsedInput: WorkflowParsedInput,
-    runtime: WorkflowRuntime,
-    output: CheckPackageDependencyActionOutput
+export interface CheckPackageDependenciesWorkflowContext extends IActionContext {
+    rawInput: CheckPackageDependenciesActionInput,
+    runtime?: WorkflowRuntime,
+    output?: CheckPackageDependenciesActionOutput
 };
 
-const WORKFLOW_NAME = 'check-package-dependencies';
+const WORKFLOW_NAME = 'check-dependencies';
 
-export async function checkPackageDependencies(inputData: CheckPackageDependencyActionInput): Promise<CheckPackageDependencyActionOutput> {
+/**
+ * Check package dependencies
+*/
+export async function checkPackageDependencies(inputData: CheckPackageDependenciesActionInput): Promise<CheckPackageDependenciesActionOutput> {
     const workflow = [
         init,
         setSystemPackages,
-        analizeDependencies,
-        buildOutput
+        analyze
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-    const result = await execute<CheckPackageDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData,
-        parsedInput: {},
-        runtime: {},
-        output: {}
+    const result = await execute<CheckPackageDependenciesWorkflowContext>(WORKFLOW_NAME, workflow, {
+        rawInput: inputData
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    const output = result.output;
-    return output;
+    return result.output;
 }

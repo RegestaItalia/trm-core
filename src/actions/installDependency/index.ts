@@ -1,79 +1,85 @@
 import execute from "@simonegaffurini/sammarksworkflow";
-import { Logger, inspect } from "../../logger";
+import { R3trans, R3transOptions } from "node-r3trans";
+import { inspect } from "util";
+import { Logger } from "../../logger";
 import { Registry } from "../../registry";
-import { Release } from "trm-registry-types";
-import { TrmPackage } from "../../trmPackage";
+import { Transport } from "../../transport";
+import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
+import { IActionContext, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages } from "..";
 import { init } from "./init";
-import { getRangeReleases } from "./getRangeReleases";
-import { setSystemPackages } from "./setSystemPackages";
-import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
 import { findInstallRelease } from "./findInstallRelease";
-import { InstallActionInput, InstallActionOutput } from "../install";
 import { installRelease } from "./installRelease";
 
-export type InstallDependencyActionInput = {
-    packageName: string,
-    versionRange: string,
-    registry: Registry,
-    installOptions: InstallActionInput,
-    forceInstall?: boolean,
-    integrity?: string,
-    systemPackages?: TrmPackage[]
-}
+/**
+ * Input data for install dependency action.
+ */
+export interface InstallDependencyActionInput {
+    
+    contextData?: InstallActionInputContextData,
 
-type WorkflowParsedInput = {
-    packageName?: string,
-    versionRange?: string,
-    forceInstall?: boolean,
-    installOptions?: InstallActionInput,
-    integrity?: string,
-    systemPackages?: TrmPackage[]
+    /**
+     * Data related to the dependency package being installed.
+     */
+    dependencyDataPackage: {
+        /**
+         * The name of the package.
+         */
+        name: string;
+
+        /**
+         * Dependency release install version range.
+         */
+        versionRange: string;
+
+        /**
+         * The registry where the package is stored.
+         */
+        registry: Registry;
+
+        /**
+         * Dependency integrity.
+         */
+        integrity?: string;
+    };
+
+    installData?: InstallActionInputInstallData
 }
 
 type WorkflowRuntime = {
-    registry?: Registry,
-    releases?: Release[],
-    releasePackages?: TrmPackage[],
-    skipInstall?: boolean
+    rollback: boolean,
+    installVersion: string,
+    installOutput: InstallActionOutput
 }
 
 export type InstallDependencyActionOutput = {
-    version?: string,
-    installOutput?: InstallActionOutput
+    installOutput: InstallActionOutput
 }
 
-export type InstallDependencyWorkflowContext = {
+export interface InstallDependencyWorkflowContext extends IActionContext {
     rawInput: InstallDependencyActionInput,
-    parsedInput: WorkflowParsedInput,
-    runtime: WorkflowRuntime,
+    runtime?: WorkflowRuntime,
     output?: InstallDependencyActionOutput
 };
 
 const WORKFLOW_NAME = 'install-dependency';
 
+/**
+ * Install TRM Package dependency from registry to target system
+*/
 export async function installDependency(inputData: InstallDependencyActionInput): Promise<InstallDependencyActionOutput> {
     const workflow = [
         init,
-        getRangeReleases,
         setSystemPackages,
-        checkAlreadyInstalled,
         findInstallRelease,
         installRelease
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData,
-        parsedInput: {},
-        runtime: {}
+        rawInput: inputData
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    /*const trmPackage = result.runtime.trmPackage;
-    const registry = result.runtime.registry;
-    const wbTransport = result.runtime.wbTransport;
+    const installOutput = result.runtime.installOutput;
     return {
-        trmPackage,
-        registry,
-        wbTransport
-    }*/
-    return {};
+        installOutput
+    }
 }

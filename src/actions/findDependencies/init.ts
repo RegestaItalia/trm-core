@@ -1,30 +1,52 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext } from ".";
+import { Logger } from "../../logger";
 import { validateDevclass } from "../../inquirer";
 
+/**
+ * Init
+ * 
+ * 1- validate package name
+ * 
+ * 2- set runtime variables
+ * 
+ * 3- fill missing input data
+ * 
+*/
 export const init: Step<FindDependenciesWorkflowContext> = {
     name: 'init',
     run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
-        var devclass = context.rawInput.devclass;
+        Logger.log('Init step', true);
 
-        const devclassValid = await validateDevclass(devclass, true);
+        //1- validate package name
+        const devclassValid = await validateDevclass(context.rawInput.packageData.package, true);
         if (devclassValid && devclassValid !== true) {
             throw new Error(devclassValid);
         }
 
-        context.parsedInput.devclass = devclass;
-        context.parsedInput.print = context.rawInput.print ? true : false;
-        if(context.parsedInput.print){
-            context.parsedInput.printSapEntries = context.rawInput.printSapEntries ? true : false;
-        }else{
-            context.parsedInput.printSapEntries = false;
-        }
-        context.parsedInput.tadir = context.rawInput.tadir || [];
-        context.parsedInput.systemPackages = context.rawInput.systemPackages || [];
-        context.parsedInput.silent = context.rawInput.silent;
+        //2- set runtime variables
+        context.runtime = {
+            abort: false,
+            packageData: {
+                ignoredTadir: []
+            },
+            repositoryEnvironment: {
+                senvi: []
+            },
+            dependencies: {
+                customObjects: [],
+                sapObjects: [],
+                withTrmPackage: [],
+                withoutTrmPackage: []
+            }
+        };
 
-        context.output.trmDependencies = [];
-        context.output.unknownDependencies = [];
-        context.output.sapEntries = [];
+        //3- fill missing input data
+        if(!context.rawInput.contextData){
+            context.rawInput.contextData = {};
+        }
+        if(!context.rawInput.printOptions){
+            context.rawInput.printOptions = {};
+        }
     }
 }

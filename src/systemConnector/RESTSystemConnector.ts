@@ -1,13 +1,13 @@
 import { Logger } from "../logger";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
-import { Login } from "./Login";
+import { Login } from "../client/Login";
 import { ISystemConnector } from "./ISystemConnector";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
-import { RESTClient } from "../client";
+import { RESTClient, SapMessage } from "../client";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
@@ -25,7 +25,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     constructor(private _connection: RESTConnection, private _login: Login) {
         super();
         this.supportedBulk = {
-            getTransportObjects: true
+            getTransportObjects: true,
+            getExistingObjects: true
         };
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
@@ -42,10 +43,11 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         }else{
             //bulk not supported in remote calls
             this.supportedBulk.getTransportObjects = false;
+            this.supportedBulk.getExistingObjects = false;
         }
         this._connection.rfcdest = this._connection.rfcdest.toUpperCase().trim();
         Logger.log(`REST connection data after normalize: ${JSON.stringify(this._connection)}`, true);
-        this._client = new RESTClient(this._connection.endpoint, this._connection.rfcdest, this._login);
+        this._client = new RESTClient(this._connection.endpoint, this._connection.rfcdest, this._login, this._lang[0]);
     }
     
     protected getSysname(): string {
@@ -62,7 +64,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public getLogonLanguage(c: boolean = false): string {
         if (c) {
-            return Array.from(this._lang)[0];
+            return this._lang[0];
         } else {
             return this._lang;
         }
@@ -80,8 +82,12 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getDevclassObjects(devclass);
     }
 
-    protected async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean): Promise<void> {
-        return this._client.tdevcInterface(devclass, parentcl, rmParentCl);
+    protected async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void> {
+        return this._client.tdevcInterface(devclass, parentcl, rmParentCl, devlayer);
+    }
+
+    protected async getR3transInfo(): Promise<string> {
+        return this._client.getR3transInfo();
     }
 
     public getConnectionData(): RESTConnection {
@@ -218,6 +224,18 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async getTransportObjectsBulk(trkorr: components.TRKORR): Promise<TADIR[]> {
         return this._client.getTransportObjectsBulk(trkorr);
+    }
+
+    public async getExistingObjectsBulk(objects: struct.TADIR[]): Promise<TADIR[]> {
+        return this._client.getExistingObjectsBulk(objects);
+    }
+    
+    public async addNamespace(namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]): Promise<void> {
+        return this._client.addNamespace(namespace, replicense, texts);
+    }
+
+    public async getMessage(data: SapMessage): Promise<string> {
+        return this._client.getMessage(data);
     }
 
 }

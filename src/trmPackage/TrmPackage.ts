@@ -10,6 +10,7 @@ export const DEFAULT_VERSION: string = "1.0.0";
 
 export class TrmPackage {
     private _userAuthorizations: UserAuthorization;
+    private _canPublishReleasesCause: string;
     private _remoteArtifacts: any = {};
     private _devclass: DEVCLASS;
 
@@ -29,18 +30,17 @@ export class TrmPackage {
         return (await this.registry.packageExists(this.packageName, version));
     }
 
-    public async canPublishReleases(): Promise<boolean> {
+    public async canPublishReleases(): Promise<{
+        canPublishReleases: boolean,
+        cause?: string
+    }> {
         if (this._userAuthorizations === undefined) {
             var view: View;
             try {
                 view = await this._viewLatest();
             } catch (e) {
-                /*if (e.response && e.response.data) {
-                    view = e.response.data;
-                } else {
-                    throw e;
-                }*/
-                if(e.response){
+                this._canPublishReleasesCause = e.message;
+                if(e.response && typeof(e.response) === "object"){
                     view = e.response;
                 }else{
                     throw e;
@@ -48,7 +48,10 @@ export class TrmPackage {
             }
             this._userAuthorizations = view.userAuthorizations;
         }
-        return this._userAuthorizations.canCreateReleases;
+        return {
+            canPublishReleases: this._userAuthorizations.canCreateReleases,
+            cause: this._canPublishReleasesCause
+        };
     }
 
     public async fetchRemoteManifest(version: string = 'latest'): Promise<Manifest> {

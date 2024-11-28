@@ -67,4 +67,19 @@ export namespace Logger {
         return logger.tree(data, debug);
     }
 
+    export function setPrefix(text: string): void {
+        checkLogger();
+        return logger.setPrefix(text);
+    }
+
+    export function removePrefix(): void {
+        checkLogger();
+        return logger.removePrefix();
+    }
+
+    export function getPrefix(): string {
+        checkLogger();
+        return logger.getPrefix();
+    }
+
 }

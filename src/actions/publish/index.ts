@@ -1,161 +1,215 @@
 import execute from "@simonegaffurini/sammarksworkflow";
-import { DEVCLASS, TADIR, TR_TARGET } from "../../client";
-import { TrmManifest, TrmManifestDependency } from "../../manifest";
+import { inspect } from "util";
+import { Logger } from "../../logger";
+import { TrmArtifact, TrmPackage } from "../../trmPackage";
+import { IActionContext, setSystemPackages } from "..";
 import { Registry } from "../../registry";
 import { init } from "./init";
+import { DEVCLASS, TADIR, TMSCSYS, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
 import { setDevclass } from "./setDevclass";
-import { checkPublishAllowed } from "./checkPublishAllowed";
 import { setTransportTarget } from "./setTransportTarget";
-import { setDevclassObjs } from "./setDevclassObjs";
 import { findDependencies } from "./findDependencies";
-import { Logger, inspect } from "../../logger";
-import { setTrmDependencies } from "./setTrmDependencies";
-import { setSapEntries } from "./setSapEntries";
-import { editSapEntries } from "./editSapEntries";
-import { editTrmDependencies } from "./editTrmDependencies";
-import { logDependencies } from "./logDependencies";
-import { TrmArtifact, TrmPackage } from "../../trmPackage";
-import { checkPackageExistance } from "./checkPackageExistance";
-import { overwriteManifestValues } from "./overwriteManifestValues";
-import { setBackwardsCompatible } from "./setBackwardsCompatible";
-import { setPrivate } from "./setPrivate";
+import { TrmManifest, TrmManifestBase } from "../../manifest";
 import { setManifestValues } from "./setManifestValues";
-import { buildTrmPackageInstance } from "./buildTrmPackageInstance";
 import { setReadme } from "./setReadme";
 import { Transport } from "../../transport";
-import { generateDevcTr } from "./generateDevcTr";
-import { generateTadirTr } from "./generateTadirTr";
-import { generateLangTr } from "./generateLangTr";
-import { releaseTadirTr } from "./releaseTadirTr";
-import { releaseLangTr } from "./releaseLangTr";
-import { releaseDevcTr } from "./releaseDevcTr";
-import { generateTrmArtifact } from "./generateTrmArtifact";
-import { publishTrmArtifact } from "./publishTrmArtifact";
+import { setCustomizingTransports } from "./setCustomizingTransports";
+import { generateDevcTransport } from "./generateDevcTransport";
+import { generateTadirTransport } from "./generateTadirTransport";
+import { generateLangTransport } from "./generateLangTransport";
+import { generateCustTransport } from "./generateCustTransport";
+import { releaseTransports } from "./releaseTransports";
 import { finalizePublish } from "./finalizePublish";
-import { FindDependencyActionOutput } from "../findDependencies";
-import { generateCustTr } from "./generateCustTr";
-import { releaseCustTr } from "./releaseCustTr";
-import { setCustTransports } from "./setCustTransports";
+import { publishToRegistry } from "./publishToRegistry";
 
-export type PublishActionInput = {
-    package: TrmManifest, //atleast name and version
-    registry: Registry,
-    devclass?: DEVCLASS,
-    target?: TR_TARGET,
-    skipDependencies?: boolean,
-    forceManifestInput?: boolean,
-    overwriteManifestValues?: boolean,
-    skipEditSapEntries?: boolean,
-    skipEditDependencies?: boolean,
-    skipReadme?: boolean,
-    skipLang?: boolean,
-    skipCust?: boolean,
-    customizingTransports?: string[],
-    readme?: string,
-    releaseTimeout?: number,
-    tmpFolder?: string,
-    silent?: boolean
+/**
+ * Input data for publish package action.
+ */
+export interface PublishActionInput {
+    /**
+     * Optional context data.
+     */
+    contextData?: {
+        /**
+         * Manually set installed packages on the system.
+         */
+        systemPackages?: TrmPackage[]; 
+
+        /**
+         * Use inquirer? (will force some decisions).
+         */
+        noInquirer?: boolean;
+
+        /**
+         * Log temporary folder (for parsing R3Trans logs).
+         */
+        logTemporaryFolder?: string;
+    };
+
+    /**
+     * Data related to the package being published.
+     */
+    packageData: {
+        /**
+         * The name of the package.
+         */
+        name: string;
+
+        /**
+         * The version of the package.
+         * 
+         * If blank/latest the latest version is retrieved from the registry:
+         * 
+         * - first time publishing = 1.0.0
+         * 
+         * - package exists = latest + 0.0.1
+         */
+        version?: string;
+
+        /**
+         * The registry where the package has to be stored.
+         */
+        registry: Registry;
+
+        /**
+         * ABAP package name.
+         */
+        devclass?: DEVCLASS;
+
+        
+        /**
+         * TRM package manifest data.
+         */
+        manifest?: TrmManifestBase;
+    };
+
+    /**
+     * Data related to the origin system.
+     */
+    systemData?: {
+        
+        /**
+         * Publish transport target.
+         */
+        transportTarget?: TR_TARGET;
+
+        /**
+         * Release timeout (in seconds).
+         */
+        releaseTimeout: number;
+    }
+
+    /**
+     * Data related to package publish.
+     */
+    publishData?: {
+
+        /**
+         * Skip automatic dependencies detection.
+         */
+        noDependenciesDetection?: boolean,
+
+        /**
+         * Keep manifest values from latest release.
+         */
+        keepLatestReleaseManifestValues?: boolean,
+
+        /**
+         * Publish release as private.
+         */
+        private?: boolean,
+
+        /**
+         * Release readme.
+         */
+        readme?: string,
+
+        /**
+         * Skip customizing transports publish.
+         */
+        skipCustomizingTransports?: boolean,
+
+        /**
+         * Customizing transports. Has no effect if skipCustomizingTransports is set to true.
+         */
+        customizingTransports?: string | Transport[],
+
+        /**
+         * Skip language (translations) transport publish.
+         */
+        noLanguageTransport?: boolean
+    }
 }
 
-export type WorkflowParsedInput = {
-    packageName?: string,
-    version?: string,
-    devclass?: string,
-    trTarget?: string,
-    readme?: string,
-    releaseFolder?: string,
-    releaseTimeout?: number,
-    customizingTransports?: string[],
-    skipEditSapEntries?: boolean,
-    skipEditDependencies?: boolean,
-    skipDependencies?: boolean,
-    skipLang?: boolean,
-    overwriteManifestValues?: boolean,
-    packageBackwardsCompatible?: boolean,
-    skipCust?: boolean,
-    forceManifestInput?: boolean,
-    packagePrivate?: boolean,
-    skipReadme?: boolean,
-    target?: string,
-    silent?: boolean
-}
-
-export type WorkflowRuntime = {
-    registry?: Registry,
-    dummyPackage?: TrmPackage,
-    packageExistsOnRegistry?: boolean,
-    tadirObjects?: TADIR[],
-    manifest?: TrmManifest,
-    trmPackage?: TrmPackage,
-    devcTransport?: Transport,
-    tryDevcDeleteRevert?: boolean,
-    tadirTransport?: Transport,
-    tryTadirDeleteRevert?: boolean,
-    langTransport?: Transport,
-    tryLangDeleteRevert?: boolean,
-    inputCustTransports?: Transport[],
-    custTransport?: Transport,
-    tryCustDeleteRevert?: boolean,
-    artifact?: TrmArtifact,
-    dependencies?: FindDependencyActionOutput
+type WorkflowRuntime = {
+    rollback: boolean,
+    trmPackage: {
+        package: TrmPackage,
+        registry: Registry,
+        latestReleaseManifest?: TrmManifest,
+        manifest: TrmManifest,
+        artifact?: TrmArtifact
+    },
+    systemData: {
+        transportTargets: TMSCSYS[],
+        devcTransport: Transport,
+        tadirTransport: Transport,
+        langTransport?: Transport,
+        custTransport?: Transport,
+        releasedTransports: Transport[]
+    },
+    packageData: {
+        tadir: TADIR[],
+        namespace?: {
+            trnspacet: TRNSPACET,
+            trnspacett: TRNSPACETT[]
+        }
+    }
 }
 
 export type PublishActionOutput = {
-    trmPackage: TrmPackage
+    trmPackage: TrmPackage,
+    trmArtifact: TrmArtifact
 }
 
-export type PublishWorkflowContext = {
+export interface PublishWorkflowContext extends IActionContext {
     rawInput: PublishActionInput,
-    parsedInput: WorkflowParsedInput,
-    runtime: WorkflowRuntime,
+    runtime?: WorkflowRuntime,
     output?: PublishActionOutput
 };
 
 const WORKFLOW_NAME = 'publish';
 
-export async function publish(inputData: PublishActionInput): Promise<TrmPackage> {
+/**
+ * Publish ABAP package to TRM registry
+*/
+export async function publish(inputData: PublishActionInput): Promise<PublishActionOutput> {
     const workflow = [
         init,
-        checkPackageExistance,
-        checkPublishAllowed,
-        setDevclass,
+        setSystemPackages,
         setTransportTarget,
-        setDevclassObjs,
+        setDevclass,
         findDependencies,
-        setTrmDependencies,
-        setSapEntries,
-        editTrmDependencies,
-        editSapEntries,
-        logDependencies,
-        overwriteManifestValues,
-        setBackwardsCompatible,
-        setPrivate,
         setManifestValues,
-        buildTrmPackageInstance,
         setReadme,
-        setCustTransports,
-        generateDevcTr,
-        generateTadirTr,
-        generateLangTr,
-        generateCustTr,
-        releaseTadirTr,
-        releaseLangTr,
-        releaseCustTr,
-        releaseDevcTr,
-        generateTrmArtifact,
-        publishTrmArtifact,
+        setCustomizingTransports,
+        generateDevcTransport,
+        generateTadirTransport,
+        generateLangTransport,
+        generateCustTransport,
+        releaseTransports,
+        publishToRegistry,
         finalizePublish
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData,
-        parsedInput: {},
-        runtime: {}
+        rawInput: inputData
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    if(result.output && result.output.trmPackage){
-        return result.output.trmPackage;
-    }else{
-        throw new Error(`An error occurred during publish.`);
+    const trmPackage = result.runtime.trmPackage.package;
+    const trmArtifact = result.runtime.trmPackage.artifact;
+    return {
+        trmPackage,
+        trmArtifact
     }
 }

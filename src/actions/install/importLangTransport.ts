@@ -4,35 +4,46 @@ import { Logger } from "../../logger";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 
+/**
+ * Import LANG Transport.
+ * 
+ * 1- upload transport into system
+ * 
+ * 2- import transport into system
+ * 
+*/
 export const importLangTransport: Step<InstallWorkflowContext> = {
     name: 'import-lang-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if (context.runtime.langTransport) {
-            if(context.parsedInput.skipLangImport){
-                Logger.log(`Skip import LANG transport (input)`, true);
-                return false;
-            }else{
-                return true;
-            }
-        } else {
-            Logger.log(`Skip import LANG transport (no transport data in package)`, true);
+        if(context.rawInput.installData.import.noLang){
+            Logger.log(`Skipping import LANG transport (user input)`, true);
+            return false;
+        }else{
             return false;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        const importTimeout = context.parsedInput.importTimeout;
-        const transportData = context.runtime.langTransport;
-        const target = SystemConnector.getDest();
-        Logger.loading(`Importing transport to ${target}...`);
-        const transport = await Transport.upload({
-            binary: transportData.binaries,
-            trTarget: target
+        Logger.log('Import LANG Transport step', true);
+
+        Logger.loading(`Importing...`);
+        const importTimeout = context.rawInput.installData.import.timeout;
+
+        //1- upload transport into system
+        Logger.loading(`Uploading ${context.runtime.packageTransports.lang.binaries.trkorr}`, true);
+        context.runtime.packageTransports.lang.instance = await Transport.upload({
+            binary: context.runtime.packageTransports.lang.binaries.binaries,
+            trTarget: SystemConnector.getDest()
         });
-        await transport.import(importTimeout);
-        //loader stopped in transport import
-        context.runtime.trCopy.push(transportData.trkorr);
+
+        //2- import transport into system
+        Logger.loading(`Importing ${context.runtime.packageTransports.lang.binaries.trkorr}`, true);
+        await context.runtime.packageTransports.lang.instance.import(importTimeout);
+        Logger.success(`Transport ${context.runtime.packageTransports.lang.binaries.trkorr} imported`, true);
+
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.error(`LANG transport ${context.runtime.langTransport} can't be removed.`);
+        Logger.log('Rollback LANG Transport step', true);
+
+        Logger.warning(`Language transport ${context.runtime.packageTransports.lang.binaries.trkorr} can't be reverted.`);
     }
 }

@@ -1,52 +1,63 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
-import { Inquirer } from "../../inquirer/Inquirer";
-import { validateTransportTarget } from "../../inquirer";
-import { SystemConnector } from "../../systemConnector";
 import { Logger } from "../../logger";
+import { TrmPackage } from "../../trmPackage";
+import { Inquirer, validateDevclass, validateTransportTarget } from "../../inquirer";
+import { DEVCLASS, TR_TARGET } from "../../client";
 
+/**
+ * Set publish release transport target
+ * 
+ * 1- set input transport target
+ * 
+ * 2- user input transport target
+ * 
+*/
 export const setTransportTarget: Step<PublishWorkflowContext> = {
     name: 'set-transport-target',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        var trTarget = context.parsedInput.target;
+        Logger.log('Set transport target step', true);
 
-        var systemTmscsys = await SystemConnector.getTransportTargets();
-        systemTmscsys = systemTmscsys.sort((a, b) => {
-            if (a.systyp === 'V') {
-                return -1;
-            } else if (b.systyp === 'V') {
-                return 1;
-            } else {
-                return 0;
+        var needsValidation: boolean;
+
+        //1- set input transport target
+        var transportTarget: TR_TARGET = context.rawInput.systemData.transportTarget;
+
+        if (transportTarget === undefined) {
+            if(!context.rawInput.contextData.noInquirer){
+                //2- user input transport target
+                transportTarget = (await Inquirer.prompt({
+                    type: "list",
+                    message: "Publish transport target",
+                    name: "transportTarget",
+                    validate: async (input: string) => {
+                        return await validateTransportTarget(input, context.runtime.systemData.transportTargets);
+                    },
+                    choices: context.runtime.systemData.transportTargets.map(o => {
+                        return {
+                            name: `${o.sysnam} (${o.systxt})`,
+                            value: o.sysnam
+                        }
+                    })
+                })).transportTarget;
+            }else{
+                throw new Error(`Release transport target was not declared.`);
             }
-        });
-        if (!trTarget) {
-            if(context.parsedInput.silent){
-                throw new Error(`Running in silent mode and transport target was not set.`);
-            }
-            const inq2 = await Inquirer.prompt({
-                type: "list",
-                message: "Transport request target",
-                name: "trTarget",
-                validate: async (input: string) => {
-                    return await validateTransportTarget(input, systemTmscsys);
-                },
-                choices: systemTmscsys.map(o => {
-                    return {
-                        name: `${o.sysnam} (${o.systxt})`,
-                        value: o.sysnam
-                    }
-                })
-            });
-            trTarget = inq2.trTarget.trim().toUpperCase();
+
+            needsValidation = false;
         } else {
-            trTarget = trTarget.trim().toUpperCase();
-            const trTargetValid = await validateTransportTarget(trTarget, systemTmscsys);
-            if (trTargetValid && trTargetValid !== true) {
-                throw new Error(trTargetValid);
-            }
+            needsValidation = true;
         }
-        Logger.log(`Publish target: ${trTarget}`, true);
-        context.parsedInput.trTarget = trTarget;
+
+        if (needsValidation) {
+            const validate = await validateTransportTarget(transportTarget, context.runtime.systemData.transportTargets);
+            if (validate && validate !== true) {
+                throw new Error(validate);
+            }
+            Logger.info(`Publish transport target: "${transportTarget}"`);
+        }
+
+
+        context.rawInput.systemData.transportTarget = transportTarget;
     }
 }

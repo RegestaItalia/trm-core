@@ -4,7 +4,7 @@ import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { ISystemConnector } from "./ISystemConnector";
 import { InstallPackage } from "./InstallPackage";
-import { SapMessage } from "./SapMessage";
+import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
@@ -139,6 +139,11 @@ export namespace SystemConnector {
     export async function clearPackageSuperpackage(devclass: DEVCLASS): Promise<void> {
         await checkSystemConnector();
         return systemConnector.clearPackageSuperpackage(devclass);
+    }
+
+    export async function setPackageTransportLayer(devclass: DEVCLASS, devlayer: components.DEVLAYER): Promise<void> {
+        await checkSystemConnector();
+        await systemConnector.setPackageTransportLayer(devclass, devlayer);
     }
     
     export async function getMessage(data: SapMessage): Promise<string> {
@@ -290,5 +295,43 @@ export namespace SystemConnector {
     export async function getTransportObjectsBulk(trkorr: components.TRKORR): Promise<struct.TADIR[]> {
         await checkSystemConnector();
         return systemConnector.getTransportObjectsBulk(trkorr);
+    }
+
+    export async function getExistingObjects(objects: struct.TADIR[]): Promise<struct.TADIR[]> {
+        await checkSystemConnector();
+        return systemConnector.getExistingObjects(objects);
+    }
+
+    export async function getExistingObjectsBulk(objects: struct.TADIR[]): Promise<struct.TADIR[]> {
+        await checkSystemConnector();
+        return systemConnector.getExistingObjectsBulk(objects);
+    }
+
+    export async function getNamespace(namespace: components.NAMESPACE): Promise<{
+        trnspacet: struct.TRNSPACET,
+        trnspacett: struct.TRNSPACETT[]
+      }> {
+        await checkSystemConnector();
+        return systemConnector.getNamespace(namespace);
+    }
+
+    export async function addNamespace(namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.addNamespace(namespace, replicense, texts);
+    }
+
+    export async function getR3transVersion(): Promise<string> {
+        await checkSystemConnector();
+        return systemConnector.getR3transVersion();
+    }
+
+    export async function getR3transUnicode(): Promise<boolean> {
+        await checkSystemConnector();
+        return systemConnector.getR3transUnicode();
+    }
+
+    export async function isTransportLayerExist(devlayer: components.DEVLAYER): Promise<boolean> {
+        await checkSystemConnector();
+        return systemConnector.isTransportLayerExist(devlayer);
     }
 }
