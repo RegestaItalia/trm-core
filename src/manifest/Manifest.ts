@@ -342,11 +342,13 @@ export class Manifest {
                             delete author.email;
                         }
                     }
-
                     aAuthors[i] = author;
                 } catch (e) { }
             }
-            manifestClone.authors = aAuthors;
+            aAuthors = aAuthors.filter(o => !o.name && !o.email);
+            manifestClone.authors = Array.from(
+                new Map(aAuthors.map(o => [`${o.name}${o.email}`, o])).values()
+            );
             if (manifestClone.authors.length === 0) {
                 delete manifestClone.authors;
             }
@@ -364,7 +366,9 @@ export class Manifest {
             for (var originalKeyword of originalKeywords) {
                 try {
                     originalKeyword = originalKeyword.replace(/\s/g, '').toLowerCase();
-                    manifestClone.keywords.push(originalKeyword);
+                    if (!originalKeyword || !manifestClone.keywords.includes(originalKeyword)) {
+                        manifestClone.keywords.push(originalKeyword);
+                    }
                 } catch (e) { }
             }
             if (manifestClone.keywords.length === 0) {
@@ -384,10 +388,15 @@ export class Manifest {
                         if (semver.validRange(originalDependency.version)) {
                             dependency.version = originalDependency.version;
                             dependency.integrity = originalDependency.integrity;
+                            if (!dependency.integrity) {
+                                throw new Error(`Dependency ${dependency.name} is missing its integrity.`);
+                            }
                             if (originalDependency.registry) {
                                 dependency.registry = originalDependency.registry;
                             }
-                            manifestClone.dependencies.push(dependency);
+                            if (!manifestClone.dependencies.find(o => o.name === dependency.name && o.registry === dependency.registry)) {
+                                manifestClone.dependencies.push(dependency);
+                            }
                         }
                     }
                 } catch (e) { }
@@ -398,8 +407,19 @@ export class Manifest {
         } else {
             delete manifestClone.dependencies;
         }
-        if (!manifestClone.sapEntries) {
+        if (!manifestClone.sapEntries || typeof manifestClone.sapEntries !== 'object') {
             delete manifestClone.sapEntries;
+        } else {
+            for (const key in manifestClone.sapEntries) {
+                if (!Array.isArray(manifestClone.sapEntries[key])) {
+                    throw new Error(`Invalid structure in SAP entries declaration.`);
+                }
+                for (const item of manifestClone.sapEntries[key]) {
+                    if (typeof item !== 'object' || item === null) {
+                        throw new Error(`Invalid structure in SAP entries declaration.`);
+                    }
+                }
+            }
         }
         if (manifestClone.distFolder) {
             try {
@@ -564,7 +584,7 @@ export class Manifest {
         if (sAuthors) {
             sAuthors.split(',').forEach(s => {
                 if (s) {
-                    const match = sAuthors.trim().match(/^(.*?)(?:\s*<([^>]+)>)?$/);
+                    const match = s.trim().match(/^(.*?)(?:\s*<([^>]+)>)?$/);
                     if (match && match.length >= 3) {
                         authors.push({
                             name: match[1] ? match[1].trim() : undefined,
@@ -578,14 +598,14 @@ export class Manifest {
     }
 
     public static stringKeywordsToArray(sKeywords: string): string[] {
-        if(sKeywords){
+        if (sKeywords) {
             return sKeywords.split(',').map(s => {
-                if(s){
+                if (s) {
                     return s.trim();
                 }
             }).filter(k => k !== undefined);
-        }else{
-            return[];
+        } else {
+            return [];
         }
     }
 
