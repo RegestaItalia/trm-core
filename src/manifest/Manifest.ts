@@ -293,41 +293,41 @@ export class Manifest {
         } else {
             delete manifestClone.license;
         }
-        if(manifestClone.namespace){
-            if(!manifestClone.namespace.replicense){
+        if (manifestClone.namespace) {
+            if (!manifestClone.namespace.replicense) {
                 throw new Error('Missing namespace repair license.');
             }
             manifestClone.namespace.replicense = manifestClone.namespace.replicense.trim();
-            if(!/^\d+$/.test(manifestClone.namespace.replicense)){
+            if (!/^\d+$/.test(manifestClone.namespace.replicense)) {
                 throw new Error('Invalid characters in namespace repair license.');
             }
-            if(manifestClone.namespace.replicense.length !== 20){
+            if (manifestClone.namespace.replicense.length !== 20) {
                 throw new Error(`Namespace has invalid repair license: length must be 20`);
             }
-            if(!manifestClone.namespace.texts || manifestClone.namespace.texts.length === 0){
+            if (!manifestClone.namespace.texts || manifestClone.namespace.texts.length === 0) {
                 throw new Error('Invalid namespace data: missing texts.');
             }
             manifestClone.namespace.texts.forEach(o => {
-                if(!o.language || !o.description || !o.owner){
+                if (!o.language || !o.description || !o.owner) {
                     throw new Error('Missing namespace data.');
                 }
-                if(o.language.length !== 1){
+                if (o.language.length !== 1) {
                     throw new Error(`Namespace has invalid language ${o.language}`);
                 }
-                if(o.description.length > 60){
+                if (o.description.length > 60) {
                     throw new Error(`Namespace has invalid description: maximum length is 60`);
                 }
-                if(o.owner.length > 20){
+                if (o.owner.length > 20) {
                     throw new Error(`Namespace has invalid owner: maximum length is 20`);
                 }
             });
-        }else{
+        } else {
             delete manifestClone.namespace;
         }
         if (manifestClone.authors) {
             var aAuthors;
             if (typeof (manifestClone.authors) === 'string') {
-                aAuthors = manifestClone.authors.split(',');
+                aAuthors = this.stringAuthorsToArray(manifestClone.authors);
             } else {
                 aAuthors = manifestClone.authors;
             }
@@ -356,7 +356,7 @@ export class Manifest {
         if (manifestClone.keywords) {
             var originalKeywords;
             if (typeof (manifestClone.keywords) === 'string') {
-                originalKeywords = manifestClone.keywords.split(',');
+                originalKeywords = this.stringKeywordsToArray(manifestClone.keywords);
             } else {
                 originalKeywords = manifestClone.keywords;
             }
@@ -384,7 +384,7 @@ export class Manifest {
                         if (semver.validRange(originalDependency.version)) {
                             dependency.version = originalDependency.version;
                             dependency.integrity = originalDependency.integrity;
-                            if(originalDependency.registry){
+                            if (originalDependency.registry) {
                                 dependency.registry = originalDependency.registry;
                             }
                             manifestClone.dependencies.push(dependency);
@@ -431,9 +431,9 @@ export class Manifest {
         } catch (e) {
             throw new Error('XML Manifest is corrupted.');
         }
-        try{
+        try {
             sapEntries = oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['SAP_ENTRIES'];
-        }catch(e){
+        } catch (e) {
             Logger.error(e.toString(), true);
             Logger.error(`Couldn't parse sapEntries in abap xml manifest`, true);
         }
@@ -486,7 +486,7 @@ export class Manifest {
                 }];
             }
         }
-        if(oAbapManifest.dependencies && oAbapManifest.dependencies.item){
+        if (oAbapManifest.dependencies && oAbapManifest.dependencies.item) {
             if (Array.isArray(oAbapManifest.dependencies.item)) {
                 manifest.dependencies = oAbapManifest.dependencies.item.map(o => {
                     return {
@@ -505,9 +505,9 @@ export class Manifest {
                 }];
             }
         }
-        if(sapEntries && sapEntries.item){
+        if (sapEntries && sapEntries.item) {
             manifest.sapEntries = {};
-            try{
+            try {
                 const aParsedXml = this._parseAbapXmlSapEntriesArray(sapEntries.item);
                 aParsedXml.forEach(o => {
                     manifest.sapEntries[o.TABLE] = [];
@@ -517,29 +517,29 @@ export class Manifest {
                             var parsedField = field.toUpperCase();
                             parsedEntry[parsedField] = e[field];
                         });
-                        if(Object.keys(parsedEntry).length > 0){
+                        if (Object.keys(parsedEntry).length > 0) {
                             manifest.sapEntries[o.TABLE].push(parsedEntry);
                         }
                     });
                 });
-            }catch(e){ }
+            } catch (e) { }
         }
         return new Manifest(Manifest.normalize(manifest, false));
     }
 
     public static _parseAbapXmlSapEntriesArray(input: any): any[] {
         var array = [];
-        if(Array.isArray(input)){
+        if (Array.isArray(input)) {
             input.forEach(o => {
                 array = array.concat(this._parseAbapXmlSapEntriesArray(o));
             });
-        }else{
+        } else {
             var obj = {};
             Object.keys(input).forEach(k => {
-                if(input[k]._text){
+                if (input[k]._text) {
                     obj[k] = input[k]._text;
-                }else{
-                    if(input[k].item){
+                } else {
+                    if (input[k].item) {
                         obj[k] = this._parseAbapXmlSapEntriesArray(input[k].item);
                     }
                 }
@@ -557,6 +557,36 @@ export class Manifest {
         const s1 = o1.getKey(checkVersion);
         const s2 = o2.getKey(checkVersion);
         return s1 === s2;
+    }
+
+    public static stringAuthorsToArray(sAuthors: string): TrmManifestAuthor[] {
+        var authors: TrmManifestAuthor[] = [];
+        if (sAuthors) {
+            sAuthors.split(',').forEach(s => {
+                if (s) {
+                    const match = sAuthors.trim().match(/^(.*?)(?:\s*<([^>]+)>)?$/);
+                    if (match && match.length >= 3) {
+                        authors.push({
+                            name: match[1] ? match[1].trim() : undefined,
+                            email: match[2] ? match[2].trim() : undefined
+                        });
+                    }
+                }
+            });
+        }
+        return authors;
+    }
+
+    public static stringKeywordsToArray(sKeywords: string): string[] {
+        if(sKeywords){
+            sKeywords.split(',').map(s => {
+                if(s){
+                    return s.trim();
+                }
+            });
+        }else{
+            return[];
+        }
     }
 
 }
