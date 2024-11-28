@@ -4,43 +4,46 @@ import { Logger } from "../../logger";
 import { Manifest } from "../../manifest";
 import { eq, gt } from "semver";
 
+/**
+ * Check if already installed
+ * 
+ * 1- get data
+ * 
+ * 2- check if already installed
+ * 
+*/
 export const checkAlreadyInstalled: Step<InstallWorkflowContext> = {
     name: 'check-already-installed',
-    filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(context.parsedInput.skipAlreadyInstalledCheck){
-            Logger.log(`Skipping already installed check (input)`, true);
-            return false;
-        }else{
-            return true;
-        }
-    },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        const installedPackages = context.parsedInput.systemPackages;
-        const oManifest = context.runtime.manifest;
-        const trmManifest = context.runtime.trmManifest;
-        const installedPackage = installedPackages.find(o => Manifest.compare(o.manifest, oManifest, false));
+        Logger.log('Check already installed step', true);
+
+        //1- get data
+        const installedPackages = context.rawInput.contextData.systemPackages;
+        const manifest = context.runtime.remotePackageData.manifest;
+        const trmManifest = context.runtime.remotePackageData.trmManifest;
+
+        //2- check if already installed
+        const installedPackage = installedPackages.find(o => Manifest.compare(o.manifest, manifest, false));
         if(installedPackage){
             const installVersion = trmManifest.version;
             const installedVersion = installedPackage.manifest.get().version;
+            context.runtime.update = true;
             if(eq(installVersion, installedVersion)){
-                if(context.parsedInput.forceInstallSameVersion){
-                    Logger.log(`Package ${trmManifest.name} version ${installedVersion} already installed, but install is forced (input)`, true);
+                if(context.rawInput.packageData.overwrite){
+                    Logger.info(`Package "${trmManifest.name}" version ${installedVersion} already installed.`);
                 }else{
-                    throw new Error(`Package ${trmManifest.name} version ${installedVersion} already installed.`);
+                    throw new Error(`Package "${trmManifest.name}" version ${installedVersion} already installed.`);
                 }
             }else{
-                if(context.parsedInput.overwriteInstall){
-                    Logger.log(`Package ${trmManifest.name} version ${installedVersion} already installed, but install is forced (input)`, true);
-                    if(gt(installVersion, installedVersion)){
-                        Logger.info(`Upgrading ${installedVersion} -> ${installVersion}`);
-                    }else{
-                        Logger.warning(`Downgrading ${installedVersion} -> ${installVersion}`);
-                    }
+                if(gt(installVersion, installedVersion)){
+                    Logger.info(`Upgrading ${installedVersion} -> ${installVersion}`);
                 }else{
-                    throw new Error(`Package ${trmManifest.name} version ${installedVersion} already installed.`);
+                    Logger.warning(`Downgrading ${installedVersion} -> ${installVersion}`);
                 }
             }
-            
+        }else{
+            context.runtime.update = false;
+            Logger.info(`Package not installed yet`, true);
         }
     }
 }

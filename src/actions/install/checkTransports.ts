@@ -2,59 +2,146 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { TrmTransportIdentifier } from "../../transport";
+import { normalize } from "../../commons";
+import { E071 } from "../../client";
+import { Inquirer } from "../../inquirer";
 
+/**
+ * Check TRM Package transports. A TRM Package must have one DEVC (ABAP Package) and TADIR (Workbench objects) transports.
+ * 
+ * Optionally, one LANG (Translation) and one CUST (Customizing) transport.
+ * 
+ * 1- get transport binaries
+ * 
+ * 2- check validity of binaries with R3trans
+ * 
+ * 3- check DEVC transport (one transport)
+ * 
+ * 4- check TADIR transport (one transport)
+ * 
+ * 5- check LANG transport (zero or one transport)
+ * 
+ * 6- check CUST transport (zero or one transport)
+ * 
+ * 7- assert no DEVC object in any other transport beside DEVC
+ * 
+ * 8- assert DEVC transport contains atleast one DEVC object
+ * 
+*/
 export const checkTransports: Step<InstallWorkflowContext> = {
     name: 'check-transports',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        const packageName = context.parsedInput.packageName;
-        const r3trans = context.runtime.r3trans;
-        const oArtifact = context.runtime.trmArtifact;
-        Logger.loading(`Reading transports...`);
-        const aTransports = await oArtifact.getTransportBinaries();
+        Logger.log('Check transports step', true);
+
+        //1- get transport binaries
+        Logger.loading(`Checking package transports...`);
+        const aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries();
         Logger.log(`Package content: ${aTransports.map(o => {
             return {
                 trkorr: o.trkorr,
                 type: o.type
             }
         })}`, true);
+
+        //2- check validity of binaries with R3trans
         for (const transport of aTransports) {
-            try {
-                await r3trans.isTransportValid(transport.binaries.data);
+            const valid = await context.runtime.r3trans.isTransportValid(transport.binaries.data);
+            if (valid) {
                 Logger.log(`Transport ${transport.trkorr} is valid.`, true);
-            } catch (e) {
-                throw new Error(`Package contains invalid transport.`);
+            } else {
+                Logger.error(`Transport ${transport.trkorr} is invalid.`, true);
+                throw new Error(`Package contains invalid transports`);
             }
         }
         const aDevcTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.DEVC);
         const aTadirTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.TADIR);
         const aLangTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.LANG);
         const aCustTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.CUST);
-        if(aDevcTransports.length !== 1){
-            throw new Error(`Unexpected declaration of devclass in package ${packageName}.`);
-        }else{
-            context.runtime.devcTransport = aDevcTransports[0];
-            Logger.log(`DEVC transport is ${aDevcTransports[0].trkorr}.`, true);
+
+        //3- check DEVC transport (one transport)
+        if (aDevcTransports.length !== 1) {
+            Logger.error(`Zero or multiple DEVC transports found`, true);
+            throw new Error(`Unexpected content in package.`);
+        } else {
+            context.runtime.packageTransports.devc.binaries = aDevcTransports[0];
+            Logger.log(`DEVC transport is ${context.runtime.packageTransports.devc.binaries.trkorr}.`, true);
         }
-        if(aTadirTransports.length > 0){
-            if(aTadirTransports.length !== 1){
-                throw new Error(`Unexpected declaration of objects in package ${packageName}.`);
+
+        //4- check TADIR transport (one transport)
+        if (aTadirTransports.length !== 1) {
+            Logger.error(`Zero or multiple TADIR transports found`, true);
+            throw new Error(`Unexpected content in package.`);
+        } else {
+            context.runtime.packageTransports.tadir.binaries = aTadirTransports[0];
+            Logger.log(`TADIR transport is ${context.runtime.packageTransports.tadir.binaries.trkorr}.`, true);
+            const tadirE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.tadir.binaries.binaries.data, 'E071'));
+            Logger.log(`TADIR E071: ${JSON.stringify(tadirE071)}`, true);
+            context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(tadirE071);
+        }
+
+        //5- check LANG transport (zero or one transport)
+        if (aLangTransports.length > 0) {
+            if (context.rawInput.installData.import.noLang === undefined) {
+                if (!context.rawInput.contextData.noInquirer) {
+                    context.rawInput.installData.import.noLang = !(await Inquirer.prompt({
+                        type: `confirm`,
+                        name: `noLang`,
+                        message: `Import language translations transport?`,
+                        default: true,
+                    })).noLang;
+                }
             }
-            context.runtime.tadirTransport = aTadirTransports[0];
-            Logger.log(`TADIR transport is ${aTadirTransports[0].trkorr}.`, true);
-        }
-        if(aLangTransports.length > 0){
-            if(aLangTransports.length !== 1){
-                throw new Error(`Unexpected declaration of translations in package ${packageName}.`);
+            if (!context.rawInput.installData.import.noLang) {
+                if (aLangTransports.length !== 1) {
+                    Logger.error(`Multiple LANG transports found`, true);
+                    throw new Error(`Unexpected content in package.`);
+                }
+                context.runtime.packageTransports.lang.binaries = aLangTransports[0];
+                Logger.log(`LANG transport is ${context.runtime.packageTransports.lang.binaries.trkorr}.`, true);
+                const langE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.lang.binaries.binaries.data, 'E071'));
+                Logger.log(`LANG E071: ${JSON.stringify(langE071)}`, true);
+                context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(langE071);
             }
-            context.runtime.langTransport = aLangTransports[0];
-            Logger.log(`LANG transport is ${aLangTransports[0].trkorr}.`, true);
         }
-        if(aCustTransports.length > 0){
-            if(aCustTransports.length !== 1){
-                throw new Error(`Unexpected declaration of customizing in package ${packageName}.`);
+
+        //6- check CUST transport (zero or one transport)
+        if (aCustTransports.length > 0) {
+            if (context.rawInput.installData.import.noCust === undefined) {
+                if (!context.rawInput.contextData.noInquirer) {
+                    context.rawInput.installData.import.noCust = !(await Inquirer.prompt({
+                        type: `confirm`,
+                        name: `noCust`,
+                        message: `Import customizing transport?`,
+                        default: true,
+                    })).noCust;
+                }
             }
-            context.runtime.custTransport = aCustTransports[0];
-            Logger.log(`CUST transport is ${aCustTransports[0].trkorr}.`, true);
+            if (!context.rawInput.installData.import.noCust) {
+                if (aCustTransports.length !== 1) {
+                    Logger.error(`Multiple CUST transports found`, true);
+                    throw new Error(`Unexpected content in package.`);
+                }
+                context.runtime.packageTransports.cust.binaries = aCustTransports[0];
+                Logger.log(`CUST transport is ${context.runtime.packageTransports.cust.binaries.trkorr}.`, true);
+                const custE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.cust.binaries.binaries.data, 'E071'));
+                Logger.log(`CUST E071: ${JSON.stringify(custE071)}`, true);
+                context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(custE071);
+            }
         }
+
+        //7- assert no DEVC object in any other transport beside DEVC
+        if (context.runtime.packageTransportsData.e071.find(o => o.pgmid === 'R3TR' && o.object === 'DEVC')) {
+            throw new Error(`Package has undeclared devclass.`); //all devc object must be in devc transport only
+        }
+
+        //8- assert DEVC transport contains atleast one DEVC object
+        var devcE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.devc.binaries.binaries.data, 'E071'));
+        Logger.log(`DEVC E071: ${JSON.stringify(devcE071)}`, true);
+        devcE071 = devcE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC'); //keep devc only
+        if (devcE071.length === 0) {
+            throw new Error(`Package has no devclass.`);
+        }
+        context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(devcE071);
+        context.runtime.installData.entries = context.runtime.packageTransportsData.e071;
     }
 }

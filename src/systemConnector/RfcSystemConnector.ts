@@ -1,9 +1,9 @@
 import { Logger } from "../logger";
-import { RFCClient } from "../client";
+import { RFCClient, SapMessage } from "../client";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
 import { RFCConnection } from "./RFCConnection";
-import { Login } from "./Login";
+import { Login } from "../client/Login";
 import { ISystemConnector } from "./ISystemConnector";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
@@ -16,10 +16,11 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     private _client: RFCClient;
 
     supportedBulk: SystemConnectorSupportedBulk = {
-        getTransportObjects: false
+        getTransportObjects: false,
+        getExistingObjects: false
     };
 
-    constructor(private _connection: RFCConnection, private _login: Login) {
+    constructor(private _connection: RFCConnection, private _login: Login, private _traceDir?: string) {
         super();
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
@@ -27,7 +28,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         if (!this._connection.saprouter) {
             delete this._connection.saprouter;
         }
-        this._client = new RFCClient({ ...this._connection, ...this._login });
+        this._client = new RFCClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir);
     }
     
     protected getSysname(): string {
@@ -44,7 +45,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     public getLogonLanguage(c: boolean = false): string {
         if (c) {
-            return Array.from(this._lang)[0];
+            return this._lang[0];
         } else {
             return this._lang;
         }
@@ -62,8 +63,12 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getDevclassObjects(devclass);
     }
 
-    protected async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean): Promise<void> {
-        return this._client.tdevcInterface(devclass, parentcl, rmParentCl);
+    protected async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void> {
+        return this._client.tdevcInterface(devclass, parentcl, rmParentCl, devlayer);
+    }
+
+    protected async getR3transInfo(): Promise<string> {
+        return this._client.getR3transInfo();
     }
 
     public getConnectionData(): RFCConnection {
@@ -195,6 +200,14 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     public async trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean): Promise<void> {
         return this._client.trCopy(from, to, doc);
+    }
+
+    public async addNamespace(namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]): Promise<void> {
+        return this._client.addNamespace(namespace, replicense, texts);
+    }
+
+    public async getMessage(data: SapMessage): Promise<string> {
+        return this._client.getMessage(data);
     }
 
 }

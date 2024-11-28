@@ -1,3 +1,4 @@
 export type SystemConnectorSupportedBulk = {
-    getTransportObjects: boolean
+    getTransportObjects: boolean,
+    getExistingObjects: boolean
 }

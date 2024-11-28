@@ -116,6 +116,11 @@ export class Manifest {
                 "_text": manifest.license
             }
         }
+        if (manifest.namespace) {
+            oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['REPLICENSE'] = {
+                "_text": manifest.namespace.replicense
+            }
+        }
         if (manifest.authors) {
             var authors = [];
             (manifest.authors as TrmManifestAuthor[]).forEach(o => {
@@ -288,6 +293,37 @@ export class Manifest {
         } else {
             delete manifestClone.license;
         }
+        if(manifestClone.namespace){
+            if(!manifestClone.namespace.replicense){
+                throw new Error('Missing namespace repair license.');
+            }
+            manifestClone.namespace.replicense = manifestClone.namespace.replicense.trim();
+            if(!/^\d+$/.test(manifestClone.namespace.replicense)){
+                throw new Error('Invalid characters in namespace repair license.');
+            }
+            if(manifestClone.namespace.replicense.length !== 20){
+                throw new Error(`Namespace has invalid repair license: length must be 20`);
+            }
+            if(!manifestClone.namespace.texts || manifestClone.namespace.texts.length === 0){
+                throw new Error('Invalid namespace data: missing texts.');
+            }
+            manifestClone.namespace.texts.forEach(o => {
+                if(!o.language || !o.description || !o.owner){
+                    throw new Error('Missing namespace data.');
+                }
+                if(o.language.length !== 1){
+                    throw new Error(`Namespace has invalid language ${o.language}`);
+                }
+                if(o.description.length > 60){
+                    throw new Error(`Namespace has invalid description: maximum length is 60`);
+                }
+                if(o.owner.length > 20){
+                    throw new Error(`Namespace has invalid owner: maximum length is 20`);
+                }
+            });
+        }else{
+            delete manifestClone.namespace;
+        }
         if (manifestClone.authors) {
             var aAuthors;
             if (typeof (manifestClone.authors) === 'string') {
@@ -421,6 +457,12 @@ export class Manifest {
         }
         if (oAbapManifest.license && oAbapManifest.license.text) {
             manifest.license = oAbapManifest.license.text;
+        }
+        if (oAbapManifest.replicense && oAbapManifest.replicense.text) {
+            manifest.namespace = {
+                replicense: oAbapManifest.replicense.text,
+                texts: []
+            };
         }
         if (oAbapManifest.keywords && oAbapManifest.keywords.item) {
             if (Array.isArray(oAbapManifest.keywords.item)) {

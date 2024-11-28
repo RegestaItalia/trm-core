@@ -5,29 +5,34 @@ import { getNpmGlobalPath, normalize } from "../commons";
 import { Logger } from "../logger";
 import { existsSync } from "fs";
 import path from "path";
+import { SapMessage } from ".";
 
 const nodeRfcLib = 'node-rfc';
 
 export class RFCClient implements IClient {
-    private _rfcClientArg: any;
     private _rfcClient: any;
     private _aliveCheck: boolean = false;
 
-    constructor(arg1: any, traceDir?: string) {
-        process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
+    constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string) {
+        try{
+            process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
+        }catch(e){
+            //not sure if this could cause an error!
+            Logger.warning(`Couldn't set RFC trace!`, true);
+            Logger.error(e.toString(), true);
+        }
         Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
-        this._rfcClientArg = arg1;
     }
 
     private async getRfcClient(): Promise<any> {
-        if(!this._rfcClient){
+        if (!this._rfcClient) {
             const globalPath = await getNpmGlobalPath();
             const libPath = path.join(globalPath, nodeRfcLib);
             Logger.log(`Node RFC lib path: ${libPath}`, true);
-            if(!existsSync(libPath)){
+            if (!existsSync(libPath)) {
                 throw new Error(`${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
             }
-            this._rfcClient = new (await import(libPath)).Client(this._rfcClientArg);
+            this._rfcClient = new (await import(libPath)).Client(this._rfcClientArgs);
         }
         return this._rfcClient;
     }
@@ -39,10 +44,10 @@ export class RFCClient implements IClient {
     }
 
     public async checkConnection(): Promise<boolean> {
-        if(!this._aliveCheck){
-            if((await this.getRfcClient()).alive){
+        if (!this._aliveCheck) {
+            if ((await this.getRfcClient()).alive) {
                 Logger.success(`RFC open`, true);
-            }else{
+            } else {
                 Logger.warning(`RFC closed`, true);
             }
             this._aliveCheck = true;
@@ -50,7 +55,7 @@ export class RFCClient implements IClient {
         return (await this.getRfcClient()).alive;
     }
 
-    private async _call(fm: any, arg?: any, timeout?: number): Promise<any> {
+    private async _call(fm: any, arg?: any, timeout?: number, noErrorParsing?: boolean): Promise<any> {
         var argNormalized;
         if (arg) {
             var emptyKeys = [];
@@ -67,19 +72,74 @@ export class RFCClient implements IClient {
             argNormalized = {};
         }
         var callOptions = undefined;
-        if(timeout){
+        if (timeout) {
             callOptions = {
                 timeout
             };
         }
-        Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(argNormalized)}, opts ${JSON.stringify(callOptions)}`, true);
-        const response = await (await this.getRfcClient()).call(fm, argNormalized, callOptions);
-        const responseNormalized = normalize(response);
-        Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
-        return responseNormalized;
+        try {
+            Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(argNormalized)}, opts ${JSON.stringify(callOptions)}`, true);
+            const response = await (await this.getRfcClient()).call(fm, argNormalized, callOptions);
+            const responseNormalized = normalize(response);
+            Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
+            return responseNormalized;
+        } catch (e) {
+            if(noErrorParsing){
+                throw e;
+            }else{
+                var message: string;
+                var messageError;
+                try{
+                    message = await this._getMessage(true, {
+                        no: `${e.abapMsgNumber}`,
+                        class: e.abapMsgClass,
+                        v1: e.abapMsgV1,
+                        v2: e.abapMsgV2,
+                        v3: e.abapMsgV3,
+                        v4: e.abapMsgV4
+                    });
+                }catch(k){
+                    messageError = k;
+                    message = `Couldn't read error message ${e.abapMsgClass} ${e.abapMsgNumber} ${e.abapMsgV1} ${e.abapMsgV2} ${e.abapMsgV3} ${e.abapMsgV4}`;
+                }
+                var rfcClientError: any = new Error(message.trim());
+                rfcClientError.name = 'TrmRFCClient';
+                rfcClientError.rfcError = e;
+                if(messageError){
+                    rfcClientError.messageError = messageError;
+                }
+                Logger.error(rfcClientError.toString(), true);
+                throw rfcClientError;
+            }
+        }
     }
 
-    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+    private async _getMessage(noErrorParsing: boolean, data: SapMessage): Promise<string> {
+        var msgnr = data.no;
+        while (msgnr.length < 3) {
+            msgnr = `0${msgnr}`;
+        }
+        const aT100: struct.T100[] = await this._readTable(noErrorParsing, 'T100',
+            [{ fieldName: 'SPRSL' }, { fieldName: 'ARBGB' }, { fieldName: 'MSGNR' }, { fieldName: 'TEXT' }],
+            `SPRSL EQ '${this._cLangu}' AND ARBGB EQ '${data.class}' AND MSGNR EQ '${msgnr}'`
+        );
+        if (aT100.length === 1 && aT100[0].text) {
+            var msg = aT100[0].text;
+            msg = msg.replace("&1", data.v1 || '');
+            msg = msg.replace("&2", data.v2 || '');
+            msg = msg.replace("&3", data.v3 || '');
+            msg = msg.replace("&4", data.v4 || '');
+            return msg.trim();
+        } else {
+            throw new Error(`Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
+        }
+    }
+
+    public async getMessage(data: SapMessage): Promise<string> {
+        return this._getMessage(false, data);
+    }
+
+    private async _readTable(noErrorParsing: boolean, tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
         var sqlOutput = [];
         const delimiter = '|';
         var aOptions: struct.RFC_DB_OPT[] = [];
@@ -87,20 +147,20 @@ export class RFCClient implements IClient {
             //line must not exceede 72 chars length
             //it must not break on an operator
             const aSplit = options.split(/\s+AND\s+/);
-            if(aSplit.length > 1){
+            if (aSplit.length > 1) {
                 aSplit.forEach((s, i) => {
                     var sText = s.trim();
-                    if(i !== 0){
+                    if (i !== 0) {
                         sText = `AND ${sText}`;
                     }
                     aOptions.push({ text: sText });
                 })
-            }else{
+            } else {
                 aOptions = aSplit.map(s => {
                     return {
                         text: s
                     }
-                }) ;
+                });
             }
             /*aOptions = (options.match(/.{1,72}/g)).map(s => {
                 return {
@@ -113,7 +173,7 @@ export class RFCClient implements IClient {
             delimiter,
             options: aOptions,
             fields: fields
-        });
+        }, undefined, noErrorParsing);
         const data: struct.TAB512[] = result['data'];
         data.forEach(tab512 => {
             var sqlLine: any = {};
@@ -124,6 +184,10 @@ export class RFCClient implements IClient {
             sqlOutput.push(sqlLine);
         })
         return normalize(sqlOutput);
+    }
+
+    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+        return this._readTable(false, tableName, fields, options);
     }
 
     public async getFileSystem(): Promise<struct.FILESYS> {
@@ -240,11 +304,12 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean): Promise<void> {
+    public async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void> {
         await this._call("ZTRM_TDEVC_INTERFACE", {
             iv_devclass: devclass.trim().toUpperCase(),
             iv_parentcl: parentcl ? parentcl.trim().toUpperCase() : '',
-            iv_rm_parentcl: rmParentCl ? 'X' : ' '
+            iv_rm_parentcl: rmParentCl ? 'X' : ' ',
+            iv_devlayer: devlayer ? devlayer.trim().toUpperCase() : ''
         });
     }
 
@@ -320,7 +385,7 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void>{
+    public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void> {
         await this._call("ZTRM_ADD_LANG_TR", {
             iv_trkorr: trkorr,
             it_devclass: devclassFilter
@@ -334,4 +399,18 @@ export class RFCClient implements IClient {
             iv_doc: doc ? 'X' : ' '
         });
     }
+
+    public async addNamespace(namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]): Promise<void> {
+        await this._call("ZTRM_ADD_NAMESPACE", {
+            iv_namespace: namespace,
+            iv_replicense: replicense,
+            it_texts: texts
+        });
+    }
+
+    public async getR3transInfo(): Promise<string> {
+        const result = await this._call("ZTRM_GET_R3TRANS_INFO");
+        return result['evLog'];
+    }
+
 }

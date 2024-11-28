@@ -9,7 +9,7 @@ export function getPackageNamespace(devclass: DEVCLASS): string{
     }else if(aDevclass[0] === '$'){
         return '$';
     }else if(/^(\/.*\/)/.test(devclass)){
-        return devclass.toUpperCase().match(/^(\/.*\/)/)[1];
+        return devclass.toUpperCase().match(/^(\/.*\/)/)[1].toUpperCase();
     }else{
         throw new Error(`Devclass ${devclass.toUpperCase()} uses a non-custom namespace.`);
     }

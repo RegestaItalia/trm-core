@@ -8,22 +8,30 @@ export class DummyLogger implements ILogger {
 
     constructor() { }
 
-    public loading(text: string, debug?: boolean) { }
+    public loading(text: string, debug?: boolean): void { }
 
-    public success(text: string, debug?: boolean) { }
+    public success(text: string, debug?: boolean): void { }
 
-    public error(text: string, debug?: boolean) { }
+    public error(text: string, debug?: boolean): void { }
 
-    public warning(text: string, debug?: boolean) { }
+    public warning(text: string, debug?: boolean): void { }
 
-    public info(text: string, debug?: boolean) { }
+    public info(text: string, debug?: boolean): void { }
 
-    public log(text: string, debug?: boolean) { }
+    public log(text: string, debug?: boolean): void { }
 
-    public table(header: any, data: any, debug?: boolean) { }
+    public table(header: string[], data: string[][], debug?: boolean): void { }
 
-    public registryResponse(response: ResponseMessage, debug?: boolean) { }
+    public registryResponse(response: ResponseMessage, debug?: boolean): void { }
 
-    public tree(data: TreeLog, debug?: boolean) { }
+    public tree(data: TreeLog, debug?: boolean): void { }
+
+    public setPrefix(text: string): void { }
+
+    public removePrefix(): void { }
+
+    public getPrefix(): string { 
+        return '';
+    }
 
 }

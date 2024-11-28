@@ -1,10 +1,10 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, TableDependency, TrmDependency } from ".";
-import { DEVCLASS } from "../../client";
+import { Logger } from "../../logger";
+import { DEVCLASS, TADIR } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { TrmPackage } from "../../trmPackage";
-import { Logger } from "../../logger";
 
 var aRootDevclass: {
     devclass: string,
@@ -44,12 +44,7 @@ const _getRootDevclass = async (devclass) => {
 const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Promise<TrmDependency[]> => {
     var trmDependencies: TrmDependency[] = [];
     for (const tadirDependency of tadirDependencies) {
-        const tadir: {
-            PGMID: string,
-            OBJ_NAME: string,
-            OBJECT: string,
-            DEVCLASS: string
-        } = tadirDependency.tableDependency;
+        const tadir = tadirDependency.object as TADIR;
         var trmRelevantTransports: Transport[] = [];
         var latestTransport: Transport;
         var devclass: DEVCLASS;
@@ -57,13 +52,9 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         var integrity: string;
         var arrayIndex1: number;
         var arrayIndex2: number;
-        Logger.log(`Searching transports for object ${tadir.PGMID} ${tadir.OBJECT} ${tadir.OBJ_NAME}`, true);
-        const allTransports = await Transport.getTransportsFromObject({
-            pgmid: tadir.PGMID,
-            object: tadir.OBJECT,
-            objName: tadir.OBJ_NAME
-        });
-        Logger.log(`Found ${allTransports.length} transports for object ${tadir.PGMID} ${tadir.OBJECT} ${tadir.OBJ_NAME}`, true);
+        Logger.log(`Searching transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
+        const allTransports = await Transport.getTransportsFromObject(tadir);
+        Logger.log(`Found ${allTransports.length} transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
         for (const transport of allTransports) {
             if (await transport.isTrmRelevant()) {
                 Logger.log(`Transport ${transport.trkorr} is TRM relevant`, true);
@@ -75,7 +66,7 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
             Logger.log(`Latest transport is ${latestTransport.trkorr}`, true);
             //has trm package
             trmPackage = await latestTransport.getLinkedPackage();
-            const alreadyInArray = trmDependencies.find(o => o.trmPackage && TrmPackage.compare(o.trmPackage, trmPackage))
+            const alreadyInArray = trmDependencies.find(o => o.package && TrmPackage.compare(o.package, trmPackage))
             if(alreadyInArray){
                 devclass = alreadyInArray.devclass;
                 integrity = alreadyInArray.integrity;
@@ -93,14 +84,14 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         } else {
             Logger.log(`Object without TRM package`, true);
             //doesn't have trm package
-            devclass = await _getRootDevclass(tadir.DEVCLASS);
+            devclass = await _getRootDevclass(tadir.devclass);
         }
         
         arrayIndex1 = trmDependencies.findIndex(o => o.devclass === devclass);
         if (arrayIndex1 < 0) {
             arrayIndex1 = trmDependencies.push({
                 devclass,
-                trmPackage,
+                package: trmPackage,
                 integrity,
                 sapEntries: []
             });
@@ -119,27 +110,26 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
     return trmDependencies;
 }
 
+/**
+ * For all objects found, search its TRM package. If not found, get the root ABAP package of the object.
+ * 
+ * 1- search dependencies with TADIR table
+ * 
+*/
 export const setTrmDependencies: Step<FindDependenciesWorkflowContext> = {
     name: 'set-trm-dependencies',
-    filter: async (context: FindDependenciesWorkflowContext): Promise<boolean> => {
-        const aParsedSenvi = context.runtime.parsedSenvi || [];
-        if (aParsedSenvi.length === 0) {
-            Logger.log(`Skipping set TRM dependencies (no custom object found)`, true);
-            return false;
-        } else {
-            return true;
-        }
-    },
     run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
-        const aParsedSenvi = context.runtime.parsedSenvi;
+        Logger.log('Set TRM dependencies step', true);
+
+        //1- search dependencies with TADIR table
         var trmDependencies: TrmDependency[] = [];
         Logger.loading(`Searching TRM dependencies...`);
-        for (const parsedSenvi of aParsedSenvi) {
-            if (parsedSenvi.table === 'TADIR') {
-                trmDependencies = trmDependencies.concat(await _getTadirDependencies(parsedSenvi.dependencies));
+        for (const entryDependency of context.runtime.dependencies.customObjects) {
+            if (entryDependency.table === 'TADIR') {
+                trmDependencies = trmDependencies.concat(await _getTadirDependencies(entryDependency.dependencies));
             }
         }
-        context.output.trmDependencies = trmDependencies.filter(o => o.trmPackage);
-        context.output.unknownDependencies = trmDependencies.filter(o => !o.trmPackage);
+        context.runtime.dependencies.withTrmPackage = trmDependencies.filter(o => o.package);
+        context.runtime.dependencies.withoutTrmPackage = trmDependencies.filter(o => !o.package);
     }
 }

@@ -303,24 +303,42 @@ export class Transport {
         return null;
     }
 
-    public async release(lock: boolean, skipLog: boolean, tmpFolder?: string, secondsTimeout?: number): Promise<Transport> {
-        Logger.loading('Releasing...', skipLog);
+    public async release(lock: boolean, skipLog: boolean, tmpFolder?: string, secondsTimeout?: number): Promise<void> {
+        var rc: number;
+        Logger.loading('Releasing transport...', skipLog);
         await SystemConnector.releaseTrkorr(this.trkorr, lock, secondsTimeout);
         await SystemConnector.dequeueTransport(this.trkorr);
         if (tmpFolder) {
-            await this.readReleaseLog(tmpFolder, secondsTimeout);
-            Logger.loading(`Finalizing release...`, skipLog);
-            await this._isInTmsQueue(true, false, secondsTimeout);
+            rc = await this.readReleaseLog(tmpFolder, secondsTimeout);
         } else {
-            await this._isInTmsQueue(skipLog, false, secondsTimeout);
+            rc = await this._isInTmsQueue(skipLog, false, secondsTimeout);
         }
-        return this;
+        if(!skipLog && !tmpFolder){ //with tmpFolder, release status already printed
+            switch (rc) {
+                case 4:
+                    Logger.warning(`${this.trkorr} release ended with warning.`);
+                    break;
+                case 8:
+                    Logger.error(`${this.trkorr} release ended with error.`);
+                    break;
+                case 12:
+                    Logger.error(`${this.trkorr} release was cancelled.`);
+                    break;
+                case 16:
+                    Logger.error(`${this.trkorr} release was cancelled.`);
+                    break;
+            }
+        }
     }
 
-    public async readReleaseLog(tmpFolder: string, secondsTimeout: number): Promise<void> {
+    public async readReleaseLog(tmpFolder: string, secondsTimeout: number): Promise<number> {
         const filePaths = await Transport._getFilePaths(this._fileNames);
         const localPath = path.join(tmpFolder, this._fileNames.releaseLog);
-        const oParser = new R3transLogParser(localPath);
+
+        const systemR3transVersion = await SystemConnector.getR3transVersion();
+        const systemR3transUnicode = await SystemConnector.getR3transUnicode();
+        Logger.log(`System R3trans: ${systemR3transVersion}`, true);
+        Logger.log(`System R3trans unicode: ${systemR3transUnicode}`, true);
 
         if (Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger) {
             Logger.logger.forceStop();
@@ -360,7 +378,7 @@ export class Transport {
             try {
                 const logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
                 fs.writeFileSync(localPath, logBinary);
-                logResult = await oParser.getReleaseLog();
+                logResult = await (new R3transLogParser(localPath, systemR3transUnicode)).getReleaseLog();
                 fs.unlinkSync(localPath);
             } catch (e) {
                 logResult = [];
@@ -446,6 +464,7 @@ export class Transport {
         multibar.stop();
 
         var error: Error;
+        var rc: number;
         if (!exitWhile) {
             error = new Error(`Timed out waiting for release.`);
         } else {
@@ -454,14 +473,18 @@ export class Transport {
             }
             if (whileResult === "SUCCESS") {
                 Logger.success(`Transport ${this.trkorr} released with success.`);
+                rc = 0;
             }
             if (whileResult === "WARNING") {
                 Logger.warning(`Transport ${this.trkorr} released with warning.`);
+                rc = 4;
             }
         }
 
         if (error) {
             throw error;
+        }else{
+            return rc;
         }
     }
 
@@ -469,16 +492,19 @@ export class Transport {
         //TODO
     }
 
-    private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false, secondsTimeout): Promise<boolean> {
+    private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false, secondsTimeout): Promise<number> {
         const timeoutDate = new Date((new Date()).getTime() + (secondsTimeout * 1000));
         Logger.log(`TMS check for transport ${this.trkorr}, timeout date set to ${timeoutDate}`, true);
         var inQueue = false;
+        var rc: number = 12;
         if (this._trTarget) {
             var sLog = `status unknown`;
             var inQueueAttempts = 0;
             while (!inQueue && (new Date()).getTime() < timeoutDate.getTime()) {
                 inQueueAttempts++;
-                Logger.loading(`Reading transport queue, attempt ${inQueueAttempts}...`, skipLog);
+                Logger.log(`Attempt ${inQueueAttempts}`, true);
+                Logger.loading(`Reading transport queue...`, skipLog);
+                await setTimeout(6000);
                 var tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
@@ -490,11 +516,11 @@ export class Transport {
                     sLog = `imported`;
                     if (tmsQueue.length > 0) {
                         inQueue = tmsQueue[0].impsing !== 'X';
+                        rc = parseInt(tmsQueue[0].maxrc);
                     } else {
                         inQueue = false;
                     }
                 }
-                await setTimeout(6000);
             }
             if (!inQueue) {
                 throw new Error(`Transport request not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
@@ -504,7 +530,7 @@ export class Transport {
         } else {
             Logger.error(`No target specified, unable to check queue!!`, true);
         }
-        return inQueue;
+        return rc;
     }
 
     private static _getFileNames(trkorr: TRKORR, targetSystem: string): FileNames {
@@ -670,7 +696,22 @@ export class Transport {
         Logger.loading(`Importing transport ${this.trkorr}`, true);
         await SystemConnector.importTransport(this.trkorr, this._trTarget);
         Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
-        await this._isInTmsQueue(false, true, timeout);
+        const rc = await this._isInTmsQueue(false, true, timeout);
+        Logger.log(`Transport ${this.trkorr} import ended: return code ${rc}`, true);
+        switch (rc) {
+            case 4:
+                Logger.warning(`${this.trkorr} import ended with warning.`);
+                break;
+            case 8:
+                Logger.error(`${this.trkorr} import ended with error.`);
+                break;
+            case 12:
+                Logger.error(`${this.trkorr} import was cancelled.`);
+                break;
+            case 16:
+                Logger.error(`${this.trkorr} import was cancelled.`);
+                break;
+        }
     }
 
     public async rename(as4text: string): Promise<void> {

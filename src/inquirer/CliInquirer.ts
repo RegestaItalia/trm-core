@@ -5,6 +5,8 @@ import * as cliInquirer from '@inquirer/prompts';
 
 export class CliInquirer implements IInquirer {
 
+    private _prefix: string = '';
+
     constructor() { }
 
     public async prompt(arg1: Question | Question[]): Promise<any> {
@@ -32,6 +34,7 @@ export class CliInquirer implements IInquirer {
                     prompt = await question.when(hash);
                 }
                 if(prompt){
+                    question.message = this._prefix + question.message;
                     const oResponse = await cliInquirer[question.type](question);
                     hash[question.name] = oResponse;
                 }
@@ -40,5 +43,17 @@ export class CliInquirer implements IInquirer {
             }
         }
         return hash;
+    }
+
+    public setPrefix(text: string): void {
+        this._prefix = text;
+    }
+
+    public removePrefix(): void {
+        this._prefix = '';
+    }
+
+    public getPrefix(): string {
+        return this._prefix;
     }
 }

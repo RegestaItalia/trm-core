@@ -1,3 +1,4 @@
+import { SapMessage } from "../client";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
@@ -40,5 +41,8 @@ export interface ISystemConnector extends ISystemConnectorBase {
     setPackageIntegrity: (integrity: struct.ZTRM_INTEGRITY) => Promise<void>,
     addTranslationToTr: (trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]) => Promise<void>,
     trCopy: (from: components.TRKORR, to: components.TRKORR, doc: boolean) => Promise<void>,
-    getTransportObjectsBulk?: (trkorr: components.TRKORR) => Promise<struct.TADIR[]>
+    getTransportObjectsBulk?: (trkorr: components.TRKORR) => Promise<struct.TADIR[]>,
+    getExistingObjectsBulk?: (objects: struct.TADIR[]) => Promise<struct.TADIR[]>,
+    addNamespace: (namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]) => Promise<void>,
+    getMessage: (data: SapMessage) => Promise<string>
 }

@@ -31,8 +31,8 @@ export class Registry {
         if (!envEndpoint || envEndpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD) {
             //no env var value or env var value = public
             envEndpoint = 'https://www.trmregistry.com/registry';
-            this._registryType = RegistryType.PUBLIC;
-        } else if (endpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD) {
+        }
+        if (endpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD) {
             //if input endpoint is public
             this._registryType = RegistryType.PUBLIC;
         } else {

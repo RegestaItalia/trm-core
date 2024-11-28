@@ -6,11 +6,12 @@ import { T100, TADIR, TDEVC, TMSCSYS } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
-import { SapMessage } from "./SapMessage";
+import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../registry";
+import { R3trans } from "node-r3trans";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';
@@ -20,18 +21,20 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   private _installedPackages: TrmPackage[];
   private _installedPackagesI: TrmPackage[];
+  private _r3transInfoLog: string;
 
   protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]>
   protected abstract getSysname(): string
   protected abstract getLangu(c: boolean): string
   protected abstract getTrmServerVersion(): Promise<string>
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
-  protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean): Promise<void>
+  protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
+  protected abstract getR3transInfo(): Promise<string>
 
-  constructor(){
+  constructor() {
 
   }
-  
+
   public async getTransportStatus(trkorr: TRKORR): Promise<string> {
     const aTrkorrStatusCheck: any[] = (await this.readTable('E070',
       [{ fieldName: 'TRKORR' }, { fieldName: 'TRSTATUS' }],
@@ -283,137 +286,174 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async getTransportTargets(): Promise<TMSCSYS[]> {
-      //systyp might not be available in some releases?
-      try {
-          return await this.readTable('TMSCSYS',
-              [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }, { fieldName: 'SYSTYP' }]
-          );
-      } catch (e) {
-          return await this.readTable('TMSCSYS',
-              [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }]
-          );
-      }
+    //systyp might not be available in some releases?
+    try {
+      return await this.readTable('TMSCSYS',
+        [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }, { fieldName: 'SYSTYP' }]
+      );
+    } catch (e) {
+      return await this.readTable('TMSCSYS',
+        [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }]
+      );
+    }
   }
 
   public async getSubpackages(devclass: DEVCLASS): Promise<TDEVC[]> {
-      const queryFields = [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }];
-      var subpackages: {
-          tdevc: TDEVC,
-          queryDone: boolean
-      }[] = [];
-      const initial: TDEVC[] = await this.readTable('TDEVC',
-          queryFields,
-          `DEVCLASS EQ '${devclass.trim().toUpperCase()}'`
+    const queryFields = [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }];
+    var subpackages: {
+      tdevc: TDEVC,
+      queryDone: boolean
+    }[] = [];
+    const initial: TDEVC[] = await this.readTable('TDEVC',
+      queryFields,
+      `DEVCLASS EQ '${devclass.trim().toUpperCase()}'`
+    );
+    if (initial.length === 1) {
+      subpackages.push({
+        tdevc: initial[0],
+        queryDone: false
+      });
+    }
+    while (subpackages.find(o => !o.queryDone)) {
+      const searchParentIndex = subpackages.findIndex(o => !o.queryDone);
+      const tdevc: TDEVC[] = await this.readTable('TDEVC',
+        queryFields,
+        `PARENTCL EQ '${subpackages[searchParentIndex].tdevc.devclass.trim().toUpperCase()}'`
       );
-      if (initial.length === 1) {
-          subpackages.push({
-              tdevc: initial[0],
-              queryDone: false
-          });
-      }
-      while (subpackages.find(o => !o.queryDone)) {
-          const searchParentIndex = subpackages.findIndex(o => !o.queryDone);
-          const tdevc: TDEVC[] = await this.readTable('TDEVC',
-              queryFields,
-              `PARENTCL EQ '${subpackages[searchParentIndex].tdevc.devclass.trim().toUpperCase()}'`
-          );
-          subpackages[searchParentIndex].queryDone = true;
-          tdevc.forEach(o => {
-              subpackages.push({
-                  tdevc: o,
-                  queryDone: false
-              });
-          });
-      }
-      return subpackages.map(o => o.tdevc).filter(o => o.devclass !== devclass.trim().toUpperCase());
+      subpackages[searchParentIndex].queryDone = true;
+      tdevc.forEach(o => {
+        subpackages.push({
+          tdevc: o,
+          queryDone: false
+        });
+      });
+    }
+    return subpackages.map(o => o.tdevc).filter(o => o.devclass !== devclass.trim().toUpperCase());
   }
 
   public async getDevclassObjects(devclass: DEVCLASS, includeSubpackages: boolean = true): Promise<TADIR[]> {
-      var aTadir: TADIR[] = [];
-      var aDevclass: DEVCLASS[] = [devclass];
-      if (includeSubpackages) {
-          aDevclass = aDevclass.concat(((await this.getSubpackages(devclass)).map(o => o.devclass)));
-      }
-      for (const d of aDevclass) {
-          aTadir = aTadir.concat(((await this.listDevclassObjects(d.trim().toUpperCase()))));
-      }
-      return aTadir;
+    var aTadir: TADIR[] = [];
+    var aDevclass: DEVCLASS[] = [devclass];
+    if (includeSubpackages) {
+      aDevclass = aDevclass.concat(((await this.getSubpackages(devclass)).map(o => o.devclass)));
+    }
+    for (const d of aDevclass) {
+      aTadir = aTadir.concat(((await this.listDevclassObjects(d.trim().toUpperCase()))));
+    }
+    return aTadir;
   }
 
   public async getInstallPackages(packageName: string, registry: Registry): Promise<InstallPackage[]> {
-      const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
-      return await this.readTable('ZTRMVINSTALLDEVC',
-          [{ fieldName: 'ORIGINAL_DEVCLASS' }, { fieldName: 'INSTALL_DEVCLASS' }],
-          `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
-      );
+    const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
+    return await this.readTable('ZTRMVINSTALLDEVC',
+      [{ fieldName: 'ORIGINAL_DEVCLASS' }, { fieldName: 'INSTALL_DEVCLASS' }],
+      `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
+    );
   }
 
   public async setPackageSuperpackage(devclass: DEVCLASS, superpackage: DEVCLASS): Promise<void> {
-      return await this.tdevcInterface(devclass, superpackage);
+    return await this.tdevcInterface(devclass, superpackage);
   }
 
   public async clearPackageSuperpackage(devclass: DEVCLASS): Promise<void> {
-      return await this.tdevcInterface(devclass, null, true);
+    return await this.tdevcInterface(devclass, null, true);
   }
 
-  public async getMessage(data: SapMessage): Promise<string> {
-      var msgnr = data.no;
-      while (msgnr.length < 3) {
-          msgnr = `0${msgnr}`;
-      }
-      const aT100: T100[] = await this.readTable('T100',
-          [{ fieldName: 'SPRSL' }, { fieldName: 'ARBGB' }, { fieldName: 'MSGNR' }, { fieldName: 'TEXT' }],
-          `SPRSL EQ '${this.getLangu(true)}' AND ARBGB EQ '${data.class}' AND MSGNR EQ '${msgnr}'`
-      );
-      if (aT100.length === 1) {
-          var msg = aT100[0].text;
-          msg = msg.replace(/&(1)?/, data.v1 || '');
-          msg = msg.replace(/&(2)?/, data.v2 || '');
-          msg = msg.replace(/&(3)?/, data.v3 || '');
-          msg = msg.replace(/&(4)?/, data.v4 || '');
-          return msg;
-      } else {
-          throw new Error(`Message ${msgnr}, class ${data.class}, lang ${this.getLangu(true)} not found.`);
-      }
-  }
+  public async setPackageTransportLayer(devclass: DEVCLASS, devlayer: components.DEVLAYER): Promise<void> {
+    return await this.tdevcInterface(devclass, null, null, devlayer);
+  } 
 
   public async checkSapEntryExists(table: string, sapEntry: any): Promise<boolean> {
-      try {
-          var aQuery = [];
-          Object.keys(sapEntry).forEach(k => {
-              aQuery.push(`${k.trim().toUpperCase()} EQ '${sapEntry[k]}'`);
-          });
-          const entry: any[] = await this.readTable(table.trim().toUpperCase(),
-              [{ fieldName: Object.keys(sapEntry)[0].trim().toUpperCase() }],
-              aQuery.join(' AND '));
-          return entry.length > 0;
-      } catch (e) {
-          return false;
-      }
+    try {
+      var aQuery = [];
+      Object.keys(sapEntry).forEach(k => {
+        aQuery.push(`${k.trim().toUpperCase()} EQ '${sapEntry[k]}'`);
+      });
+      const entry: any[] = await this.readTable(table.trim().toUpperCase(),
+        [{ fieldName: Object.keys(sapEntry)[0].trim().toUpperCase() }],
+        aQuery.join(' AND '));
+      return entry.length > 0;
+    } catch (e) {
+      return false;
+    }
   }
 
   public async getPackageIntegrity(oPackage: TrmPackage): Promise<string> {
-      const packageName = oPackage.packageName;
-      const registryEndpoint = oPackage.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : oPackage.registry.endpoint;
-      const aIntegrity: { integrity: string }[] = await this.readTable('ZTRM_INTEGRITY',
-          [{ fieldName: 'INTEGRITY' }],
-          `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
-      );
-      if (aIntegrity.length === 1) {
-          return aIntegrity[0].integrity;
-      } else {
-          return ''; //avoid returning undefined
-      }
+    const packageName = oPackage.packageName;
+    const registryEndpoint = oPackage.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : oPackage.registry.endpoint;
+    const aIntegrity: { integrity: string }[] = await this.readTable('ZTRM_INTEGRITY',
+      [{ fieldName: 'INTEGRITY' }],
+      `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
+    );
+    if (aIntegrity.length === 1) {
+      return aIntegrity[0].integrity;
+    } else {
+      return ''; //avoid returning undefined
+    }
   }
 
   public async getFunctionModule(func: string): Promise<struct.TFDIR> {
-      const aTfdir: struct.TFDIR[] = await this.readTable('TFDIR',
-          [{ fieldName: 'FUNCNAME' }, { fieldName: 'PNAME' }],
-          `FUNCNAME EQ '${func.trim().toUpperCase()}'`
-      );
-      if (aTfdir.length === 1) {
-          return aTfdir[0];
+    const aTfdir: struct.TFDIR[] = await this.readTable('TFDIR',
+      [{ fieldName: 'FUNCNAME' }, { fieldName: 'PNAME' }],
+      `FUNCNAME EQ '${func.trim().toUpperCase()}'`
+    );
+    if (aTfdir.length === 1) {
+      return aTfdir[0];
+    }
+  }
+
+  public async getExistingObjects(objects: TADIR[]): Promise<TADIR[]> {
+    var ret: TADIR[] = [];
+    for (const object of objects) {
+      const oTadir = await this.getObject(object.pgmid, object.object, object.objName);
+      if (oTadir) {
+        ret.push(oTadir);
       }
+    }
+    return ret;
+  }
+
+  public async getNamespace(namespace: components.NAMESPACE): Promise<{
+    trnspacet: struct.TRNSPACET,
+    trnspacett: struct.TRNSPACETT[]
+  }> {
+    const aNamespace: struct.TRNSPACET[] = await this.readTable('TRNSPACET',
+      [{ fieldName: 'NAMESPACE' }, { fieldName: 'REPLICENSE' }],
+      `NAMESPACE EQ '${namespace.toUpperCase()}'`
+    );
+    if (aNamespace.length === 1) {
+      const aNamespacet: struct.TRNSPACETT[] = await this.readTable('TRNSPACETT',
+        [{ fieldName: 'NAMESPACE' }, { fieldName: 'SPRAS' }, { fieldName: 'DESCRIPTN' }, { fieldName: 'OWNER' }],
+        `NAMESPACE EQ '${namespace.toUpperCase()}'`
+      );
+      return {
+        trnspacet: aNamespace[0],
+        trnspacett: aNamespacet
+      }
+    }
+  }
+
+  public async getR3transVersion(): Promise<string> {
+    if(!this._r3transInfoLog){
+      this._r3transInfoLog = await this.getR3transInfo();
+    }
+    return R3trans.getVersion(this._r3transInfoLog);
+  }
+
+  public async getR3transUnicode(): Promise<boolean> {
+    if(!this._r3transInfoLog){
+      this._r3transInfoLog = await this.getR3transInfo();
+    }
+    return R3trans.isUnicode(this._r3transInfoLog);
+  }
+
+  public async isTransportLayerExist(devlayer: components.DEVLAYER): Promise<boolean> {
+    const aTransportLayer: any[] = (await this.readTable('TCETRAL',
+      [{ fieldName: 'VERSION' }, { fieldName: 'TRANSLAYER' }],
+      `TRANSLAYER EQ '${devlayer}'`
+    ));
+    //it's sufficient one version exists with tranSLAYER = devlayer (RAINING BLOOOOODDD!!!)
+    return aTransportLayer.length > 0;
   }
 
 }

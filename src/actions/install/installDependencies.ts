@@ -2,69 +2,95 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger, inspect } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
-import { InstallDependencyActionInput, installDependency as installDependencyWkf } from "../installDependency";
-import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../../registry";
+import { InstallDependencyActionInput, installDependency as InstallDependencyWkf } from ".."
+import { PUBLIC_RESERVED_KEYWORD, Registry } from "../../registry";
+import * as _ from "lodash";
 
-const SUBWORKFLOW_NAME = 'install-sub-install-dependency';
+const SUBWORKFLOW_NAME = 'install-dependency-sub-install';
 
+/**
+ * Installs missing package dependencies.
+ * 
+ * 1- list dependencies to install
+ * 
+ * 2- prompt install
+ * 
+ * 3- run install workflow for each missing dependency
+ * 
+*/
 export const installDependencies: Step<InstallWorkflowContext> = {
     name: 'install-dependencies',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if (context.runtime.dependenciesToInstall.length > 0) {
+        if(context.runtime.dependenciesToInstall.length > 0){
             return true;
-        } else {
-            Logger.log(`Skipping dependencies install because there are no dependencies to install`, true);
+        }else{
+            Logger.log(`Skipping dependencies install (no packages to install)`, true);
             return false;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        const mainPackageName = context.parsedInput.packageName;
-        const dependenciesToInstall = context.runtime.dependenciesToInstall;
-        var continueInstall = false;
-        if (context.parsedInput.installMissingDependencies) {
-            continueInstall = true;
-        } else {
-            if(!context.parsedInput.noInquirer){
-                const inq1 = await Inquirer.prompt({
-                    type: 'confirm',
-                    name: 'continueInstall',
-                    default: true,
-                    message: `Do you wish to install all of the missing dependencies?`
-                });
-                continueInstall = inq1.continueInstall;
-            }else{
-                Logger.info(`Dependencies are not being installed: running in silent and no action was taken.`);
-                continueInstall = false;
-            }
+        Logger.log('Install dependencies step', true);
+
+        //1- list dependencies to install
+        if(context.runtime.dependenciesToInstall.length === 1){
+            Logger.info(`There is ${context.runtime.dependenciesToInstall.length} missing dependency to install:`);
+        }else{
+            Logger.info(`There are ${context.runtime.dependenciesToInstall.length} missing dependencies to install:`);
         }
-        if (continueInstall) {
-            var installCounter = 0;
-            for(const installDependency of dependenciesToInstall){
-                installCounter++;
-                Logger.info(`-> (${installCounter}/${dependenciesToInstall.length}) Dependency "${installDependency.name}" install started.`);
-                var dependencyRegistry: Registry;
-                if((!installDependency.registry || installDependency.registry.trim() === PUBLIC_RESERVED_KEYWORD) && context.runtime.registry.getRegistryType() === RegistryType.PUBLIC){
-                    dependencyRegistry = context.runtime.registry;
-                }else{
-                    dependencyRegistry = new Registry(installDependency.registry || PUBLIC_RESERVED_KEYWORD);
-                }
-                const inputData: InstallDependencyActionInput = {
-                    packageName: installDependency.name,
-                    versionRange: installDependency.version,
-                    installOptions: context.rawInput,
-                    registry: dependencyRegistry,
-                    integrity: context.parsedInput.safeInstall ? installDependency.integrity : null,
-                    systemPackages: context.parsedInput.systemPackages,
-                    forceInstall: context.parsedInput.skipAlreadyInstalledCheck //check already installed? 
-                };
-                Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-                const result = await installDependencyWkf(inputData);
-                Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-                Logger.info(`   (${installCounter}/${dependenciesToInstall.length}) Dependency "${installDependency.name}" install completed.`);
+        context.runtime.dependenciesToInstall.forEach((o, i)=> {
+            Logger.info(`  ${i+1}/${context.runtime.dependenciesToInstall.length} ${o.name} ${o.version}`);
+        });
+
+        //2- prompt install
+        var confirmInstall = true;
+        if(!context.rawInput.contextData.noInquirer){
+            confirmInstall = (await Inquirer.prompt({
+                type: 'confirm',
+                default: true,
+                message: `Install missing dependencies?`,
+                name: 'confirmInstall'
+            })).confirmInstall;
+        }
+        if(!confirmInstall){
+            throw new Error(`Install aborted`);
+        }
+
+        //3- run install workflow for each missing dependency
+        var counter: number = 0;
+        for(const dependency of context.runtime.dependenciesToInstall){
+            counter++;
+            Logger.loading(`Getting ready to install missing dependency "${dependency.name}"...`);
+            var prefix = `  (${counter}/${context.runtime.dependenciesToInstall.length}) `;
+            if(Logger.getPrefix()){
+                prefix = `${Logger.getPrefix()} -> ${prefix}`;
             }
-            Logger.success(`-> ${dependenciesToInstall.length}/${dependenciesToInstall.length} dependencies installed, package "${mainPackageName}" install can continue.`);
-        } else {
-            throw new Error(`Package has missing dependencies that need to be installed in order to continue.`);
+            Logger.setPrefix(prefix);
+            Inquirer.setPrefix(prefix);
+            var registry: Registry;
+            var tmpRegistry = new Registry(dependency.registry || PUBLIC_RESERVED_KEYWORD);
+            if(Registry.compare(tmpRegistry, context.rawInput.packageData.registry)){
+                registry = context.rawInput.packageData.registry;
+            }else{
+                registry = tmpRegistry;
+            }
+            var inputData: InstallDependencyActionInput = {
+                dependencyDataPackage: {
+                    name: dependency.name,
+                    versionRange: dependency.version,
+                    integrity: dependency.integrity,
+                    registry
+                },
+                contextData: _.cloneDeep(context.rawInput.contextData),
+                installData: _.cloneDeep(context.rawInput.installData)
+            };
+            if(inputData.contextData){
+                inputData.contextData.noR3transInfo = true;
+            }
+            Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
+            const result = await InstallDependencyWkf(inputData);
+            Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
+            Logger.removePrefix();
+            Inquirer.removePrefix();
         }
     }
 }

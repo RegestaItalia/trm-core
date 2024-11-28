@@ -3,8 +3,9 @@ import * as struct from "./struct";
 import { IClient } from "./IClient";
 import { getAxiosInstance, normalize } from "../commons";
 import { AxiosInstance } from "axios";
-import { Login } from "../systemConnector";
 import * as FormData from "form-data";
+import { Login, SapMessage } from ".";
+import { Logger } from "../logger";
 
 const AXIOS_CTX = "RestServer";
 
@@ -12,7 +13,7 @@ export class RESTClient implements IClient {
     private _axiosInstance: AxiosInstance;
     private _connected: boolean = false;
 
-    constructor(public endpoint: string, public rfcdest: components.RFCDEST, private _login: Login) {
+    constructor(public endpoint: string, public rfcdest: components.RFCDEST, private _login: Login, private _cLangu: string) {
         this.endpoint = this.endpoint.trim();
         this._axiosInstance = getAxiosInstance({
             baseURL: this.endpoint,
@@ -33,12 +34,74 @@ export class RESTClient implements IClient {
                 throw new Error(`Couldn't reach ${this.endpoint}!`);
             } else {
                 this._connected = true;
+                this._axiosInstance.interceptors.response.use((response) => {
+                    return response;
+                }, async (error) => {
+                    var axiosError;
+                    if (error.name === `Trm${AXIOS_CTX}Error`) {
+                        axiosError = error.axiosError;
+                    } else {
+                        axiosError = error;
+                    }
+                    if (axiosError.config.url === '/read_table') {
+                        if (JSON.parse(axiosError.config.data).query_table === 'T100') {
+                            throw error;
+                        }
+                    }
+                    var message: string;
+                    var messageError;
+                    try{
+                        message = await this.getMessage({
+                            no: `${axiosError.response.data.message.msgno}`,
+                            class: axiosError.response.data.message.msgid,
+                            v1: axiosError.response.data.message.msgv1,
+                            v2: axiosError.response.data.message.msgv2,
+                            v3: axiosError.response.data.message.msgv3,
+                            v4: axiosError.response.data.message.msgv4
+                        });
+                    }catch(k){
+                        messageError = k;
+                        message = `Couldn't read error message ${axiosError.response.data.message.abapMsgClass} ${axiosError.response.data.message.abapMsgNumber} ${axiosError.response.data.message.abapMsgV1} ${axiosError.response.data.message.abapMsgV2} ${axiosError.response.data.message.abapMsgV3} ${axiosError.response.data.message.abapMsgV4}`;
+                    }
+                    var rfcClientError: any = new Error(message.trim());
+                    rfcClientError.name = 'TrmRESTClient';
+                    rfcClientError.restError = axiosError;
+                    if(messageError){
+                        rfcClientError.messageError = messageError;
+                    }
+                    if(axiosError.response.data.log){
+                        rfcClientError.messageLog = axiosError.response.data.log;
+                    }
+                    Logger.error(rfcClientError.toString(), true);
+                    throw rfcClientError;
+                });
             }
         }
     }
 
     public async checkConnection(): Promise<boolean> {
         return this._connected;
+    }
+
+    public async getMessage(data: SapMessage): Promise<string> {
+        var msgnr = data.no;
+        while (msgnr.length < 3) {
+            msgnr = `0${msgnr}`;
+        }
+        const aT100: struct.T100[] = await this.readTable('T100',
+            [{ fieldName: 'SPRSL' }, { fieldName: 'ARBGB' }, { fieldName: 'MSGNR' }, { fieldName: 'TEXT' }],
+            `SPRSL EQ '${this._cLangu}' AND ARBGB EQ '${data.class}' AND MSGNR EQ '${msgnr}'`
+        );
+        if (aT100.length === 1 && aT100[0].text) {
+            var msg = aT100[0].text;
+            msg = msg.replace("&1", data.v1 || '');
+            msg = msg.replace("&2", data.v2 || '');
+            msg = msg.replace("&3", data.v3 || '');
+            msg = msg.replace("&4", data.v4 || '');
+            return msg.trim();
+        } else {
+            throw new Error(`Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
+        }
     }
 
     public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
@@ -119,9 +182,9 @@ export class RESTClient implements IClient {
     public async writeBinaryFile(filePath: string, binary: Buffer): Promise<void> {
         const formData = new FormData.default();
         var filename: string;
-        try{
+        try {
             filename = /[^\\\/]+$/gmi.exec(filePath)[0];
-        }catch(e){
+        } catch (e) {
             filename = 'UNKNOWN_FILENAME';
         }
         formData.append('file', binary, filename);
@@ -232,11 +295,12 @@ export class RESTClient implements IClient {
         await this._axiosInstance.post('/create_package', scompkdtln);
     }
 
-    public async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean): Promise<void> {
+    public async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void> {
         await this._axiosInstance.post('/tdevc_interface', {
             devclass: devclass.trim().toUpperCase(),
             parentcl: parentcl ? parentcl.trim().toUpperCase() : '',
-            rm_parentcl: rmParentCl ? 'X' : ' '
+            rm_parentcl: rmParentCl ? 'X' : ' ',
+            devlayer: devlayer ? devlayer.trim().toUpperCase() : ''
         });
     }
 
@@ -308,7 +372,7 @@ export class RESTClient implements IClient {
 
     public async setPackageIntegrity(integrity: struct.ZTRM_INTEGRITY): Promise<void> {
         await this._axiosInstance.put('/set_integrity', {
-                integrity: integrity
+            integrity: integrity
         });
     }
 
@@ -344,4 +408,27 @@ export class RESTClient implements IClient {
         })).data;
         return result.tadir;
     }
+
+    public async getExistingObjectsBulk(objects: struct.TADIR[]): Promise<struct.TADIR[]> {
+        const result = (await this._axiosInstance.get('/get_existing_objs_bulk', {
+            data: {
+                objects
+            }
+        })).data;
+        return result.tadir;
+    }
+
+    public async addNamespace(namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]): Promise<void> {
+        await this._axiosInstance.put('/add_namespace', {
+            namespace,
+            replicense,
+            texts
+        });
+    }
+
+    public async getR3transInfo(): Promise<string> {
+        const result = (await this._axiosInstance.get('/get_r3trans_info')).data;
+        return result.log;
+    }
+
 }

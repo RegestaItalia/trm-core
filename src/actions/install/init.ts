@@ -4,76 +4,150 @@ import { Logger } from "../../logger";
 import { TrmPackage } from "../../trmPackage";
 import { parsePackageName } from "../../commons";
 import { createHash } from "crypto";
+import { SystemConnector } from "../../systemConnector";
 
+/**
+ * Init
+ * 
+ * 1- check package name is compliant
+ * 
+ * 2- format install version -> set latest if nothing specified
+ * 
+ * 3- fetch package in registry
+ * 
+ * 4- set package data from registry
+ * 
+ * 5- fill missing input data
+ * 
+*/
 export const init: Step<InstallWorkflowContext> = {
     name: 'init',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        var packageName = context.rawInput.packageName;
-        var packageVersion = context.rawInput.version || 'latest';
-        const registry = context.rawInput.registry;
+        Logger.log('Init step', true);
+        const registry = context.rawInput.packageData.registry;
 
-        //check package name doesn't throw error
-        packageName = parsePackageName({
-            fullName: packageName
+        //1- check package name is compliant
+        context.rawInput.packageData.name = parsePackageName({
+            fullName: context.rawInput.packageData.name
         }).fullName;
 
-        if (packageVersion.trim().toLowerCase() === 'latest') {
-            packageVersion = 'latest';
+        //2- format install version -> set latest if nothing specified
+        if(!context.rawInput.packageData.version || context.rawInput.packageData.version.trim().toLowerCase() === 'latest'){
+            context.rawInput.packageData.version = 'latest';
         }
 
+        //3- fetch package in registry
         Logger.loading(`Searching TRM package in registry ${registry.name}...`);
-        const trmPackage = new TrmPackage(packageName, registry);
-        const oArtifact = await trmPackage.fetchRemoteArtifact(packageVersion);
-        const installIntegrity = createHash("sha512").update(oArtifact.binary).digest("hex");
-        const oManifest = await trmPackage.fetchRemoteManifest(packageVersion);
-        const trmManifest = oManifest.get();
+        const trmPackage = new TrmPackage(context.rawInput.packageData.name, registry);
+        const artifact = await trmPackage.fetchRemoteArtifact(context.rawInput.packageData.version);
+        const integrity = createHash("sha512").update(artifact.binary).digest("hex");
+        const manifest = await trmPackage.fetchRemoteManifest(context.rawInput.packageData.version);
+        const trmManifest = manifest.get();
         var sVersion = trmManifest.version;
-        if (packageVersion === 'latest') {
+        if (context.rawInput.packageData.version === 'latest') {
             sVersion = `latest -> ${trmManifest.version}`;
         }
-        Logger.info(`"${trmManifest.name}" version ${sVersion} found in registry ${registry.name}`);
+        Logger.info(`Ready to install "${trmManifest.name}" version ${sVersion} from registry "${registry.name}".`);
 
-        context.runtime.registry = registry;
-        context.runtime.manifest = oManifest;
-        context.runtime.trmManifest = trmManifest;
-        context.runtime.trmPackage = trmPackage;
-        context.runtime.trmArtifact = oArtifact;
-        context.runtime.workbenchObjects = [];
-        context.runtime.trCopy = [];
-        context.runtime.fetchedIntegrity = installIntegrity;
-        context.runtime.dependenciesToInstall = [];
-        
-        context.parsedInput.systemPackages = context.rawInput.systemPackages || [];
-        context.parsedInput.packageName = packageName;
-        context.parsedInput.version = trmManifest.version;
-        context.parsedInput.safeInstall = context.rawInput.safeInstall ? true : false;
-        context.parsedInput.noInquirer = context.rawInput.silent ? true : false;
-        context.parsedInput.forceDevclassInput = context.rawInput.silent ? false : true;
-        if(context.rawInput.force){
-            context.parsedInput.skipAlreadyInstalledCheck = true;
-            context.parsedInput.checkSapEntries = false;
-            context.parsedInput.checkObjectTypes = false;
-            context.parsedInput.forceInstallSameVersion = true;
-            context.parsedInput.overwriteInstall = true;
-            context.parsedInput.checkDependencies = false;
-        }else{
-            context.parsedInput.skipAlreadyInstalledCheck = false;
-            context.parsedInput.checkSapEntries = context.rawInput.skipSapEntriesCheck ? false : true;
-            context.parsedInput.checkObjectTypes = context.rawInput.skipObjectTypesCheck ? false : true;
-            context.parsedInput.forceInstallSameVersion = false;
-            context.parsedInput.overwriteInstall = context.rawInput.allowReplace ? true : false;
-            context.parsedInput.checkDependencies = context.rawInput.ignoreDependencies ? false : true;
+        //4- set package data from registry
+        context.runtime = {
+            registry,
+            update: undefined,
+            rollback: false,
+            remotePackageData: {
+                version: context.rawInput.packageData.version,
+                trmPackage,
+                trmManifest,
+                manifest,
+                artifact,
+                integrity
+            },
+            dependenciesToInstall: [],
+            r3trans: undefined,
+            packageTransports: {
+                devc: {
+                    binaries: undefined,
+                    instance: undefined
+                },
+                tadir: {
+                    binaries: undefined,
+                    instance: undefined
+                },
+                cust: {
+                    binaries: undefined,
+                    instance: undefined
+                },
+                lang: {
+                    binaries: undefined,
+                    instance: undefined
+                }
+            },
+            packageTransportsData: {
+                tdevc: [],
+                tdevct: [],
+                tadir: [],
+                e071: []
+            },
+            installData: {
+                transport: undefined,
+                namespace: undefined,
+                entries: []
+            },
+            originalData: {
+                hierarchy: undefined
+            },
+            generatedData: {
+                devclass: [],
+                namespace: undefined
+            }
+        };
+
+        //5- fill missing input data
+        if(context.rawInput.packageData.overwrite === undefined){
+            context.rawInput.packageData.overwrite = false;
         }
-        context.parsedInput.keepOriginalPackages = context.rawInput.keepOriginalDevclass ? true : false;
-        context.parsedInput.installMissingDependencies = context.rawInput.ignoreDependencies ? false : true;
-        //TODO -> check transport layer exists
-        context.parsedInput.transportLayer = context.rawInput.transportLayer;
-        //TODO -> check target system exists
-        context.parsedInput.wbTrTargetSystem = context.rawInput.wbTrTargetSystem;
-        context.parsedInput.installIntegrity = context.rawInput.integrity;
-        context.parsedInput.r3transOptions = context.rawInput.r3transOptions;
-        context.parsedInput.importTimeout = context.rawInput.importTimeout || 180;
-        context.parsedInput.skipWbTransportGen = context.rawInput.generateTransport ? false : true;
-        context.parsedInput.packageReplacements = context.rawInput.packageReplacements || [];
+        if(!context.rawInput.contextData){
+            context.rawInput.contextData = {};
+        }
+        if(!context.rawInput.installData){
+            context.rawInput.installData = {};
+        }
+        if(!context.rawInput.installData.checks){
+            context.rawInput.installData.checks = {};
+        }
+        if(!context.rawInput.installData.import){
+            context.rawInput.installData.import = {};
+        }
+        if(!context.rawInput.installData.installDevclass){
+            context.rawInput.installData.installDevclass = {
+                replacements: []
+            };
+        }
+        if(!context.rawInput.installData.installTransport){
+            context.rawInput.installData.installTransport = {
+                create: true
+            };
+        }
+        Logger.loading(`Checking transport layer...`);
+        if (!context.rawInput.installData.installDevclass.transportLayer) {
+            try{
+                context.rawInput.installData.installDevclass.transportLayer = await SystemConnector.getDefaultTransportLayer();
+                Logger.log(`Setting transport layer to default: ${context.rawInput.installData.installDevclass.transportLayer}`, true);
+            }catch(e){
+                Logger.error(e.toString(), true);
+                throw new Error(`Couldn't determine system's default transport layer.`);
+            }
+        }else{
+            if(!(await SystemConnector.isTransportLayerExist(context.rawInput.installData.installDevclass.transportLayer))){
+                throw new Error(`Transport layer "${context.rawInput.installData.installDevclass.transportLayer}" doesn't exist.`);
+            }
+        }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        Logger.log('Rollback init step', true);
+        
+        if(context.runtime && context.runtime.rollback){
+            Logger.success(`Rollback executed.`);
+        }
     }
 }

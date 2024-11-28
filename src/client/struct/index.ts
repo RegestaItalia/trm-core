@@ -18,3 +18,5 @@ export * from "./T100";
 export * from "./ZTRM_INTEGRITY";
 export * from "./LXE_TT_PACKG_LINE";
 export * from "./TFDIR"
+export * from "./TRNSPACET";
+export * from "./TRNSPACETT";

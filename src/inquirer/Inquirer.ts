@@ -14,4 +14,19 @@ export namespace Inquirer {
         checkInquirer();
         return inquirer.prompt(arg1);
     }
+
+    export function setPrefix(text: string): void {
+        checkInquirer();
+        return inquirer.setPrefix(text);
+    }
+
+    export function removePrefix(): void {
+        checkInquirer();
+        return inquirer.removePrefix();
+    }
+
+    export function getPrefix(): string {
+        checkInquirer();
+        return inquirer.getPrefix();
+    }
 }
