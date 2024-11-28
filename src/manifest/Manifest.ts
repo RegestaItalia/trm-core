@@ -341,6 +341,8 @@ export class Manifest {
                         if (!validateEmail(author.email)) {
                             delete author.email;
                         }
+                    } else {
+                        delete author.email;
                     }
                     aAuthors[i] = author;
                 } catch (e) { }
