@@ -579,11 +579,11 @@ export class Manifest {
 
     public static stringKeywordsToArray(sKeywords: string): string[] {
         if(sKeywords){
-            sKeywords.split(',').map(s => {
+            return sKeywords.split(',').map(s => {
                 if(s){
                     return s.trim();
                 }
-            });
+            }).filter(k => k !== undefined);
         }else{
             return[];
         }
