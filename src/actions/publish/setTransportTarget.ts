@@ -54,7 +54,7 @@ export const setTransportTarget: Step<PublishWorkflowContext> = {
             if (validate && validate !== true) {
                 throw new Error(validate);
             }
-            Logger.info(`Publish transport target: "${transportTarget}"`);
+            Logger.info(`Publish transport release target: ${transportTarget}`);
         }
 
 

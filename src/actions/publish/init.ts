@@ -147,7 +147,8 @@ export const init: Step<PublishWorkflowContext> = {
                     ...context.rawInput.packageData.manifest,
                     ...{
                         name: context.rawInput.packageData.name,
-                        version: context.rawInput.packageData.version
+                        version: context.rawInput.packageData.version,
+                        private: context.rawInput.publishData.private
                     }
                 }
             },
