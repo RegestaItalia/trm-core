@@ -3,7 +3,7 @@ import { Logger } from "../logger";
 import { Manifest } from "../manifest";
 import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from "../transport";
 import * as AdmZip from "adm-zip";
-import { R3trans } from "node-r3trans";
+import { R3trans, R3transOptions } from "node-r3trans";
 import { TransportBinary } from "./TransportBinary";
 
 const DIST_FOLDER = 'dist';
@@ -50,7 +50,7 @@ export class TrmArtifact {
         return this._distFolder;
     }
 
-    public async getTransportBinaries(tmpFolder?: string): Promise<TransportBinary[]> {
+    public async getTransportBinaries(r3transOption?: R3transOptions): Promise<TransportBinary[]> {
         const distFolder = this.getDistFolder();
         if (!distFolder) {
             throw new Error(`Couldn't locate dist folder.`);
@@ -58,9 +58,7 @@ export class TrmArtifact {
         const zipEntries = this._zip.getEntries();
         const aTransportEntries = zipEntries.filter(o => (new RegExp(`^${distFolder}(/|\\\\)`)).test(o.entryName.trim().toLowerCase()));
         var aResult = [];
-        const r3trans = new R3trans({
-            tempDirPath: tmpFolder
-        });
+        const r3trans = new R3trans(r3transOption);
         for (const entry of aTransportEntries) {
             try {
                 const type = entry.comment;

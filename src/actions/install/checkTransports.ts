@@ -35,7 +35,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
 
         //1- get transport binaries
         Logger.loading(`Checking package transports...`);
-        const aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries();
+        const aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries(context.rawInput.contextData.r3transOptions);
         Logger.log(`Package content: ${aTransports.map(o => {
             return {
                 trkorr: o.trkorr,
