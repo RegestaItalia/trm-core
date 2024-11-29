@@ -62,7 +62,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
             throw new Error(`Resolve missing dependencies by publishing them as TRM packages.`);
         }
 
-        Logger.info(`Package "${context.rawInput.packageData.devclass}" has ${result.trmPackageDependencies.withTrmPackage.length} TRM package ${result.trmPackageDependencies.withTrmPackage.length === 1 ? 'dependency' : 'dependencies'} and ${result.objectDependencies.sapObjects.length} required SAP ${result.objectDependencies.sapObjects.length === 1 ? 'object' : 'objects'}.`);
+        Logger.info(`Package "${context.rawInput.packageData.devclass}" has ${result.trmPackageDependencies.withTrmPackage.length} TRM package ${result.trmPackageDependencies.withTrmPackage.length === 1 ? 'dependency' : 'dependencies'} and ${result.objectDependencies.sapObjects.reduce((sum, obj) => sum + obj.dependencies.length, 0)} required SAP ${result.objectDependencies.sapObjects.reduce((sum, obj) => sum + obj.dependencies.length, 0) === 1 ? 'object' : 'objects'}.`);
 
         //3- set trm dependencies in manifest
         Logger.log(`Adding TRM package dependencies to manifest`, true);
@@ -73,9 +73,9 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                 const dependencyVersionRange = `^${dependencyManifest.version}`;
                 const dependencyRegistry = o.package.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.package.registry.endpoint;
                 if(!o.integrity){
-                    throw new Error(`  (${i+1}/{${result.trmPackageDependencies.withTrmPackage}) ${dependencyManifest.name}: Integrity not found!`);
+                    throw new Error(`  (${i+1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name}: Integrity not found!`);
                 }
-                Logger.info(`  (${i+1}/{${result.trmPackageDependencies.withTrmPackage}) ${dependencyManifest.name} ${dependencyVersionRange}`);
+                Logger.info(`  (${i+1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name} ${dependencyVersionRange}`);
                 context.runtime.trmPackage.manifest.dependencies.push({
                     name: dependencyManifest.name,
                     version: dependencyVersionRange,
@@ -83,7 +83,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                     registry: dependencyRegistry
                 });
             }else{
-                Logger.error(`  (${i+1}/{${result.trmPackageDependencies.withTrmPackage}) Cannot find manifest of dependency in ABAP package "${o.devclass}"`);
+                Logger.error(`  (${i+1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot find manifest of dependency in ABAP package "${o.devclass}"`);
             }
         });
         if(!context.rawInput.contextData.noInquirer){
