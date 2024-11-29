@@ -4,7 +4,6 @@ import * as struct from "../client/struct";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
-import { SapMessage } from "../client/SapMessage";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
@@ -31,5 +30,6 @@ export interface ISystemConnectorBase {
     }>,
     getR3transVersion: () => Promise<string>,
     getR3transUnicode: () => Promise<boolean>,
-    isTransportLayerExist: (devlayer: components.DEVLAYER) => Promise<boolean>
+    isTransportLayerExist: (devlayer: components.DEVLAYER) => Promise<boolean>,
+    getTrmServerPackage: () => Promise<TrmPackage>
 }

@@ -334,4 +334,10 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.isTransportLayerExist(devlayer);
     }
+
+    export async function getTrmServerPackage(): Promise<TrmPackage> {
+        await checkSystemConnector();
+        return systemConnector.getTrmServerPackage();
+    }
+    
 }
