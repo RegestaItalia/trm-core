@@ -3,7 +3,7 @@ import { BinaryTransport } from "./BinaryTransport";
 import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
 import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
-import { R3trans, R3transLogParser, ReleaseLogStep } from "node-r3trans";
+import { R3trans, R3transLogParser, R3transOptions, ReleaseLogStep } from "node-r3trans";
 import { TransportContent } from "./TransportContent";
 import { Documentation } from "./Documentation";
 import { TrmTransportIdentifier } from "./TrmTransportIdentifier";
@@ -608,10 +608,8 @@ export class Transport {
         return new Transport(trkorr, null);
     }
 
-    public static async getContent(data: Buffer, tmpFolder: string): Promise<TransportContent> {
-        const r3trans = new R3trans({
-            tempDirPath: tmpFolder
-        });
+    public static async getContent(data: Buffer, r3transOption?: R3transOptions): Promise<TransportContent> {
+        const r3trans = new R3trans(r3transOption);
         const trkorr = await r3trans.getTransportTrkorr(data);
         var transportContent: TransportContent = {
             trkorr,
@@ -627,11 +625,11 @@ export class Transport {
 
     public static async upload(data: {
         binary: BinaryTransport,
-        tmpFolder?: string
-        trTarget?: TR_TARGET
+        trTarget?: TR_TARGET,
+        r3transOption?: R3transOptions
     }): Promise<Transport> {
         Logger.loading(`Reading binary content...`, true);
-        const fileContent = await Transport.getContent(data.binary.data, data.tmpFolder);
+        const fileContent = await Transport.getContent(data.binary.data, data.r3transOption);
         const trkorr = fileContent.trkorr;
         Logger.success(`Transport ${trkorr} read success.`, true);
         const fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());

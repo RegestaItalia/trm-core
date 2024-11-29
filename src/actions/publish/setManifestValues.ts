@@ -150,6 +150,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 throw new Error(validateVisibility);
             }
         }
+        Logger.info(`Package visibility: ${context.runtime.trmPackage.manifest.private ? 'private' : 'public'}`);
 
         //3- set namespace values (if necessary)
         if (context.runtime.packageData.namespace) {

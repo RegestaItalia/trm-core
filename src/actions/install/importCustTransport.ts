@@ -32,7 +32,8 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
         Logger.loading(`Uploading ${context.runtime.packageTransports.cust.binaries.trkorr}`, true);
         context.runtime.packageTransports.cust.instance = await Transport.upload({
             binary: context.runtime.packageTransports.cust.binaries.binaries,
-            trTarget: SystemConnector.getDest()
+            trTarget: SystemConnector.getDest(),
+            r3transOption: context.rawInput.contextData.r3transOptions
         });
 
         //2- import transport into system
