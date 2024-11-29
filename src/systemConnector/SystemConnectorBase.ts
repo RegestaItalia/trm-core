@@ -2,11 +2,10 @@ import { valid as semverValid } from "semver";
 import { inspect, Logger } from "../logger";
 import { Manifest } from "../manifest";
 import { DEVCLASS, PGMID, SOBJ_NAME, TRKORR, TROBJTYPE } from "../client/components";
-import { T100, TADIR, TDEVC, TMSCSYS } from "../client/struct";
+import { TADIR, TDEVC, TMSCSYS } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
-import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
@@ -139,7 +138,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
-  private async _generateTrmServerPackage(): Promise<TrmPackage> {
+  public async getTrmServerPackage(): Promise<TrmPackage> {
     var oPackage: TrmPackage;
     const oPublicRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
     const fugr = await this.getObject('R3TR', 'FUGR', 'ZTRM');
@@ -252,7 +251,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     //say it was installed via trm, then pulled from abapgit, the version would refer to the old trm version
     try {
       const trmServerPackage = trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD)));
-      var generatedTrmServerPackage = await this._generateTrmServerPackage();
+      var generatedTrmServerPackage = await this.getTrmServerPackage();
       if (trmServerPackage && trmServerPackage.manifest) {
         Logger.log(`trm-server was found (it was imported via transport)`, true);
         if (trmServerPackage.manifest.get().version === generatedTrmServerPackage.manifest.get().version) {
