@@ -4,6 +4,7 @@ import { Logger } from "../../logger";
 import { Inquirer, validatePackageVisibility } from "../../inquirer";
 import { RegistryType } from "../../registry";
 import { Manifest } from "../../manifest";
+import chalk from "chalk";
 
 /**
  * Set manifest values
@@ -150,7 +151,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 throw new Error(validateVisibility);
             }
         }
-        Logger.info(`Package visibility: ${context.runtime.trmPackage.manifest.private ? 'private' : 'public'}`);
+        Logger.info(`Package visibility: ${chalk.bold(context.runtime.trmPackage.manifest.private ? 'private' : 'public')}`);
 
         //3- set namespace values (if necessary)
         if (context.runtime.packageData.namespace) {

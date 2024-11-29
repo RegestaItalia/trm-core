@@ -12,7 +12,8 @@ var aRootDevclass: {
 }[] = [];
 
 var trmServerPackage: {
-    package?: TrmPackage
+    package?: TrmPackage,
+    integrity?: string
 };
 
 const _getRootDevclass = async (devclass) => {
@@ -72,6 +73,11 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
             Logger.log(`Dependency with TRM SERVER package`, true);
             devclass = trmServerPackage.package.getDevclass();
             trmPackage = trmServerPackage.package;
+            if (trmServerPackage.integrity) {
+                integrity = trmServerPackage.integrity;
+            } else {
+                integrity = await SystemConnector.getPackageIntegrity(trmPackage);
+            }
         } else {
             Logger.log(`Searching transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
             const allTransports = await Transport.getTransportsFromObject(tadir);
