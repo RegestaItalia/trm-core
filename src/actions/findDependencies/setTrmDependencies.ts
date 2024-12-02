@@ -15,6 +15,10 @@ var trmServerPackage: {
     package?: TrmPackage,
     integrity?: string
 };
+var trmRestPackage: {
+    package?: TrmPackage,
+    integrity?: string
+};
 
 const _getRootDevclass = async (devclass) => {
     const oRootDevclass = aRootDevclass.find(o => o.devclass === devclass);
@@ -60,6 +64,18 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
             trmServerPackage = {};
         }
     }
+    if (!trmRestPackage) {
+        try {
+            const systemTrmRestPackage = await SystemConnector.getTrmRestPackage();
+            if (systemTrmRestPackage.manifest) {
+                trmRestPackage = { package: systemTrmRestPackage };
+            } else {
+                trmRestPackage = {};
+            }
+        } catch (e) {
+            trmRestPackage = {};
+        }
+    }
     for (const tadirDependency of tadirDependencies) {
         const tadir = tadirDependency.object as TADIR;
         var trmRelevantTransports: Transport[] = [];
@@ -75,6 +91,15 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
             trmPackage = trmServerPackage.package;
             if (trmServerPackage.integrity) {
                 integrity = trmServerPackage.integrity;
+            } else {
+                integrity = await SystemConnector.getPackageIntegrity(trmPackage);
+            }
+        }else if (trmRestPackage.package && trmRestPackage.package.getDevclass() === tadir.devclass) {
+            Logger.log(`Dependency with TRM REST package`, true);
+            devclass = trmRestPackage.package.getDevclass();
+            trmPackage = trmRestPackage.package;
+            if (trmRestPackage.integrity) {
+                integrity = trmRestPackage.integrity;
             } else {
                 integrity = await SystemConnector.getPackageIntegrity(trmPackage);
             }

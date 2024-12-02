@@ -339,5 +339,10 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.getTrmServerPackage();
     }
+
+    export async function getTrmRestPackage(): Promise<TrmPackage> {
+        await checkSystemConnector();
+        return systemConnector.getTrmRestPackage();
+    }
     
 }

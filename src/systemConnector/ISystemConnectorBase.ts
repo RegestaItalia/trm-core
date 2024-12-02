@@ -31,5 +31,6 @@ export interface ISystemConnectorBase {
     getR3transVersion: () => Promise<string>,
     getR3transUnicode: () => Promise<boolean>,
     isTransportLayerExist: (devlayer: components.DEVLAYER) => Promise<boolean>,
-    getTrmServerPackage: () => Promise<TrmPackage>
+    getTrmServerPackage: () => Promise<TrmPackage>,
+    getTrmRestPackage: () => Promise<TrmPackage>
 }
