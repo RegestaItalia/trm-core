@@ -15,7 +15,7 @@ Full documentation can be seen at [https://docs.trmregistry.com](https://docs.tr
 
 # Contributing <!-- {docsify-remove} -->
 
-Like every other TRM open-soruce projects, contributions are always welcomed ❤️.
+Like every other TRM open-source projects, contributions are always welcomed ❤️.
 
 Make sure to open an issue first.
 
