@@ -119,9 +119,10 @@ export const init: Step<InstallWorkflowContext> = {
             context.rawInput.installData.import = {};
         }
         if(!context.rawInput.installData.installDevclass){
-            context.rawInput.installData.installDevclass = {
-                replacements: []
-            };
+            context.rawInput.installData.installDevclass = {};
+        }
+        if(!context.rawInput.installData.installDevclass.replacements){
+            context.rawInput.installData.installDevclass.replacements = [];
         }
         if(!context.rawInput.installData.installTransport){
             context.rawInput.installData.installTransport = {
