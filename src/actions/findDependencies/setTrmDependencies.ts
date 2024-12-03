@@ -77,7 +77,12 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         }
     }
     for (const tadirDependency of tadirDependencies) {
-        const tadir = tadirDependency.object as TADIR;
+        const tadir: TADIR = {
+            pgmid: tadirDependency.object.PGMID,
+            object: tadirDependency.object.OBJECT,
+            objName: tadirDependency.object.OBJ_NAME,
+            devclass: tadirDependency.object.DEVCLASS
+        };
         var trmRelevantTransports: Transport[] = [];
         var latestTransport: Transport;
         var devclass: DEVCLASS;
