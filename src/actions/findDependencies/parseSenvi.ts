@@ -47,17 +47,11 @@ export const parseSenvi: Step<FindDependenciesWorkflowContext> = {
                 Logger.loading(`Parsing SENVI object ${senvi.type} ${senvi.object} ${senvi.enclObj}...`, true);
                 const parsedSenvi = await senviParser.parse(senvi);
                 if (parsedSenvi && !aIgnoredDevclass.includes(parsedSenvi.devclass)) {
-                    /*const dependency = {
+                    const dependency = {
                         'PGMID': parsedSenvi.pgmid,
                         'OBJECT': parsedSenvi.object,
                         'OBJ_NAME': parsedSenvi.objName,
                         'DEVCLASS': parsedSenvi.devclass
-                    };*/
-                    const dependency: TADIR = {
-                        pgmid: parsedSenvi.pgmid,
-                        object: parsedSenvi.object,
-                        objName: parsedSenvi.objName,
-                        devclass: parsedSenvi.devclass
                     };
                     var subObject: {
                         table: string,
