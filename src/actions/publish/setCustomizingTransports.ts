@@ -77,7 +77,7 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
                     Logger.log(`Transport ${transport.trkorr} doesn't exist`, true);
                 }
             }
-            Logger.info(`${context.rawInput.publishData.customizingTransports.length} customizing transports will be published.`);
+            Logger.info(`${validatedTransports} customizing transports/tasks will be published.`);
         }
     }
 }
