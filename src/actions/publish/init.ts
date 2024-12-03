@@ -32,11 +32,7 @@ export const init: Step<PublishWorkflowContext> = {
         const registry = context.rawInput.packageData.registry;
         if(registry.getRegistryType() === RegistryType.PUBLIC){
             Logger.log(`Public registry, checking if logged in`, true);
-            try{
-                await registry.whoAmI();
-            }catch(e){
-                throw new Error(`Publish not allowed: ${e.message}`);
-            }
+            await registry.whoAmI();
         }
 
         //1- check package name is compliant
