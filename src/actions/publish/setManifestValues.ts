@@ -27,7 +27,24 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         if (context.rawInput.publishData.keepLatestReleaseManifestValues) {
             if (context.runtime.trmPackage.latestReleaseManifest) {
                 Logger.log(`Setting manifest values like latest version (${context.runtime.trmPackage.latestReleaseManifest.version})`, true);
-                context.runtime.trmPackage.manifest = { ...context.runtime.trmPackage.latestReleaseManifest, ...context.runtime.trmPackage.manifest };
+                context.runtime.trmPackage.manifest.description = context.runtime.trmPackage.manifest.description || context.runtime.trmPackage.latestReleaseManifest.description;
+                context.runtime.trmPackage.manifest.git = context.runtime.trmPackage.manifest.git || context.runtime.trmPackage.latestReleaseManifest.git;
+                context.runtime.trmPackage.manifest.license = context.runtime.trmPackage.manifest.license || context.runtime.trmPackage.latestReleaseManifest.license;
+                context.runtime.trmPackage.manifest.website = context.runtime.trmPackage.manifest.website || context.runtime.trmPackage.latestReleaseManifest.website;
+                if(context.runtime.trmPackage.manifest.authors){
+                    if(Array.isArray(context.runtime.trmPackage.manifest.authors) && context.runtime.trmPackage.manifest.authors.length === 0){
+                        context.runtime.trmPackage.manifest.authors = context.runtime.trmPackage.latestReleaseManifest.authors;
+                    }
+                }else{
+                    context.runtime.trmPackage.manifest.authors = context.runtime.trmPackage.latestReleaseManifest.authors;
+                }
+                if(context.runtime.trmPackage.manifest.keywords){
+                    if(Array.isArray(context.runtime.trmPackage.manifest.keywords) && context.runtime.trmPackage.manifest.keywords.length === 0){
+                        context.runtime.trmPackage.manifest.keywords = context.runtime.trmPackage.latestReleaseManifest.keywords;
+                    }
+                }else{
+                    context.runtime.trmPackage.manifest.keywords = context.runtime.trmPackage.latestReleaseManifest.keywords;
+                }
             }
         }
 
@@ -60,7 +77,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 type: "list",
                 message: "Package visibility",
                 name: "private",
-                default: false,
+                default: context.runtime.trmPackage.manifest.private,
                 choices: [{
                     name: `Public`,
                     value: false
@@ -72,7 +89,8 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                     return validatePackageVisibility(
                         context.rawInput.packageData.registry.getRegistryType(),
                         context.rawInput.packageData.name,
-                        input
+                        input,
+                        context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
                     );
                 },
             }, {
@@ -141,15 +159,6 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 //validate -> TODO should validate if on public registry!
             }]);
             context.runtime.trmPackage.manifest = { ...context.runtime.trmPackage.manifest, ...inq };
-        }else{
-            const validateVisibility = validatePackageVisibility(
-                context.rawInput.packageData.registry.getRegistryType(),
-                context.rawInput.packageData.name,
-                context.runtime.trmPackage.manifest.private
-            );
-            if(validateVisibility !== true){
-                throw new Error(validateVisibility);
-            }
         }
         Logger.info(`Package visibility: ${chalk.bold(context.runtime.trmPackage.manifest.private ? 'private' : 'public')}`);
 
