@@ -13,6 +13,7 @@ import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
+export const TRM_REST_PACKAGE_NAME: string = 'trm-rest';
 export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';
 export const SKIP_TRKORR_TABL = 'ZTRM_SKIP_TRKORR';
 
@@ -26,6 +27,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract getSysname(): string
   protected abstract getLangu(c: boolean): string
   protected abstract getTrmServerVersion(): Promise<string>
+  protected abstract getTrmRestVersion(): Promise<string>
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
   protected abstract getR3transInfo(): Promise<string>
@@ -141,8 +143,8 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getTrmServerPackage(): Promise<TrmPackage> {
     var oPackage: TrmPackage;
     const oPublicRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
-    const fugr = await this.getObject('R3TR', 'FUGR', 'ZTRM');
-    if (fugr) {
+    const intf = await this.getObject('R3TR', 'INTF', 'ZIF_TRM');
+    if (intf) {
       try {
         const trmServerVersion = await this.getTrmServerVersion();
         const oManifest = new Manifest({
@@ -150,12 +152,34 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           version: trmServerVersion
         });
         if (semverValid(trmServerVersion)) {
-          oPackage = new TrmPackage(TRM_SERVER_PACKAGE_NAME, oPublicRegistry, oManifest).setDevclass(fugr.devclass);
+          oPackage = new TrmPackage(TRM_SERVER_PACKAGE_NAME, oPublicRegistry, oManifest).setDevclass(intf.devclass);
         }
       } catch (e) { }
     }
     if (!oPackage) {
       throw new Error(`Package ${TRM_SERVER_PACKAGE_NAME} was not found.`);
+    }
+    return oPackage;
+  }
+
+  public async getTrmRestPackage(): Promise<TrmPackage> {
+    var oPackage: TrmPackage;
+    const oPublicRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
+    const intf = await this.getObject('R3TR', 'INTF', 'ZIF_TRM_REST');
+    if (intf) {
+      try {
+        const trmRestVersion = await this.getTrmRestVersion();
+        const oManifest = new Manifest({
+          name: TRM_REST_PACKAGE_NAME,
+          version: trmRestVersion
+        });
+        if (semverValid(trmRestVersion)) {
+          oPackage = new TrmPackage(TRM_REST_PACKAGE_NAME, oPublicRegistry, oManifest).setDevclass(intf.devclass);
+        }
+      } catch (e) { }
+    }
+    if (!oPackage) {
+      throw new Error(`Package ${TRM_REST_PACKAGE_NAME} was not found.`);
     }
     return oPackage;
   }
@@ -245,10 +269,10 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }
     }
     Logger.log(`Packages found: ${inspect(trmPackages, { breakLength: Infinity, compact: true })}`, true);
-    Logger.log(`Excluding trm-server (adding it manually)`, true);
-    //exclude trm-server and add manually
+    //exclude trm-server and trm-rest (if installed) and add manually
     //this is to ensure the version is correct
     //say it was installed via trm, then pulled from abapgit, the version would refer to the old trm version
+    Logger.log(`Excluding trm-server (adding it manually)`, true);
     try {
       const trmServerPackage = trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD)));
       var generatedTrmServerPackage = await this.getTrmServerPackage();
@@ -256,7 +280,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         Logger.log(`trm-server was found (it was imported via transport)`, true);
         if (trmServerPackage.manifest.get().version === generatedTrmServerPackage.manifest.get().version) {
           Logger.log(`trm-server imported is the one currenlty in use`, true);
-          //generatedTrmServerPackage.manifest.setLinkedTransport(trmServerPackage.manifest.getLinkedTransport());
           generatedTrmServerPackage.manifest = trmServerPackage.manifest;
         }
       }
@@ -264,7 +287,24 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       trmPackages.push(generatedTrmServerPackage);
     } catch (e) {
       //trm-server is not installed
-      Logger.warning(`trm-server is not installed`, true);
+      Logger.warning(`${TRM_SERVER_PACKAGE_NAME} is not installed`, true);
+    }
+    Logger.log(`Excluding trm-rest (adding it manually)`, true);
+    try {
+      const trmRestPackage = trmPackages.find(o => o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD)));
+      var generatedTrmRestPackage = await this.getTrmRestPackage();
+      if (trmRestPackage && trmRestPackage.manifest) {
+        Logger.log(`trm-rest was found (it was imported via transport)`, true);
+        if (trmRestPackage.manifest.get().version === generatedTrmRestPackage.manifest.get().version) {
+          Logger.log(`trm-rest imported is the one currenlty in use`, true);
+          generatedTrmRestPackage.manifest = trmRestPackage.manifest;
+        }
+      }
+      trmPackages = trmPackages.filter(o => !(o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD))));
+      trmPackages.push(generatedTrmRestPackage);
+    } catch (e) {
+      //trm-server is not installed
+      Logger.warning(`${TRM_SERVER_PACKAGE_NAME} is not installed`, true);
     }
     if (includeSoruces) {
       this._installedPackagesI = trmPackages;

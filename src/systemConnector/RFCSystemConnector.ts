@@ -59,6 +59,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getTrmServerVersion();
     }
 
+    protected async getTrmRestVersion(): Promise<string> {
+        return this._client.getTrmRestVersion();
+    }
+
     protected async listDevclassObjects(devclass: DEVCLASS): Promise<TADIR[]> {
         return this._client.getDevclassObjects(devclass);
     }

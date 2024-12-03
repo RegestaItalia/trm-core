@@ -78,6 +78,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getTrmServerVersion();
     }
 
+    protected async getTrmRestVersion(): Promise<string> {
+        return this._client.getTrmRestVersion();
+    }
+
     protected async listDevclassObjects(devclass: DEVCLASS): Promise<TADIR[]> {
         return this._client.getDevclassObjects(devclass);
     }

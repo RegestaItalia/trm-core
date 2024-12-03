@@ -355,7 +355,12 @@ export class RESTClient implements IClient {
 
     public async getTrmServerVersion(): Promise<string> {
         const result = (await this._axiosInstance.get('/version')).data;
-        return result.version;
+        return result.serverVersion;
+    }
+
+    public async getTrmRestVersion(): Promise<string> {
+        const result = (await this._axiosInstance.get('/version')).data;
+        return result.restVersion;
     }
 
     public async trmServerPing(): Promise<string> {

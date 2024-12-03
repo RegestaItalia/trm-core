@@ -367,6 +367,11 @@ export class RFCClient implements IClient {
         return result['evVersion'];
     }
 
+    public async getTrmRestVersion(): Promise<string> {
+        const result = await this._call("ZTRM_VERSION");
+        return result['evRest'];
+    }
+
     public async trmServerPing(): Promise<string> {
         const result = await this._call("ZTRM_PING");
         return result['evReturn'];
