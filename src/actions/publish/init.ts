@@ -3,11 +3,12 @@ import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { parsePackageName } from "../../commons";
 import { TrmPackage } from "../../trmPackage";
-import { Inquirer } from "../../inquirer";
+import { Inquirer, validatePackageVisibility } from "../../inquirer";
 import { clean } from "semver";
 import { SystemConnector } from "../../systemConnector";
 import { RegistryType } from "../../registry";
 import { Transport } from "../../transport";
+import chalk from "chalk";
 
 /**
  * Init
@@ -132,6 +133,7 @@ export const init: Step<PublishWorkflowContext> = {
                 normalizeVersion = false;
             }
         }
+        Logger.info(`Release publish version: ${chalk.bold(context.rawInput.packageData.version)}`);
 
         //4- set runtime data
         context.runtime = {
@@ -190,8 +192,14 @@ export const init: Step<PublishWorkflowContext> = {
             Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`);
         }else{
             context.runtime.trmPackage.latestReleaseManifest = (await context.runtime.trmPackage.package.fetchRemoteManifest('latest')).get();
-            if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC && !!(context.rawInput.publishData.private) !== !!(context.runtime.trmPackage.latestReleaseManifest.private)){
-                throw new Error(`Cannot change package "${context.rawInput.packageData.name}" visibility from ${context.runtime.trmPackage.latestReleaseManifest.private ? 'private' : 'public'} to ${context.rawInput.publishData.private ? 'private' : 'public'}.`);
+            const validateVisibility = validatePackageVisibility(
+                context.rawInput.packageData.registry.getRegistryType(),
+                context.rawInput.packageData.name,
+                !!(context.runtime.trmPackage.manifest.private),
+                context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
+            );
+            if(validateVisibility !== true){
+                throw new Error(validateVisibility);
             }
         }
     },
