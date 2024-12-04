@@ -57,7 +57,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         if(aUnknownDependencyDevclass.length > 0){
             Logger.error(`Package "${context.rawInput.packageData.devclass}" has ${aUnknownDependencyDevclass.length} missing ${aUnknownDependencyDevclass.length === 1 ? 'dependency' : 'dependencies'}:`);
             aUnknownDependencyDevclass.forEach((d, i) => {
-                Logger.error(`  (${i+1}/{${aUnknownDependencyDevclass.length}) ${d}`);
+                Logger.error(`  (${i+1}/${aUnknownDependencyDevclass.length}) ${d}`);
             });
             throw new Error(`Resolve missing dependencies by publishing them as TRM packages.`);
         }
