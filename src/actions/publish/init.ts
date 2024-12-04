@@ -192,14 +192,18 @@ export const init: Step<PublishWorkflowContext> = {
             Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`);
         }else{
             context.runtime.trmPackage.latestReleaseManifest = (await context.runtime.trmPackage.package.fetchRemoteManifest('latest')).get();
-            const validateVisibility = validatePackageVisibility(
-                context.rawInput.packageData.registry.getRegistryType(),
-                context.rawInput.packageData.name,
-                !!(context.runtime.trmPackage.manifest.private),
-                context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
-            );
-            if(validateVisibility !== true){
-                throw new Error(validateVisibility);
+            if(context.runtime.trmPackage.manifest.private === undefined){
+                context.runtime.trmPackage.manifest.private = context.runtime.trmPackage.latestReleaseManifest.private;
+            }else{
+                const validateVisibility = validatePackageVisibility(
+                    context.rawInput.packageData.registry.getRegistryType(),
+                    context.rawInput.packageData.name,
+                    context.runtime.trmPackage.manifest.private,
+                    context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
+                );
+                if(validateVisibility !== true){
+                    throw new Error(validateVisibility);
+                }
             }
         }
     },
