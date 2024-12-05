@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "6.1.16",
+  "version": "6.1.17",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,7 +9,8 @@
     "!dist/test.*"
   ],
   "scripts": {
-    "build": "tsc",
+    "cleanBuild": "rimraf dist/",
+    "build": "npm run cleanBuild && tsc --sourceMap false",
     "test": "jest",
     "prepublishOnly": "npm run build"
   },
@@ -73,6 +74,7 @@
     "@types/xmldom": "^0.1.32",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.2",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "rimraf": "^6.0.1"
   }
 }
