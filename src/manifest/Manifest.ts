@@ -514,9 +514,9 @@ export class Manifest {
                 replicense: oAbapManifest.replicense.text,
                 texts: []
             };
-            if (oAbapManifest.replicense_t && oAbapManifest.replicense_t.item) {
-                if (Array.isArray(oAbapManifest.replicense_t.item)) {
-                    manifest.namespace.texts = oAbapManifest.replicense_t.item.map(o => {
+            if (oAbapManifest.replicenseT && oAbapManifest.replicenseT.item) {
+                if (Array.isArray(oAbapManifest.replicenseT.item)) {
+                    manifest.namespace.texts = oAbapManifest.replicenseT.item.map(o => {
                         return {
                             description: o.description?.text,
                             language: o.language?.text,
@@ -525,9 +525,9 @@ export class Manifest {
                     });
                 } else {
                     manifest.namespace.texts = [{
-                        description: oAbapManifest.replicense_t.item.description?.text,
-                        language: oAbapManifest.replicense_t.item.language?.text,
-                        owner: oAbapManifest.replicense_t.item.owner?.text
+                        description: oAbapManifest.replicenseT.item.description?.text,
+                        language: oAbapManifest.replicenseT.item.language?.text,
+                        owner: oAbapManifest.replicenseT.item.owner?.text
                     }];
                 }
             }
