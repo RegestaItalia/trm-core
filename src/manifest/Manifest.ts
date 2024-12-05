@@ -120,6 +120,35 @@ export class Manifest {
             oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['REPLICENSE'] = {
                 "_text": manifest.namespace.replicense
             }
+            if (Array.isArray(manifest.namespace.texts)) {
+                var texts = [];
+                manifest.namespace.texts.forEach(o => {
+                    var obj: any = {};
+                    if (o.description) {
+                        obj['DESCRIPTION'] = {
+                            "_text": o.description
+                        }
+                    }
+                    if (o.language) {
+                        obj['LANGUAGE'] = {
+                            "_text": o.language
+                        }
+                    }
+                    if (o.owner) {
+                        obj['OWNER'] = {
+                            "_text": o.owner
+                        }
+                    }
+                    if (Object.keys(obj).length > 0) {
+                        texts.push(obj);
+                    }
+                });
+                if (texts.length > 0) {
+                    oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['REPLICENSE_T'] = {
+                        "item": texts
+                    }
+                }
+            }
         }
         if (manifest.authors) {
             var authors = [];
@@ -480,13 +509,29 @@ export class Manifest {
         if (oAbapManifest.license && oAbapManifest.license.text) {
             manifest.license = oAbapManifest.license.text;
         }
-        if (oAbapManifest.replicense && oAbapManifest.replicense.text) {
+        if (oAbapManifest.replicense) {
             manifest.namespace = {
                 replicense: oAbapManifest.replicense.text,
                 texts: []
             };
-        }
-        if (oAbapManifest.keywords && oAbapManifest.keywords.item) {
+            if (oAbapManifest.replicenseT && oAbapManifest.replicenseT.item) {
+                if (Array.isArray(oAbapManifest.replicenseT.item)) {
+                    manifest.namespace.texts = oAbapManifest.replicenseT.item.map(o => {
+                        return {
+                            description: o.description?.text,
+                            language: o.language?.text,
+                            owner: o.owner?.text
+                        };
+                    });
+                } else {
+                    manifest.namespace.texts = [{
+                        description: oAbapManifest.replicenseT.item.description?.text,
+                        language: oAbapManifest.replicenseT.item.language?.text,
+                        owner: oAbapManifest.replicenseT.item.owner?.text
+                    }];
+                }
+            }
+        } if (oAbapManifest.keywords && oAbapManifest.keywords.item) {
             if (Array.isArray(oAbapManifest.keywords.item)) {
                 manifest.keywords = oAbapManifest.keywords.item.map(o => o.text);
             } else {
