@@ -467,6 +467,7 @@ export class Manifest {
 
     public static fromAbapXml(sXml: string): Manifest {
         var manifest: TrmManifest;
+        sXml = sXml.replace(/&/g,"&amp;").replace(/-/g,"&#45;");
         const oAbapXml = xml.xml2js(sXml, { compact: true });
         var oAbapManifest;
         var sapEntries;
