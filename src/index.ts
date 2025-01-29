@@ -1,4 +1,5 @@
 export * from "./actions";
+export * from "./client";
 export * from "./commons";
 export * from "./inquirer";
 export * from "./logger";
