@@ -106,7 +106,12 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                                 choices: context.runtime.remotePackageData.trmManifest.namespace.texts.map(o => {
                                     return {
                                         name: `${o.language} ${o.description} ${o.owner}`,
-                                        value: o
+                                        value: {
+                                            namespace: context.runtime.installData.namespace,
+                                            descriptn: o.description,
+                                            owner: o.owner,
+                                            spras: o.language
+                                        }
                                     }
                                 })
                             })).choice;
