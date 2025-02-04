@@ -19,7 +19,7 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
             Logger.log(`Skipping import LANG transport (user input)`, true);
             return false;
         }else{
-            return false;
+            return true;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
