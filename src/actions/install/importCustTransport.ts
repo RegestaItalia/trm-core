@@ -19,7 +19,7 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
             Logger.log(`Skipping import CUST transport (user input)`, true);
             return false;
         }else{
-            return false;
+            return true;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
