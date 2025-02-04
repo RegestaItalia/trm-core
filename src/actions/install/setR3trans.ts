@@ -21,6 +21,7 @@ export const setR3trans: Step<InstallWorkflowContext> = {
         //1- create instance
         const options = context.rawInput.contextData.r3transOptions;
         Logger.log(`Loading R3Trans with options ${JSON.stringify(options)}`, true);
+        Logger.log(`R3TRANS_HOME ${process.env.R3TRANS_HOME}`, true);
         context.runtime.r3trans = new R3trans(options);
         
         //2- print info (if requested)
