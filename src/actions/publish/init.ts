@@ -31,15 +31,25 @@ export const init: Step<PublishWorkflowContext> = {
     run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.log('Init step', true);
         const registry = context.rawInput.packageData.registry;
+
+        //1- check package name is compliant
+        const parsedPackageName = parsePackageName({
+            fullName: context.rawInput.packageData.name
+        });
+        context.rawInput.packageData.name = parsedPackageName.fullName;
+
+        
         if(registry.getRegistryType() === RegistryType.PUBLIC){
             Logger.log(`Public registry, checking if logged in`, true);
             await registry.whoAmI();
+            Logger.log(`Public registry, checking if package name is ok`, true);
+            if(parsedPackageName.organization && parsedPackageName.organization.length > 20){
+                throw new Error(`Invalid org "${parsedPackageName.organization}": length must be 20 characters long or less.`);
+            }
+            if(parsedPackageName.name.length > 20){
+                throw new Error(`Invalid package name "${parsedPackageName.name}": length must be 20 characters long or less.`);
+            }
         }
-
-        //1- check package name is compliant
-        context.rawInput.packageData.name = parsePackageName({
-            fullName: context.rawInput.packageData.name
-        }).fullName;
 
         //2- fill missing context/input data
         if (!context.rawInput.contextData) {
