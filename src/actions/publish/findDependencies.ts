@@ -7,6 +7,15 @@ import { Inquirer } from "../../inquirer";
 
 const SUBWORKFLOW_NAME = 'find-dependencies-sub-publish';
 
+const _isObjectEqual = (obj1: any, obj2: any): boolean => {
+    const keys1 = Object.keys(obj1);
+    const keys2 = Object.keys(obj2);
+
+    if (keys1.length !== keys2.length) return false;
+
+    return keys1.every(key => obj2.hasOwnProperty(key) && obj1[key] === obj2[key]);
+}
+
 /**
  * Run find dependencies workflow
  * 
@@ -51,13 +60,13 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
         const result = await FindDependenciesWkf(inputData);
         Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-        
+
         //2- find dependencies with custom packages and missing TRM package
         const aUnknownDependencyDevclass = (result.trmPackageDependencies.withoutTrmPackage).map(o => o.devclass);
-        if(aUnknownDependencyDevclass.length > 0){
+        if (aUnknownDependencyDevclass.length > 0) {
             Logger.error(`Package "${context.rawInput.packageData.devclass}" has ${aUnknownDependencyDevclass.length} missing ${aUnknownDependencyDevclass.length === 1 ? 'dependency' : 'dependencies'}:`);
             aUnknownDependencyDevclass.forEach((d, i) => {
-                Logger.error(`  (${i+1}/${aUnknownDependencyDevclass.length}) ${d}`);
+                Logger.error(`  (${i + 1}/${aUnknownDependencyDevclass.length}) ${d}`);
             });
             throw new Error(`Resolve missing dependencies by publishing them as TRM packages.`);
         }
@@ -68,25 +77,25 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         Logger.log(`Adding TRM package dependencies to manifest`, true);
         Logger.loading(`Updating manifest...`);
         result.trmPackageDependencies.withTrmPackage.forEach((o, i) => {
-            if(o.package.manifest){
+            if (o.package.manifest) {
                 const dependencyManifest = o.package.manifest.get();
                 const dependencyVersionRange = `^${dependencyManifest.version}`;
                 const dependencyRegistry = o.package.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.package.registry.endpoint;
-                if(!o.integrity){
-                    throw new Error(`  (${i+1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name}: Integrity not found!`);
+                if (!o.integrity) {
+                    throw new Error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name}: Integrity not found!`);
                 }
-                Logger.info(`  (${i+1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name} ${dependencyVersionRange}`);
+                Logger.info(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name} ${dependencyVersionRange}`);
                 context.runtime.trmPackage.manifest.dependencies.push({
                     name: dependencyManifest.name,
                     version: dependencyVersionRange,
                     integrity: o.integrity,
                     registry: dependencyRegistry
                 });
-            }else{
-                Logger.error(`  (${i+1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot find manifest of dependency in ABAP package "${o.devclass}"`);
+            } else {
+                Logger.error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot find manifest of dependency in ABAP package "${o.devclass}"`);
             }
         });
-        if(!context.rawInput.contextData.noInquirer){
+        if (!context.rawInput.contextData.noInquirer) {
             const inq = await Inquirer.prompt([{
                 message: `Do you want to manually edit dependencies?`,
                 type: 'confirm',
@@ -104,9 +113,9 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
-                        if(Array.isArray(parsedInput)){
+                        if (Array.isArray(parsedInput)) {
                             return true;
-                        }else{
+                        } else {
                             return 'Invalid array';
                         }
                     } catch (e) {
@@ -114,7 +123,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                     }
                 }
             }]);
-            if(inq.dependencies){
+            if (inq.dependencies) {
                 Logger.log(`Dependencies were manually changed: before -> ${JSON.stringify(context.runtime.trmPackage.manifest.dependencies)}, after -> ${JSON.parse(inq.dependencies)}`, true);
                 context.runtime.trmPackage.manifest.dependencies = JSON.parse(inq.dependencies);
             }
@@ -124,7 +133,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         Logger.log(`Adding SAP objects dependencies to manifest`, true);
         Logger.loading(`Updating manifest...`);
         result.objectDependencies.sapObjects.forEach(o => {
-            if(!context.runtime.trmPackage.manifest.sapEntries[o.table]){
+            if (!context.runtime.trmPackage.manifest.sapEntries[o.table]) {
                 context.runtime.trmPackage.manifest.sapEntries[o.table] = [];
             }
             o.dependencies.forEach(k => {
@@ -132,10 +141,12 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                 if (o.table === 'TADIR') {
                     delete tableKeys['DEVCLASS']; //might be used wrongly as key in tadir (older versions of trm, might not be relevant)
                 }
-                context.runtime.trmPackage.manifest.sapEntries[o.table].push(tableKeys);
+                if (!context.runtime.trmPackage.manifest.sapEntries[o.table].some(o => _isObjectEqual(o, tableKeys))) {
+                    context.runtime.trmPackage.manifest.sapEntries[o.table].push(tableKeys);
+                }
             });
         });
-        if(!context.rawInput.contextData.noInquirer){
+        if (!context.rawInput.contextData.noInquirer) {
             const inq = await Inquirer.prompt([{
                 message: `Do you want to manually required SAP objects?`,
                 type: 'confirm',
@@ -153,9 +164,9 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
-                        if(typeof(parsedInput) === 'object' && !Array.isArray(parsedInput)){
+                        if (typeof (parsedInput) === 'object' && !Array.isArray(parsedInput)) {
                             return true;
-                        }else{
+                        } else {
                             return 'Invalid object';
                         }
                     } catch (e) {
@@ -163,7 +174,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                     }
                 }
             }]);
-            if(inq.sapEntries){
+            if (inq.sapEntries) {
                 Logger.log(`SAP entries were manually changed: before -> ${JSON.stringify(context.runtime.trmPackage.manifest.sapEntries)}, after -> ${JSON.parse(inq.sapEntries)}`, true);
                 context.runtime.trmPackage.manifest.sapEntries = JSON.parse(inq.sapEntries);
             }
