@@ -89,7 +89,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     context.rawInput.installData.import.noLang = !(await Inquirer.prompt({
                         type: `confirm`,
                         name: `noLang`,
-                        message: `Import language translations transport?`,
+                        message: `Import translations transport?`,
                         default: true,
                     })).noLang;
                 }
