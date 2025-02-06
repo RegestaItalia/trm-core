@@ -44,5 +44,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getTransportObjectsBulk?: (trkorr: components.TRKORR) => Promise<struct.TADIR[]>,
     getExistingObjectsBulk?: (objects: struct.TADIR[]) => Promise<struct.TADIR[]>,
     addNamespace: (namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]) => Promise<void>,
-    getMessage: (data: SapMessage) => Promise<string>
+    getMessage: (data: SapMessage) => Promise<string>,
+    migrateTransport: (trkorr: components.TRKORR) => Promise<components.ZTRM_TRKORR>
 }

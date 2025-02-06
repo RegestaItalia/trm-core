@@ -344,5 +344,10 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.getTrmRestPackage();
     }
+
+    export async function migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
+        await checkSystemConnector();
+        return systemConnector.migrateTransport(trkorr);
+    }
     
 }

@@ -214,4 +214,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getMessage(data);
     }
 
+    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
+        return this._client.migrateTransport(trkorr);
+    }
+
 }

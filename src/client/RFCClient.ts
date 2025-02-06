@@ -418,4 +418,11 @@ export class RFCClient implements IClient {
         return result['evLog'];
     }
 
+    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
+        const result = await this._call("ZTRM_MIGRATE_TRANSPORT", {
+            iv_trkorr: trkorr
+        });
+        return result['evTrmTrkorr'];
+    }
+
 }

@@ -205,13 +205,35 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     Logger.log(`Source trkorr ${JSON.stringify(aSourceTrkorr)}`, true);
     var aSkipTrkorr = await this.getIgnoredTrkorr();
     Logger.log(`Ignored trkorr ${JSON.stringify(aSkipTrkorr)}`, true);
-    var aTrkorr: TRKORR[] = (await this.readTable('E071',
+    var aMigrationTrkorr: components.ZTRM_TRKORR[];
+    var aActualTrkorr: TRKORR[] = (await this.readTable('E071',
       [{ fieldName: 'TRKORR' }],
       `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`
     )).map(o => o.trkorr);
     //because we're extracting from e071, there will be multiple records with the same trkorr
     //unique array
-    aTrkorr = Array.from(new Set(aTrkorr))
+    aActualTrkorr = Array.from(new Set(aActualTrkorr));
+    try {
+      aMigrationTrkorr = (await this.readTable('ZTRM_E070',
+        [{ fieldName: 'TRM_TRKORR' }]
+      )).map(o => o.trmTrkorr);
+    } catch (e) {
+      aMigrationTrkorr = [];
+    }
+    var aTrkorr: {
+      trkorr: string,
+      migration: boolean
+    }[] = aActualTrkorr.map(s => {
+      return {
+        trkorr: s,
+        migration: false
+      };
+    }).concat(aMigrationTrkorr.map(s => {
+      return {
+        trkorr: s,
+        migration: true
+      }
+    }));
 
     //for each transport, check it was installed and not created on the system
     //read tms of current system and with maxrc > 0 and impsing != X
@@ -219,32 +241,41 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     for (const sTrkorr of aTrkorr) {
       //check tms
       //don't check transports from source
-      if (!aSourceTrkorr.includes(sTrkorr)) {
-        Logger.log(`${sTrkorr} not from source`, true);
+      if (!aSourceTrkorr.includes(sTrkorr.trkorr)) {
+        Logger.log(`${sTrkorr.trkorr} not from source`, true);
         var aTrkorrStatusCheck: any[];
         try {
-          Logger.log(`Checking ${sTrkorr} TMS import result`, true);
-          aTrkorrStatusCheck = (await this.readTable('TMSBUFFER',
-            [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
-            //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
-            `SYSNAM EQ '${this.getSysname()}' AND TRKORR EQ '${sTrkorr}' AND IMPSING NE 'X'`
-          )).filter(o => parseInt(o.maxrc) >= 0);
+          Logger.log(`Checking ${sTrkorr.trkorr} TMS import result`, true);
+          if (!sTrkorr.migration) {
+            aTrkorrStatusCheck = (await this.readTable('TMSBUFFER',
+              [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
+              //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
+              `SYSNAM EQ '${this.getSysname()}' AND TRKORR EQ '${sTrkorr.trkorr}' AND IMPSING NE 'X'`
+            ));
+          } else {
+            aTrkorrStatusCheck = (await this.readTable('ZTRM_TMSBUFFER',
+              [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
+              //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
+              `SYSNAM EQ '${this.getSysname()}' AND TRM_TRKORR EQ '${sTrkorr.trkorr}' AND IMPSING NE 'X'`
+            ));
+          }
+          aTrkorrStatusCheck = aTrkorrStatusCheck.filter(o => parseInt(o.maxrc) >= 0);
         } catch (e) {
           aTrkorrStatusCheck = [];
         }
         //might be imported multiple times, so do not check if lenght is 1
         if (aTrkorrStatusCheck.length === 0) {
-          Logger.log(`Adding ${sTrkorr} to skipped filter`, true);
-          aSkipTrkorr.push(sTrkorr);
+          Logger.log(`Adding ${sTrkorr.trkorr} to skipped filter`, true);
+          aSkipTrkorr.push(sTrkorr.trkorr);
         }
       }
     }
 
     //filter transports (manually ignored transports and not imported transports)
-    aTrkorr = aTrkorr.filter(trkorr => !aSkipTrkorr.includes(trkorr));
+    aTrkorr = aTrkorr.filter(trkorr => !aSkipTrkorr.includes(trkorr.trkorr));
     Logger.log(`Final transports ${JSON.stringify(aTrkorr)}`, true);
 
-    const transports: Transport[] = aTrkorr.map(trkorr => new Transport(trkorr));
+    const transports: Transport[] = aTrkorr.map(trkorr => new Transport(trkorr.trkorr, null, trkorr.migration));
     for (const transport of transports) {
       const trmPackage = await transport.getLinkedPackage();
       if (trmPackage) {
@@ -400,7 +431,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async setPackageTransportLayer(devclass: DEVCLASS, devlayer: components.DEVLAYER): Promise<void> {
     return await this.tdevcInterface(devclass, null, null, devlayer);
-  } 
+  }
 
   public async checkSapEntryExists(table: string, sapEntry: any): Promise<boolean> {
     try {
@@ -473,14 +504,14 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async getR3transVersion(): Promise<string> {
-    if(!this._r3transInfoLog){
+    if (!this._r3transInfoLog) {
       this._r3transInfoLog = await this.getR3transInfo();
     }
     return R3trans.getVersion(this._r3transInfoLog);
   }
 
   public async getR3transUnicode(): Promise<boolean> {
-    if(!this._r3transInfoLog){
+    if (!this._r3transInfoLog) {
       this._r3transInfoLog = await this.getR3transInfo();
     }
     return R3trans.isUnicode(this._r3transInfoLog);

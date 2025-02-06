@@ -35,12 +35,12 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
             removeTrailingSlash: true
         });
-        if(!new RegExp(`${ENDPOINT_RESOURCE_BASE}$`, 'gmi').test(this._connection.endpoint)){
+        if (!new RegExp(`${ENDPOINT_RESOURCE_BASE}$`, 'gmi').test(this._connection.endpoint)) {
             this._connection.endpoint = `${this._connection.endpoint}${ENDPOINT_RESOURCE_BASE}`;
         }
-        if(!this._connection.rfcdest || this._connection.rfcdest === NONE_DEST){
+        if (!this._connection.rfcdest || this._connection.rfcdest === NONE_DEST) {
             this._connection.rfcdest = NONE_DEST;
-        }else{
+        } else {
             //bulk not supported in remote calls
             this.supportedBulk.getTransportObjects = false;
             this.supportedBulk.getExistingObjects = false;
@@ -49,7 +49,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         Logger.log(`REST connection data after normalize: ${JSON.stringify(this._connection)}`, true);
         this._client = new RESTClient(this._connection.endpoint, this._connection.rfcdest, this._login, this._lang[0]);
     }
-    
+
     protected getSysname(): string {
         return this.getDest();
     }
@@ -233,13 +233,17 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     public async getExistingObjectsBulk(objects: struct.TADIR[]): Promise<TADIR[]> {
         return this._client.getExistingObjectsBulk(objects);
     }
-    
+
     public async addNamespace(namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]): Promise<void> {
         return this._client.addNamespace(namespace, replicense, texts);
     }
 
     public async getMessage(data: SapMessage): Promise<string> {
         return this._client.getMessage(data);
+    }
+
+    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
+        return this._client.migrateTransport(trkorr);
     }
 
 }

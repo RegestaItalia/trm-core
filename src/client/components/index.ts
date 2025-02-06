@@ -46,3 +46,4 @@ export * from "./TRNLICENSE";
 export * from "./NSP_TEXT";
 export * from "./NSP_OWNER";
 export * from "./TRSTATUS";
+export * from "./ZTRM_TRKORR";

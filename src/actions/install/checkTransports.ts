@@ -69,6 +69,9 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         } else {
             context.runtime.packageTransports.devc.binaries = aDevcTransports[0];
             Logger.log(`DEVC transport is ${context.runtime.packageTransports.devc.binaries.trkorr}.`, true);
+            if(context.rawInput.installData.installDevclass.keepOriginal){
+                checkExistance.push(context.runtime.packageTransports.devc.binaries.trkorr);
+            }
         }
 
         //4- check TADIR transport (one transport)
@@ -157,7 +160,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
 
         //9- check existance of trkorr in target system
         Logger.loading(`Checking if ${checkExistance.length} transports exist before importing them`, true);
-        for (const trkorr in checkExistance) {
+        for (const trkorr of checkExistance) {
             var continueInstall = true;
             const oTransport = new Transport(trkorr);
             const e070 = await oTransport.getE070();
@@ -168,16 +171,18 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     Logger.log(`${trkorr} package is ${linkedPackage.packageName}`, true);
                     if (linkedPackage.compareName(context.runtime.remotePackageData.trmManifest.name) && linkedPackage.compareRegistry(context.runtime.registry)) {
                         Logger.log(`${trkorr} same package (updating?)`, true);
+                        continueInstall = true;
                     } else {
-                        Logger.error(`Transport ${trkorr} already linked to TRM package "${linkedPackage.packageName}". Opened issue #37 on trm-core."`);
-                        continueInstall = false;
+                        Logger.loading(`Migrating ${trkorr}`, true);
+                        const oMigration = await oTransport.migrate();
+                        Logger.success(`Migrated ${trkorr} to ${oMigration.trkorr}`, true);
                     }
                 } else {
                     if (await oTransport.isReleased()) {
-                        Logger.error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and doesn't belong to a TRM package!`);
-                        Logger.warning(`WARNING! If you continue, TRM will replace transport ${trkorr} with the contents of package "${context.runtime.remotePackageData.trmManifest.name}".`);
-                        Logger.warning(`         All of the objects inside the transport will remain on the system, however you won't be able to use (re-import for example) it anymore.`);
-                        Logger.warning(`         It's recommended to create a copy of ${trkorr} in another transport before continuing with the installation of "${context.runtime.remotePackageData.trmManifest.name}"`);
+                        Logger.warning(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and doesn't belong to a TRM package!`);
+                        Logger.warning(`If you continue, TRM will replace transport ${trkorr} with the contents of package "${context.runtime.remotePackageData.trmManifest.name}".`);
+                        Logger.warning(`All of the objects inside the transport will remain on the system, however you won't be able to use (re-import for example) it anymore.`);
+                        Logger.warning(`It's recommended to create a copy of ${trkorr} in another transport before continuing with the installation of "${context.runtime.remotePackageData.trmManifest.name}"`);
                         if (!context.rawInput.installData.import.replaceExistingTransports) {
                             if (!context.rawInput.contextData.noInquirer) {
                                 continueInstall = (await Inquirer.prompt({
@@ -191,7 +196,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                             }
                         }
                     } else {
-                        Logger.error(`Transport ${trkorr} is not released."`);
+                        Logger.error(`Transport ${trkorr} is not released.`);
                         continueInstall = false;
                     }
                 }
