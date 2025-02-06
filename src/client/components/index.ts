@@ -45,3 +45,4 @@ export * from "./NAMESPACE";
 export * from "./TRNLICENSE";
 export * from "./NSP_TEXT";
 export * from "./NSP_OWNER";
+export * from "./TRSTATUS";

@@ -39,7 +39,11 @@ export class Transport {
     public async getE070(): Promise<E070> {
         if (!this._e070) {
             const e070: E070[] = await SystemConnector.readTable('E070',
-                [{ fieldName: 'TRKORR' }, { fieldName: 'TRFUNCTION' }, { fieldName: 'AS4DATE' }, { fieldName: 'AS4TIME' }],
+                [{ fieldName: 'TRKORR' },
+                 { fieldName: 'TRFUNCTION' },
+                 { fieldName: 'TRSTATUS' },
+                 { fieldName: 'AS4DATE' },
+                 { fieldName: 'AS4TIME' }],
                 `TRKORR EQ '${this.trkorr}'`
             );
             if (e070.length === 1) {
@@ -717,8 +721,13 @@ export class Transport {
     }
 
     public async canBeDeleted(): Promise<boolean> {
-        const status = await SystemConnector.getTransportStatus(this.trkorr);
+        const status = (await this.getE070()).trstatus;
         return status === 'D';
+    }
+
+    public async isReleased(): Promise<boolean> {
+        const status = (await this.getE070()).trstatus;
+        return status === 'R' || status === 'N';
     }
 
     public async addObjectsFromTransport(from: TRKORR): Promise<void> {
