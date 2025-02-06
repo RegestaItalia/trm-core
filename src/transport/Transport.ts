@@ -246,6 +246,10 @@ export class Transport {
         await SystemConnector.addToTransportRequest(this.trkorr, objects, lock);
     }
 
+    public async removeComments() {
+        await SystemConnector.removeComments(this.trkorr, COMMENT_OBJ);
+    }
+
     public async addComment(comment: TROBJ_NAME) {
         await SystemConnector.addToTransportRequest(this.trkorr, [{
             pgmid: '*',

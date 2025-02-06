@@ -22,6 +22,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     createTocTransport: (text: components.AS4TEXT, target: components.TR_TARGET) => Promise<components.TRKORR>,
     createWbTransport: (text: components.AS4TEXT, target?: components.TR_TARGET) => Promise<components.TRKORR>,
     setTransportDoc: (trkorr: components.TRKORR, doc: struct.TLINE[]) => Promise<void>,
+    removeComments: (trkorr: components.TRKORR, object: components.TROBJTYPE) => Promise<void>,
     addToTransportRequest: (trkorr: components.TRKORR, content: struct.E071[], lock: boolean) => Promise<void>,
     repositoryEnvironment: (objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME) => Promise<struct.SENVI[]>,
     deleteTrkorr: (trkorr: components.TRKORR) => Promise<void>,

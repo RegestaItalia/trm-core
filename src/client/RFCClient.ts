@@ -244,6 +244,13 @@ export class RFCClient implements IClient {
         return result['etTadir'];
     }
 
+    public async removeComments(trkorr: components.TRKORR, object: components.TROBJTYPE): Promise<void> {
+        await this._call("ZTRM_REMOVE_TR_COMMENTS", {
+            iv_trkorr: trkorr.trim().toUpperCase(),
+            iv_object: object.trim().toUpperCase()
+        });
+    }
+
     public async addToTransportRequest(trkorr: components.TRKORR, content: struct.E071[], lock: boolean): Promise<void> {
         await this._call("ZTRM_ADD_OBJS_TR", {
             iv_lock: lock ? 'X' : ' ',
