@@ -19,7 +19,12 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
             Logger.log(`Skipping import LANG transport (user input)`, true);
             return false;
         }else{
-            return true;
+            if(context.runtime.packageTransports.lang.binaries){
+                return true;
+            }else{
+                Logger.log(`Skipping import LANG transport (no transports in package)`, true);
+                return false;
+            }
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
