@@ -1,10 +1,11 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { TrmTransportIdentifier } from "../../transport";
+import { Transport, TrmTransportIdentifier } from "../../transport";
 import { normalize } from "../../commons";
-import { E071 } from "../../client";
+import { E071, TRKORR } from "../../client";
 import { Inquirer } from "../../inquirer";
+import { SystemConnector } from "../../systemConnector";
 
 /**
  * Check TRM Package transports. A TRM Package must have one DEVC (ABAP Package) and TADIR (Workbench objects) transports.
@@ -32,6 +33,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
     name: 'check-transports',
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Check transports step', true);
+        var checkExistance: TRKORR[] = [];
 
         //1- get transport binaries
         Logger.loading(`Checking package transports...`);
@@ -74,6 +76,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         } else {
             context.runtime.packageTransports.tadir.binaries = aTadirTransports[0];
             Logger.log(`TADIR transport is ${context.runtime.packageTransports.tadir.binaries.trkorr}.`, true);
+            checkExistance.push(context.runtime.packageTransports.tadir.binaries.trkorr);
             const tadirE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.tadir.binaries.binaries.data, 'E071'));
             Logger.log(`TADIR E071: ${JSON.stringify(tadirE071)}`, true);
             context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(tadirE071);
@@ -98,6 +101,9 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                 }
                 context.runtime.packageTransports.lang.binaries = aLangTransports[0];
                 Logger.log(`LANG transport is ${context.runtime.packageTransports.lang.binaries.trkorr}.`, true);
+                if(!context.rawInput.installData.import.noLang){
+                    checkExistance.push(context.runtime.packageTransports.lang.binaries.trkorr);
+                }
                 const langE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.lang.binaries.binaries.data, 'E071'));
                 Logger.log(`LANG E071: ${JSON.stringify(langE071)}`, true);
                 context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(langE071);
@@ -123,6 +129,9 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                 }
                 context.runtime.packageTransports.cust.binaries = aCustTransports[0];
                 Logger.log(`CUST transport is ${context.runtime.packageTransports.cust.binaries.trkorr}.`, true);
+                if(!context.rawInput.installData.import.noCust){
+                    checkExistance.push(context.runtime.packageTransports.cust.binaries.trkorr);
+                }
                 const custE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.cust.binaries.binaries.data, 'E071'));
                 Logger.log(`CUST E071: ${JSON.stringify(custE071)}`, true);
                 context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(custE071);
@@ -143,5 +152,48 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         }
         context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(devcE071);
         context.runtime.installData.entries = context.runtime.packageTransportsData.e071;
+
+        //9- check existance of trkorr in target system
+        Logger.loading(`Checking if ${checkExistance.length} transports exist before importing them`, true);
+        for (const trkorr in checkExistance) {
+            var continueInstall = true;
+            const oTransport = new Transport(trkorr);
+            const e070 = await oTransport.getE070();
+            if (e070) {
+                Logger.warning(`${trkorr} already exists in system!`, true);
+                const linkedPackage = await oTransport.getLinkedPackage();
+                if (linkedPackage) {
+                    Logger.log(`${trkorr} package is ${linkedPackage.packageName}`, true);
+                    if(linkedPackage.compareName(context.runtime.remotePackageData.trmManifest.name) && linkedPackage.compareRegistry(context.runtime.registry)){
+                        Logger.log(`${trkorr} same package (updating?)`, true);
+                    }else{
+                        Logger.error(`Transport ${trkorr} already linked to TRM package "${linkedPackage.packageName}". Opened issue #37 on trm-core."`);
+                        continueInstall = false;
+                    }
+                } else {
+                    Logger.error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and doesn't belong to a TRM package!`);
+                    Logger.warning(`WARNING! If you continue, TRM will replace transport ${trkorr} with the contents of package "${context.runtime.remotePackageData.trmManifest.name}".`);
+                    Logger.warning(`         All of the objects inside the transport will remain on the system, however you won't be able to use (re-import for example) it anymore.`);
+                    Logger.warning(`         It's recommended to create a copy of ${trkorr} in another transport before continuing with the installation of "${context.runtime.remotePackageData.trmManifest.name}"`);
+                    if(!context.rawInput.installData.import.replaceExistingTransports){
+                        if(!context.rawInput.contextData.noInquirer){
+                            continueInstall = (await Inquirer.prompt({
+                                name: `continue`,
+                                message: `Continue install?`,
+                                type: `confirm`,
+                                default: false
+                            })).continue;
+                        }else{
+                            continueInstall = false;
+                        }
+                    }
+                }
+            }else{
+                Logger.success(`${trkorr} does not exist in system.`, true);
+            }
+            if(!continueInstall){
+                throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()}.`);
+            }
+        }
     }
 }

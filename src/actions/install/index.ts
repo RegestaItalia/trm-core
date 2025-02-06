@@ -94,6 +94,11 @@ export type InstallActionInputInstallData = {
          * Whether to skip importing customizing transports.
          */
         noCust?: boolean;
+
+        /**
+         * If importing a transport that already exists, overwrite.
+         */
+        replaceExistingTransports?: boolean;
     };
 
     /**
