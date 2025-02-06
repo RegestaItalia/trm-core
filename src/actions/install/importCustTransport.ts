@@ -19,7 +19,12 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
             Logger.log(`Skipping import CUST transport (user input)`, true);
             return false;
         }else{
-            return true;
+            if(context.runtime.packageTransports.cust.binaries){
+                return true;
+            }else{
+                Logger.log(`Skipping import CUST transport (no transports in package)`, true);
+                return false;
+            }
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {

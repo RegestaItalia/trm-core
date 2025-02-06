@@ -44,7 +44,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             if (!context.rawInput.installData.installDevclass.keepOriginal) {
                 const replacementDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === tadir.devclass);
                 if (replacementDevclass && replacementDevclass.installDevclass) {
-                    object.devclass = replacementDevclass.installDevclass;;
+                    object.devclass = replacementDevclass.installDevclass;
                 } else {
                     Logger.error(`Replacement ABAP package not found for ${tadir.devclass}!`, true);
                 }
