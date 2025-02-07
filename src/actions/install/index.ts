@@ -32,6 +32,7 @@ import { setPackageIntegrity } from "./setPackageIntegrity";
 import { generateInstallTransport } from "./generateInstallTransport";
 import { type } from "os";
 import { refreshTmsTxt } from "./refreshTmsTxt";
+import { migrate } from "./migrate";
 
 /**
  * ABAP package replacement during install
@@ -245,6 +246,7 @@ type WorkflowRuntime = {
     generatedData: {
         devclass: DEVCLASS[],
         namespace: NAMESPACE,
+        migrations: Transport[],
         tmsTxtRefresh: Transport[]
     }
 }
@@ -277,6 +279,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         setR3trans,
         installDependencies,
         checkTransports,
+        migrate,
         readDevc,
         readTadir,
         checkObjectTypes,

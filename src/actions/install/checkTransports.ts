@@ -171,19 +171,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     if (linkedPackage.compareName(context.runtime.remotePackageData.trmManifest.name) && linkedPackage.compareRegistry(context.runtime.registry)) {
                         Logger.log(`${trkorr} same package (updating?)`, true);
                     } else {
-                        Logger.loading(`Migrating ${trkorr}`, true);
-                        try{
-                            const oMigration = await oTransport.migrate();
-                            Logger.success(`Migrated ${trkorr} to ${oMigration.trkorr}`, true);
-                            //mark with tms refresh after import
-                            context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
-                        }catch(e){
-                            if(e.exceptionType === 'SNRO_INTERVAL_NOT_FOUND'){
-                                throw new Error(`Missing TRM transport migration number range: re-install server component (run command trm update trm-server).`);
-                            }else{
-                                throw e;
-                            }
-                        }
+                        Logger.log(`${trkorr} will later be migrated`, true);
+                        context.runtime.generatedData.migrations.push(oTransport);
                     }
                 } else {
                     if (await oTransport.isReleased()) {

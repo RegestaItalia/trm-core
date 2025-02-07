@@ -763,9 +763,13 @@ export class Transport {
         await SystemConnector.trCopy(from, this.trkorr, false);
     }
 
-    public async migrate(): Promise<Transport> {
-        const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
-        return new Transport(trmTrkorr, null, true);
+    public async migrate(rollback?: boolean): Promise<Transport|void> {
+        if(!rollback){
+            const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
+            return new Transport(trmTrkorr, null, true);
+        }else{
+            
+        }
     }
 
     public async deleteFromTms(system: TMSSYSNAM): Promise<void> {
