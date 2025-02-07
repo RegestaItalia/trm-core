@@ -108,6 +108,7 @@ export class RFCClient implements IClient {
                 if (messageError) {
                     rfcClientError.messageError = messageError;
                 }
+                rfcClientError.exceptionType = e.key;
                 Logger.error(rfcClientError.toString(), true);
                 throw rfcClientError;
             }
