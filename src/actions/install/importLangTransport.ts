@@ -9,7 +9,9 @@ import { Transport } from "../../transport";
  * 
  * 1- upload transport into system
  * 
- * 2- import transport into system
+ * 2 - delete from tms buffer (if it exists)
+ * 
+ * 3- import transport into system
  * 
 */
 export const importLangTransport: Step<InstallWorkflowContext> = {
@@ -41,7 +43,10 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
             r3transOption: context.rawInput.contextData.r3transOptions
         });
 
-        //2- import transport into system
+        //2 - delete from tms buffer (if it exists)
+        await context.runtime.packageTransports.lang.instance.deleteFromTms(SystemConnector.getDest());
+
+        //3- import transport into system
         Logger.loading(`Importing ${context.runtime.packageTransports.lang.binaries.trkorr}`, true);
         await context.runtime.packageTransports.lang.instance.import(importTimeout);
         Logger.success(`Transport ${context.runtime.packageTransports.lang.binaries.trkorr} imported`, true);

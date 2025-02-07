@@ -350,4 +350,13 @@ export namespace SystemConnector {
         return systemConnector.migrateTransport(trkorr);
     }
     
+    export async function deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.deleteTmsTransport(trkorr, system);
+    }
+
+    export async function refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.refreshTransportTmsTxt(trkorr);
+    }
 }

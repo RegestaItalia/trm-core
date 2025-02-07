@@ -161,7 +161,6 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         //9- check existance of trkorr in target system
         Logger.loading(`Checking if ${checkExistance.length} transports exist before importing them`, true);
         for (const trkorr of checkExistance) {
-            var continueInstall = true;
             const oTransport = new Transport(trkorr);
             const e070 = await oTransport.getE070();
             if (e070) {
@@ -171,7 +170,6 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     Logger.log(`${trkorr} package is ${linkedPackage.packageName}`, true);
                     if (linkedPackage.compareName(context.runtime.remotePackageData.trmManifest.name) && linkedPackage.compareRegistry(context.runtime.registry)) {
                         Logger.log(`${trkorr} same package (updating?)`, true);
-                        continueInstall = true;
                     } else {
                         Logger.loading(`Migrating ${trkorr}`, true);
                         const oMigration = await oTransport.migrate();
@@ -182,8 +180,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                         Logger.warning(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and doesn't belong to a TRM package!`);
                         Logger.warning(`If you continue, TRM will replace transport ${trkorr} with the contents of package "${context.runtime.remotePackageData.trmManifest.name}".`);
                         Logger.warning(`All of the objects inside the transport will remain on the system, however you won't be able to use (re-import for example) it anymore.`);
-                        Logger.warning(`It's recommended to create a copy of ${trkorr} in another transport before continuing with the installation of "${context.runtime.remotePackageData.trmManifest.name}"`);
                         if (!context.rawInput.installData.import.replaceExistingTransports) {
+                            var continueInstall;
                             if (!context.rawInput.contextData.noInquirer) {
                                 continueInstall = (await Inquirer.prompt({
                                     name: `continue`,
@@ -194,17 +192,19 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                             } else {
                                 continueInstall = false;
                             }
+                            if(continueInstall){
+                                //mark with tms refresh after import
+                                context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
+                            }else{
+                                throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()}.`);
+                            }
                         }
                     } else {
-                        Logger.error(`Transport ${trkorr} is not released.`);
-                        continueInstall = false;
+                        throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and is not yet released.`);
                     }
                 }
             } else {
                 Logger.success(`${trkorr} does not exist in system.`, true);
-            }
-            if (!continueInstall) {
-                throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()}.`);
             }
         }
     }

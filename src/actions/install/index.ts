@@ -15,7 +15,7 @@ import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
 import { setR3trans } from "./setR3trans";
-import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT } from "../../client";
+import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT, TRKORR } from "../../client";
 import { checkTransports } from "./checkTransports";
 import { readDevc } from "./readDevc";
 import { setInstallDevclass } from "./setInstallDevclass";
@@ -31,6 +31,7 @@ import { importCustTransport } from "./importCustTransport";
 import { setPackageIntegrity } from "./setPackageIntegrity";
 import { generateInstallTransport } from "./generateInstallTransport";
 import { type } from "os";
+import { refreshTmsTxt } from "./refreshTmsTxt";
 
 /**
  * ABAP package replacement during install
@@ -243,7 +244,8 @@ type WorkflowRuntime = {
     },
     generatedData: {
         devclass: DEVCLASS[],
-        namespace: NAMESPACE
+        namespace: NAMESPACE,
+        tmsTxtRefresh: Transport[]
     }
 }
 
@@ -285,6 +287,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         importTadirTransport,
         importLangTransport,
         importCustTransport,
+        refreshTmsTxt,
         setPackageIntegrity,
         generateInstallTransport
     ];

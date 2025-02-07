@@ -15,7 +15,7 @@ import path from "path";
 import * as cliProgress from "cli-progress";
 import { CliLogger } from "../logger/CliLogger";
 import { CliLogFileLogger } from "../logger/CliLogFileLogger";
-import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD } from "../client";
+import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM } from "../client";
 import { SystemConnector } from "../systemConnector";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
@@ -766,6 +766,14 @@ export class Transport {
     public async migrate(): Promise<Transport> {
         const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
         return new Transport(trmTrkorr, null, true);
+    }
+
+    public async deleteFromTms(system: TMSSYSNAM): Promise<void> {
+        await SystemConnector.deleteTmsTransport(this.trkorr, system);
+    }
+
+    public async refreshTmsTxt(): Promise<void> {
+        await SystemConnector.refreshTransportTmsTxt(this.trkorr);
     }
 
 }
