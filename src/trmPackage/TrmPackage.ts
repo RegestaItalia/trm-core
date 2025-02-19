@@ -54,21 +54,21 @@ export class TrmPackage {
         };
     }
 
-    public async fetchRemoteManifest(version: string = 'latest'): Promise<Manifest> {
-        if(!this._remoteArtifacts[version]){
-            const artifact = await this.registry.getArtifact(this.packageName, version);
-            this._remoteArtifacts[version] = artifact;
-        }
-        this.manifest = this._remoteArtifacts[version].getManifest();
-        this._remoteArtifacts[this.manifest.get().version] = this._remoteArtifacts[version];
-        return this._remoteArtifacts[version].getManifest();
-    }
-
     public async fetchRemoteArtifact(version: string = 'latest'): Promise<TrmArtifact> {
         if(!this._remoteArtifacts[version]){
             this._remoteArtifacts[version] = await this.registry.getArtifact(this.packageName, version);
         }
         return this._remoteArtifacts[version];
+    }
+
+    public async fetchRemoteManifest(version: string = 'latest'): Promise<Manifest> {
+        const artifact = await this.fetchRemoteArtifact(version);
+        this.manifest = artifact.getManifest();
+        
+        //re-write with actual manifest version
+        this._remoteArtifacts[this.manifest.get().version] = this._remoteArtifacts[version];
+
+        return this._remoteArtifacts[version].getManifest();
     }
 
     public async publish(data: {
