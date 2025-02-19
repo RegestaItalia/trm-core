@@ -5,7 +5,7 @@ import { Registry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { UserAuthorization, View } from "trm-registry-types";
 import { DEVCLASS } from "../client";
-import { R3trans, R3transOptions } from "node-r3trans";
+import { R3transOptions } from "node-r3trans";
 
 export const DEFAULT_VERSION: string = "1.0.0";
 
@@ -78,25 +78,7 @@ export class TrmPackage {
             const artifact = await this.fetchRemoteArtifact(version);
             const manifest = artifact.getManifest();
             const actualVersion = manifest.get().version;
-            const transportBinaries = await artifact.getTransportBinaries();
-
-            this._remoteArtifacts[version] = {};
-            const r3trans = new R3trans(r3transConfig);
-            for (const transportBinary of transportBinaries) {
-                const tableEntries = await r3trans.getTableEntries(transportBinary.binaries.data);
-                if(!this._remoteArtifacts[version][transportBinary.type]){
-                    this._remoteArtifacts[version][transportBinary.type] = {
-                        trkorr: transportBinary.trkorr,
-                        content: {}
-                    };
-                }
-                Object.keys(tableEntries).forEach(table => {
-                    if(!this._remoteArtifacts[version][transportBinary.type].content[table]){
-                        this._remoteArtifacts[version][transportBinary.type].content[table] = [];
-                    }
-                    this._remoteArtifacts[version][transportBinary.type].content[table] = this._remoteArtifacts[version][transportBinary.type].content[table].concat(tableEntries[table]);
-                });
-            }
+            this._remoteArtifacts[version] = await artifact.getContent(r3transConfig);
 
             //re-write with actual manifest version
             this._remoteArtifacts[actualVersion] = this._remoteArtifacts[version];
