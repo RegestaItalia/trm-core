@@ -5,6 +5,7 @@ import { Registry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { UserAuthorization, View } from "trm-registry-types";
 import { DEVCLASS } from "../client";
+import { R3trans, R3transOptions } from "node-r3trans";
 
 export const DEFAULT_VERSION: string = "1.0.0";
 
@@ -12,6 +13,7 @@ export class TrmPackage {
     private _userAuthorizations: UserAuthorization;
     private _canPublishReleasesCause: string;
     private _remoteArtifacts: any = {};
+    private _remoteContent: any = {};
     private _devclass: DEVCLASS;
 
     constructor(public packageName: string, public registry: Registry, public manifest?: Manifest) {
@@ -40,9 +42,9 @@ export class TrmPackage {
                 view = await this._viewLatest();
             } catch (e) {
                 this._canPublishReleasesCause = e.message;
-                if(e.response && typeof(e.response) === "object"){
+                if (e.response && typeof (e.response) === "object") {
                     view = e.response;
-                }else{
+                } else {
                     throw e;
                 }
             }
@@ -55,7 +57,7 @@ export class TrmPackage {
     }
 
     public async fetchRemoteArtifact(version: string = 'latest'): Promise<TrmArtifact> {
-        if(!this._remoteArtifacts[version]){
+        if (!this._remoteArtifacts[version]) {
             this._remoteArtifacts[version] = await this.registry.getArtifact(this.packageName, version);
         }
         return this._remoteArtifacts[version];
@@ -64,11 +66,43 @@ export class TrmPackage {
     public async fetchRemoteManifest(version: string = 'latest'): Promise<Manifest> {
         const artifact = await this.fetchRemoteArtifact(version);
         this.manifest = artifact.getManifest();
-        
+
         //re-write with actual manifest version
         this._remoteArtifacts[this.manifest.get().version] = this._remoteArtifacts[version];
 
         return this._remoteArtifacts[version].getManifest();
+    }
+
+    public async fetchRemoteContent(version: string = 'latest', r3transConfig?: R3transOptions): Promise<any> {
+        if (!this._remoteContent[version]) {
+            const artifact = await this.fetchRemoteArtifact(version);
+            const manifest = artifact.getManifest();
+            const actualVersion = manifest.get().version;
+            const transportBinaries = await artifact.getTransportBinaries();
+
+            this._remoteArtifacts[version] = {};
+            const r3trans = new R3trans(r3transConfig);
+            for (const transportBinary of transportBinaries) {
+                const tableEntries = await r3trans.getTableEntries(transportBinary.binaries.data);
+                if(!this._remoteArtifacts[version][transportBinary.type]){
+                    this._remoteArtifacts[version][transportBinary.type] = {
+                        trkorr: transportBinary.trkorr,
+                        content: {}
+                    };
+                }
+                Object.keys(tableEntries).forEach(table => {
+                    if(!this._remoteArtifacts[version][transportBinary.type].content[table]){
+                        this._remoteArtifacts[version][transportBinary.type].content[table] = [];
+                    }
+                    this._remoteArtifacts[version][transportBinary.type].content[table] = this._remoteArtifacts[version][transportBinary.type].content[table].concat(tableEntries[table]);
+                });
+            }
+
+            //re-write with actual manifest version
+            this._remoteArtifacts[actualVersion] = this._remoteArtifacts[version];
+        }
+
+        return this._remoteArtifacts[version];
     }
 
     public async publish(data: {
@@ -78,7 +112,7 @@ export class TrmPackage {
         const artifact = data.artifact;
         const trmManifest = artifact.getManifest().get();
         const packageName = trmManifest.name;
-        if(packageName !== this.packageName){
+        if (packageName !== this.packageName) {
             throw new Error(`Cannot publish package ${packageName}: expected name is ${this.packageName}`);
         }
         const packageVersion = trmManifest.version;
@@ -129,7 +163,7 @@ export class TrmPackage {
         } else {
             if (!usingLatest) {
                 const versionExists = await oPackage.exists(version);
-                if(versionExists){
+                if (versionExists) {
                     throw new Error(`Package "${packageName}" versioned ${version} already published.`);
                 }
             } else {
