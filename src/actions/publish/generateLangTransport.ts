@@ -25,7 +25,7 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
         //1- generate transport
         Logger.loading(`Generating transports...`);
         Logger.loading(`Generating LANG transport...`, true);
-        const aTadir = context.runtime.packageData.tadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
+        const aDevc = context.runtime.packageData.tadir.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
         context.runtime.systemData.langTransport = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.LANG,
             target: context.rawInput.systemData.transportTarget,
@@ -33,7 +33,7 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
         });
         var iLanguageObjects: number = 0;
         try {
-            await context.runtime.systemData.langTransport.addTranslations(aTadir.map(o => o.objName));
+            await context.runtime.systemData.langTransport.addTranslations(aDevc.map(o => o.objName));
             iLanguageObjects = (await context.runtime.systemData.langTransport.getE071()).length;
         } catch (e) {
             Logger.warning(`Language transport generation error!`);
