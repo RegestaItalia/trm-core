@@ -69,7 +69,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         } else {
             context.runtime.packageTransports.devc.binaries = aDevcTransports[0];
             Logger.log(`DEVC transport is ${context.runtime.packageTransports.devc.binaries.trkorr}.`, true);
-            if(context.rawInput.installData.installDevclass.keepOriginal){
+            if (context.rawInput.installData.installDevclass.keepOriginal) {
                 checkExistance.push(context.runtime.packageTransports.devc.binaries.trkorr);
             }
         }
@@ -165,16 +165,21 @@ export const checkTransports: Step<InstallWorkflowContext> = {
             const e070 = await oTransport.getE070();
             if (e070) {
                 Logger.warning(`${trkorr} already exists in system!`, true);
+                const trmRelevant = await oTransport.isTrmRelevant();
                 const linkedPackage = await oTransport.getLinkedPackage();
                 if (linkedPackage) {
                     Logger.log(`${trkorr} package is ${linkedPackage.packageName}`, true);
                     if (linkedPackage.compareName(context.runtime.remotePackageData.trmManifest.name) && linkedPackage.compareRegistry(context.runtime.registry)) {
                         Logger.log(`${trkorr} same package (updating?)`, true);
                     } else {
-                        Logger.log(`${trkorr} will later be migrated`, true);
+                        Logger.log(`${trkorr} is linked to another package, will later be migrated`, true);
                         context.runtime.generatedData.migrations.push(oTransport);
                         context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
                     }
+                } else if (trmRelevant) {
+                    Logger.log(`${trkorr} is TRM relevant, will later be migrated`, true);
+                    context.runtime.generatedData.migrations.push(oTransport);
+                    context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
                 } else {
                     if (await oTransport.isReleased()) {
                         Logger.warning(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()}`);
@@ -192,10 +197,10 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                             } else {
                                 continueInstall = false;
                             }
-                            if(continueInstall){
+                            if (continueInstall) {
                                 //mark with tms refresh after import
                                 context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
-                            }else{
+                            } else {
                                 throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and transport rewrite was denied.`);
                             }
                         }
