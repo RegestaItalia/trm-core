@@ -28,6 +28,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     deleteTrkorr: (trkorr: components.TRKORR) => Promise<void>,
     releaseTrkorr: (trkorr: components.TRKORR, lock: boolean, timeout?: number) => Promise<void>,
     addSkipTrkorr: (trkorr: components.TRKORR) => Promise<void>,
+    removeSkipTrkorr: (trkorr: components.TRKORR) => Promise<void>,
     addSrcTrkorr: (trkorr: components.TRKORR) => Promise<void>,
     readTmsQueue: (target: components.TMSSYSNAM) => Promise<struct.STMSIQREQ[]>,
     createPackage: (scompkdtln: struct.SCOMPKDTLN) => Promise<void>,

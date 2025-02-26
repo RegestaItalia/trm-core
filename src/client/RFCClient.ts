@@ -301,6 +301,12 @@ export class RFCClient implements IClient {
         });
     }
 
+    public async removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
+        await this._call("ZTRM_REMOVE_SKIP_TRKORR", {
+            iv_trkorr: trkorr.trim().toUpperCase()
+        });
+    }
+
     public async addSrcTrkorr(trkorr: components.TRKORR): Promise<void> {
         await this._call("ZTRM_ADD_SRC_TRKORR", {
             iv_trkorr: trkorr.trim().toUpperCase()
