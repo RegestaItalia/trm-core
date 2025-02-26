@@ -98,7 +98,9 @@ export const init: Step<InstallWorkflowContext> = {
             },
             generatedData: {
                 devclass: [],
-                namespace: undefined
+                namespace: undefined,
+                migrations: [],
+                tmsTxtRefresh: []
             }
         };
 

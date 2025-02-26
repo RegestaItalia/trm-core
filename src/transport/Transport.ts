@@ -15,7 +15,7 @@ import path from "path";
 import * as cliProgress from "cli-progress";
 import { CliLogger } from "../logger/CliLogger";
 import { CliLogFileLogger } from "../logger/CliLogFileLogger";
-import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME } from "../client";
+import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM } from "../client";
 import { SystemConnector } from "../systemConnector";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
@@ -25,10 +25,14 @@ export class Transport {
     private _e070: E070;
     private _e071: E071[];
     private _docs: Documentation[];
+    private _trmRelevant: boolean;
+    private _linkedTrmPackage: TrmPackage;
     public trmIdentifier?: TrmTransportIdentifier;
 
-    constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET) {
-        this._fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
+    constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET, private _migration?: boolean) {
+        if (!this._migration) {
+            this._fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
+        }
     }
 
     public setTrmIdentifier(identifier?: TrmTransportIdentifier): Transport {
@@ -38,10 +42,23 @@ export class Transport {
 
     public async getE070(): Promise<E070> {
         if (!this._e070) {
-            const e070: E070[] = await SystemConnector.readTable('E070',
-                [{ fieldName: 'TRKORR' }, { fieldName: 'TRFUNCTION' }, { fieldName: 'AS4DATE' }, { fieldName: 'AS4TIME' }],
-                `TRKORR EQ '${this.trkorr}'`
-            );
+            const fields: RFC_DB_FLD[] = [
+                { fieldName: 'TRKORR' },
+                { fieldName: 'TRFUNCTION' },
+                { fieldName: 'TRSTATUS' },
+                { fieldName: 'AS4DATE' },
+                { fieldName: 'AS4TIME' }
+            ];
+            var e070: E070[];
+            if (!this._migration) {
+                e070 = await SystemConnector.readTable('E070', fields,
+                    `TRKORR EQ '${this.trkorr}'`
+                );
+            } else {
+                e070 = await SystemConnector.readTable('ZTRM_E070', fields,
+                    `TRM_TRKORR EQ '${this.trkorr}'`
+                );
+            }
             if (e070.length === 1) {
                 this._e070 = e070[0];
             }
@@ -51,15 +68,26 @@ export class Transport {
 
     public async getE071(): Promise<E071[]> {
         if (!this._e071) {
-            this._e071 = await SystemConnector.readTable('E071',
-                [{ fieldName: 'PGMID' }, { fieldName: 'OBJECT' }, { fieldName: 'OBJ_NAME' }],
-                `TRKORR EQ '${this.trkorr}'`
-            );
+            const fields: RFC_DB_FLD[] = [
+                { fieldName: 'PGMID' },
+                { fieldName: 'OBJECT' },
+                { fieldName: 'OBJ_NAME' }
+            ];
+            if (!this._migration) {
+                this._e071 = await SystemConnector.readTable('E071', fields,
+                    `TRKORR EQ '${this.trkorr}'`
+                );
+            } else {
+                this._e071 = await SystemConnector.readTable('ZTRM_E071', fields,
+                    `TRM_TROKRR EQ '${this.trkorr}'`
+                );
+            }
         }
         return this._e071;
     }
 
     public async getTasks(): Promise<Transport[]> {
+        //there should be no need to handle migrated transports here
         var tasks = [];
         const sTrkorr: {
             trkorr: string
@@ -125,11 +153,14 @@ export class Transport {
     }
 
     public async isTrmRelevant(): Promise<boolean> {
-        const e071 = await this.getE071();
-        const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
-        const hasName = trmComments.find(o => /name=/i.test(o.objName));
-        const hasVersion = trmComments.find(o => /version=/i.test(o.objName));
-        return (hasName && hasVersion) ? true : false;
+        if (this._trmRelevant === undefined) {
+            const e071 = await this.getE071();
+            const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
+            const hasName = trmComments.find(o => /name=/i.test(o.objName));
+            const hasVersion = trmComments.find(o => /version=/i.test(o.objName));
+            this._trmRelevant = (hasName && hasVersion) ? true : false;
+        }
+        return this._trmRelevant;
     }
 
     public async download(): Promise<{
@@ -181,15 +212,22 @@ export class Transport {
     public async getDocumentation(): Promise<Documentation[]> {
         if (!this._docs || this._docs.length === 0) {
             Logger.loading(`Reading ${this.trkorr} documentation...`, true);
-            const doktl: {
+            const fields: RFC_DB_FLD[] = [{ fieldName: 'LANGU' }, { fieldName: 'DOKVERSION' }, { fieldName: 'LINE' }, { fieldName: 'DOKTEXT' }];
+            var doktl: {
                 langu: string,
                 dokversion: string,
                 line: string,
                 doktext: string
-            }[] = await SystemConnector.readTable('DOKTL',
-                [{ fieldName: 'LANGU' }, { fieldName: 'DOKVERSION' }, { fieldName: 'LINE' }, { fieldName: 'DOKTEXT' }],
-                `ID EQ 'TA' AND OBJECT EQ '${this.trkorr}'`
-            );
+            }[];
+            if (!this._migration) {
+                doktl = await SystemConnector.readTable('DOKTL', fields,
+                    `ID EQ 'TA' AND OBJECT EQ '${this.trkorr}'`
+                );
+            } else {
+                doktl = await SystemConnector.readTable('ZTRM_DOKTL', fields,
+                    `TRM_TROKRR EQ '${this.trkorr}'`
+                );
+            }
             this._docs = Transport.doktlToDoc(doktl);
             //sort by version descending
             this._docs = this._docs.sort((a, b) => b.version - a.version);
@@ -273,33 +311,36 @@ export class Transport {
     }
 
     public async getLinkedPackage(): Promise<TrmPackage> {
-        const trmRelevant = await this.isTrmRelevant();
-        if (!trmRelevant) {
-            return;
-        }
-        var oTrmPackage: TrmPackage;
-        const aDocumentation = await this.getDocumentation();
-        const logonLanguage = SystemConnector.getLogonLanguage(true);
-        const oDocumentationLang = aDocumentation.find(o => o.langu === logonLanguage);
-        var docVal: string;
-        if (oDocumentationLang) {
-            docVal = oDocumentationLang.value;
-        } else {
-            if (aDocumentation.length > 0) {
-                docVal = aDocumentation[0].value;
+        if (!this._linkedTrmPackage) {
+            const trmRelevant = await this.isTrmRelevant();
+            if (!trmRelevant) {
+                return;
             }
+            var oTrmPackage: TrmPackage;
+            const aDocumentation = await this.getDocumentation();
+            const logonLanguage = SystemConnector.getLogonLanguage(true);
+            const oDocumentationLang = aDocumentation.find(o => o.langu === logonLanguage);
+            var docVal: string;
+            if (oDocumentationLang) {
+                docVal = oDocumentationLang.value;
+            } else {
+                if (aDocumentation.length > 0) {
+                    docVal = aDocumentation[0].value;
+                }
+            }
+            try {
+                oTrmPackage = Manifest.fromAbapXml(docVal).setLinkedTransport(this).getPackage();
+            } catch (e) {
+                //invalid manifest
+            }
+            try {
+                oTrmPackage.setDevclass(await this.getDevclass());
+            } catch (e) {
+                //devclass not found
+            }
+            this._linkedTrmPackage = oTrmPackage;
         }
-        try {
-            oTrmPackage = Manifest.fromAbapXml(docVal).setLinkedTransport(this).getPackage();
-        } catch (e) {
-            //invalid manifest
-        }
-        try {
-            oTrmPackage.setDevclass(await this.getDevclass());
-        } catch (e) {
-            //devclass not found
-        }
-        return oTrmPackage;
+        return this._linkedTrmPackage;
     }
 
     public async delete(): Promise<null> {
@@ -317,7 +358,7 @@ export class Transport {
         } else {
             rc = await this._isInTmsQueue(skipLog, false, secondsTimeout);
         }
-        if(!skipLog && !tmpFolder){ //with tmpFolder, release status already printed
+        if (!skipLog && !tmpFolder) { //with tmpFolder, release status already printed
             switch (rc) {
                 case 4:
                     Logger.warning(`${this.trkorr} release ended with warning.`);
@@ -487,7 +528,7 @@ export class Transport {
 
         if (error) {
             throw error;
-        }else{
+        } else {
             return rc;
         }
     }
@@ -721,12 +762,34 @@ export class Transport {
     }
 
     public async canBeDeleted(): Promise<boolean> {
-        const status = await SystemConnector.getTransportStatus(this.trkorr);
+        const status = (await this.getE070()).trstatus;
         return status === 'D';
+    }
+
+    public async isReleased(): Promise<boolean> {
+        const status = (await this.getE070()).trstatus;
+        return status === 'R' || status === 'N';
     }
 
     public async addObjectsFromTransport(from: TRKORR): Promise<void> {
         await SystemConnector.trCopy(from, this.trkorr, false);
+    }
+
+    public async migrate(rollback?: boolean): Promise<Transport | void> {
+        if (!rollback) {
+            const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
+            return new Transport(trmTrkorr, null, true);
+        } else {
+
+        }
+    }
+
+    public async deleteFromTms(system: TMSSYSNAM): Promise<void> {
+        await SystemConnector.deleteTmsTransport(this.trkorr, system);
+    }
+
+    public async refreshTmsTxt(): Promise<void> {
+        await SystemConnector.refreshTransportTmsTxt(this.trkorr);
     }
 
 }

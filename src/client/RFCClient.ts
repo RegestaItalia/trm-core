@@ -14,9 +14,9 @@ export class RFCClient implements IClient {
     private _aliveCheck: boolean = false;
 
     constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string) {
-        try{
+        try {
             process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
-        }catch(e){
+        } catch (e) {
             //not sure if this could cause an error!
             Logger.warning(`Couldn't set RFC trace!`, true);
             Logger.error(e.toString(), true);
@@ -84,12 +84,12 @@ export class RFCClient implements IClient {
             Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
             return responseNormalized;
         } catch (e) {
-            if(noErrorParsing){
+            if (noErrorParsing) {
                 throw e;
-            }else{
+            } else {
                 var message: string;
                 var messageError;
-                try{
+                try {
                     message = await this._getMessage(true, {
                         no: `${e.abapMsgNumber}`,
                         class: e.abapMsgClass,
@@ -98,16 +98,17 @@ export class RFCClient implements IClient {
                         v3: e.abapMsgV3,
                         v4: e.abapMsgV4
                     });
-                }catch(k){
+                } catch (k) {
                     messageError = k;
                     message = `Couldn't read error message ${e.abapMsgClass} ${e.abapMsgNumber} ${e.abapMsgV1} ${e.abapMsgV2} ${e.abapMsgV3} ${e.abapMsgV4}`;
                 }
                 var rfcClientError: any = new Error(message.trim());
                 rfcClientError.name = 'TrmRFCClient';
                 rfcClientError.rfcError = e;
-                if(messageError){
+                if (messageError) {
                     rfcClientError.messageError = messageError;
                 }
+                rfcClientError.exceptionType = e.key;
                 Logger.error(rfcClientError.toString(), true);
                 throw rfcClientError;
             }
@@ -168,22 +169,30 @@ export class RFCClient implements IClient {
                 }
             }) || [];*/
         }
-        const result = await this._call("RFC_READ_TABLE", {
-            query_table: tableName.toUpperCase(),
-            delimiter,
-            options: aOptions,
-            fields: fields
-        }, undefined, noErrorParsing);
-        const data: struct.TAB512[] = result['data'];
-        data.forEach(tab512 => {
-            var sqlLine: any = {};
-            const waSplit = tab512.wa.split(delimiter);
-            fields.forEach((field, index) => {
-                sqlLine[field['FIELDNAME']] = waSplit[index].trim();
-            });
-            sqlOutput.push(sqlLine);
-        })
-        return normalize(sqlOutput);
+        try {
+            const result = await this._call("RFC_READ_TABLE", {
+                query_table: tableName.toUpperCase(),
+                delimiter,
+                options: aOptions,
+                fields: fields
+            }, undefined, noErrorParsing);
+            const data: struct.TAB512[] = result['data'];
+            data.forEach(tab512 => {
+                var sqlLine: any = {};
+                const waSplit = tab512.wa.split(delimiter);
+                fields.forEach((field, index) => {
+                    sqlLine[field['FIELDNAME']] = waSplit[index].trim();
+                });
+                sqlOutput.push(sqlLine);
+            })
+            return normalize(sqlOutput);
+        } catch (e) {
+            if(e.exceptionType === 'TABLE_WITHOUT_DATA'){
+                return [];
+            }else{
+                throw e;
+            }
+        }
     }
 
     public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
@@ -423,6 +432,26 @@ export class RFCClient implements IClient {
     public async getR3transInfo(): Promise<string> {
         const result = await this._call("ZTRM_GET_R3TRANS_INFO");
         return result['evLog'];
+    }
+
+    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
+        const result = await this._call("ZTRM_MIGRATE_TRANSPORT", {
+            iv_trkorr: trkorr
+        });
+        return result['evTrmTrkorr'];
+    }
+
+    public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
+        await this._call("ZTRM_DEL_TRANSPORT_TMS", {
+            iv_trkorr: trkorr,
+            iv_system: system
+        });
+    }
+
+    public async refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
+        await this._call("ZTRM_REFRESH_TR_TMS_TXT", {
+            iv_trkorr: trkorr
+        });
     }
 
 }

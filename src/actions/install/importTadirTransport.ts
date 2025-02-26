@@ -10,9 +10,11 @@ import _ from 'lodash';
  * 
  * 1- upload transport into system
  * 
- * 2- import transport into system
+ * 2 - delete from tms buffer (if it exists)
  * 
- * 3- run tadir interface (package replacement)
+ * 3- import transport into system
+ * 
+ * 4- run tadir interface (package replacement)
  * 
 */
 export const importTadirTransport: Step<InstallWorkflowContext> = {
@@ -31,14 +33,17 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             r3transOption: context.rawInput.contextData.r3transOptions
         });
 
-        //2- import transport into system
+        //2 - delete from tms buffer (if it exists)
+        await context.runtime.packageTransports.tadir.instance.deleteFromTms(SystemConnector.getDest());
+
+        //3- import transport into system
         Logger.loading(`Importing ${context.runtime.packageTransports.tadir.binaries.trkorr}`, true);
         await context.runtime.packageTransports.tadir.instance.import(importTimeout);
         Logger.success(`Transport ${context.runtime.packageTransports.tadir.binaries.trkorr} imported`, true);
 
         Logger.loading(`Finalizing import...`);
 
-        //3- run tadir interface (package replacement)
+        //4- run tadir interface (package replacement)
         for (const tadir of context.runtime.packageTransportsData.tadir) {
             var object = _.cloneDeep(tadir);
             if (!context.rawInput.installData.installDevclass.keepOriginal) {

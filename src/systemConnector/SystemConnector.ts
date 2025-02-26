@@ -349,5 +349,19 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.getTrmRestPackage();
     }
+
+    export async function migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
+        await checkSystemConnector();
+        return systemConnector.migrateTransport(trkorr);
+    }
     
+    export async function deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.deleteTmsTransport(trkorr, system);
+    }
+
+    export async function refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.refreshTransportTmsTxt(trkorr);
+    }
 }

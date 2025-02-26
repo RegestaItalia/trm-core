@@ -246,4 +246,16 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getMessage(data);
     }
 
+    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
+        return this._client.migrateTransport(trkorr);
+    }
+
+    public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
+        return this._client.deleteTmsTransport(trkorr, system);
+    }
+
+    public async refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
+        return this._client.refreshTransportTmsTxt(trkorr);
+    }
+
 }

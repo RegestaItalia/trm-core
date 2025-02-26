@@ -445,4 +445,26 @@ export class RESTClient implements IClient {
         return result.log;
     }
 
+    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
+        const result = (await this._axiosInstance.post('/migrate_transport', {
+            trkorr
+        })).data;
+        return result.trmTrkorr;
+    }
+
+    public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
+        await this._axiosInstance.delete('/delete_transport', {
+            data: {
+                trkorr,
+                system
+            }
+        });
+    }
+
+    public async refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
+        await this._axiosInstance.post('/refresh_tms_transport_txt', {
+            trkorr
+        });
+    }
+
 }

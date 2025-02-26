@@ -9,19 +9,21 @@ import { Transport } from "../../transport";
  * 
  * 1- upload transport into system
  * 
- * 2- import transport into system
+ * 2 - delete from tms buffer (if it exists)
+ * 
+ * 3- import transport into system
  * 
 */
 export const importCustTransport: Step<InstallWorkflowContext> = {
     name: 'import-cust-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(context.rawInput.installData.import.noCust){
+        if (context.rawInput.installData.import.noCust) {
             Logger.log(`Skipping import CUST transport (user input)`, true);
             return false;
-        }else{
-            if(context.runtime.packageTransports.cust.binaries){
+        } else {
+            if (context.runtime.packageTransports.cust.binaries) {
                 return true;
-            }else{
+            } else {
                 Logger.log(`Skipping import CUST transport (no transports in package)`, true);
                 return false;
             }
@@ -41,7 +43,10 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
             r3transOption: context.rawInput.contextData.r3transOptions
         });
 
-        //2- import transport into system
+        //2 - delete from tms buffer (if it exists)
+        await context.runtime.packageTransports.cust.instance.deleteFromTms(SystemConnector.getDest());
+
+        //3- import transport into system
         Logger.loading(`Importing ${context.runtime.packageTransports.cust.binaries.trkorr}`, true);
         await context.runtime.packageTransports.cust.instance.import(importTimeout);
         Logger.success(`Transport ${context.runtime.packageTransports.cust.binaries.trkorr} imported`, true);

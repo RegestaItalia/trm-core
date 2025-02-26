@@ -15,7 +15,7 @@ import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
 import { setR3trans } from "./setR3trans";
-import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT } from "../../client";
+import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT, TRKORR } from "../../client";
 import { checkTransports } from "./checkTransports";
 import { readDevc } from "./readDevc";
 import { setInstallDevclass } from "./setInstallDevclass";
@@ -31,6 +31,8 @@ import { importCustTransport } from "./importCustTransport";
 import { setPackageIntegrity } from "./setPackageIntegrity";
 import { generateInstallTransport } from "./generateInstallTransport";
 import { type } from "os";
+import { refreshTmsTxt } from "./refreshTmsTxt";
+import { migrate } from "./migrate";
 
 /**
  * ABAP package replacement during install
@@ -94,6 +96,11 @@ export type InstallActionInputInstallData = {
          * Whether to skip importing customizing transports.
          */
         noCust?: boolean;
+
+        /**
+         * If importing a transport that already exists, overwrite.
+         */
+        replaceExistingTransports?: boolean;
     };
 
     /**
@@ -238,7 +245,9 @@ type WorkflowRuntime = {
     },
     generatedData: {
         devclass: DEVCLASS[],
-        namespace: NAMESPACE
+        namespace: NAMESPACE,
+        migrations: Transport[],
+        tmsTxtRefresh: Transport[]
     }
 }
 
@@ -270,6 +279,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         setR3trans,
         installDependencies,
         checkTransports,
+        migrate,
         readDevc,
         readTadir,
         checkObjectTypes,
@@ -280,6 +290,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         importTadirTransport,
         importLangTransport,
         importCustTransport,
+        refreshTmsTxt,
         setPackageIntegrity,
         generateInstallTransport
     ];
