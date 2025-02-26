@@ -5,7 +5,11 @@ import * as xml from "xml-js";
 export class DotAbapGit {
     private _dotAbapgit: {
         MASTER_LANGUAGE?: any,
-        STARTING_FOLDER?: any,
+        STARTING_FOLDER?: {
+            item: {
+                _text: string
+            }
+        },
         FOLDER_LOGIC?: any,
         IGNORE?: {
             item: {
@@ -40,6 +44,10 @@ export class DotAbapGit {
         }else{
             return [];
         }
+    }
+
+    public getStartingFolder(): string {
+        return this._dotAbapgit.STARTING_FOLDER ? this._dotAbapgit.STARTING_FOLDER.item._text : null;
     }
 
 }
