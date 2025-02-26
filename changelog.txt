@@ -1,0 +1,14 @@
+trm-core changelog
+=================
+
+Legend
+------
+* : fixed
+! : changed
++ : added
+- : removed
+
+2025-02-06 v6.3.0
+-------------------
+
+* upgrading package remove previous ZTRM comments in workbench (import) transport

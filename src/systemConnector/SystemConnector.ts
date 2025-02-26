@@ -206,6 +206,11 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.setTransportDoc(trkorr, doc);
     }
+
+    export async function removeComments(trkorr: components.TRKORR, object: TROBJTYPE) {
+        await checkSystemConnector();
+        return systemConnector.removeComments(trkorr, object);
+    }
     
     export async function addToTransportRequest(trkorr: components.TRKORR, content: struct.E071[], lock: boolean): Promise<void> {
         await checkSystemConnector();

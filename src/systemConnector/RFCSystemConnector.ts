@@ -130,6 +130,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.setTransportDoc(trkorr, doc);
     }
 
+    public async removeComments(trkorr: components.TRKORR, object: components.TROBJTYPE): Promise<void> {
+        return this._client.removeComments(trkorr, object);
+    }
+
     public async addToTransportRequest(trkorr: components.TRKORR, content: struct.E071[], lock: boolean): Promise<void> {
         return this._client.addToTransportRequest(trkorr, content, lock);
     }

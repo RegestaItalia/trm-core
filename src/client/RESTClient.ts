@@ -50,7 +50,7 @@ export class RESTClient implements IClient {
                     }
                     var message: string;
                     var messageError;
-                    try{
+                    try {
                         message = await this.getMessage({
                             no: `${axiosError.response.data.message.msgno}`,
                             class: axiosError.response.data.message.msgid,
@@ -59,17 +59,17 @@ export class RESTClient implements IClient {
                             v3: axiosError.response.data.message.msgv3,
                             v4: axiosError.response.data.message.msgv4
                         });
-                    }catch(k){
+                    } catch (k) {
                         messageError = k;
                         message = `Couldn't read error message ${axiosError.response.data.message.abapMsgClass} ${axiosError.response.data.message.abapMsgNumber} ${axiosError.response.data.message.abapMsgV1} ${axiosError.response.data.message.abapMsgV2} ${axiosError.response.data.message.abapMsgV3} ${axiosError.response.data.message.abapMsgV4}`;
                     }
                     var rfcClientError: any = new Error(message.trim());
                     rfcClientError.name = 'TrmRESTClient';
                     rfcClientError.restError = axiosError;
-                    if(messageError){
+                    if (messageError) {
                         rfcClientError.messageError = messageError;
                     }
-                    if(axiosError.response.data.log){
+                    if (axiosError.response.data.log) {
                         rfcClientError.messageLog = axiosError.response.data.log;
                     }
                     Logger.error(rfcClientError.toString(), true);
@@ -224,6 +224,15 @@ export class RESTClient implements IClient {
             }
         })).data;
         return result.tadir;
+    }
+    
+    public async removeComments(trkorr: components.TRKORR, object: components.TROBJTYPE): Promise<void> {
+        await this._axiosInstance.delete('/remove_tr_comments', {
+            data: {
+                trkorr: trkorr.trim().toUpperCase(),
+                object: object.trim().toUpperCase()
+            }
+        });
     }
 
     public async addToTransportRequest(trkorr: components.TRKORR, content: struct.E071[], lock: boolean): Promise<void> {
