@@ -4,5 +4,5 @@ export function getCoreTrmDependencies(): {
     [key: string]: string;
 } {
     const nodePackage = getNodePackage();
-    return nodePackage.trmDependencies;
+    return nodePackage.trmDependencies || {};
 }
