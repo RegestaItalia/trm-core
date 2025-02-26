@@ -64,6 +64,8 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         //5- replace root devclass parent devclass
         if(rootDevclass && rootDevclass.parentcl){
             await SystemConnector.setPackageSuperpackage(context.runtime.originalData.hierarchy.devclass, rootDevclass.parentcl)
+        }else{
+            await SystemConnector.clearPackageSuperpackage(context.runtime.originalData.hierarchy.devclass);
         }
 
         //6- set TRM as source

@@ -26,7 +26,7 @@ export const migrate: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Migration step', true);
 
-        context.runtime.rollback = true;
+        //context.runtime.rollback = true;
 
         for (const transport of context.runtime.generatedData.migrations) {
             Logger.loading(`Migrating ${transport.trkorr}...`);
@@ -35,8 +35,8 @@ export const migrate: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Rollback migration step', true);
-
+        //Logger.log('Rollback migration step', true);
+        //TODO
         /*Logger.loading(`Migration rollback...`);
         for (const transport of context.runtime.generatedData.migrations) {
             Logger.loading(`Removing migration of transport ${transport.trkorr}...`);

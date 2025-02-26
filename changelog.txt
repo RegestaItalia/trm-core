@@ -17,3 +17,4 @@ Legend
 + move trm package dependencies to core
 + transport migration on overwrite
 ! DEVC, CUST and LANG are now TRM relevant
+* root superpackage on devc tr import blank
