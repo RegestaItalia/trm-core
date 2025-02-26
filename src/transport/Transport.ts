@@ -25,6 +25,8 @@ export class Transport {
     private _e070: E070;
     private _e071: E071[];
     private _docs: Documentation[];
+    private _trmRelevant: boolean;
+    private _linkedTrmPackage: TrmPackage;
     public trmIdentifier?: TrmTransportIdentifier;
 
     constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET, private _migration?: boolean) {
@@ -75,7 +77,7 @@ export class Transport {
                 this._e071 = await SystemConnector.readTable('E071', fields,
                     `TRKORR EQ '${this.trkorr}'`
                 );
-            }else{
+            } else {
                 this._e071 = await SystemConnector.readTable('ZTRM_E071', fields,
                     `TRM_TRKORR EQ '${this.trkorr}'`
                 );
@@ -151,11 +153,14 @@ export class Transport {
     }
 
     public async isTrmRelevant(): Promise<boolean> {
-        const e071 = await this.getE071();
-        const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
-        const hasName = trmComments.find(o => /name=/i.test(o.objName));
-        const hasVersion = trmComments.find(o => /version=/i.test(o.objName));
-        return (hasName && hasVersion) ? true : false;
+        if (this._trmRelevant === undefined) {
+            const e071 = await this.getE071();
+            const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
+            const hasName = trmComments.find(o => /name=/i.test(o.objName));
+            const hasVersion = trmComments.find(o => /version=/i.test(o.objName));
+            this._trmRelevant = (hasName && hasVersion) ? true : false;
+        }
+        return this._trmRelevant;
     }
 
     public async download(): Promise<{
@@ -302,33 +307,36 @@ export class Transport {
     }
 
     public async getLinkedPackage(): Promise<TrmPackage> {
-        const trmRelevant = await this.isTrmRelevant();
-        if (!trmRelevant) {
-            return;
-        }
-        var oTrmPackage: TrmPackage;
-        const aDocumentation = await this.getDocumentation();
-        const logonLanguage = SystemConnector.getLogonLanguage(true);
-        const oDocumentationLang = aDocumentation.find(o => o.langu === logonLanguage);
-        var docVal: string;
-        if (oDocumentationLang) {
-            docVal = oDocumentationLang.value;
-        } else {
-            if (aDocumentation.length > 0) {
-                docVal = aDocumentation[0].value;
+        if (!this._linkedTrmPackage) {
+            const trmRelevant = await this.isTrmRelevant();
+            if (!trmRelevant) {
+                return;
             }
+            var oTrmPackage: TrmPackage;
+            const aDocumentation = await this.getDocumentation();
+            const logonLanguage = SystemConnector.getLogonLanguage(true);
+            const oDocumentationLang = aDocumentation.find(o => o.langu === logonLanguage);
+            var docVal: string;
+            if (oDocumentationLang) {
+                docVal = oDocumentationLang.value;
+            } else {
+                if (aDocumentation.length > 0) {
+                    docVal = aDocumentation[0].value;
+                }
+            }
+            try {
+                oTrmPackage = Manifest.fromAbapXml(docVal).setLinkedTransport(this).getPackage();
+            } catch (e) {
+                //invalid manifest
+            }
+            try {
+                oTrmPackage.setDevclass(await this.getDevclass());
+            } catch (e) {
+                //devclass not found
+            }
+            this._linkedTrmPackage = oTrmPackage;
         }
-        try {
-            oTrmPackage = Manifest.fromAbapXml(docVal).setLinkedTransport(this).getPackage();
-        } catch (e) {
-            //invalid manifest
-        }
-        try {
-            oTrmPackage.setDevclass(await this.getDevclass());
-        } catch (e) {
-            //devclass not found
-        }
-        return oTrmPackage;
+        return this._linkedTrmPackage;
     }
 
     public async delete(): Promise<null> {
@@ -763,12 +771,12 @@ export class Transport {
         await SystemConnector.trCopy(from, this.trkorr, false);
     }
 
-    public async migrate(rollback?: boolean): Promise<Transport|void> {
-        if(!rollback){
+    public async migrate(rollback?: boolean): Promise<Transport | void> {
+        if (!rollback) {
             const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
             return new Transport(trmTrkorr, null, true);
-        }else{
-            
+        } else {
+
         }
     }
 
