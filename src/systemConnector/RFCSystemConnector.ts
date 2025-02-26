@@ -30,7 +30,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         }
         this._client = new RFCClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir);
     }
-    
+
     protected getSysname(): string {
         return this.getDest();
     }
@@ -229,9 +229,13 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         return this._client.deleteTmsTransport(trkorr, system);
     }
-    
+
     public async refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
         return this._client.refreshTransportTmsTxt(trkorr);
+    }
+
+    public async getDotAbapgit(devclass: components.DEVCLASS): Promise<Buffer> {
+        return this._client.getDotAbapgit(devclass);
     }
     
 }

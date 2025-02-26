@@ -187,9 +187,9 @@ export class RFCClient implements IClient {
             })
             return normalize(sqlOutput);
         } catch (e) {
-            if(e.exceptionType === 'TABLE_WITHOUT_DATA'){
+            if (e.exceptionType === 'TABLE_WITHOUT_DATA') {
                 return [];
-            }else{
+            } else {
                 throw e;
             }
         }
@@ -458,6 +458,13 @@ export class RFCClient implements IClient {
         await this._call("ZTRM_REFRESH_TR_TMS_TXT", {
             iv_trkorr: trkorr
         });
+    }
+
+    public async getDotAbapgit(devclass: components.DEVCLASS): Promise<Buffer> {
+        const result = await this._call("ZTRM_GET_DOT_ABAPGIT", {
+            iv_devclass: devclass
+        });
+        return result['evDotAbapgit'];
     }
 
 }

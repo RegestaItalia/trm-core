@@ -225,7 +225,7 @@ export class RESTClient implements IClient {
         })).data;
         return result.tadir;
     }
-    
+
     public async removeComments(trkorr: components.TRKORR, object: components.TROBJTYPE): Promise<void> {
         await this._axiosInstance.delete('/remove_tr_comments', {
             data: {
@@ -473,6 +473,19 @@ export class RESTClient implements IClient {
         await this._axiosInstance.post('/refresh_tms_transport_txt', {
             trkorr
         });
+    }
+
+    public async getDotAbapgit(devclass: components.DEVCLASS): Promise<Buffer> {
+        const result = (await this._axiosInstance.get('/get_dot_abapgit', {
+            responseType: 'arraybuffer',
+            headers: {
+                'Content-Type': 'application/octet-stream'
+            },
+            data: {
+                devclass
+            }
+        })).data;
+        return result;
     }
 
 }

@@ -262,4 +262,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.refreshTransportTmsTxt(trkorr);
     }
 
+    public async getDotAbapgit(devclass: components.DEVCLASS): Promise<Buffer> {
+        return this._client.getDotAbapgit(devclass);
+    }
+
 }
