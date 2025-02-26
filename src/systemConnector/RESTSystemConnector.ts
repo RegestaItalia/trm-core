@@ -174,6 +174,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.addSkipTrkorr(trkorr);
     }
 
+    public async removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
+        return this._client.removeSkipTrkorr(trkorr);
+    }
+
     public async addSrcTrkorr(trkorr: components.TRKORR): Promise<void> {
         return this._client.addSrcTrkorr(trkorr);
     }

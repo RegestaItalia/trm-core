@@ -16,6 +16,8 @@ import _ from 'lodash';
  * 
  * 4- run tadir interface (package replacement)
  * 
+ * 5- remove from skipped transports (may be there because of previous failed install)
+ * 
 */
 export const importTadirTransport: Step<InstallWorkflowContext> = {
     name: 'import-tadir-transport',
@@ -58,6 +60,9 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${tadir.devclass} -> ${object.devclass}, src system ${tadir.srcsystem} -> ${object.srcsystem}`, true);
             await SystemConnector.tadirInterface(object);
         }
+
+        //5- remove from skipped transports (may be there because of previous failed install)
+        
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Rollback TADIR Transport step', true);

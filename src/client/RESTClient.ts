@@ -285,6 +285,14 @@ export class RESTClient implements IClient {
         });
     }
 
+    public async removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
+        await this._axiosInstance.delete('/remove_skip_trkorr', {
+            data: {
+                trkorr: trkorr.trim().toUpperCase()
+            }
+        });
+    }
+
     public async addSrcTrkorr(trkorr: components.TRKORR): Promise<void> {
         await this._axiosInstance.put('/add_src_trkorr', {
             trkorr: trkorr.trim().toUpperCase()
