@@ -25,31 +25,23 @@ export const migrate: Step<InstallWorkflowContext> = {
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Migration step', true);
-        try {
-            for (const transport of context.runtime.generatedData.migrations) {
-                Logger.loading(`Migrating ${transport.trkorr}...`);
-                const oMigration = await transport.migrate();
-                Logger.success(`Migrated ${transport.trkorr} to ${(oMigration as Transport).trkorr}`, true);
-            }
-        } catch (e) {
-            if (e.exceptionType === 'SNRO_INTERVAL_NOT_FOUND') {
-                throw new Error(`Missing TRM transport migration number range: re-install server component (run command trm update trm-server).`);
-            } else {
-                context.runtime.rollback = true;
-                throw e;
-            }
+
+        context.runtime.rollback = true;
+
+        for (const transport of context.runtime.generatedData.migrations) {
+            Logger.loading(`Migrating ${transport.trkorr}...`);
+            const oMigration = await transport.migrate();
+            Logger.success(`Migrated ${transport.trkorr} to ${(oMigration as Transport).trkorr}`, true);
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if(context.runtime.rollback){
-            Logger.log('Rollback migration step', true);
-            
-            Logger.loading(`Migration rollback...`);
-            for (const transport of context.runtime.generatedData.migrations) {
-                Logger.loading(`Removing migration of transport ${transport.trkorr}...`);
-                await transport.migrate(true);
-                Logger.success(`Removed migration`, true);
-            }
-        }
+        Logger.log('Rollback migration step', true);
+
+        /*Logger.loading(`Migration rollback...`);
+        for (const transport of context.runtime.generatedData.migrations) {
+            Logger.loading(`Removing migration of transport ${transport.trkorr}...`);
+            await transport.migrate(true);
+            Logger.success(`Removed migration`, true);
+        }*/
     }
 }

@@ -178,7 +178,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     if (await oTransport.isReleased()) {
                         Logger.warning(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and doesn't belong to a TRM package!`);
                         Logger.warning(`If you continue, TRM will replace transport ${trkorr} with the contents of package "${context.runtime.remotePackageData.trmManifest.name}".`);
-                        Logger.warning(`All of the objects inside the transport will remain on the system, however you won't be able to use (re-import for example) it anymore.`);
+                        Logger.warning(`All of the objects inside the transport will remain on the system, however you won't be able to use (re-import, for example) it anymore.`);
                         if (!context.rawInput.installData.import.replaceExistingTransports) {
                             var continueInstall;
                             if (!context.rawInput.contextData.noInquirer) {
@@ -195,11 +195,11 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                                 //mark with tms refresh after import
                                 context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
                             }else{
-                                throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()}.`);
+                                throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and transport rewrite was denied.`);
                             }
                         }
                     } else {
-                        throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and is not yet released.`);
+                        throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and is not released.`);
                     }
                 }
             } else {
