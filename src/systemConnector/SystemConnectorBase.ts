@@ -215,8 +215,8 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     aActualTrkorr = Array.from(new Set(aActualTrkorr));
     try {
       aMigrationTrkorr = (await this.readTable('ZTRM_E070',
-        [{ fieldName: 'TRM_TRKORR' }]
-      )).map(o => o.trmTrkorr);
+        [{ fieldName: 'TRM_TROKRR' }]
+      )).map(o => o.trmTrokrr);
     } catch (e) {
       aMigrationTrkorr = [];
     }
