@@ -256,7 +256,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
             aTrkorrStatusCheck = (await this.readTable('ZTRM_TMSBUFFER',
               [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
               //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
-              `SYSNAM EQ '${this.getSysname()}' AND TRM_TRKORR EQ '${sTrkorr.trkorr}' AND IMPSING NE 'X'`
+              `SYSNAM EQ '${this.getSysname()}' AND TRM_TROKRR EQ '${sTrkorr.trkorr}' AND IMPSING NE 'X'`
             ));
           }
           aTrkorrStatusCheck = aTrkorrStatusCheck.filter(o => parseInt(o.maxrc) >= 0);

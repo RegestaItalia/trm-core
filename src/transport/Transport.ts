@@ -79,7 +79,7 @@ export class Transport {
                 );
             } else {
                 this._e071 = await SystemConnector.readTable('ZTRM_E071', fields,
-                    `TRM_TRKORR EQ '${this.trkorr}'`
+                    `TRM_TROKRR EQ '${this.trkorr}'`
                 );
             }
         }
@@ -225,7 +225,7 @@ export class Transport {
                 );
             } else {
                 doktl = await SystemConnector.readTable('ZTRM_DOKTL', fields,
-                    `TRM_TRKORR EQ '${this.trkorr}'`
+                    `TRM_TROKRR EQ '${this.trkorr}'`
                 );
             }
             this._docs = Transport.doktlToDoc(doktl);
