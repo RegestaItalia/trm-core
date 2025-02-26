@@ -16,3 +16,4 @@ Legend
 * fix translation transport generation
 + move trm package dependencies to core
 + transport migration on overwrite
+! DEVC, CUST and LANG are now TRM relevant
