@@ -169,22 +169,30 @@ export class RFCClient implements IClient {
                 }
             }) || [];*/
         }
-        const result = await this._call("RFC_READ_TABLE", {
-            query_table: tableName.toUpperCase(),
-            delimiter,
-            options: aOptions,
-            fields: fields
-        }, undefined, noErrorParsing);
-        const data: struct.TAB512[] = result['data'];
-        data.forEach(tab512 => {
-            var sqlLine: any = {};
-            const waSplit = tab512.wa.split(delimiter);
-            fields.forEach((field, index) => {
-                sqlLine[field['FIELDNAME']] = waSplit[index].trim();
-            });
-            sqlOutput.push(sqlLine);
-        })
-        return normalize(sqlOutput);
+        try {
+            const result = await this._call("RFC_READ_TABLE", {
+                query_table: tableName.toUpperCase(),
+                delimiter,
+                options: aOptions,
+                fields: fields
+            }, undefined, noErrorParsing);
+            const data: struct.TAB512[] = result['data'];
+            data.forEach(tab512 => {
+                var sqlLine: any = {};
+                const waSplit = tab512.wa.split(delimiter);
+                fields.forEach((field, index) => {
+                    sqlLine[field['FIELDNAME']] = waSplit[index].trim();
+                });
+                sqlOutput.push(sqlLine);
+            })
+            return normalize(sqlOutput);
+        } catch (e) {
+            if(e.exceptionType === 'TABLE_WITHOUT_DATA'){
+                return [];
+            }else{
+                throw e;
+            }
+        }
     }
 
     public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
@@ -438,5 +446,5 @@ export class RFCClient implements IClient {
             iv_trkorr: trkorr
         });
     }
-    
+
 }
