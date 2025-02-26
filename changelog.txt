@@ -12,3 +12,6 @@ Legend
 -------------------
 
 * upgrading package remove previous ZTRM comments in workbench (import) transport
++ fetch package remote content
+* fix translation transport generation
++ move trm package dependencies to core
