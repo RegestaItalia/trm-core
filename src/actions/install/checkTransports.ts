@@ -177,8 +177,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                         context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
                     }
                 } else if (trmRelevant) {
-                    Logger.log(`${trkorr} is TRM relevant, will later be migrated`, true);
-                    context.runtime.generatedData.migrations.push(oTransport);
+                    Logger.log(`${trkorr} is TRM relevant but no linked package (could be DEVC, LANG etc..). No migration, just tms refresh`, true);
                     context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
                 } else {
                     if (await oTransport.isReleased()) {
