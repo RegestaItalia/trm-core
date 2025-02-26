@@ -30,6 +30,8 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
             target: context.rawInput.systemData.transportTarget,
             text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (C)`
         });
+        await context.runtime.systemData.custTransport.addComment(`name=${context.rawInput.packageData.name}`);
+        await context.runtime.systemData.custTransport.addComment(`version=${context.rawInput.packageData.version}`);
         for(const transport of (context.rawInput.publishData.customizingTransports as Array<Transport>)){
             await context.runtime.systemData.custTransport.addObjectsFromTransport(transport.trkorr);
         }

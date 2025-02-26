@@ -24,6 +24,8 @@ export const generateDevcTransport: Step<PublishWorkflowContext> = {
             target: context.rawInput.systemData.transportTarget,
             text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (D)`
         });
+        await context.runtime.systemData.devcTransport.addComment(`name=${context.rawInput.packageData.name}`);
+        await context.runtime.systemData.devcTransport.addComment(`version=${context.rawInput.packageData.version}`);
         await context.runtime.systemData.devcTransport.addObjects(aDevc, false);
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
