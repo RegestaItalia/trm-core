@@ -374,4 +374,9 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.getDotAbapgit(devclass);
     }
+
+    export async function getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: struct.TADIR[]}> {
+        await checkSystemConnector();
+        return systemConnector.getAbapgitSource(devclass);
+    }
 }

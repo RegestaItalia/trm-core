@@ -149,7 +149,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     public async setTransportDoc(trkorr: components.TRKORR, doc: struct.TLINE[]): Promise<void> {
         return this._client.setTransportDoc(trkorr, doc);
     }
-    
+
     public async removeComments(trkorr: components.TRKORR, object: components.TROBJTYPE): Promise<void> {
         return this._client.removeComments(trkorr, object);
     }
@@ -264,6 +264,11 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async getDotAbapgit(devclass: components.DEVCLASS): Promise<Buffer> {
         return this._client.getDotAbapgit(devclass);
+    }
+
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
+        //return this._client.getAbapgitSource(devclass);
+        return null;
     }
 
 }

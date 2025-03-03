@@ -50,5 +50,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     migrateTransport: (trkorr: components.TRKORR) => Promise<components.ZTRM_TRKORR>,
     deleteTmsTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<void>,
     refreshTransportTmsTxt: (trkorr: components.TRKORR) => Promise<void>,
-    getDotAbapgit: (devclass: components.DEVCLASS) => Promise<Buffer>
+    getDotAbapgit: (devclass: components.DEVCLASS) => Promise<Buffer>,
+    getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: struct.TADIR[]}>
 }

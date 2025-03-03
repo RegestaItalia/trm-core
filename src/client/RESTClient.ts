@@ -488,4 +488,8 @@ export class RESTClient implements IClient {
         return result;
     }
 
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
+        return null;
+    }
+
 }
