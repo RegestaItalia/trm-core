@@ -267,8 +267,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
-        //return this._client.getAbapgitSource(devclass);
-        return null;
+        return this._client.getAbapgitSource(devclass);
     }
 
 }

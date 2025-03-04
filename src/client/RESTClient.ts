@@ -6,6 +6,7 @@ import { AxiosInstance } from "axios";
 import * as FormData from "form-data";
 import { Login, SapMessage } from ".";
 import { Logger } from "../logger";
+import { parse as parseMultipart } from "parse-multipart-data";
 
 const AXIOS_CTX = "RestServer";
 
@@ -489,7 +490,25 @@ export class RESTClient implements IClient {
     }
 
     public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
-        return null;
+        const { headers, data } = await this._axiosInstance.get('/get_abapgit_source', {
+            responseType: 'arraybuffer',
+            headers: {
+                'Content-Type': 'multipart/mixed'
+            },
+            data: {
+                devclass
+            }
+        });
+        try{
+            const boundary = headers['content-type'].match(/boundary=([-0-9A-Za-z]+)/i)[1];
+            const parsedData = parseMultipart(data, boundary);
+            return {
+                zip: parsedData.find(o => o.name === 'zip').data,
+                objects: JSON.parse(parsedData.find(o => o.name === 'objects').data.toString())
+            }
+        }catch(e){
+            throw new Error(`Can't parse api data.`);
+        }
     }
 
 }

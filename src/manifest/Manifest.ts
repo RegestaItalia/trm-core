@@ -9,7 +9,7 @@ import normalizeUrl from "@esm2cjs/normalize-url";
 import { validate as validateEmail } from "email-validator";
 import * as SpdxLicenseIds from "spdx-license-ids/index.json";
 import { TrmManifestAuthor } from "./TrmManifestAuthor";
-import { DOMParser } from 'xmldom';
+import { DOMParser } from '@xmldom/xmldom';
 import _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
 import { Logger } from "../logger";
