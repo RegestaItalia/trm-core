@@ -21,3 +21,4 @@ Legend
 + clear state on package install (remove from skipped transports)
 + add abapgit source code to TRM artifact
 + skip ignored objects listed in .abapgit.xml
++ add namespace in manifest
