@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext } from ".";
 import { Logger } from "../../logger";
-import { Inquirer, validateDevclass } from "../../inquirer";
+import { Inquirer } from "../../inquirer";
 import { SystemConnector } from "../../systemConnector";
 
 /**

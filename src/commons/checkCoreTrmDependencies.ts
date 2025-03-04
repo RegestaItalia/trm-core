@@ -1,4 +1,3 @@
-
 import { getCoreTrmDependencies } from "./getCoreTrmDependencies";
 import { Registry } from "../registry";
 import { TrmPackage } from "../trmPackage";

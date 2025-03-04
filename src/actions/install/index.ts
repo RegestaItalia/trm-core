@@ -2,7 +2,6 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { R3trans, R3transOptions } from "node-r3trans";
 import { inspect } from "util";
 import { Logger } from "../../logger";
-import { IRegistry, Registry } from "../../registry";
 import { Transport } from "../../transport";
 import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
 import { init } from "./init";
@@ -15,7 +14,7 @@ import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
 import { setR3trans } from "./setR3trans";
-import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT, TRKORR } from "../../client";
+import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT } from "../../client";
 import { checkTransports } from "./checkTransports";
 import { readDevc } from "./readDevc";
 import { setInstallDevclass } from "./setInstallDevclass";
@@ -30,9 +29,9 @@ import { importLangTransport } from "./importLangTransport";
 import { importCustTransport } from "./importCustTransport";
 import { setPackageIntegrity } from "./setPackageIntegrity";
 import { generateInstallTransport } from "./generateInstallTransport";
-import { type } from "os";
 import { refreshTmsTxt } from "./refreshTmsTxt";
 import { migrate } from "./migrate";
+import { AbstractRegistry } from "../../registry";
 
 /**
  * ABAP package replacement during install
@@ -193,7 +192,7 @@ export interface InstallActionInput {
         /**
          * The registry where the package is stored.
          */
-        registry: IRegistry;
+        registry: AbstractRegistry;
 
         /**
          * Overwrite package if same version is already installed?
@@ -210,7 +209,7 @@ type TransportRuntime = {
 }
 
 type WorkflowRuntime = {
-    registry: IRegistry,
+    registry: AbstractRegistry,
     update: boolean,
     rollback: boolean,
     remotePackageData: {
@@ -253,7 +252,7 @@ type WorkflowRuntime = {
 
 export type InstallActionOutput = {
     trmPackage: TrmPackage,
-    registry: IRegistry,
+    registry: AbstractRegistry,
     installTransport?: Transport
 }
 

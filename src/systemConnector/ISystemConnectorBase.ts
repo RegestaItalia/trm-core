@@ -1,4 +1,4 @@
-import { IRegistry, Registry } from "../registry";
+import { AbstractRegistry, Registry } from "../registry";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { Transport } from "../transport";
@@ -16,7 +16,7 @@ export interface ISystemConnectorBase {
     getTransportTargets: () => Promise<struct.TMSCSYS[]>,
     getSubpackages: (devclass: components.DEVCLASS) => Promise<struct.TDEVC[]>,
     getDevclassObjects: (devclass: components.DEVCLASS, includeSubpackages: boolean) => Promise<struct.TADIR[]>,
-    getInstallPackages: (packageName: string, registry: IRegistry) => Promise<InstallPackage[]>,
+    getInstallPackages: (packageName: string, registry: AbstractRegistry) => Promise<InstallPackage[]>,
     setPackageSuperpackage: (devclass: components.DEVCLASS, superpackage: components.DEVCLASS) => Promise<void>,
     clearPackageSuperpackage: (devclass: components.DEVCLASS) => Promise<void>,
     setPackageTransportLayer: (devclass: components.DEVCLASS, devlayer: components.DEVLAYER) => Promise<void>,

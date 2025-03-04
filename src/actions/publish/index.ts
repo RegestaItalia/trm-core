@@ -3,7 +3,7 @@ import { inspect } from "util";
 import { Logger } from "../../logger";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
 import { IActionContext, setSystemPackages } from "..";
-import { IRegistry, Registry } from "../../registry";
+import { AbstractRegistry } from "../../registry";
 import { init } from "./init";
 import { DEVCLASS, TADIR, TMSCSYS, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
 import { setDevclass } from "./setDevclass";
@@ -71,7 +71,7 @@ export interface PublishActionInput {
         /**
          * The registry where the package has to be stored.
          */
-        registry: IRegistry;
+        registry: AbstractRegistry;
 
         /**
          * ABAP package name.
@@ -147,7 +147,7 @@ type WorkflowRuntime = {
     rollback: boolean,
     trmPackage: {
         package: TrmPackage,
-        registry: IRegistry,
+        registry: AbstractRegistry,
         latestReleaseManifest?: TrmManifest,
         manifest: TrmManifest,
         artifact?: TrmArtifact

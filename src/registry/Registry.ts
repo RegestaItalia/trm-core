@@ -12,13 +12,13 @@ import { OAuth2Body } from "trm-registry-types";
 import _ from 'lodash';
 import { Inquirer } from "../inquirer/Inquirer";
 import { getAxiosInstance } from "../commons";
-import { IRegistry } from "./IRegistry";
+import { AbstractRegistry } from "./AbstractRegistry";
 
 const AXIOS_CTX = "Registry";
 
 export const PUBLIC_RESERVED_KEYWORD = 'public';
 
-export class Registry implements IRegistry {
+export class Registry implements AbstractRegistry {
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
     private _authData: any;
@@ -60,12 +60,20 @@ export class Registry implements IRegistry {
             baseURL: this.endpoint
         }, AXIOS_CTX);
     }
+    
+    public compare(registry: AbstractRegistry): boolean {
+        if(registry instanceof Registry){
+            return this.endpoint === registry.endpoint;
+        }else{
+            return false;
+        }
+    }
 
     public getRegistryType(): RegistryType {
         return this._registryType;
     }
 
-    public async authenticate(defaultData: any = {}): Promise<Registry> {
+    public async authenticate(defaultData: any = {}): Promise<AbstractRegistry> {
         Logger.log(`Registry authentication request`, true);
         const ping = await this.ping();
         Logger.log(`Registry authentication type is: ${ping.authenticationType}`, true);
@@ -337,4 +345,5 @@ export class Registry implements IRegistry {
         })).data;
         return response;
     }
+
 }

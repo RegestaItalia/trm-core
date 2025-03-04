@@ -1,10 +1,7 @@
 import execute from "@simonegaffurini/sammarksworkflow";
-import { R3trans, R3transOptions } from "node-r3trans";
 import { inspect } from "util";
 import { Logger } from "../../logger";
-import { IRegistry, Registry } from "../../registry";
-import { Transport } from "../../transport";
-import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
+import { AbstractRegistry } from "../../registry";
 import { IActionContext, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages } from "..";
 import { init } from "./init";
 import { findInstallRelease } from "./findInstallRelease";
@@ -34,7 +31,7 @@ export interface InstallDependencyActionInput {
         /**
          * The registry where the package is stored.
          */
-        registry: IRegistry;
+        registry: AbstractRegistry;
 
         /**
          * Dependency integrity.
