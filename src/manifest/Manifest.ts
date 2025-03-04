@@ -154,6 +154,11 @@ export class Manifest {
                     }
                 }
             }
+            if(manifest.namespace.ns){
+                oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['NS'] = {
+                    "_text": manifest.namespace.ns
+                }
+            }
         }
         if (manifest.authors) {
             var authors = [];
@@ -525,11 +530,14 @@ export class Manifest {
         if (oAbapManifest.license && oAbapManifest.license.text) {
             manifest.license = oAbapManifest.license.text;
         }
-        if (oAbapManifest.replicense) {
+        if (oAbapManifest.replicense && oAbapManifest.replicense.text) {
             manifest.namespace = {
                 replicense: oAbapManifest.replicense.text,
                 texts: []
             };
+            if(oAbapManifest.ns && oAbapManifest.ns.text){
+                manifest.namespace.ns = oAbapManifest.ns.text;
+            }
             if (oAbapManifest.replicenseT && oAbapManifest.replicenseT.item) {
                 if (Array.isArray(oAbapManifest.replicenseT.item)) {
                     manifest.namespace.texts = oAbapManifest.replicenseT.item.map(o => {

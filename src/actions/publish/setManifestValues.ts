@@ -165,6 +165,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         //3- set namespace values (if necessary)
         if (context.runtime.packageData.namespace) {
             context.runtime.trmPackage.manifest.namespace = {
+                ns: context.runtime.packageData.namespace.trnspacet.namespace,
                 replicense: context.runtime.packageData.namespace.trnspacet.replicense,
                 texts: context.runtime.packageData.namespace.trnspacett.map(o => {
                     return {
