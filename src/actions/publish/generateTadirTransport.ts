@@ -8,7 +8,11 @@ import { SystemConnector } from "../../systemConnector";
 /**
  * Generate TADIR transport
  * 
- * 1- generate transport
+ * 1- remove gitignore objects
+ * 
+ * 2- check tadir has content
+ * 
+ * 2- generate transport
  * 
 */
 export const generateTadirTransport: Step<PublishWorkflowContext> = {
@@ -16,10 +20,28 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
     run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.log('Generate TADIR transport step', true);
 
-        //1- generate transport
+        //1- remove gitignore objects
+        var aTadir = context.runtime.packageData.tadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
+        var ignoredObjects = 0;
+        context.runtime.abapGitData.sourceCode.ignoredObjects.forEach(o => {
+            const objectIndex = aTadir.findIndex(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
+            if(objectIndex >= 0){
+                ignoredObjects++;
+                aTadir.splice(objectIndex, 1);
+            }
+        });
+        if(ignoredObjects > 0){
+            Logger.info(`${ignoredObjects} object/s are ignored (as specified in .abapgit.xml)`);
+        }
+
+        //2- check tadir has content
+        if(aTadir.length === 0){
+            throw new Error(`Package ${context.rawInput.packageData.devclass} has no content.`);
+        }
+        
+        //3- generate transport
         Logger.loading(`Generating transports...`);
         Logger.loading(`Generating TADIR transport...`, true);
-        const aTadir = context.runtime.packageData.tadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
         const sManifestXml = new Manifest(context.runtime.trmPackage.manifest).getAbapXml();
         context.runtime.systemData.tadirTransport = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.TADIR,

@@ -236,6 +236,11 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.addSkipTrkorr(trkorr);
     }
+
+    export async function removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.removeSkipTrkorr(trkorr);
+    }
     
     export async function trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean): Promise<void> {
         await checkSystemConnector();
@@ -363,5 +368,15 @@ export namespace SystemConnector {
     export async function refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
         await checkSystemConnector();
         return systemConnector.refreshTransportTmsTxt(trkorr);
+    }
+
+    export async function getDotAbapgit(devclass: components.DEVCLASS): Promise<Buffer> {
+        await checkSystemConnector();
+        return systemConnector.getDotAbapgit(devclass);
+    }
+
+    export async function getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: struct.TADIR[]}> {
+        await checkSystemConnector();
+        return systemConnector.getAbapgitSource(devclass);
     }
 }

@@ -21,6 +21,8 @@ import { generateCustTransport } from "./generateCustTransport";
 import { releaseTransports } from "./releaseTransports";
 import { finalizePublish } from "./finalizePublish";
 import { publishToRegistry } from "./publishToRegistry";
+import { getSourceCode } from "./getSourceCode";
+import { DotAbapGit } from "../../abapgit";
 
 /**
  * Input data for publish package action.
@@ -164,6 +166,14 @@ type WorkflowRuntime = {
             trnspacet: TRNSPACET,
             trnspacett: TRNSPACETT[]
         }
+    },
+    abapGitData: {
+        dotAbapGit?: DotAbapGit,
+        sourceCode?: {
+            zip: Buffer,
+            objects: TADIR[],
+            ignoredObjects: TADIR[]
+        }
     }
 }
 
@@ -193,6 +203,7 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         setManifestValues,
         setReadme,
         setCustomizingTransports,
+        getSourceCode,
         generateDevcTransport,
         generateTadirTransport,
         generateLangTransport,

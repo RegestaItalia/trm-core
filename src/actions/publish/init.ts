@@ -168,6 +168,14 @@ export const init: Step<PublishWorkflowContext> = {
             },
             packageData: {
                 tadir: []
+            },
+            abapGitData: {
+                dotAbapGit: undefined,
+                sourceCode: {
+                    ignoredObjects: [],
+                    objects: [],
+                    zip: undefined
+                }
             }
         };
         Logger.loading(`Reading ${SystemConnector.getDest()} transport targets...`);

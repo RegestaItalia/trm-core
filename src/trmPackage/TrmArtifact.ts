@@ -7,13 +7,14 @@ import { R3trans, R3transOptions } from "node-r3trans";
 import { TransportBinary } from "./TransportBinary";
 
 const DIST_FOLDER = 'dist';
+const SRC_FOLDER = 'src';
 
 export class TrmArtifact {
     private _zip: AdmZip;
     private _binaries: TransportBinary[];
     private _content: any;
 
-    constructor(public binary: Buffer, private _distFolder?: string, private _manifest?: Manifest) {
+    constructor(public binary: Buffer, private _distFolder?: string, private _srcFolder?: string, private _manifest?: Manifest) {
         this._zip = new AdmZip.default(binary);
     }
 
@@ -116,9 +117,17 @@ export class TrmArtifact {
         return this._content || {};
     }
 
-    public static async create(transports: Transport[], manifest: Manifest, distFolder: string = DIST_FOLDER): Promise<TrmArtifact> {
-        Logger.log(`Generating artifact with transports ${JSON.stringify(transports.map(o => o.trkorr))}`, true);
+    public static async create(data: {
+        transports: Transport[],
+        manifest: Manifest,
+        sourceCode?: Buffer,
+        distFolder?: string
+        srcFolder?: string
+    }): Promise<TrmArtifact> {
+        Logger.log(`Generating artifact with transports ${JSON.stringify(data.transports.map(o => o.trkorr))}`, true);
         const artifact = new AdmZip.default();
+        data.distFolder = data.distFolder || DIST_FOLDER;
+        data.srcFolder = data.srcFolder || SRC_FOLDER;
         Logger.log(`Adding ZIP comment`, true);
         artifact.addZipComment(`TRM Package`);
         var binaries: {
@@ -132,7 +141,7 @@ export class TrmArtifact {
             binary: Buffer,
             comment?: string,
         }[] = [];
-        for (const transport of transports) {
+        for (const transport of data.transports) {
             Logger.log(`Downloading transport ${transport.trmIdentifier}`, true);
             const trBinary = await transport.download();
             binaries.push({
@@ -157,11 +166,29 @@ export class TrmArtifact {
 
         for (const file of packedTransports) {
             Logger.log(`Adding packed transport ${file.comment} to artifact`, true);
-            artifact.addFile(`${distFolder}/${file.filename}`, file.binary, file.comment);
+            artifact.addFile(`${data.distFolder}/${file.filename}`, file.binary, file.comment);
         }
 
-        manifest.setDistFolder(distFolder);
-        var oManifest = manifest.get(false);
+        data.manifest.setDistFolder(data.distFolder);
+
+        if(data.sourceCode){
+            Logger.log(`Adding source code`, true);
+            try{
+                if(data.srcFolder === data.distFolder){
+                    throw new Error(`Source code folder and build folder are identical.`);
+                }
+                const sourceCode = new AdmZip.default(data.sourceCode);
+                sourceCode.forEach((entry) => {
+                    artifact.addFile(`${data.srcFolder}/${entry.rawEntryName}`, entry.getData(), `ABAPGIT`);
+                });
+                data.manifest.setSrcFolder(data.srcFolder);
+            }catch(e){
+                Logger.error(e.toString(), true);
+                Logger.error(`Couldn't add source code to TRM artifact!`);
+            }
+        }
+
+        var oManifest = data.manifest.get(false);
         var oSapEntries = oManifest.sapEntries;
         delete oManifest.sapEntries;
 
@@ -174,6 +201,11 @@ export class TrmArtifact {
             artifact.addFile(`sap_entries.json`, sapEntriesBuffer, `sap_entries`);
         }
 
-        return new TrmArtifact(artifact.toBuffer(), distFolder, manifest);
+        return new TrmArtifact(
+            artifact.toBuffer(),
+            data.distFolder,
+            data.srcFolder,
+            data.manifest
+        );
     }
 }

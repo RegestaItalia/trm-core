@@ -62,7 +62,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
         }
 
         //5- remove from skipped transports (may be there because of previous failed install)
-        
+        await SystemConnector.removeSkipTrkorr(context.runtime.packageTransports.tadir.binaries.trkorr);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Rollback TADIR Transport step', true);

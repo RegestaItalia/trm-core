@@ -9,7 +9,7 @@ import normalizeUrl from "@esm2cjs/normalize-url";
 import { validate as validateEmail } from "email-validator";
 import * as SpdxLicenseIds from "spdx-license-ids/index.json";
 import { TrmManifestAuthor } from "./TrmManifestAuthor";
-import { DOMParser } from 'xmldom';
+import { DOMParser } from '@xmldom/xmldom';
 import _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
 import { Logger } from "../logger";
@@ -44,6 +44,11 @@ export class Manifest {
 
     public setDistFolder(dist: string): Manifest {
         this._manifest.distFolder = dist;
+        return this;
+    }
+
+    public setSrcFolder(src: string): Manifest {
+        this._manifest.srcFolder = src;
         return this;
     }
 
@@ -461,6 +466,16 @@ export class Manifest {
             }
         } else {
             delete manifestClone.distFolder;
+        }
+        if (manifestClone.srcFolder) {
+            try {
+                manifestClone.srcFolder = manifestClone.srcFolder.replace(/^\//, '');
+                manifestClone.srcFolder = manifestClone.srcFolder.replace(/\/$/, '');
+            } catch (e) {
+                delete manifestClone.srcFolder;
+            }
+        } else {
+            delete manifestClone.srcFolder;
         }
         return manifestClone;
     }

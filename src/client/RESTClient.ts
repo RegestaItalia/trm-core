@@ -6,6 +6,7 @@ import { AxiosInstance } from "axios";
 import * as FormData from "form-data";
 import { Login, SapMessage } from ".";
 import { Logger } from "../logger";
+import { parse as parseMultipart } from "parse-multipart-data";
 
 const AXIOS_CTX = "RestServer";
 
@@ -225,7 +226,7 @@ export class RESTClient implements IClient {
         })).data;
         return result.tadir;
     }
-    
+
     public async removeComments(trkorr: components.TRKORR, object: components.TROBJTYPE): Promise<void> {
         await this._axiosInstance.delete('/remove_tr_comments', {
             data: {
@@ -473,6 +474,41 @@ export class RESTClient implements IClient {
         await this._axiosInstance.post('/refresh_tms_transport_txt', {
             trkorr
         });
+    }
+
+    public async getDotAbapgit(devclass: components.DEVCLASS): Promise<Buffer> {
+        const result = (await this._axiosInstance.get('/get_dot_abapgit', {
+            responseType: 'arraybuffer',
+            headers: {
+                'Content-Type': 'application/octet-stream'
+            },
+            data: {
+                devclass
+            }
+        })).data;
+        return result;
+    }
+
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
+        const { headers, data } = await this._axiosInstance.get('/get_abapgit_source', {
+            responseType: 'arraybuffer',
+            headers: {
+                'Content-Type': 'multipart/mixed'
+            },
+            data: {
+                devclass
+            }
+        });
+        try{
+            const boundary = headers['content-type'].match(/boundary=([-0-9A-Za-z]+)/i)[1];
+            const parsedData = parseMultipart(data, boundary);
+            return {
+                zip: parsedData.find(o => o.name === 'zip').data,
+                objects: JSON.parse(parsedData.find(o => o.name === 'objects').data.toString())
+            }
+        }catch(e){
+            throw new Error(`Can't parse api data.`);
+        }
     }
 
 }
