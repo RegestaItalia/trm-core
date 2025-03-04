@@ -10,5 +10,6 @@ export interface TrmManifest extends TrmManifestBase {
     registry?: string, //runtime
     linkedTransport?: Transport, //runtime
     distFolder?: string, //written at runtime, kept in json
+    srcFolder?: string, //written at runtime, kept in json
     namespace?: TrmManifestNamespace
 }

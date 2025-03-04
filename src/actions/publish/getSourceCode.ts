@@ -31,8 +31,8 @@ export const getSourceCode: Step<PublishWorkflowContext> = {
             context.runtime.abapGitData.sourceCode.objects = sourceCode.objects;
 
             //3- get ignored objects
-            context.runtime.abapGitData.sourceCode.objects.forEach(o => {
-                const object = context.runtime.packageData.tadir.find(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
+            context.runtime.packageData.tadir.forEach(o => {
+                const object = context.runtime.abapGitData.sourceCode.objects.find(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
                 if(!object){
                     context.runtime.abapGitData.sourceCode.ignoredObjects.push(o);
                 }

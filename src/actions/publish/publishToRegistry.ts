@@ -21,7 +21,8 @@ export const publishToRegistry: Step<PublishWorkflowContext> = {
         Logger.loading(`Creating TRM package...`);
         context.runtime.trmPackage.artifact = await TrmArtifact.create({
             transports: context.runtime.systemData.releasedTransports,
-            manifest: new Manifest(context.runtime.trmPackage.manifest)
+            manifest: new Manifest(context.runtime.trmPackage.manifest),
+            sourceCode: context.runtime.abapGitData.sourceCode.zip
         });
         
         //2- publish to registry

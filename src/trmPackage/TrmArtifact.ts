@@ -170,18 +170,6 @@ export class TrmArtifact {
         }
 
         data.manifest.setDistFolder(data.distFolder);
-        var oManifest = data.manifest.get(false);
-        var oSapEntries = oManifest.sapEntries;
-        delete oManifest.sapEntries;
-
-        const manifestBuffer = Buffer.from(JSON.stringify(oManifest, null, 2), 'utf8');
-        Logger.log(`Adding manifest.json`, true);
-        artifact.addFile(`manifest.json`, manifestBuffer, `manifest`);
-        if (oSapEntries && Object.keys(oSapEntries).length > 0) {
-            const sapEntriesBuffer = Buffer.from(JSON.stringify(oSapEntries, null, 2), 'utf8');
-            Logger.log(`Adding sap_entries.json`, true);
-            artifact.addFile(`sap_entries.json`, sapEntriesBuffer, `sap_entries`);
-        }
 
         if(data.sourceCode){
             Logger.log(`Adding source code`, true);
@@ -193,10 +181,24 @@ export class TrmArtifact {
                 sourceCode.forEach((entry) => {
                     artifact.addFile(`${data.srcFolder}/${entry.rawEntryName}`, entry.getData(), `ABAPGIT`);
                 });
+                data.manifest.setSrcFolder(data.srcFolder);
             }catch(e){
                 Logger.error(e.toString(), true);
                 Logger.error(`Couldn't add source code to TRM artifact!`);
             }
+        }
+
+        var oManifest = data.manifest.get(false);
+        var oSapEntries = oManifest.sapEntries;
+        delete oManifest.sapEntries;
+
+        const manifestBuffer = Buffer.from(JSON.stringify(oManifest, null, 2), 'utf8');
+        Logger.log(`Adding manifest.json`, true);
+        artifact.addFile(`manifest.json`, manifestBuffer, `manifest`);
+        if (oSapEntries && Object.keys(oSapEntries).length > 0) {
+            const sapEntriesBuffer = Buffer.from(JSON.stringify(oSapEntries, null, 2), 'utf8');
+            Logger.log(`Adding sap_entries.json`, true);
+            artifact.addFile(`sap_entries.json`, sapEntriesBuffer, `sap_entries`);
         }
 
         return new TrmArtifact(

@@ -47,6 +47,11 @@ export class Manifest {
         return this;
     }
 
+    public setSrcFolder(src: string): Manifest {
+        this._manifest.srcFolder = src;
+        return this;
+    }
+
     public setLinkedTransport(transport: Transport): Manifest {
         this._manifest.linkedTransport = transport;
         return this;
@@ -461,6 +466,16 @@ export class Manifest {
             }
         } else {
             delete manifestClone.distFolder;
+        }
+        if (manifestClone.srcFolder) {
+            try {
+                manifestClone.srcFolder = manifestClone.srcFolder.replace(/^\//, '');
+                manifestClone.srcFolder = manifestClone.srcFolder.replace(/\/$/, '');
+            } catch (e) {
+                delete manifestClone.srcFolder;
+            }
+        } else {
+            delete manifestClone.srcFolder;
         }
         return manifestClone;
     }
