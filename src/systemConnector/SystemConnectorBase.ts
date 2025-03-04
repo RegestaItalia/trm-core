@@ -9,7 +9,7 @@ import { InstallPackage } from "./InstallPackage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
-import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../registry";
+import { IRegistry, PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
@@ -413,7 +413,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return aTadir;
   }
 
-  public async getInstallPackages(packageName: string, registry: Registry): Promise<InstallPackage[]> {
+  public async getInstallPackages(packageName: string, registry: IRegistry): Promise<InstallPackage[]> {
     const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
     return await this.readTable('ZTRMVINSTALLDEVC',
       [{ fieldName: 'ORIGINAL_DEVCLASS' }, { fieldName: 'INSTALL_DEVCLASS' }],

@@ -2,7 +2,7 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { R3trans, R3transOptions } from "node-r3trans";
 import { inspect } from "util";
 import { Logger } from "../../logger";
-import { Registry } from "../../registry";
+import { IRegistry, Registry } from "../../registry";
 import { Transport } from "../../transport";
 import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
 import { init } from "./init";
@@ -193,7 +193,7 @@ export interface InstallActionInput {
         /**
          * The registry where the package is stored.
          */
-        registry: Registry;
+        registry: IRegistry;
 
         /**
          * Overwrite package if same version is already installed?
@@ -210,7 +210,7 @@ type TransportRuntime = {
 }
 
 type WorkflowRuntime = {
-    registry: Registry,
+    registry: IRegistry,
     update: boolean,
     rollback: boolean,
     remotePackageData: {
@@ -253,7 +253,7 @@ type WorkflowRuntime = {
 
 export type InstallActionOutput = {
     trmPackage: TrmPackage,
-    registry: Registry,
+    registry: IRegistry,
     installTransport?: Transport
 }
 

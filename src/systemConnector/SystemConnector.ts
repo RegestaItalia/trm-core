@@ -1,5 +1,5 @@
 import { TRKORR, DEVCLASS, TDEVC, TMSCSYS, TADIR, PGMID, TROBJTYPE, SOBJ_NAME } from "../client";
-import { Registry } from "../registry";
+import { IRegistry, Registry } from "../registry";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { ISystemConnector } from "./ISystemConnector";
@@ -126,7 +126,7 @@ export namespace SystemConnector {
         return systemConnector.createPackage(scompkdtln);
     }
     
-    export async function getInstallPackages(packageName: string, registry: Registry): Promise<InstallPackage[]> {
+    export async function getInstallPackages(packageName: string, registry: IRegistry): Promise<InstallPackage[]> {
         await checkSystemConnector();
         return systemConnector.getInstallPackages(packageName, registry);
     }

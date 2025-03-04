@@ -3,6 +3,8 @@ import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
 
 export interface IRegistry {
+    endpoint: string,
+    name: string,
     getRegistryType: () => RegistryType,
     authenticate: (defaultData: any) => Promise<IRegistry>,
     getAuthData: () => any,

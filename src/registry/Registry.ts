@@ -12,12 +12,13 @@ import { OAuth2Body } from "trm-registry-types";
 import _ from 'lodash';
 import { Inquirer } from "../inquirer/Inquirer";
 import { getAxiosInstance } from "../commons";
+import { IRegistry } from "./IRegistry";
 
 const AXIOS_CTX = "Registry";
 
 export const PUBLIC_RESERVED_KEYWORD = 'public';
 
-export class Registry {
+export class Registry implements IRegistry {
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
     private _authData: any;
@@ -335,11 +336,5 @@ export class Registry {
             }
         })).data;
         return response;
-    }
-
-    public static compare(o1: Registry, o2: Registry): boolean {
-        const s1 = o1.endpoint;
-        const s2 = o2.endpoint;
-        return s1 === s2;
     }
 }
