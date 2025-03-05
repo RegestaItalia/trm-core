@@ -31,8 +31,6 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
             target: context.rawInput.systemData.transportTarget,
             text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (L)`
         });
-        await context.runtime.systemData.langTransport.addComment(`name=${context.rawInput.packageData.name}`);
-        await context.runtime.systemData.langTransport.addComment(`version=${context.rawInput.packageData.version}`);
         var iLanguageObjects: number = 0;
         try {
             await context.runtime.systemData.langTransport.addTranslations(aDevc.map(o => o.objName));
@@ -45,6 +43,9 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
                 Logger.info(`Language transport has no content, deleting.`, true);
                 await context.runtime.systemData.langTransport.delete();
                 context.runtime.systemData.langTransport = undefined;
+            }else{
+                await context.runtime.systemData.langTransport.addComment(`name=${context.rawInput.packageData.name}`);
+                await context.runtime.systemData.langTransport.addComment(`version=${context.rawInput.packageData.version}`);
             }
         }
     },
