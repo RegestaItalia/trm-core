@@ -5,6 +5,7 @@ import { TrmPackage } from "../../trmPackage";
 import { parsePackageName } from "../../commons";
 import { createHash } from "crypto";
 import { SystemConnector } from "../../systemConnector";
+import { RegistryType } from "../../registry";
 
 /**
  * Init
@@ -37,7 +38,11 @@ export const init: Step<InstallWorkflowContext> = {
         }
 
         //3- fetch package in registry
-        Logger.loading(`Searching TRM package in registry ${registry.name}...`);
+        if(registry.getRegistryType() === RegistryType.LOCAL){
+            Logger.loading(`Reading TRM package data...`);
+        }else{
+            Logger.loading(`Searching TRM package in registry ${registry.name}...`);
+        }
         const trmPackage = new TrmPackage(context.rawInput.packageData.name, registry);
         const artifact = await trmPackage.fetchRemoteArtifact(context.rawInput.packageData.version);
         const integrity = createHash("sha512").update(artifact.binary).digest("hex");
@@ -47,7 +52,11 @@ export const init: Step<InstallWorkflowContext> = {
         if (context.rawInput.packageData.version === 'latest') {
             sVersion = `latest -> ${trmManifest.version}`;
         }
-        Logger.info(`Ready to install "${trmManifest.name}" version ${sVersion} from registry "${registry.name}".`);
+        if(registry.getRegistryType() === RegistryType.LOCAL){
+            Logger.info(`Ready to install "${trmManifest.name}" version ${trmManifest.version}.`);
+        }else{
+            Logger.info(`Ready to install "${trmManifest.name}" version ${sVersion} from registry "${registry.name}".`);
+        }
 
         //4- set package data from registry
         context.runtime = {
