@@ -9,7 +9,7 @@ import { InstallPackage } from "./InstallPackage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
-import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../registry";
+import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, Registry, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
@@ -142,7 +142,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getTrmServerPackage(): Promise<TrmPackage> {
     var oPackage: TrmPackage;
-    const oPublicRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
+    const oPublicRegistry = RegistryProvider.getRegistry();
     const intf = await this.getObject('R3TR', 'INTF', 'ZIF_TRM');
     if (intf) {
       try {
@@ -164,7 +164,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getTrmRestPackage(): Promise<TrmPackage> {
     var oPackage: TrmPackage;
-    const oPublicRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
+    const oPublicRegistry = RegistryProvider.getRegistry();
     const intf = await this.getObject('R3TR', 'INTF', 'ZIF_TRM_REST');
     if (intf) {
       try {
@@ -184,7 +184,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return oPackage;
   }
 
-  public async getInstalledPackages(includeSoruces: boolean = true, refresh?: boolean): Promise<TrmPackage[]> {
+  public async getInstalledPackages(includeSoruces: boolean = true, refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
     if (!refresh) {
       if (includeSoruces && this._installedPackagesI) {
         Logger.log(`Cached version of installed packages with sources`, true);
@@ -280,6 +280,10 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       const trmPackage = await transport.getLinkedPackage();
       if (trmPackage) {
         Logger.log(`Transport ${transport.trkorr}, found linked package`, true);
+        if (trmPackage.registry.getRegistryType() === RegistryType.LOCAL && !includeLocals) {
+          Logger.log(`Package is local, skipping`, true);
+          continue;
+        }
         //only compares package name and registry
         var arrayIndex = packageTransports.findIndex(o => TrmPackage.compare(o.package, trmPackage));
         if (arrayIndex < 0) {
@@ -292,7 +296,13 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         packageTransports[arrayIndex].transports.push(transport);
       }
     }
-    Logger.log(`Package Transports map: ${inspect(packageTransports, { breakLength: Infinity, compact: true })}`, true);
+    Logger.log(`Package Transports map: ${inspect(packageTransports.map(o => {
+      return {
+        packageName: o.package.packageName,
+        registry: o.package.registry.endpoint,
+        transports: o.transports.map(k => k.trkorr)
+      }
+    }), { breakLength: Infinity, compact: true })}`, true);
     for (const packageTransport of packageTransports) {
       const latestTransport = await Transport.getLatest(packageTransport.transports);
       if (latestTransport) {
@@ -305,7 +315,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     //say it was installed via trm, then pulled from abapgit, the version would refer to the old trm version
     Logger.log(`Excluding trm-server (adding it manually)`, true);
     try {
-      const trmServerPackage = trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD)));
+      const trmServerPackage = trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry()));
       var generatedTrmServerPackage = await this.getTrmServerPackage();
       if (trmServerPackage && trmServerPackage.manifest) {
         Logger.log(`trm-server was found (it was imported via transport)`, true);
@@ -314,7 +324,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           generatedTrmServerPackage.manifest = trmServerPackage.manifest;
         }
       }
-      trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD))));
+      trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry())));
       trmPackages.push(generatedTrmServerPackage);
     } catch (e) {
       //trm-server is not installed
@@ -322,7 +332,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
     Logger.log(`Excluding trm-rest (adding it manually)`, true);
     try {
-      const trmRestPackage = trmPackages.find(o => o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD)));
+      const trmRestPackage = trmPackages.find(o => o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry()));
       var generatedTrmRestPackage = await this.getTrmRestPackage();
       if (trmRestPackage && trmRestPackage.manifest) {
         Logger.log(`trm-rest was found (it was imported via transport)`, true);
@@ -331,7 +341,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           generatedTrmRestPackage.manifest = trmRestPackage.manifest;
         }
       }
-      trmPackages = trmPackages.filter(o => !(o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(new Registry(PUBLIC_RESERVED_KEYWORD))));
+      trmPackages = trmPackages.filter(o => !(o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry())));
       trmPackages.push(generatedTrmRestPackage);
     } catch (e) {
       //trm-server is not installed

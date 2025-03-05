@@ -4,7 +4,7 @@ import { TrmManifest } from "./TrmManifest";
 import { normalize } from "../commons";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
-import { PUBLIC_RESERVED_KEYWORD, Registry } from "../registry";
+import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryProvider } from "../registry";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { validate as validateEmail } from "email-validator";
 import * as SpdxLicenseIds from "spdx-license-ids/index.json";
@@ -91,6 +91,11 @@ export class Manifest {
                 }
             }
         };
+        if (manifest.registry) {
+            oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['REGISTRY'] = {
+                "_text": manifest.registry
+            }
+        }
         if (manifest.description) {
             oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['DESCRIPTION'] = {
                 "_text": manifest.description
@@ -264,7 +269,7 @@ export class Manifest {
 
     public getPackage(): TrmPackage {
         const manifest = this.get(true);
-        const registry = new Registry(manifest.registry || PUBLIC_RESERVED_KEYWORD);
+        const registry = RegistryProvider.getRegistry(manifest.registry);
         return new TrmPackage(manifest.name, registry, this);
     }
 
@@ -275,7 +280,6 @@ export class Manifest {
         var manifestClone = _.cloneDeep(manifest);
         if (!keepRuntimeValues) {
             delete manifestClone.linkedTransport;
-            delete manifestClone.registry;
         }
         if (!manifestClone.name) {
             throw new Error('Package name missing.')
@@ -288,6 +292,11 @@ export class Manifest {
             manifestClone.version = semver.clean(manifestClone.version);
             if (!manifestClone.version) {
                 throw new Error('Invalid package version declared.');
+            }
+        }
+        if(manifestClone.registry){
+            if(manifestClone.registry === PUBLIC_RESERVED_KEYWORD){
+                delete manifestClone.registry;
             }
         }
         manifestClone.private = manifestClone.private ? true : false;
@@ -519,7 +528,7 @@ export class Manifest {
             manifest.private = oAbapManifest.private.text === 'X';
         }
         if (oAbapManifest.registry && oAbapManifest.registry.text) {
-            manifest.registry = oAbapManifest.registry;
+            manifest.registry = oAbapManifest.registry.text;
         }
         if (oAbapManifest.git && oAbapManifest.git.text) {
             manifest.git = oAbapManifest.git.text;

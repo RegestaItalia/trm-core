@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer } from "../../inquirer";
+import { RegistryType } from "../../registry";
 
 /**
  * Set readme
@@ -16,7 +17,12 @@ export const setReadme: Step<PublishWorkflowContext> = {
             Logger.log(`Skipping readme input (user provided)`, true);
             return false;
         }else{
-            return true;
+            if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL){
+                Logger.log(`Skipping readme input (registry is local)`, true);
+                return false;
+            }else{
+                return true;
+            }
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {

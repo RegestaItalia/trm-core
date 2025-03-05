@@ -77,22 +77,27 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         Logger.log(`Adding TRM package dependencies to manifest`, true);
         Logger.loading(`Updating manifest...`);
         result.trmPackageDependencies.withTrmPackage.forEach((o, i) => {
-            if (o.package.manifest) {
-                const dependencyManifest = o.package.manifest.get();
-                const dependencyVersionRange = `^${dependencyManifest.version}`;
-                const dependencyRegistry = o.package.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.package.registry.endpoint;
-                if (!o.integrity) {
-                    throw new Error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name}: Integrity not found!`);
-                }
-                Logger.info(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name} ${dependencyVersionRange}`);
-                context.runtime.trmPackage.manifest.dependencies.push({
-                    name: dependencyManifest.name,
-                    version: dependencyVersionRange,
-                    integrity: o.integrity,
-                    registry: dependencyRegistry
-                });
+            if (o.package.registry.getRegistryType() === RegistryType.LOCAL) {
+                Logger.error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot have dependency with ABAP package "${o.devclass}": TRM package was installed manually`);
             } else {
-                Logger.error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot find manifest of dependency in ABAP package "${o.devclass}"`);
+                if (o.package.manifest) {
+                    const dependencyManifest = o.package.manifest.get();
+                    const dependencyVersionRange = `^${dependencyManifest.version}`;
+
+                    const dependencyRegistry = o.package.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.package.registry.endpoint;
+                    if (!o.integrity) {
+                        throw new Error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name}: Integrity not found!`);
+                    }
+                    Logger.info(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name} ${dependencyVersionRange}`);
+                    context.runtime.trmPackage.manifest.dependencies.push({
+                        name: dependencyManifest.name,
+                        version: dependencyVersionRange,
+                        integrity: o.integrity,
+                        registry: dependencyRegistry
+                    });
+                } else {
+                    Logger.error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot find manifest of dependency in ABAP package "${o.devclass}"`);
+                }
             }
         });
         if (!context.rawInput.contextData.noInquirer) {
