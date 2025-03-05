@@ -23,7 +23,7 @@ export namespace RegistryProvider {
         }else{
             foundRegistry = registry.find(o => o.endpoint === endpoint);
             if(!foundRegistry){
-                foundRegistry = new Registry(endpoint);
+                foundRegistry = new Registry(endpoint, endpoint);
                 registry.push(foundRegistry);
             }
         }
