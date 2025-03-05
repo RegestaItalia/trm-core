@@ -11,7 +11,7 @@ export interface ISystemConnectorBase {
     getSourceTrkorr: () => Promise<components.TRKORR[]>,
     getIgnoredTrkorr: () => Promise<components.TRKORR[]>,
     getObject: (pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<struct.TADIR>,
-    getInstalledPackages: (includeSoruces: boolean, refresh?: boolean) => Promise<TrmPackage[]>,
+    getInstalledPackages: (includeSoruces: boolean, refresh?: boolean, includeLocals?: boolean) => Promise<TrmPackage[]>,
     getDevclass: (devclass: components.DEVCLASS) => Promise<struct.TDEVC>,
     getTransportTargets: () => Promise<struct.TMSCSYS[]>,
     getSubpackages: (devclass: components.DEVCLASS) => Promise<struct.TDEVC[]>,

@@ -40,6 +40,16 @@ export class Transport {
         return this;
     }
 
+    public async isImported(): Promise<boolean> {
+        const sourceTransports = await SystemConnector.getSourceTrkorr();
+        return !sourceTransports.includes(this.trkorr);
+    }
+
+    public async isIgnored(): Promise<boolean> {
+        const ignoredTransports = await SystemConnector.getIgnoredTrkorr();
+        return ignoredTransports.includes(this.trkorr);
+    }
+
     public async getE070(): Promise<E070> {
         if (!this._e070) {
             const fields: RFC_DB_FLD[] = [

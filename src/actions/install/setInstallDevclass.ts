@@ -5,7 +5,7 @@ import { getPackageNamespace } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { Inquirer, Question } from "../../inquirer";
 import { ZTRM_INSTALLDEVC } from "../../client";
-import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
+import { LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 
 function _validateDevclass(input: string, packagesNamespace: string): string | true {
     const sInput: string = input.trim().toUpperCase();
@@ -116,10 +116,18 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         //3- update z table
         Logger.loading(`Updating install data...`);
         var installDevc: ZTRM_INSTALLDEVC[] = [];
+        var packageRegistry: string;
+        if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC){
+            packageRegistry = PUBLIC_RESERVED_KEYWORD;
+        }else if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL){
+            packageRegistry = LOCAL_RESERVED_KEYWORD;
+        }else{
+            packageRegistry = context.rawInput.packageData.registry.endpoint;
+        }
         context.rawInput.installData.installDevclass.replacements.forEach(o => {
             installDevc.push({
                 package_name: context.rawInput.packageData.name,
-                package_registry: context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : context.rawInput.packageData.registry.endpoint,
+                package_registry: packageRegistry,
                 original_devclass: o.originalDevclass,
                 install_devclass: o.installDevclass
             });

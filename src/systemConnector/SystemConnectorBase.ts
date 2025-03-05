@@ -21,6 +21,8 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   private _installedPackages: TrmPackage[];
   private _installedPackagesI: TrmPackage[];
+  private _sourceTrkorr: string[];
+  private _ignoredTrkorr: string[];
   private _r3transInfoLog: string;
 
   protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]>
@@ -92,23 +94,26 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return null;
   }
 
-  public async getSourceTrkorr(): Promise<TRKORR[]> {
-    Logger.log(`Ready to read installed packages`, true);
-    Logger.log(`Checking if ${SRC_TRKORR_TABL} exists`, true);
-    const tablExists: any[] = await this.readTable('TADIR',
-      [{ fieldName: 'OBJ_NAME' }],
-      `PGMID EQ 'R3TR' AND OBJECT EQ 'TABL' AND OBJ_NAME EQ '${SRC_TRKORR_TABL}'`);
-    if (tablExists.length === 1) {
-      Logger.log(`TABL ${SRC_TRKORR_TABL} exists`, true);
-      const srcTrkorr: {
-        trkorr: TRKORR
-      }[] = await this.readTable(SRC_TRKORR_TABL,
-        [{ fieldName: 'TRKORR' }]
-      );
-      return srcTrkorr.map(o => o.trkorr);
-    } else {
-      return [];
+  public async getSourceTrkorr(refresh?: boolean): Promise<TRKORR[]> {
+    if (!this._sourceTrkorr || refresh) {
+      Logger.log(`Ready to read installed packages`, true);
+      Logger.log(`Checking if ${SRC_TRKORR_TABL} exists`, true);
+      const tablExists: any[] = await this.readTable('TADIR',
+        [{ fieldName: 'OBJ_NAME' }],
+        `PGMID EQ 'R3TR' AND OBJECT EQ 'TABL' AND OBJ_NAME EQ '${SRC_TRKORR_TABL}'`);
+      if (tablExists.length === 1) {
+        Logger.log(`TABL ${SRC_TRKORR_TABL} exists`, true);
+        const srcTrkorr: {
+          trkorr: TRKORR
+        }[] = await this.readTable(SRC_TRKORR_TABL,
+          [{ fieldName: 'TRKORR' }]
+        );
+        this._sourceTrkorr = srcTrkorr.map(o => o.trkorr);
+      } else {
+        this._sourceTrkorr = [];
+      }
     }
+    return this._sourceTrkorr;
   }
 
   public async getObject(pgmid: PGMID, object: TROBJTYPE, objName: SOBJ_NAME): Promise<TADIR> {
@@ -121,23 +126,26 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
-  public async getIgnoredTrkorr(): Promise<TRKORR[]> {
-    Logger.log(`Reading ignored transports`, true);
-    Logger.log(`Checking if ${SKIP_TRKORR_TABL} exists`, true);
-    const tablExists: any[] = await this.readTable('TADIR',
-      [{ fieldName: 'OBJ_NAME' }],
-      `PGMID EQ 'R3TR' AND OBJECT EQ 'TABL' AND OBJ_NAME EQ '${SKIP_TRKORR_TABL}'`);
-    if (tablExists.length === 1) {
-      Logger.log(`TABLE ${SKIP_TRKORR_TABL} exists`, true);
-      const skipTrkorr: {
-        trkorr: TRKORR
-      }[] = await this.readTable(SKIP_TRKORR_TABL,
-        [{ fieldName: 'TRKORR' }]
-      );
-      return skipTrkorr.map(o => o.trkorr);
-    } else {
-      return [];
+  public async getIgnoredTrkorr(refresh?: boolean): Promise<TRKORR[]> {
+    if (!this._ignoredTrkorr || refresh) {
+      Logger.log(`Reading ignored transports`, true);
+      Logger.log(`Checking if ${SKIP_TRKORR_TABL} exists`, true);
+      const tablExists: any[] = await this.readTable('TADIR',
+        [{ fieldName: 'OBJ_NAME' }],
+        `PGMID EQ 'R3TR' AND OBJECT EQ 'TABL' AND OBJ_NAME EQ '${SKIP_TRKORR_TABL}'`);
+      if (tablExists.length === 1) {
+        Logger.log(`TABLE ${SKIP_TRKORR_TABL} exists`, true);
+        const skipTrkorr: {
+          trkorr: TRKORR
+        }[] = await this.readTable(SKIP_TRKORR_TABL,
+          [{ fieldName: 'TRKORR' }]
+        );
+        this._ignoredTrkorr = skipTrkorr.map(o => o.trkorr);
+      } else {
+        this._ignoredTrkorr = [];
+      }
     }
+    return this._ignoredTrkorr;
   }
 
   public async getTrmServerPackage(): Promise<TrmPackage> {
@@ -201,7 +209,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }[] = [];
     Logger.log(`Ready to read installed packages`, true);
     Logger.log(`Include sources: ${includeSoruces}`, true);
-    const aSourceTrkorr = includeSoruces ? (await this.getSourceTrkorr()) : [];
+    const aSourceTrkorr = includeSoruces ? (await this.getSourceTrkorr(refresh)) : [];
     Logger.log(`Source trkorr ${JSON.stringify(aSourceTrkorr)}`, true);
     var aSkipTrkorr = await this.getIgnoredTrkorr();
     Logger.log(`Ignored trkorr ${JSON.stringify(aSkipTrkorr)}`, true);
