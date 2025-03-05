@@ -11,7 +11,7 @@ export const LOCAL_RESERVED_KEYWORD = 'local';
 
 export class FileSystem implements AbstractRegistry {
     endpoint: string;
-    name: string;
+    name: string = LOCAL_RESERVED_KEYWORD;
 
     constructor(private _filePath?: string) {
         if (this._filePath) {
@@ -25,6 +25,9 @@ export class FileSystem implements AbstractRegistry {
             }
             if (!this.name) {
                 throw new Error(`Couldn't determine file name.`);
+            }
+            if(existsSync(this._filePath) && lstatSync(this._filePath).isDirectory()){
+                throw new Error(`"${this._filePath}" is a directory. File name is missing.`);
             }
             if (existsSync(this.endpoint)) {
                 if (!lstatSync(this.endpoint).isDirectory()) {

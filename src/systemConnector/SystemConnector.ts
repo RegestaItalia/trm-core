@@ -71,9 +71,9 @@ export namespace SystemConnector {
         return systemConnector.getPackageWorkbenchTransport(oPackage);
     }
     
-    export async function getInstalledPackages(includeSources: boolean, refresh?: boolean): Promise<TrmPackage[]> {
+    export async function getInstalledPackages(includeSources: boolean, refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
         await checkSystemConnector();
-        return systemConnector.getInstalledPackages(includeSources, refresh);
+        return systemConnector.getInstalledPackages(includeSources, refresh, includeLocals);
     }
     
     export async function getDevclass(devclass: DEVCLASS): Promise<TDEVC> {
