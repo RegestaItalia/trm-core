@@ -17,14 +17,14 @@ export class FileSystem implements AbstractRegistry {
         if (this._filePath) {
             this.endpoint = parsePath(this._filePath).dir;
             this.name = parsePath(this._filePath).base;
+            if (this.name === this._filePath) {
+                throw new Error(`"${this._filePath}" is not a valid file path.`);
+            }
             if (!this.endpoint) {
                 throw new Error(`Couldn't determine file directory.`);
             }
             if (!this.name) {
                 throw new Error(`Couldn't determine file name.`);
-            }
-            if (this.name === this._filePath) {
-                throw new Error(`"${this._filePath}" is not a valid file path.`);
             }
             if (existsSync(this.endpoint)) {
                 if (!lstatSync(this.endpoint).isDirectory()) {
