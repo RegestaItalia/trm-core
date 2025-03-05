@@ -1,7 +1,7 @@
 import * as semver from "semver";
 import { Logger } from "../logger";
 import { Manifest } from "../manifest";
-import { Registry } from "../registry";
+import { AbstractRegistry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { UserAuthorization, View } from "trm-registry-types";
 import { DEVCLASS } from "../client";
@@ -16,7 +16,7 @@ export class TrmPackage {
     private _remoteContent: any = {};
     private _devclass: DEVCLASS;
 
-    constructor(public packageName: string, public registry: Registry, public manifest?: Manifest) {
+    constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
     }
 
     public setDevclass(devclass: DEVCLASS): TrmPackage {
@@ -107,8 +107,8 @@ export class TrmPackage {
         return this;
     }
 
-    public compareRegistry(registry: Registry): boolean {
-        return Registry.compare(this.registry, registry);
+    public compareRegistry(registry: AbstractRegistry): boolean {
+        return this.registry.compare(registry);
     }
 
     public compareName(name: string): boolean {
@@ -119,7 +119,7 @@ export class TrmPackage {
         return (await this.registry.view(this.packageName, 'latest'));
     }
 
-    public static async create(manifest: Manifest, registry: Registry): Promise<TrmPackage> {
+    public static async create(manifest: Manifest, registry: AbstractRegistry): Promise<TrmPackage> {
         return new TrmPackage(manifest.get().name, registry, manifest);
     }
 
@@ -128,7 +128,7 @@ export class TrmPackage {
         return o1.compareName(o2.packageName) && o1.compareRegistry(o2.registry);
     }
 
-    public static async normalizeVersion(packageName: string, version: string, registry: Registry): Promise<string> {
+    public static async normalizeVersion(packageName: string, version: string, registry: AbstractRegistry): Promise<string> {
         const oPackage = new TrmPackage(packageName, registry);
         const usingLatest = version.trim().toLowerCase() === 'latest';
         if (!usingLatest) {

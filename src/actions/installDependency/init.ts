@@ -4,17 +4,20 @@ import { Logger } from "../../logger";
 import { parsePackageName } from "../../commons";
 import { validRange } from "semver";
 import { Inquirer } from "../../inquirer";
+import { RegistryType } from "../../registry";
 
 /**
  * Init
  * 
  * 1- check package name is compliant
  * 
- * 2- validate version range
+ * 2- check registry is not local
  * 
- * 3- fill runtime values
+ * 3- validate version range
  * 
- * 4- fill input values
+ * 4- fill runtime values
+ * 
+ * 5- fill input values
  * 
 */
 export const init: Step<InstallDependencyWorkflowContext> = {
@@ -27,20 +30,25 @@ export const init: Step<InstallDependencyWorkflowContext> = {
             fullName: context.rawInput.dependencyDataPackage.name
         }).fullName;
 
-        //2- validate version range
+        //2- check registry is not local
+        if(context.rawInput.dependencyDataPackage.registry.getRegistryType() === RegistryType.LOCAL){
+            throw new Error(`Cannot install package "${context.rawInput.dependencyDataPackage.name}": TRM package has to be installed manually.`);
+        }
+
+        //3- validate version range
         context.rawInput.dependencyDataPackage.versionRange = validRange(context.rawInput.dependencyDataPackage.versionRange);
         if (!context.rawInput.dependencyDataPackage.versionRange) {
             throw new Error(`Dependency "${context.rawInput.dependencyDataPackage.name}", invalid version range.`);
         }
 
-        //3- fill runtime values
+        //4- fill runtime values
         context.runtime = {
             rollback: false,
             installOutput: undefined,
             installVersion: undefined
         }
 
-        //4- fill input values
+        //5- fill input values
         if(!context.rawInput.contextData){
             context.rawInput.contextData = {};
         }

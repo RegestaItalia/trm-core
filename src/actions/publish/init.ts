@@ -9,6 +9,7 @@ import { SystemConnector } from "../../systemConnector";
 import { RegistryType } from "../../registry";
 import { Transport } from "../../transport";
 import chalk from "chalk";
+import { FileSystem } from "../../registry/FileSystem";
 
 /**
  * Init
@@ -39,7 +40,7 @@ export const init: Step<PublishWorkflowContext> = {
         context.rawInput.packageData.name = parsedPackageName.fullName;
 
         
-        if(registry.getRegistryType() === RegistryType.PUBLIC){
+        if(registry.getRegistryType() === RegistryType.PUBLIC && registry.getRegistryType() !== RegistryType.LOCAL){
             Logger.log(`Public registry, checking if logged in`, true);
             await registry.whoAmI();
             Logger.log(`Public registry, checking if package name is ok`, true);
@@ -207,7 +208,7 @@ export const init: Step<PublishWorkflowContext> = {
         }
 
         if (!packageExists) {
-            Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`);
+            Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, registry.getRegistryType() === RegistryType.LOCAL);
         }else{
             context.runtime.trmPackage.latestReleaseManifest = (await context.runtime.trmPackage.package.fetchRemoteManifest('latest')).get();
             if(context.runtime.trmPackage.manifest.private === undefined){

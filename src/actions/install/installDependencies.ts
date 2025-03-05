@@ -3,7 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Logger, inspect } from "../../logger";
 import { Inquirer } from "../../inquirer/Inquirer";
 import { InstallDependencyActionInput, installDependency as InstallDependencyWkf } from ".."
-import { PUBLIC_RESERVED_KEYWORD, Registry } from "../../registry";
+import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, Registry, RegistryProvider } from "../../registry";
 import * as _ from "lodash";
 
 const SUBWORKFLOW_NAME = 'install-dependency-sub-install';
@@ -66,19 +66,12 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             }
             Logger.setPrefix(prefix);
             Inquirer.setPrefix(prefix);
-            var registry: Registry;
-            var tmpRegistry = new Registry(dependency.registry || PUBLIC_RESERVED_KEYWORD);
-            if(Registry.compare(tmpRegistry, context.rawInput.packageData.registry)){
-                registry = context.rawInput.packageData.registry;
-            }else{
-                registry = tmpRegistry;
-            }
             var inputData: InstallDependencyActionInput = {
                 dependencyDataPackage: {
                     name: dependency.name,
                     versionRange: dependency.version,
                     integrity: dependency.integrity,
-                    registry
+                    registry: RegistryProvider.getRegistry(dependency.registry)
                 },
                 contextData: _.cloneDeep(context.rawInput.contextData),
                 installData: _.cloneDeep(context.rawInput.installData)

@@ -5,6 +5,7 @@ import { Inquirer, validatePackageVisibility } from "../../inquirer";
 import { RegistryType } from "../../registry";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
+import { FileSystem, LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 
 /**
  * Set manifest values
@@ -15,7 +16,9 @@ import chalk from "chalk";
  * 
  * 3- set namespace values (if necessary)
  * 
- * 4- normalize manifest values
+ * 4- set registry endpoint
+ * 
+ * 5- normalize manifest values
  * 
 */
 export const setManifestValues: Step<PublishWorkflowContext> = {
@@ -85,6 +88,9 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                     name: `Private`,
                     value: true
                 }],
+                when: () => {
+                    return context.rawInput.packageData.registry.getRegistryType() !== RegistryType.LOCAL;
+                },
                 validate: (input: boolean) => {
                     return validatePackageVisibility(
                         context.rawInput.packageData.registry.getRegistryType(),
@@ -160,7 +166,11 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             }]);
             context.runtime.trmPackage.manifest = { ...context.runtime.trmPackage.manifest, ...inq };
         }
-        Logger.info(`Package visibility: ${chalk.bold(context.runtime.trmPackage.manifest.private ? 'private' : 'public')}`);
+        if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL){
+            context.runtime.trmPackage.manifest.private = true; //fixed value on local save
+        }else{
+            Logger.info(`Package visibility: ${chalk.bold(context.runtime.trmPackage.manifest.private ? 'private' : 'public')}`);
+        }
 
         //3- set namespace values (if necessary)
         if (context.runtime.packageData.namespace) {
@@ -177,7 +187,14 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             };
         }
 
-        //4- normalize manifest values
+        //4- set registry endpoint
+        if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL){
+            context.runtime.trmPackage.manifest.registry = LOCAL_RESERVED_KEYWORD;
+        }else if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.PRIVATE){
+            context.runtime.trmPackage.manifest.registry = context.rawInput.packageData.registry.endpoint;
+        }
+
+        //5- normalize manifest values
         context.runtime.trmPackage.manifest = Manifest.normalize(context.runtime.trmPackage.manifest, false);
     }
 }

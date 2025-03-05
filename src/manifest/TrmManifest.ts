@@ -1,4 +1,3 @@
-
 import { Transport } from "../transport"
 import { TrmManifestBase } from "./TrmManifestBase"
 import { TrmManifestNamespace } from "./TrmManifestNamespace"
