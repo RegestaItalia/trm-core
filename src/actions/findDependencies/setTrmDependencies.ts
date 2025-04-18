@@ -59,6 +59,7 @@ const _getRootDevclass = async (devclass) => {
 
 const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Promise<TrmDependency[]> => {
     var trmDependencies: TrmDependency[] = [];
+    var index: number = 0;
     if (!trmServerPackage) {
         try {
             const systemTrmServerPackage = await SystemConnector.getTrmServerPackage();
@@ -84,6 +85,8 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         }
     }
     for (const tadirDependency of tadirDependencies) {
+        index++;
+        Logger.loading(`(${index}/${tadirDependencies.length}) Searching TRM dependencies...`);
         const tadir: TADIR = {
             pgmid: tadirDependency.object.PGMID,
             object: tadirDependency.object.OBJECT,
