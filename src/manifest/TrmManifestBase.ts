@@ -1,5 +1,6 @@
 import { TrmManifestAuthor } from "./TrmManifestAuthor"
 import { TrmManifestDependency } from "./TrmManifestDependency"
+import { TrmManifestPostActivity } from "./TrmManifestPostActivity"
 
 export interface TrmManifestBase {
     backwardsCompatible?: boolean,
@@ -10,5 +11,6 @@ export interface TrmManifestBase {
     authors?: string | TrmManifestAuthor[],
     keywords?: string | string[],
     dependencies?: TrmManifestDependency[],
-    sapEntries?: any
+    sapEntries?: any,
+    postActivities?: TrmManifestPostActivity[]
 }
