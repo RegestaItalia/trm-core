@@ -27,6 +27,8 @@ var transportsCache: {
     integrity?: string
 }[] = [];
 
+var transportsObjectCache: Transport[] = [];
+
 const _getRootDevclass = async (devclass) => {
     const oRootDevclass = aRootDevclass.find(o => o.devclass === devclass);
     if (oRootDevclass) {
@@ -125,9 +127,12 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
             append = true;
         } else {
             Logger.log(`Searching transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
-            const allTransports = await Transport.getTransportsFromObject(tadir);
+            const allTransports = await Transport.getTransportsFromObject(tadir, transportsObjectCache);
             Logger.log(`Found ${allTransports.length} transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
             for (const transport of allTransports) {
+                if(transportsObjectCache.find(o => o.trkorr === transport.trkorr)){
+                    transportsObjectCache.push(transport);
+                }
                 const transportCache = transportsCache.find(o => o.trkorr === transport.trkorr);
                 if (transportCache) {
                     Logger.log(`Transport ${transport.trkorr} in cache, not reading again...`, true);
