@@ -9,7 +9,7 @@ import { InstallPackage } from "./InstallPackage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
-import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, Registry, RegistryProvider, RegistryType } from "../registry";
+import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
@@ -542,6 +542,13 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     ));
     //it's sufficient one version exists with tranSLAYER = devlayer (RAINING BLOOOOODDD!!!)
     return aTransportLayer.length > 0;
+  }
+
+  public async readClassDescriptions(clsname: components.SEOCLSNAME): Promise<struct.SEOCLASSTX[]> {
+    return await this.readTable('SEOCLASSTX',
+      [{ fieldName: 'CLSNAME' }, { fieldName: 'LANGU' }, { fieldName: 'DESCRIPT' }],
+      `CLSNAME EQ '${clsname.trim().toUpperCase()}'`
+    );
   }
 
 }

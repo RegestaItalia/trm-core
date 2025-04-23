@@ -6,6 +6,7 @@ import { Logger } from "../logger";
 import { existsSync } from "fs";
 import path from "path";
 import { SapMessage } from ".";
+import { Manifest } from "../manifest";
 
 const nodeRfcLib = 'node-rfc';
 
@@ -126,10 +127,18 @@ export class RFCClient implements IClient {
         );
         if (aT100.length === 1 && aT100[0].text) {
             var msg = aT100[0].text;
-            msg = msg.replace("&1", data.v1 || '');
-            msg = msg.replace("&2", data.v2 || '');
-            msg = msg.replace("&3", data.v3 || '');
-            msg = msg.replace("&4", data.v4 || '');
+            var counter = 1;
+            do{
+                if(msg.includes(`&${counter}`)){
+                    msg = msg.replace(new RegExp(`&${counter}`, 'gmi'), data[`v${counter}`] || '');
+                    msg = msg.replace(new RegExp(`&${counter}&`, 'gmi'), data[`v${counter}`] || '');
+                }else{
+                    msg = msg.replace("&", data[`v${counter}`] || '');
+                }
+                counter++;
+            }while(counter <= 4);
+            msg = msg.replace(new RegExp(`&\\d*`, 'gmi'), '');
+            msg = msg.replace(new RegExp(`&`, 'gmi'), '');
             return msg.trim();
         } else {
             throw new Error(`Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
@@ -475,6 +484,13 @@ export class RFCClient implements IClient {
             zip: result['evZip'],
             objects: result['etObjects']
         }
+    }
+
+    public async executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
+        const result = await this._call("ZTRM_EXECUTE_POST_ACTIVITY", {
+            iv_data: data
+        });
+        return result['etMessages'];
     }
 
 }

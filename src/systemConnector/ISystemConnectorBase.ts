@@ -32,5 +32,6 @@ export interface ISystemConnectorBase {
     getR3transUnicode: () => Promise<boolean>,
     isTransportLayerExist: (devlayer: components.DEVLAYER) => Promise<boolean>,
     getTrmServerPackage: () => Promise<TrmPackage>,
-    getTrmRestPackage: () => Promise<TrmPackage>
+    getTrmRestPackage: () => Promise<TrmPackage>,
+    readClassDescriptions: (clsname: components.SEOCLSNAME) => Promise<struct.SEOCLASSTX[]>
 }

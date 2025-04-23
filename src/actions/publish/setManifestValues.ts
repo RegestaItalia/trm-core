@@ -3,9 +3,10 @@ import { PublishWorkflowContext } from ".";
 import { Logger } from "../../logger";
 import { Inquirer, validatePackageVisibility } from "../../inquirer";
 import { RegistryType } from "../../registry";
-import { Manifest } from "../../manifest";
+import { Manifest, PostActivity } from "../../manifest";
 import chalk from "chalk";
 import { FileSystem, LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
+import { SystemConnector } from "../../systemConnector";
 
 /**
  * Set manifest values
@@ -18,7 +19,9 @@ import { FileSystem, LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
  * 
  * 4- set registry endpoint
  * 
- * 5- normalize manifest values
+ * 5- set post install activities
+ * 
+ * 6- normalize manifest values
  * 
 */
 export const setManifestValues: Step<PublishWorkflowContext> = {
@@ -194,7 +197,59 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             context.runtime.trmPackage.manifest.registry = context.rawInput.packageData.registry.endpoint;
         }
 
-        //5- normalize manifest values
+        //5- set post install activities
+        if (!context.rawInput.contextData.noInquirer) {
+            const inq = await Inquirer.prompt([{
+                message: `Do you want to edit post activities?`,
+                type: 'confirm',
+                name: 'editPostActivities',
+                default: false
+            }, {
+                message: 'Editor post activities',
+                type: 'editor',
+                name: 'postActivities',
+                postfix: '.json',
+                when: (hash) => {
+                    return hash.editPostActivities
+                },
+                default: JSON.stringify(context.runtime.trmPackage.manifest.postActivities || [], null, 2),
+                validate: (input) => {
+                    try {
+                        const parsedInput = JSON.parse(input);
+                        if (Array.isArray(parsedInput)) {
+                            return true;
+                        } else {
+                            return 'Invalid array';
+                        }
+                    } catch (e) {
+                        return 'Invalid JSON';
+                    }
+                }
+            }]);
+            if (inq.postActivities) {
+                Logger.log(`Post activities were manually changed: before -> ${JSON.stringify(context.runtime.trmPackage.manifest.postActivities)}, after -> ${JSON.parse(inq.postActivities)}`, true);
+                context.runtime.trmPackage.manifest.postActivities = JSON.parse(inq.postActivities);
+            }
+        }
+        if(Array.isArray(context.runtime.trmPackage.manifest.postActivities) && context.runtime.trmPackage.manifest.postActivities.length > 0){
+            var removedPostActivities = [];
+            Logger.loading(`Checking post activities...`);
+            for(const data of context.runtime.trmPackage.manifest.postActivities){
+                if(data.name){
+                    if(!removedPostActivities.find(c => c === data.name)){
+                        if(!(await PostActivity.exists(data.name))){
+                            removedPostActivities.push(data.name.trim().toUpperCase());
+                        }
+                    }
+                }
+            }
+            removedPostActivities.forEach(name => {
+                Logger.error(`Class "${name.trim().toUpperCase()}" does not exist and will be removed from post activities list.`);
+                context.runtime.trmPackage.manifest.postActivities = context.runtime.trmPackage.manifest.postActivities.filter(o => o.name !== name);
+            });
+        }
+
+        //6- normalize manifest values
         context.runtime.trmPackage.manifest = Manifest.normalize(context.runtime.trmPackage.manifest, false);
     }
 }

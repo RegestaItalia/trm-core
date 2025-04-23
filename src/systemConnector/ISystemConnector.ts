@@ -51,5 +51,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     deleteTmsTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<void>,
     refreshTransportTmsTxt: (trkorr: components.TRKORR) => Promise<void>,
     getDotAbapgit: (devclass: components.DEVCLASS) => Promise<Buffer>,
-    getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: struct.TADIR[]}>
+    getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: struct.TADIR[]}>,
+    executePostActivity: (data: Buffer) => Promise<struct.SYMSG[]>
 }

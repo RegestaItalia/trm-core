@@ -33,5 +33,7 @@ export class DummyLogger implements ILogger {
     public getPrefix(): string { 
         return '';
     }
+    
+    public msgty(msgty: string, text: string, debug?: boolean){ }
 
 }

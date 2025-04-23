@@ -379,4 +379,15 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.getAbapgitSource(devclass);
     }
+
+    export async function executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
+        await checkSystemConnector();
+        return systemConnector.executePostActivity(data);
+    }
+
+    export async function readClassDescriptions(clsname: components.SEOCLSNAME): Promise<struct.SEOCLASSTX[]> {
+        await checkSystemConnector();
+        return systemConnector.readClassDescriptions(clsname);
+    }
+    
 }

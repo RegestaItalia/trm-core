@@ -270,4 +270,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getAbapgitSource(devclass);
     }
 
+    public async executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
+        return this._client.executePostActivity(data);
+    }
+
 }

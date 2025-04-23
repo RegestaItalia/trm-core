@@ -14,5 +14,6 @@ export interface ILogger {
     log: (text: string, debug?: boolean) => void,
     table: (header: string[], data: string[][], debug?: boolean) => void,
     registryResponse: (response: ResponseMessage, debug?: boolean) => void,
-    tree: (data: TreeLog, debug?: boolean) => void
+    tree: (data: TreeLog, debug?: boolean) => void,
+    msgty: (msgty: string, text: string, debug?: boolean) => void
 }

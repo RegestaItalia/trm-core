@@ -20,3 +20,5 @@ export * from "./LXE_TT_PACKG_LINE";
 export * from "./TFDIR"
 export * from "./TRNSPACET";
 export * from "./TRNSPACETT";
+export * from "./SYMSG";
+export * from "./SEOCLASSTX";
