@@ -126,6 +126,11 @@ export type InstallActionInputInstallData = {
          * Whether to skip checking for package dependencies.
          */
         noDependencies?: boolean;
+
+        /**
+         * Whether to skip checking for existing objects.
+         */
+        noExistingObjects?: boolean;
     };
 
     /**
