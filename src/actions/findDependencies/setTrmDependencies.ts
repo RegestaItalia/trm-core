@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, TableDependency, TrmDependency } from ".";
 import { Logger } from "../../logger";
-import { DEVCLASS, TADIR } from "../../client";
+import { DEVCLASS, TADIR, TRKORR } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { TrmPackage } from "../../trmPackage";
@@ -19,6 +19,15 @@ var trmRestPackage: {
     package?: TrmPackage,
     integrity?: string
 };
+
+var transportsCache: {
+    trkorr: TRKORR,
+    trmRelevant: boolean,
+    devclass?: string,
+    integrity?: string
+}[] = [];
+
+var transportsObjectCache: Transport[] = [];
 
 const _getRootDevclass = async (devclass) => {
     const oRootDevclass = aRootDevclass.find(o => o.devclass === devclass);
@@ -52,6 +61,7 @@ const _getRootDevclass = async (devclass) => {
 
 const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Promise<TrmDependency[]> => {
     var trmDependencies: TrmDependency[] = [];
+    var index: number = 0;
     if (!trmServerPackage) {
         try {
             const systemTrmServerPackage = await SystemConnector.getTrmServerPackage();
@@ -77,6 +87,8 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         }
     }
     for (const tadirDependency of tadirDependencies) {
+        index++;
+        Logger.loading(`(${index}/${tadirDependencies.length}) Searching TRM dependencies...`);
         const tadir: TADIR = {
             pgmid: tadirDependency.object.PGMID,
             object: tadirDependency.object.OBJECT,
@@ -90,6 +102,7 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         var integrity: string;
         var arrayIndex1: number;
         var arrayIndex2: number;
+        var append: boolean;
         if (trmServerPackage.package && trmServerPackage.package.getDevclass() === tadir.devclass) {
             Logger.log(`Dependency with TRM SERVER package`, true);
             devclass = trmServerPackage.package.getDevclass();
@@ -98,8 +111,10 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
                 integrity = trmServerPackage.integrity;
             } else {
                 integrity = await SystemConnector.getPackageIntegrity(trmPackage);
+                trmServerPackage.integrity = integrity;
             }
-        }else if (trmRestPackage.package && trmRestPackage.package.getDevclass() === tadir.devclass) {
+            append = true;
+        } else if (trmRestPackage.package && trmRestPackage.package.getDevclass() === tadir.devclass) {
             Logger.log(`Dependency with TRM REST package`, true);
             devclass = trmRestPackage.package.getDevclass();
             trmPackage = trmRestPackage.package;
@@ -107,63 +122,111 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
                 integrity = trmRestPackage.integrity;
             } else {
                 integrity = await SystemConnector.getPackageIntegrity(trmPackage);
+                trmRestPackage.integrity = integrity;
             }
+            append = true;
         } else {
             Logger.log(`Searching transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
-            const allTransports = await Transport.getTransportsFromObject(tadir);
+            const allTransports = await Transport.getTransportsFromObject(tadir, transportsObjectCache);
             Logger.log(`Found ${allTransports.length} transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
             for (const transport of allTransports) {
-                if (await transport.isTrmRelevant()) {
-                    Logger.log(`Transport ${transport.trkorr} is TRM relevant`, true);
-                    trmRelevantTransports.push(transport);
+                if(transportsObjectCache.find(o => o.trkorr === transport.trkorr)){
+                    transportsObjectCache.push(transport);
+                }
+                const transportCache = transportsCache.find(o => o.trkorr === transport.trkorr);
+                if (transportCache) {
+                    Logger.log(`Transport ${transport.trkorr} in cache, not reading again...`, true);
+                    if (transportCache.trmRelevant) {
+                        trmRelevantTransports.push(transport);
+                    }
+                } else {
+                    const iTransportsCache = transportsCache.push({
+                        trkorr: transport.trkorr,
+                        trmRelevant: false
+                    }) - 1;
+                    if (await transport.isTrmRelevant()) {
+                        Logger.log(`Transport ${transport.trkorr} is TRM relevant`, true);
+                        trmRelevantTransports.push(transport);
+                        transportsCache[iTransportsCache].trmRelevant = true;
+                    }
                 }
             }
             latestTransport = await Transport.getLatest(trmRelevantTransports);
             if (latestTransport) {
                 Logger.log(`Latest transport is ${latestTransport.trkorr}`, true);
-                //has trm package
-                trmPackage = await latestTransport.getLinkedPackage();
-                const alreadyInArray = trmDependencies.find(o => o.package && TrmPackage.compare(o.package, trmPackage))
-                if (alreadyInArray) {
-                    devclass = alreadyInArray.devclass;
-                    integrity = alreadyInArray.integrity;
+                const iTransportsCache = transportsCache.findIndex(o => o.trkorr === latestTransport.trkorr);
+                if (transportsCache[iTransportsCache].devclass && transportsCache[iTransportsCache].integrity) {
+                    Logger.log(`Transport ${latestTransport.trkorr} in cache, not reading again...`, true);
+                    devclass = transportsCache[iTransportsCache].devclass;
+                    integrity = transportsCache[iTransportsCache].integrity;
                 } else {
-                    integrity = await SystemConnector.getPackageIntegrity(trmPackage);
-                    if (!integrity) {
-                        throw new Error(`Package "${trmPackage.packageName}", integrity not found!`);
+                    //has trm package
+                    trmPackage = await latestTransport.getLinkedPackage();
+                    const alreadyInArray = trmDependencies.find(o => o.package && TrmPackage.compare(o.package, trmPackage))
+                    if (alreadyInArray) {
+                        devclass = alreadyInArray.devclass;
+                        integrity = alreadyInArray.integrity;
+                    } else {
+                        integrity = await SystemConnector.getPackageIntegrity(trmPackage);
+                        if (!integrity) {
+                            throw new Error(`Package "${trmPackage.packageName}", integrity not found!`);
+                        }
+                        try {
+                            devclass = await latestTransport.getDevclass();
+                        } catch (e) {
+                            devclass = '';
+                        }
                     }
-                    try {
-                        devclass = await latestTransport.getDevclass();
-                    } catch (e) {
-                        devclass = '';
-                    }
+                    transportsCache[iTransportsCache].devclass = devclass;
+                    transportsCache[iTransportsCache].integrity = integrity;
+
                 }
+                append = true;
             } else {
-                Logger.log(`Object without TRM package`, true);
-                //doesn't have trm package
                 devclass = await _getRootDevclass(tadir.devclass);
+                if(devclass){
+                    //this root might be TRM package
+                    //add as a dependency, will check later
+                    if(!tadirDependencies.find(o => o.object.PGMID === 'R3TR' && o.object.OBJECT === 'DEVC' && o.object.OBJ_NAME === devclass)){
+                        tadirDependencies.push({
+                            object: {
+                                PGMID: 'R3TR',
+                                OBJECT: 'DEVC',
+                                OBJ_NAME: devclass,
+                                DEVCLASS: devclass
+                            },
+                            foundIn: tadir
+                        });
+                    }
+                    append = false;
+                }else{
+                    Logger.log(`Object without TRM package`, true);
+                    //doesn't have trm package
+                    append = true;
+                }
             }
         }
-
-        arrayIndex1 = trmDependencies.findIndex(o => o.devclass === devclass);
-        if (arrayIndex1 < 0) {
-            arrayIndex1 = trmDependencies.push({
-                devclass,
-                package: trmPackage,
-                integrity,
-                sapEntries: []
-            });
-            arrayIndex1--;
+        if(append){
+            arrayIndex1 = trmDependencies.findIndex(o => o.devclass === devclass);
+            if (arrayIndex1 < 0) {
+                arrayIndex1 = trmDependencies.push({
+                    devclass,
+                    package: trmPackage,
+                    integrity,
+                    sapEntries: []
+                });
+                arrayIndex1--;
+            }
+            arrayIndex2 = trmDependencies[arrayIndex1].sapEntries.findIndex(o => o.table === 'TADIR');
+            if (arrayIndex2 < 0) {
+                arrayIndex2 = trmDependencies[arrayIndex1].sapEntries.push({
+                    table: 'TADIR',
+                    dependencies: []
+                });
+                arrayIndex2--;
+            }
+            trmDependencies[arrayIndex1].sapEntries[arrayIndex2].dependencies.push(tadirDependency);
         }
-        arrayIndex2 = trmDependencies[arrayIndex1].sapEntries.findIndex(o => o.table === 'TADIR');
-        if (arrayIndex2 < 0) {
-            arrayIndex2 = trmDependencies[arrayIndex1].sapEntries.push({
-                table: 'TADIR',
-                dependencies: []
-            });
-            arrayIndex2--;
-        }
-        trmDependencies[arrayIndex1].sapEntries[arrayIndex2].dependencies.push(tadirDependency);
     }
     return trmDependencies;
 }

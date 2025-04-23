@@ -703,7 +703,7 @@ export class Transport {
         pgmid: PGMID,
         object: TROBJTYPE,
         objName: SOBJ_NAME
-    }): Promise<Transport[]> {
+    }, transportsCache?: Transport[]): Promise<Transport[]> {
         var transports: Transport[] = [];
         const aSkipTrkorr = await SystemConnector.getIgnoredTrkorr();
         const objectInTransport: TRKORR[] = (await SystemConnector.readTable('E071',
@@ -712,7 +712,10 @@ export class Transport {
         )).map(o => o.trkorr).filter(trkorr => !aSkipTrkorr.includes(trkorr));
         for (const trkorr of objectInTransport) {
             try {
-                const oTransport = new Transport(trkorr);
+                var oTransport = (transportsCache || []).find(o => o.trkorr === trkorr);
+                if(!oTransport){
+                    oTransport = new Transport(trkorr);
+                }
                 const e070 = await oTransport.getE070();
                 if (e070.trfunction !== 'K' && e070.trfunction !== 'S' && e070.trfunction !== 'R' && e070.trfunction !== 'T') {
                     throw new Error(`Unexpected TRFUNCTION for transport ${trkorr}: ${e070.trfunction}`);

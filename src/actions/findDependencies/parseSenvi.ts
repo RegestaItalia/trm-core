@@ -40,8 +40,11 @@ export const parseSenvi: Step<FindDependenciesWorkflowContext> = {
         const senviObjects = context.runtime.repositoryEnvironment.senvi;
         const aIgnoredDevclass = context.runtime.packageData.ignoredTadir.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC').map(o => o.devclass);
         const senviParser = new SenviParser();
+        var index: number = 0;
         Logger.loading(`Reading object dependencies...`);
         for (const senviObject of senviObjects) {
+            index++;
+            Logger.loading(`(${index}/${senviObjects.length}) Reading object dependencies...`);
             Logger.log(`Parsing SENVI of TADIR object ${senviObject.tadir.pgmid} ${senviObject.tadir.object} ${senviObject.tadir.objName}, ${senviObject.senvi} entries`, true);
             for (const senvi of senviObject.senvi) {
                 Logger.loading(`Parsing SENVI object ${senvi.type} ${senvi.object} ${senvi.enclObj}...`, true);
