@@ -82,4 +82,9 @@ export namespace Logger {
         return logger.getPrefix();
     }
 
+    export function msgty(msgty: string, text: string, debug?: boolean): void {
+        checkLogger();
+        return logger.msgty(msgty, text, debug);
+    }
+
 }

@@ -24,3 +24,4 @@ Legend
 + add namespace in manifest
 ! abstract registry for custom implementation
 + add file system registry for local publish and install
++ add post activities

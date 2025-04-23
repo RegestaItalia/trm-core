@@ -7,6 +7,7 @@ import * as FormData from "form-data";
 import { Login, SapMessage } from ".";
 import { Logger } from "../logger";
 import { parse as parseMultipart } from "parse-multipart-data";
+import { Manifest } from "../manifest";
 
 const AXIOS_CTX = "RestServer";
 
@@ -499,16 +500,23 @@ export class RESTClient implements IClient {
                 devclass
             }
         });
-        try{
+        try {
             const boundary = headers['content-type'].match(/boundary=([-0-9A-Za-z]+)/i)[1];
             const parsedData = parseMultipart(data, boundary);
             return {
                 zip: parsedData.find(o => o.name === 'zip').data,
                 objects: JSON.parse(parsedData.find(o => o.name === 'objects').data.toString())
             }
-        }catch(e){
+        } catch (e) {
             throw new Error(`Can't parse api data.`);
         }
+    }
+
+    public async executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
+        const result = (await this._axiosInstance.post('/execute_post_activity', data, {
+            timeout: 60000
+        })).data;
+        return result.messages;
     }
 
 }

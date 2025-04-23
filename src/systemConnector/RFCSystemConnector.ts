@@ -242,4 +242,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getAbapgitSource(devclass);
     }
 
+    public async executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
+        return this._client.executePostActivity(data);
+    }
+
 }

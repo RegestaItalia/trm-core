@@ -4,7 +4,7 @@ import { TrmManifest } from "./TrmManifest";
 import { normalize } from "../commons";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
-import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryProvider } from "../registry";
+import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../registry";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { validate as validateEmail } from "email-validator";
 import * as SpdxLicenseIds from "spdx-license-ids/index.json";
@@ -159,7 +159,7 @@ export class Manifest {
                     }
                 }
             }
-            if(manifest.namespace.ns){
+            if (manifest.namespace.ns) {
                 oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['NS'] = {
                     "_text": manifest.namespace.ns
                 }
@@ -294,8 +294,8 @@ export class Manifest {
                 throw new Error('Invalid package version declared.');
             }
         }
-        if(manifestClone.registry){
-            if(manifestClone.registry === PUBLIC_RESERVED_KEYWORD){
+        if (manifestClone.registry) {
+            if (manifestClone.registry === PUBLIC_RESERVED_KEYWORD) {
                 delete manifestClone.registry;
             }
         }
@@ -491,12 +491,41 @@ export class Manifest {
         } else {
             delete manifestClone.srcFolder;
         }
+        if (manifestClone.postActivities && manifestClone.postActivities.length > 0) {
+            var originalPostActivities = manifestClone.postActivities;
+            delete manifestClone.postActivities;
+            originalPostActivities.forEach((pa) => {
+                if (!pa.name) {
+                    throw new Error(`Invalid post activity: name must be declared.`);
+                }
+                pa.name = pa.name.toUpperCase();
+                if (Array.isArray(pa.parameters)) {
+                    manifestClone.postActivities = [];
+                    pa.parameters.forEach(param => {
+                        if (!param.name) {
+                            throw new Error(`Invalid post activity: parameter name must be declared.`);
+                        }
+                        param.name = param.name.toUpperCase();
+                    })
+                    manifestClone.postActivities.push({
+                        name: pa.name,
+                        parameters: pa.parameters
+                    });
+                } else {
+                    manifestClone.postActivities.push({
+                        name: pa.name
+                    });
+                }
+            });
+        } else {
+            delete manifestClone.postActivities;
+        }
         return manifestClone;
     }
 
     public static fromAbapXml(sXml: string): Manifest {
         var manifest: TrmManifest;
-        sXml = sXml.replace(/&/g,"&amp;").replace(/-/g,"&#45;");
+        sXml = sXml.replace(/&/g, "&amp;").replace(/-/g, "&#45;");
         const oAbapXml = xml.xml2js(sXml, { compact: true });
         var oAbapManifest;
         var sapEntries;
@@ -544,7 +573,7 @@ export class Manifest {
                 replicense: oAbapManifest.replicense.text,
                 texts: []
             };
-            if(oAbapManifest.ns && oAbapManifest.ns.text){
+            if (oAbapManifest.ns && oAbapManifest.ns.text) {
                 manifest.namespace.ns = oAbapManifest.ns.text;
             }
             if (oAbapManifest.replicenseT && oAbapManifest.replicenseT.item) {

@@ -189,4 +189,24 @@ export class CliLogger implements ILogger {
         return this._prefix;
     }
 
+    public msgty(msgty: string, text: string, debug?: boolean){
+        switch(msgty){
+            case 'A':
+                this.error(text, debug);
+                break;
+            case 'E':
+                this.error(text, debug);
+                break;
+            case 'I':
+                this.info(text, debug);
+                break;
+            case 'S':
+                this.success(text, debug);
+                break;
+            case 'W':
+                this.warning(text, debug);
+                break;
+        }
+    }
+
 }

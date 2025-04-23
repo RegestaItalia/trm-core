@@ -5,3 +5,4 @@ export * from "./TrmManifestAuthor";
 export * from "./TrmManifestDependency";
 export * from "./TrmManifestNamespace"
 export * from "./TrmManifestPostActivity"
+export * from "./PostActivity";

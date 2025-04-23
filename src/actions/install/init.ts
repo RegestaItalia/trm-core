@@ -140,6 +140,9 @@ export const init: Step<InstallWorkflowContext> = {
                 create: true
             };
         }
+        if(!context.rawInput.installData.skipPostActivities){
+            context.rawInput.installData.skipPostActivities = false;
+        }
         Logger.loading(`Checking transport layer...`);
         if (!context.rawInput.installData.installDevclass.transportLayer) {
             try{

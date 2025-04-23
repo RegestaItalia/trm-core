@@ -32,6 +32,7 @@ import { generateInstallTransport } from "./generateInstallTransport";
 import { refreshTmsTxt } from "./refreshTmsTxt";
 import { migrate } from "./migrate";
 import { AbstractRegistry } from "../../registry";
+import { executePostActivities } from "./executePostActivities";
 
 /**
  * ABAP package replacement during install
@@ -161,6 +162,11 @@ export type InstallActionInputInstallData = {
          */
         targetSystem?: string;
     };
+
+    /**
+     * Skip install post activities
+     */
+    skipPostActivities?: boolean
 }
 
 /**
@@ -291,7 +297,8 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         importCustTransport,
         refreshTmsTxt,
         setPackageIntegrity,
-        generateInstallTransport
+        generateInstallTransport,
+        executePostActivities
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {
