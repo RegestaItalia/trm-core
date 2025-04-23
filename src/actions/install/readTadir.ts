@@ -35,7 +35,7 @@ export const readTadir: Step<InstallWorkflowContext> = {
         Logger.log(`TADIR object that already exist in system: ${JSON.stringify(existingObjects)}`, true);
         //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
         var throwExistingObjectsError = false;
-        if (existingObjects.length > 0) { //context.runtime.update
+        if (existingObjects.length > 0) {
             const sObjs = existingObjects.map(o => `${o.pgmid} ${o.object} ${o.objName}`).join('\n');
             if (context.runtime.update) {
                 const rootPackage = context.rawInput.contextData.systemPackages.find(o => o.packageName === context.rawInput.packageData.name);
