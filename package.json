@@ -8,7 +8,10 @@
     "changelog.txt",
     "dist",
     "!dist/test.js",
-    "!dist/test.js.map"
+    "!dist/test.js.map",
+    "!dist/test.d.ts",
+    "!dist/.env",
+    "!dist/dev_rfc.log"
   ],
   "scripts": {
     "cleanBuild": "rimraf dist/",
