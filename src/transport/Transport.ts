@@ -790,8 +790,16 @@ export class Transport {
 
     public async migrate(rollback?: boolean): Promise<Transport | void> {
         if (!rollback) {
-            const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
-            return new Transport(trmTrkorr, null, true);
+            try{
+                const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
+                return new Transport(trmTrkorr, null, true);
+            }catch(e){
+                if(e.exceptionType === 'SNRO_INTERVAL_NOT_FOUND'){
+                    throw new Error(`trm-server has no migration interval defined: re-install or execute post activities to generate number range interval.`);
+                }else{
+                    throw e;
+                }
+            }
         } else {
 
         }
