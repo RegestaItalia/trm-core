@@ -11,6 +11,11 @@ Legend
 2025-04-28 v6.4.0
 -------------------
 
+! node-r3trans ^1.5.0
+
+2025-04-28 v6.4.0
+-------------------
+
 + post activities in abap manifest
 * return exception type for REST client
 
