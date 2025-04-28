@@ -259,8 +259,40 @@ export class Manifest {
                     });
                 } catch (e) { }
             });
-            oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['SAP_ENTRIES'] = {
-                "item": sapEntries
+            if (sapEntries.length > 0) {
+                oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['SAP_ENTRIES'] = {
+                    "item": sapEntries
+                }
+            }
+        }
+        if (manifest.postActivities) {
+            var postActivities = [];
+            manifest.postActivities.forEach(pa => {
+                var postActivity = {
+                    'NAME': {
+                        "_text": pa.name
+                    }
+                }
+                if (pa.parameters && pa.parameters.length > 0) {
+                    postActivity['PARAMETERS'] = {
+                        "item": pa.parameters.map(param => {
+                            return {
+                                'NAME': {
+                                    "_text": param.name
+                                },
+                                'VALUE': {
+                                    "_text": param.value
+                                },
+                            };
+                        })
+                    };
+                }
+                postActivities.push(postActivity);
+            });
+            if (postActivities.length > 0) {
+                oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['POST_ACTIVITIES'] = {
+                    "item": postActivities
+                }
             }
         }
         const sXml = xml.js2xml(oAbapXml, { compact: true });
@@ -494,29 +526,31 @@ export class Manifest {
         if (manifestClone.postActivities && manifestClone.postActivities.length > 0) {
             var originalPostActivities = manifestClone.postActivities;
             delete manifestClone.postActivities;
-            originalPostActivities.forEach((pa) => {
-                if (!pa.name) {
-                    throw new Error(`Invalid post activity: name must be declared.`);
-                }
-                pa.name = pa.name.toUpperCase();
-                if (Array.isArray(pa.parameters)) {
-                    manifestClone.postActivities = [];
-                    pa.parameters.forEach(param => {
-                        if (!param.name) {
-                            throw new Error(`Invalid post activity: parameter name must be declared.`);
-                        }
-                        param.name = param.name.toUpperCase();
-                    })
-                    manifestClone.postActivities.push({
-                        name: pa.name,
-                        parameters: pa.parameters
-                    });
-                } else {
-                    manifestClone.postActivities.push({
-                        name: pa.name
-                    });
-                }
-            });
+            if(Array.isArray(originalPostActivities) && originalPostActivities.length > 0){
+                manifestClone.postActivities = [];
+                originalPostActivities.forEach((pa) => {
+                    if (!pa.name) {
+                        throw new Error(`Invalid post activity: name must be declared.`);
+                    }
+                    pa.name = pa.name.toUpperCase();
+                    if (Array.isArray(pa.parameters)) {
+                        pa.parameters.forEach(param => {
+                            if (!param.name) {
+                                throw new Error(`Invalid post activity: parameter name must be declared.`);
+                            }
+                            param.name = param.name.toUpperCase();
+                        })
+                        manifestClone.postActivities.push({
+                            name: pa.name,
+                            parameters: pa.parameters
+                        });
+                    } else {
+                        manifestClone.postActivities.push({
+                            name: pa.name
+                        });
+                    }
+                });
+            }
         } else {
             delete manifestClone.postActivities;
         }
