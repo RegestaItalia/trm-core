@@ -12,6 +12,7 @@ Legend
 -------------------
 
 + post activities in abap manifest
+* return exception type for REST client
 
 2025-02-06 v6.3.0
 -------------------

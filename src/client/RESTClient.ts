@@ -7,7 +7,6 @@ import * as FormData from "form-data";
 import { Login, SapMessage } from ".";
 import { Logger } from "../logger";
 import { parse as parseMultipart } from "parse-multipart-data";
-import { Manifest } from "../manifest";
 
 const AXIOS_CTX = "RestServer";
 
@@ -23,7 +22,7 @@ export class RESTClient implements IClient {
                 username: this._login.user,
                 password: this._login.passwd
             },
-            timeout: 10000, //default timeout
+            timeout: 30000, //default timeout
         }, AXIOS_CTX);
     }
 
@@ -74,6 +73,7 @@ export class RESTClient implements IClient {
                     if (axiosError.response.data.log) {
                         rfcClientError.messageLog = axiosError.response.data.log;
                     }
+                    rfcClientError.exceptionType = error.message;
                     Logger.error(rfcClientError.toString(), true);
                     throw rfcClientError;
                 });
@@ -107,55 +107,63 @@ export class RESTClient implements IClient {
     }
 
     public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
-        var sqlOutput = [];
-        const delimiter = '|';
-        var aOptions: struct.RFC_DB_OPT[] = [];
-        if (options) {
-            //line must not exceede 72 chars length
-            //it must not break on an operator
-            const aSplit = options.split(/\s+AND\s+/);
-            if (aSplit.length > 1) {
-                aSplit.forEach((s, i) => {
-                    var sText = s.trim();
-                    if (i !== 0) {
-                        sText = `AND ${sText}`;
-                    }
-                    aOptions.push({ text: sText });
-                })
-            } else {
-                aOptions = aSplit.map(s => {
+        try {
+            var sqlOutput = [];
+            const delimiter = '|';
+            var aOptions: struct.RFC_DB_OPT[] = [];
+            if (options) {
+                //line must not exceede 72 chars length
+                //it must not break on an operator
+                const aSplit = options.split(/\s+AND\s+/);
+                if (aSplit.length > 1) {
+                    aSplit.forEach((s, i) => {
+                        var sText = s.trim();
+                        if (i !== 0) {
+                            sText = `AND ${sText}`;
+                        }
+                        aOptions.push({ text: sText });
+                    })
+                } else {
+                    aOptions = aSplit.map(s => {
+                        return {
+                            text: s
+                        }
+                    });
+                }
+                /*aOptions = (options.match(/.{1,72}/g)).map(s => {
                     return {
                         text: s
                     }
-                });
+                }) || [];*/
             }
-            /*aOptions = (options.match(/.{1,72}/g)).map(s => {
-                return {
-                    text: s
+            const result = await this._axiosInstance.get('/read_table', {
+                params: {
+                    rfcdest: this.rfcdest
+                },
+                data: {
+                    query_table: tableName.toUpperCase(),
+                    delimiter,
+                    options: aOptions,
+                    fields: fields
                 }
-            }) || [];*/
-        }
-        const result = await this._axiosInstance.get('/read_table', {
-            params: {
-                rfcdest: this.rfcdest
-            },
-            data: {
-                query_table: tableName.toUpperCase(),
-                delimiter,
-                options: aOptions,
-                fields: fields
-            }
-        });
-        const data: struct.TAB512[] = result.data;
-        data.forEach(tab512 => {
-            var sqlLine: any = {};
-            const waSplit = tab512.wa.split(delimiter);
-            fields.forEach((field, index) => {
-                sqlLine[field.fieldName] = waSplit[index].trim();
             });
-            sqlOutput.push(sqlLine);
-        })
-        return normalize(sqlOutput);
+            const data: struct.TAB512[] = result.data;
+            data.forEach(tab512 => {
+                var sqlLine: any = {};
+                const waSplit = tab512.wa.split(delimiter);
+                fields.forEach((field, index) => {
+                    sqlLine[field.fieldName] = waSplit[index].trim();
+                });
+                sqlOutput.push(sqlLine);
+            })
+            return normalize(sqlOutput);
+        } catch (e) {
+            if (e.message === 'TABLE_WITHOUT_DATA') {
+                return [];
+            } else {
+                throw e;
+            }
+        }
     }
 
     public async getFileSystem(): Promise<struct.FILESYS> {
