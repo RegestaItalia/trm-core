@@ -5,3 +5,6 @@ export * from "./RFCClient";
 export * from "./RESTClient";
 export * from "./SapMessage";
 export * from "./Login";
+export * from "./ClientError";
+export * from "./RESTClientError";
+export * from "./RFCClientError";

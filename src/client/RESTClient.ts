@@ -4,7 +4,7 @@ import { IClient } from "./IClient";
 import { getAxiosInstance, normalize } from "../commons";
 import { AxiosInstance } from "axios";
 import * as FormData from "form-data";
-import { Login, SapMessage } from ".";
+import { ClientError, Login, RESTClientError, SapMessage } from ".";
 import { Logger } from "../logger";
 import { parse as parseMultipart } from "parse-multipart-data";
 
@@ -51,29 +51,27 @@ export class RESTClient implements IClient {
                     }
                     var message: string;
                     var messageError;
+                    const sapMessage: SapMessage = {
+                        no: `${axiosError.response.data.message.msgno}`,
+                        class: axiosError.response.data.message.msgid,
+                        v1: axiosError.response.data.message.msgv1,
+                        v2: axiosError.response.data.message.msgv2,
+                        v3: axiosError.response.data.message.msgv3,
+                        v4: axiosError.response.data.message.msgv4
+                    };
                     try {
-                        message = await this.getMessage({
-                            no: `${axiosError.response.data.message.msgno}`,
-                            class: axiosError.response.data.message.msgid,
-                            v1: axiosError.response.data.message.msgv1,
-                            v2: axiosError.response.data.message.msgv2,
-                            v3: axiosError.response.data.message.msgv3,
-                            v4: axiosError.response.data.message.msgv4
-                        });
+                        message = await this.getMessage(sapMessage);
                     } catch (k) {
                         messageError = k;
                         message = `Couldn't read error message ${axiosError.response.data.message.abapMsgClass} ${axiosError.response.data.message.abapMsgNumber} ${axiosError.response.data.message.abapMsgV1} ${axiosError.response.data.message.abapMsgV2} ${axiosError.response.data.message.abapMsgV3} ${axiosError.response.data.message.abapMsgV4}`;
                     }
-                    var rfcClientError: any = new Error(message.trim());
-                    rfcClientError.name = 'TrmRESTClient';
-                    rfcClientError.restError = axiosError;
+                    var rfcClientError = new RESTClientError(error.message, sapMessage, axiosError, message);
                     if (messageError) {
                         rfcClientError.messageError = messageError;
                     }
                     if (axiosError.response.data.log) {
                         rfcClientError.messageLog = axiosError.response.data.log;
                     }
-                    rfcClientError.exceptionType = error.message;
                     Logger.error(rfcClientError.toString(), true);
                     throw rfcClientError;
                 });

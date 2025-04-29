@@ -37,7 +37,7 @@ export class PostActivity {
                 Logger.msgty(message.msgty, parsedMessage, silent);
             }
         } else {
-            Logger.success(`Executed post activity: ${this.getDescription()}`, silent);
+            Logger.success(`Executed post activity: ${description}`, silent);
         }
     }
 
