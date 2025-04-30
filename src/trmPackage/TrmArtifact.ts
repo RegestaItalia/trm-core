@@ -1,5 +1,5 @@
 import { TRKORR } from "../client";
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 import { Manifest } from "../manifest";
 import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from "../transport";
 import * as AdmZip from "adm-zip";

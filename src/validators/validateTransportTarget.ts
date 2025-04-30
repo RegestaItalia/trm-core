@@ -1,4 +1,4 @@
-import { TR_TARGET, TMSCSYS } from "../../client";
+import { TMSCSYS, TR_TARGET } from "../client";
 
 export async function validateTransportTarget(target: TR_TARGET, systemTmscsys: TMSCSYS[]): Promise<string|true> {
     if (target) {

@@ -1,7 +1,7 @@
 import { exec } from "child_process";
 import path from "path";
 import { promisify } from "util";
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 
 export async function getNpmGlobalPath() {
     Logger.loading(`Reading NPM global path...`);

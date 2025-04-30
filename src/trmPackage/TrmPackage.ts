@@ -1,5 +1,5 @@
 import * as semver from "semver";
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 import { Manifest } from "../manifest";
 import { AbstractRegistry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";

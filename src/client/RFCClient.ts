@@ -2,11 +2,10 @@ import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
 import { getNpmGlobalPath, normalize } from "../commons";
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 import { existsSync } from "fs";
 import path from "path";
 import { SapMessage } from ".";
-import { Manifest } from "../manifest";
 
 const nodeRfcLib = 'node-rfc';
 

@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { Manifest } from "../../manifest";
 import { SystemConnector } from "../../systemConnector";

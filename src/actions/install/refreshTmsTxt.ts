@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 
 /**
  * Refresh TMS queue texts (only when transports are migrated)

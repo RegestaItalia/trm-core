@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 
 /**

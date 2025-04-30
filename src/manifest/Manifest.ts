@@ -12,7 +12,7 @@ import { TrmManifestAuthor } from "./TrmManifestAuthor";
 import { DOMParser } from '@xmldom/xmldom';
 import _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 
 
 function getManifestAuthor(sAuthor: string) {

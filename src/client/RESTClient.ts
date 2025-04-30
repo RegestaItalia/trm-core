@@ -5,7 +5,7 @@ import { getAxiosInstance, normalize } from "../commons";
 import { AxiosInstance } from "axios";
 import * as FormData from "form-data";
 import { Login, SapMessage } from ".";
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 import { parse as parseMultipart } from "parse-multipart-data";
 
 const AXIOS_CTX = "RestServer";

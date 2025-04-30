@@ -1,5 +1,5 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { IActionContext } from "..";
 

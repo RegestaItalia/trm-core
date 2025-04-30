@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 

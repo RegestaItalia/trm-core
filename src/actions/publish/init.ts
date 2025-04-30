@@ -1,15 +1,14 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger, Inquirer } from "trm-commons";
 import { parsePackageName } from "../../commons";
 import { TrmPackage } from "../../trmPackage";
-import { Inquirer, validatePackageVisibility } from "../../inquirer";
 import { clean } from "semver";
 import { SystemConnector } from "../../systemConnector";
 import { RegistryType } from "../../registry";
 import { Transport } from "../../transport";
 import chalk from "chalk";
-import { FileSystem } from "../../registry/FileSystem";
+import { validatePackageVisibility } from "../../validators";
 
 /**
  * Init

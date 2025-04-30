@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { Manifest } from "../../manifest";
 import { eq, gt } from "semver";
 

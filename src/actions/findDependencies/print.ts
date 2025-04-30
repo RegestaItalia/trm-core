@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, SapEntriesDependency } from ".";
-import { Logger, TreeLog } from "../../logger";
+import { Logger, TreeLog } from "trm-commons";
 import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 import chalk from "chalk";
 

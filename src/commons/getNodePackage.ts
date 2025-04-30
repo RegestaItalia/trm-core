@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import path from "path";
 import { rootPath } from 'get-root-path';
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 
 export function getNodePackage(): any {
     var file: Buffer;

@@ -1,9 +1,8 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger, inspect } from "../../logger";
-import { Inquirer } from "../../inquirer/Inquirer";
+import { Logger, inspect, Inquirer } from "trm-commons";
 import { InstallDependencyActionInput, installDependency as InstallDependencyWkf } from ".."
-import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, Registry, RegistryProvider } from "../../registry";
+import { RegistryProvider } from "../../registry";
 import * as _ from "lodash";
 
 const SUBWORKFLOW_NAME = 'install-dependency-sub-install';

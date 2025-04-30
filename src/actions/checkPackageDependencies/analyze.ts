@@ -1,8 +1,8 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckPackageDependenciesWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
-import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryProvider } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../../registry";
 import { satisfies } from "semver";
 import { SystemConnector } from "../../systemConnector";
 

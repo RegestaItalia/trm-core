@@ -1,5 +1,5 @@
 import { valid as semverValid } from "semver";
-import { inspect, Logger } from "../logger";
+import { inspect, Logger } from "trm-commons";
 import { Manifest } from "../manifest";
 import { DEVCLASS, PGMID, SOBJ_NAME, TRKORR, TROBJTYPE } from "../client/components";
 import { TADIR, TDEVC, TMSCSYS } from "../client/struct";

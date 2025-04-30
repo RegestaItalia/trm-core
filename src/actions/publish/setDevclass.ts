@@ -1,11 +1,11 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger, Inquirer } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
-import { Inquirer, validateDevclass } from "../../inquirer";
 import { DEVCLASS } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { getPackageNamespace } from "../../commons";
+import { validateDevclass } from "../../validators";
 
 /**
  * Set ABAP package name for publish

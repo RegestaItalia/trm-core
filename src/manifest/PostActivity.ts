@@ -1,7 +1,7 @@
 import { SystemConnector } from "../systemConnector";
 import { TrmManifestPostActivity } from "./TrmManifestPostActivity";
 import * as xml from "xml-js";
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 import { SEOCLASSTX } from "../client";
 
 export class PostActivity {

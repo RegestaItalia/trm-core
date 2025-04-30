@@ -1,9 +1,8 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
 import { getPackageNamespace } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
-import { Inquirer, Question } from "../../inquirer";
+import { Logger, Inquirer, Question } from "trm-commons";
 import { ZTRM_INSTALLDEVC } from "../../client";
 import { LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 

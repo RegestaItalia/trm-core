@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, SapEntriesDependency } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { TADIR } from "../../client";
 import { SenviParser } from "../../dependency";
 import * as _ from "lodash";

@@ -4,13 +4,12 @@ import { AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
 import { AuthOAuth2, AuthenticationType, OAuth2Data, Ping, Release, View, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
-import { Logger } from "../logger";
+import { Logger, Inquirer } from "trm-commons";
 import { randomUUID } from "crypto";
 import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
 import _ from 'lodash';
-import { Inquirer } from "../inquirer/Inquirer";
 import { getAxiosInstance } from "../commons";
 import { AbstractRegistry } from "./AbstractRegistry";
 
