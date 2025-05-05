@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { normalize } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { TADIR } from "../../client";

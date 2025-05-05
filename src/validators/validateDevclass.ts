@@ -1,5 +1,5 @@
-import { DEVCLASS } from "../../client";
-import { SystemConnector } from "../../systemConnector";
+import { DEVCLASS } from "../client";
+import { SystemConnector } from "../systemConnector";
 
 export async function validateDevclass(devclass: DEVCLASS, allowTemporaryPackages?: boolean): Promise<string|true> {
     if (devclass) {

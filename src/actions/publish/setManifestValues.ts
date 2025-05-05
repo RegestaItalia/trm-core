@@ -1,12 +1,11 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
-import { Logger } from "../../logger";
-import { Inquirer, validatePackageVisibility } from "../../inquirer";
+import { Logger, Inquirer } from "trm-commons";
 import { RegistryType } from "../../registry";
 import { Manifest, PostActivity } from "../../manifest";
 import chalk from "chalk";
-import { FileSystem, LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
-import { SystemConnector } from "../../systemConnector";
+import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
+import { validatePackageVisibility } from "../../validators";
 
 /**
  * Set manifest values

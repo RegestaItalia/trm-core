@@ -1,4 +1,4 @@
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 import { RFCClient, SapMessage } from "../client";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";

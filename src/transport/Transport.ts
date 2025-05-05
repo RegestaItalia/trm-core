@@ -1,4 +1,3 @@
-import { Logger } from "../logger";
 import { BinaryTransport } from "./BinaryTransport";
 import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
 import { FileNames } from "./FileNames";
@@ -13,8 +12,7 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import * as cliProgress from "cli-progress";
-import { CliLogger } from "../logger/CliLogger";
-import { CliLogFileLogger } from "../logger/CliLogFileLogger";
+import { CliLogFileLogger, CliLogger, Logger } from "trm-commons";
 import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM } from "../client";
 import { SystemConnector } from "../systemConnector";
 

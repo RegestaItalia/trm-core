@@ -4,8 +4,8 @@ import { IClient } from "./IClient";
 import { getAxiosInstance, normalize } from "../commons";
 import { AxiosInstance } from "axios";
 import * as FormData from "form-data";
+import { Logger } from "trm-commons";
 import { ClientError, Login, RESTClientError, SapMessage } from ".";
-import { Logger } from "../logger";
 import { parse as parseMultipart } from "parse-multipart-data";
 
 const AXIOS_CTX = "RestServer";

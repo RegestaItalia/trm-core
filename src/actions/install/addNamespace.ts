@@ -1,10 +1,9 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger, Inquirer } from "trm-commons";
 import { getPackageNamespace } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { TRNLICENSE, TRNSPACET, TRNSPACETT } from "../../client";
-import { Inquirer } from "../../inquirer";
 
 /**
  * Add package namespace for repair.

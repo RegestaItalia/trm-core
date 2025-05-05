@@ -1,9 +1,8 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
-import { inspect, Logger } from "../../logger";
+import { Inquirer, inspect, Logger } from "trm-commons";
 import { FindDependenciesActionInput, findDependencies as FindDependenciesWkf } from ".."
 import { RegistryType } from "../../registry";
-import { Inquirer } from "../../inquirer";
 
 const SUBWORKFLOW_NAME = 'find-dependencies-sub-publish';
 

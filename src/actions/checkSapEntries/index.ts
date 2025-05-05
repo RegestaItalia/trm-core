@@ -1,6 +1,6 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
 import { init } from "./init";
 import { analyze } from "./analyze";

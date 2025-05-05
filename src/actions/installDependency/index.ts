@@ -1,6 +1,6 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { AbstractRegistry } from "../../registry";
 import { IActionContext, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages } from "..";
 import { init } from "./init";

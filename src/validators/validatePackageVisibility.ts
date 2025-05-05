@@ -1,5 +1,5 @@
-import { parsePackageName } from "../../commons";
-import { RegistryType } from "../../registry";
+import { parsePackageName } from "../commons";
+import { RegistryType } from "../registry";
 
 export function validatePackageVisibility(registryType: RegistryType, packageName: string, isPrivate: boolean, latestReleaseVisibility: boolean): string|true {
     if(registryType === RegistryType.PUBLIC){

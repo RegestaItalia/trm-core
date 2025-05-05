@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, TableDependency, TrmDependency } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { DEVCLASS, TADIR, TRKORR } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";

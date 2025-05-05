@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { desc } from "semver-sort";
 import { TrmPackage } from "../../trmPackage";
 import { createHash } from "crypto";

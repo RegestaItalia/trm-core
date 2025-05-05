@@ -1,10 +1,10 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { normalize } from "../../commons";
 import { E071, TRKORR } from "../../client";
-import { Inquirer } from "../../inquirer";
+import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 
 /**

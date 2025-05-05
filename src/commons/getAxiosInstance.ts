@@ -1,6 +1,6 @@
 import axios, { AxiosResponse, CreateAxiosDefaults } from "axios";
 import { inspect } from "util";
-import { CliLogFileLogger, Logger } from "../logger";
+import { CliLogFileLogger, Logger } from "trm-commons";
 import { v4 as uuidv4 } from 'uuid';
 
 export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';

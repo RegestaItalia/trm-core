@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { getPackageHierarchy } from "../../commons";
 import { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";

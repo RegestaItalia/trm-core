@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
-import { inspect, Logger } from "../../logger";
+import { inspect, Logger } from "trm-commons";
 import { InstallActionInput, install as InstallWkf } from "..";
 
 const SUBWORKFLOW_NAME = 'install-sub-install-dependency';

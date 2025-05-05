@@ -1,8 +1,8 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
-import { Logger } from "../../logger";
-import { Inquirer, validateTransportTarget } from "../../inquirer";
+import { Inquirer, Logger } from "trm-commons";
 import { TR_TARGET } from "../../client";
+import { validateTransportTarget } from "../../validators";
 
 /**
  * Set publish release transport target
