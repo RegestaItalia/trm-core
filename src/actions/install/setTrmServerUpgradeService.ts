@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "../../logger";
+import { Logger } from "trm-commons";
 import { TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
 import { RegistryType } from "../../registry";
 import { TrmServerUpgrade } from "../../commons";
