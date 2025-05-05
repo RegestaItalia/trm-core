@@ -12,6 +12,7 @@ Legend
 -------------------
 ! trm-commons ^1.0.0
 * upgrade trm-server fixes
+* core package.json location find
 
 2025-04-28 v6.4.1
 -------------------
