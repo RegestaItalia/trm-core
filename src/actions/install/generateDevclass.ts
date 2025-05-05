@@ -4,6 +4,7 @@ import { Logger } from "trm-commons";
 import { getPackageHierarchy } from "../../commons";
 import { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
+import { TrmServerUpgrade } from "../../commons/TrmServerUpgradeService";
 
 /**
  * Check ABAP package existance and generate if needed.
@@ -111,7 +112,11 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                 const installParentCl = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass;
                 if(installParentCl){
                     if (!installRoot) {
-                        await SystemConnector.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
+                        try{
+                            await SystemConnector.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
+                        }catch(e){
+                            TrmServerUpgrade.getInstance().throwError(e);
+                        }
                     }
                 }
             }

@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { PostActivity } from "../../manifest";
+import { TrmServerUpgrade } from "../../commons";
 
 /**
  * Execute post activities
@@ -17,7 +18,12 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
             return false;
         } else {
             if (context.runtime.remotePackageData.trmManifest.postActivities && context.runtime.remotePackageData.trmManifest.postActivities.length > 0) {
-                return true;
+                if(TrmServerUpgrade.getInstance().executePostActivities()){
+                    return true;
+                }else{
+                    Logger.warning(`Coudln't execute post activities! After trm-server upgrade, run them manually!`, true);
+                    return false;
+                }
             } else {
                 Logger.log(`Skipping post activities (none defined)`, true);
                 return false;

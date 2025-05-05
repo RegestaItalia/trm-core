@@ -4,6 +4,7 @@ import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import _ from 'lodash';
+import { TrmServerUpgrade } from "../../commons";
 
 /**
  * Import TADIR Transport.
@@ -35,8 +36,10 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             r3transOption: context.rawInput.contextData.r3transOptions
         });
 
-        //2 - delete from tms buffer (if it exists)
-        await context.runtime.packageTransports.tadir.instance.deleteFromTms(SystemConnector.getDest());
+        if(TrmServerUpgrade.getInstance().deleteFromTms()){
+            //2 - delete from tms buffer (if it exists)
+            await context.runtime.packageTransports.tadir.instance.deleteFromTms(SystemConnector.getDest());
+        }
 
         //3- import transport into system
         Logger.loading(`Importing ${context.runtime.packageTransports.tadir.binaries.trkorr}`, true);
@@ -61,8 +64,10 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             await SystemConnector.tadirInterface(object);
         }
 
-        //5- remove from skipped transports (may be there because of previous failed install)
-        await SystemConnector.removeSkipTrkorr(context.runtime.packageTransports.tadir.binaries.trkorr);
+        if(TrmServerUpgrade.getInstance().deleteFromTms()){
+            //5- remove from skipped transports (may be there because of previous failed install)
+            await SystemConnector.removeSkipTrkorr(context.runtime.packageTransports.tadir.binaries.trkorr);
+        }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Rollback TADIR Transport step', true);
