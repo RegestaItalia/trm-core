@@ -8,6 +8,11 @@ Legend
 + : added
 - : removed
 
+2025-04-28 v6.4.2
+-------------------
+
+* upgrade trm-server fixes
+
 2025-04-28 v6.4.1
 -------------------
 

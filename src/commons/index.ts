@@ -14,3 +14,4 @@ export * from "./getNpmGlobalPath"
 export * from "./getNodePackage";
 export * from "./getCoreTrmDependencies";
 export * from "./checkCoreTrmDependencies";
+export * from "./TrmServerUpgradeService";

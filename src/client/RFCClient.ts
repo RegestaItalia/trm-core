@@ -5,8 +5,7 @@ import { getNpmGlobalPath, normalize } from "../commons";
 import { Logger } from "../logger";
 import { existsSync } from "fs";
 import path from "path";
-import { SapMessage } from ".";
-import { Manifest } from "../manifest";
+import { RFCClientError, SapMessage } from ".";
 
 const nodeRfcLib = 'node-rfc';
 
@@ -90,26 +89,28 @@ export class RFCClient implements IClient {
             } else {
                 var message: string;
                 var messageError;
-                try {
-                    message = await this._getMessage(true, {
-                        no: `${e.abapMsgNumber}`,
-                        class: e.abapMsgClass,
-                        v1: e.abapMsgV1,
-                        v2: e.abapMsgV2,
-                        v3: e.abapMsgV3,
-                        v4: e.abapMsgV4
-                    });
-                } catch (k) {
-                    messageError = k;
-                    message = `Couldn't read error message ${e.abapMsgClass} ${e.abapMsgNumber} ${e.abapMsgV1} ${e.abapMsgV2} ${e.abapMsgV3} ${e.abapMsgV4}`;
+                const sapMessage: SapMessage = {
+                    no: `${e.abapMsgNumber}`,
+                    class: e.abapMsgClass,
+                    v1: e.abapMsgV1,
+                    v2: e.abapMsgV2,
+                    v3: e.abapMsgV3,
+                    v4: e.abapMsgV4
+                };
+                if(sapMessage.no && sapMessage.class){
+                    try {
+                        message = await this._getMessage(true, sapMessage);
+                    } catch (k) {
+                        messageError = k;
+                        message = `Couldn't read error message ${e.abapMsgClass} ${e.abapMsgNumber} ${e.abapMsgV1} ${e.abapMsgV2} ${e.abapMsgV3} ${e.abapMsgV4}`;
+                    }
+                }else{
+                    message = e.message;
                 }
-                var rfcClientError: any = new Error(message.trim());
-                rfcClientError.name = 'TrmRFCClient';
-                rfcClientError.rfcError = e;
+                var rfcClientError = new RFCClientError(e.key, sapMessage, e, message);
                 if (messageError) {
                     rfcClientError.messageError = messageError;
                 }
-                rfcClientError.exceptionType = e.key;
                 Logger.error(rfcClientError.toString(), true);
                 throw rfcClientError;
             }
