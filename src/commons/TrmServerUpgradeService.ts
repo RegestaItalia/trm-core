@@ -1,6 +1,6 @@
 import { gte, lt } from "semver";
 import { ClientError } from "../client";
-import { Logger } from "../logger";
+import { Logger } from "trm-commons";
 
 export class TrmServerUpgrade {
     private static instance: TrmServerUpgrade;

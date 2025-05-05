@@ -5,7 +5,7 @@ import { getNpmGlobalPath, normalize } from "../commons";
 import { Logger } from "trm-commons";
 import { existsSync } from "fs";
 import path from "path";
-import { SapMessage } from ".";
+import { RFCClientError, SapMessage } from ".";
 
 const nodeRfcLib = 'node-rfc';
 
