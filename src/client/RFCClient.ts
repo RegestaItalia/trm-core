@@ -30,7 +30,7 @@ export class RFCClient implements IClient {
             const libPath = path.join(globalPath, nodeRfcLib);
             Logger.log(`Node RFC lib path: ${libPath}`, true);
             if (!existsSync(libPath)) {
-                throw new Error(`${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
+                throw new RFCClientError("ZRFC_LIB_NOT_FOUND", null, null, `${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
             }
             this._rfcClient = new (await import(libPath)).Client(this._rfcClientArgs);
         }
@@ -38,9 +38,13 @@ export class RFCClient implements IClient {
     }
 
     public async open() {
-        Logger.loading(`Opening RFC connection`, true);
-        await (await this.getRfcClient()).open();
-        Logger.success(`RFC open`, true);
+        try{
+            Logger.loading(`Opening RFC connection`, true);
+            await (await this.getRfcClient()).open();
+            Logger.success(`RFC open`, true);
+        }catch(e){
+            throw new RFCClientError("ZNO_CONN", null, e, e.message);
+        }
     }
 
     public async checkConnection(): Promise<boolean> {
@@ -142,7 +146,7 @@ export class RFCClient implements IClient {
             msg = msg.replace(new RegExp(`&`, 'gmi'), '');
             return msg.trim();
         } else {
-            throw new Error(`Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
+            throw new RFCClientError("ZMSG_NOT_FOUND", null, null, `Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
         }
     }
 

@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "6.5.1",
+  "version": "6.6.0",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -34,7 +34,7 @@
   },
   "license": "MIT",
   "trmDependencies": {
-    "trm-server": "^2.2.0"
+    "trm-server": "^2.2.2"
   },
   "dependencies": {
     "@esm2cjs/normalize-url": "^8.0.0",
@@ -51,6 +51,7 @@
     "get-root-path": "^3.0.1",
     "get-stack-trace": "^3.1.1",
     "lodash": "^4.17.21",
+    "node-html-parser": "^7.0.1",
     "node-r3trans": "^1.5.0",
     "object-keys-normalizer": "^1.0.1",
     "opener": "^1.5.2",

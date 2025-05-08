@@ -8,6 +8,13 @@ Legend
 + : added
 - : removed
 
+2025-05-08 v6.6.0
+-------------------
+* no integrity with trm-server/trm-rest dependency allowed
+! REST Client and RFC Client error generic -> specific
+! REST Client error xml body parsing with title as message
+! trm-server ^2.2.2
+
 2025-05-08 v6.5.1
 -------------------
 ! rest error handling
