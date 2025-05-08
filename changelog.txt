@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-04-30 v6.4.3
+-------------------
+! rest error handling
+
 2025-04-30 v6.4.2
 -------------------
 ! trm-commons ^1.0.0
