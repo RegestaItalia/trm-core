@@ -1,6 +1,7 @@
 import axios, { AxiosResponse, CreateAxiosDefaults } from "axios";
 import { inspect } from "util";
 import { CliLogFileLogger, Logger } from "trm-commons";
+import { parse as htmlParser } from 'node-html-parser';
 import { v4 as uuidv4 } from 'uuid';
 
 export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';
@@ -63,7 +64,15 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
                 if (error.response.data.message && typeof (error.response.data.message) === 'string') {
                     sError = error.response.data.message;
                 } else if(typeof(error.response.data) === 'string'){
-                    sError = error.response.data
+                    if(error.response.data[0] === '<'){
+                        try{
+                            sError = htmlParser(error.response.data).querySelector('title').innerText;
+                        }catch(e){
+                            sError = error.response.data;
+                        }
+                    }else{
+                        sError = error.response.data;
+                    }
                 } else{
                     sError = error.response.statusText;
                 }

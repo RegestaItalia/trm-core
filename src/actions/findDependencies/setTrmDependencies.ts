@@ -103,6 +103,7 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         var arrayIndex1: number;
         var arrayIndex2: number;
         var append: boolean;
+        var ignoreNoIntegrity: boolean;
         if (trmServerPackage.package && trmServerPackage.package.getDevclass() === tadir.devclass) {
             Logger.log(`Dependency with TRM SERVER package`, true);
             devclass = trmServerPackage.package.getDevclass();
@@ -114,6 +115,7 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
                 trmServerPackage.integrity = integrity;
             }
             append = true;
+            ignoreNoIntegrity = true;
         } else if (trmRestPackage.package && trmRestPackage.package.getDevclass() === tadir.devclass) {
             Logger.log(`Dependency with TRM REST package`, true);
             devclass = trmRestPackage.package.getDevclass();
@@ -125,7 +127,9 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
                 trmRestPackage.integrity = integrity;
             }
             append = true;
+            ignoreNoIntegrity = true;
         } else {
+            ignoreNoIntegrity = false;
             Logger.log(`Searching transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
             const allTransports = await Transport.getTransportsFromObject(tadir, transportsObjectCache);
             Logger.log(`Found ${allTransports.length} transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
@@ -213,6 +217,7 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
                     devclass,
                     package: trmPackage,
                     integrity,
+                    ignoreNoIntegrity,
                     sapEntries: []
                 });
                 arrayIndex1--;

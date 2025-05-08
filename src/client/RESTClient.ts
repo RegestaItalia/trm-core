@@ -2,7 +2,7 @@ import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
 import { getAxiosInstance, normalize } from "../commons";
-import { AxiosInstance } from "axios";
+import { AxiosInstance, AxiosResponse } from "axios";
 import * as FormData from "form-data";
 import { Logger } from "trm-commons";
 import { Login, RESTClientError, SapMessage } from ".";
@@ -28,11 +28,16 @@ export class RESTClient implements IClient {
 
     public async open() {
         if (!this._connected) {
-            const response = await this._axiosInstance.get('/', {
-                timeout: 5000
-            });
+            var response: AxiosResponse<any, any>;
+            try {
+                response = await this._axiosInstance.get('/', {
+                    timeout: 5000
+                });
+            } catch (e) {
+                throw new RESTClientError("ZNO_CONN", null, e, e.message);
+            }
             if (response.status !== 200) {
-                throw new Error(`Couldn't reach ${this.endpoint}!`);
+                throw new RESTClientError("ZNO_CONN", null, null, `Couldn't reach ${this.endpoint}!`);
             } else {
                 this._connected = true;
                 this._axiosInstance.interceptors.response.use((response) => {
@@ -95,20 +100,20 @@ export class RESTClient implements IClient {
         if (aT100.length === 1 && aT100[0].text) {
             var msg = aT100[0].text;
             var counter = 1;
-            do{
-                if(msg.includes(`&${counter}`)){
+            do {
+                if (msg.includes(`&${counter}`)) {
                     msg = msg.replace(new RegExp(`&${counter}`, 'gmi'), data[`v${counter}`] || '');
                     msg = msg.replace(new RegExp(`&${counter}&`, 'gmi'), data[`v${counter}`] || '');
-                }else{
+                } else {
                     msg = msg.replace("&", data[`v${counter}`] || '');
                 }
                 counter++;
-            }while(counter <= 4);
+            } while (counter <= 4);
             msg = msg.replace(new RegExp(`&\\d*`, 'gmi'), '');
             msg = msg.replace(new RegExp(`&`, 'gmi'), '');
             return msg.trim();
         } else {
-            throw new Error(`Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
+            throw new RESTClientError("ZMSG_NOT_FOUND", null, null, `Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
         }
     }
 
@@ -522,7 +527,7 @@ export class RESTClient implements IClient {
                 objects: JSON.parse(parsedData.find(o => o.name === 'objects').data.toString())
             }
         } catch (e) {
-            throw new Error(`Can't parse api data.`);
+            throw new RESTClientError("ZPARSE_API_DATA", null, null, `Can't parse api data.`);
         }
     }
 
