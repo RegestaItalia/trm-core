@@ -8,14 +8,15 @@ Legend
 + : added
 - : removed
 
-2025-04-30 v6.4.3
+2025-05-08 v6.5.1
 -------------------
 ! rest error handling
 
-2025-04-30 v6.4.2
+2025-05-05 v6.5.0
 -------------------
 ! trm-commons ^1.0.0
 * upgrade trm-server fixes
+* core package.json location find
 
 2025-04-28 v6.4.1
 -------------------
