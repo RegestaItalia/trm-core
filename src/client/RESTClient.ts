@@ -5,7 +5,7 @@ import { getAxiosInstance, normalize } from "../commons";
 import { AxiosInstance } from "axios";
 import * as FormData from "form-data";
 import { Logger } from "trm-commons";
-import { ClientError, Login, RESTClientError, SapMessage } from ".";
+import { Login, RESTClientError, SapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
 
 const AXIOS_CTX = "RestServer";
@@ -63,7 +63,7 @@ export class RESTClient implements IClient {
                         message = await this.getMessage(sapMessage);
                     } catch (k) {
                         messageError = k;
-                        message = `Couldn't read error message ${axiosError.response.data.message.abapMsgClass} ${axiosError.response.data.message.abapMsgNumber} ${axiosError.response.data.message.abapMsgV1} ${axiosError.response.data.message.abapMsgV2} ${axiosError.response.data.message.abapMsgV3} ${axiosError.response.data.message.abapMsgV4}`;
+                        message = `Couldn't read error message ${axiosError.response.data.message.msgid} ${axiosError.response.data.message.msgno} ${axiosError.response.data.message.msgv1} ${axiosError.response.data.message.msgv2} ${axiosError.response.data.message.msgv3} ${axiosError.response.data.message.msgv4}`;
                     }
                     var rfcClientError = new RESTClientError(error.message, sapMessage, axiosError, message);
                     if (messageError) {
@@ -94,10 +94,18 @@ export class RESTClient implements IClient {
         );
         if (aT100.length === 1 && aT100[0].text) {
             var msg = aT100[0].text;
-            msg = msg.replace("&1", data.v1 || '');
-            msg = msg.replace("&2", data.v2 || '');
-            msg = msg.replace("&3", data.v3 || '');
-            msg = msg.replace("&4", data.v4 || '');
+            var counter = 1;
+            do{
+                if(msg.includes(`&${counter}`)){
+                    msg = msg.replace(new RegExp(`&${counter}`, 'gmi'), data[`v${counter}`] || '');
+                    msg = msg.replace(new RegExp(`&${counter}&`, 'gmi'), data[`v${counter}`] || '');
+                }else{
+                    msg = msg.replace("&", data[`v${counter}`] || '');
+                }
+                counter++;
+            }while(counter <= 4);
+            msg = msg.replace(new RegExp(`&\\d*`, 'gmi'), '');
+            msg = msg.replace(new RegExp(`&`, 'gmi'), '');
             return msg.trim();
         } else {
             throw new Error(`Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
