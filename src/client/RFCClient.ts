@@ -481,9 +481,10 @@ export class RFCClient implements IClient {
         return result['evDotAbapgit'];
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
+    public async getAbapgitSource(devclass: components.DEVCLASS, skipIgnore: boolean): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
         const result = await this._call("ZTRM_GET_ABAPGIT_SOURCE", {
-            iv_devclass: devclass
+            iv_devclass: devclass,
+            iv_ignore_dot_abapgit_objs: skipIgnore ? 'X' : ''
         });
         return {
             zip: result['evZip'],

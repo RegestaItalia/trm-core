@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
+import { DotAbapGit } from "../../abapgit";
 
 /**
  * Get source code (if abapgit developer is installed)
@@ -20,17 +21,20 @@ export const getSourceCode: Step<PublishWorkflowContext> = {
             Logger.loading(`Reading ${context.rawInput.packageData.devclass} source code...`);
 
             //1- get abapgit source code and object list
-            const sourceCode = await SystemConnector.getAbapgitSource(context.rawInput.packageData.devclass);
+            const sourceCode = await SystemConnector.getAbapgitSource(context.rawInput.packageData.devclass, true);
             context.runtime.abapGitData.sourceCode.zip = sourceCode.zip;
             context.runtime.abapGitData.sourceCode.objects = sourceCode.objects;
+            
 
             //2- get ignored objects
-            context.runtime.packageData.tadir.forEach(o => {
+            //context.runtime.abapGitData.dotAbapGit = await DotAbapGit.fromDevclass(context.rawInput.packageData.devclass);
+            //const ignoredFiles = context.runtime.abapGitData.dotAbapGit.getIgnoredFiles();
+            /*context.runtime.packageData.tadir.forEach(o => {
                 const object = context.runtime.abapGitData.sourceCode.objects.find(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
                 if(!object){
                     context.runtime.abapGitData.sourceCode.ignoredObjects.push(o);
                 }
-            });
+            });*/
         }catch(e){
             Logger.error(e.toString(), true);
             Logger.info(`AbapGit Developer Version was not found, source code won't be exported.`);
