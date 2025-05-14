@@ -34,7 +34,7 @@
   },
   "license": "MIT",
   "trmDependencies": {
-    "trm-server": "^2.2.2"
+    "trm-server": "^3.0.0"
   },
   "dependencies": {
     "@esm2cjs/normalize-url": "^8.0.0",
