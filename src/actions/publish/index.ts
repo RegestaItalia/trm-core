@@ -171,7 +171,6 @@ type WorkflowRuntime = {
         dotAbapGit?: DotAbapGit,
         sourceCode?: {
             zip: Buffer,
-            objects: TADIR[],
             ignoredObjects: TADIR[]
         }
     }

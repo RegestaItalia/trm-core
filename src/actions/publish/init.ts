@@ -173,7 +173,6 @@ export const init: Step<PublishWorkflowContext> = {
                 dotAbapGit: undefined,
                 sourceCode: {
                     ignoredObjects: [],
-                    objects: [],
                     zip: undefined
                 }
             }

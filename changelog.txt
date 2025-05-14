@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-05-14 v6.7.0
+-------------------
+* abapgit ignored objects
+
 2025-05-08 v6.6.0
 -------------------
 * no integrity with trm-server/trm-rest dependency allowed
