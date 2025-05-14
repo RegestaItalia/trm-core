@@ -22,17 +22,12 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
 
         //1- remove gitignore objects
         var aTadir = context.runtime.packageData.tadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
-        var ignoredObjects = 0;
         context.runtime.abapGitData.sourceCode.ignoredObjects.forEach(o => {
             const objectIndex = aTadir.findIndex(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
             if(objectIndex >= 0){
-                ignoredObjects++;
                 aTadir.splice(objectIndex, 1);
             }
         });
-        if(ignoredObjects > 0){
-            Logger.info(`${ignoredObjects} object/s are ignored (as specified in .abapgit.xml)`);
-        }
 
         //2- check tadir has content
         if(aTadir.length === 0){

@@ -509,15 +509,14 @@ export class RESTClient implements IClient {
         return result;
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS, skipIgnore: boolean): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}> {
         const { headers, data } = await this._axiosInstance.get('/get_abapgit_source', {
             responseType: 'arraybuffer',
             headers: {
                 'Content-Type': 'multipart/mixed'
             },
             data: {
-                devclass,
-                ignoreDotAbapgitObjs: skipIgnore
+                devclass
             }
         });
         try {

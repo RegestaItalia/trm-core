@@ -6,6 +6,7 @@ import { Logger } from "trm-commons";
 import { existsSync } from "fs";
 import path from "path";
 import { RFCClientError, SapMessage } from ".";
+import * as xml from "xml-js";
 
 const nodeRfcLib = 'node-rfc';
 
@@ -481,14 +482,23 @@ export class RFCClient implements IClient {
         return result['evDotAbapgit'];
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS, skipIgnore: boolean): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}> {
         const result = await this._call("ZTRM_GET_ABAPGIT_SOURCE", {
-            iv_devclass: devclass,
-            iv_ignore_dot_abapgit_objs: skipIgnore ? 'X' : ''
+            iv_devclass: devclass
+        });
+        const sXml = result['evObjects'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
+        const oAbapXml = xml.xml2js(sXml, { compact: true });
+        const objects = oAbapXml['asx:abap']['asx:values']['OBJECTS'].item.map(o => {
+            return {
+                pgmid: o['PGMID']['_text'],
+                object: o['OBJECT']['_text'],
+                objName: o['OBJ_NAME']['_text'],
+                fullPath: o['FULL_PATH']['_text']
+            };
         });
         return {
             zip: result['evZip'],
-            objects: result['etObjects']
+            objects
         }
     }
 

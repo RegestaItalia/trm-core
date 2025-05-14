@@ -238,8 +238,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getDotAbapgit(devclass);
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS, skipIgnore: boolean): Promise<{ zip: Buffer, objects: struct.TADIR[] }> {
-        return this._client.getAbapgitSource(devclass, skipIgnore);
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}> {
+        return this._client.getAbapgitSource(devclass);
     }
 
     public async executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {

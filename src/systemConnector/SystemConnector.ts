@@ -375,9 +375,9 @@ export namespace SystemConnector {
         return systemConnector.getDotAbapgit(devclass);
     }
 
-    export async function getAbapgitSource(devclass: components.DEVCLASS, skipIgnore: boolean): Promise<{zip: Buffer, objects: struct.TADIR[]}> {
+    export async function getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}> {
         await checkSystemConnector();
-        return systemConnector.getAbapgitSource(devclass, skipIgnore);
+        return systemConnector.getAbapgitSource(devclass);
     }
 
     export async function executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
