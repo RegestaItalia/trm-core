@@ -2,7 +2,7 @@ import { SystemConnector } from "../systemConnector";
 import { TrmManifestPostActivity } from "./TrmManifestPostActivity";
 import * as xml from "xml-js";
 import { Logger } from "trm-commons";
-import { SEOCLASSTX } from "../client";
+import { SEOCLASSTX, SYMSG } from "../client";
 
 export class PostActivity {
 
@@ -17,27 +17,28 @@ export class PostActivity {
     }
 
     public async execute(silent?: boolean) {
-        Logger.loading(`Executing post activity: ${this.data.name}`, silent);
+        const data = Buffer.from(this._xml, 'utf8');
+        Logger.loading(`Post activity: ${this.data.name}`, silent);
         if(!PostActivity.exists(this.data.name)){
             throw new Error(`Class "${this.data.name}" doesn't exist.`);
         }
         const description = await this.getDescription();
-        Logger.loading(`Executing post activity: ${description}`, silent);
-        const messages = await SystemConnector.executePostActivity(Buffer.from(this._xml, 'utf8'));
-        if (messages && messages.length > 0) {
-            for (const message of messages) {
-                const parsedMessage = await SystemConnector.getMessage({
-                    class: message.msgid,
-                    no: message.msgno,
-                    v1: message.msgv1,
-                    v2: message.msgv2,
-                    v3: message.msgv3,
-                    v4: message.msgv4,
-                });
-                Logger.msgty(message.msgty, parsedMessage, silent);
+        if(description){
+            Logger.loading(`Post activity: ${description}`, silent);
+        }
+        const pre = await SystemConnector.executePostActivity(data, true);
+        if(pre.messages){
+            await this.printMessages(pre.messages, silent);
+        }
+        if(pre.execute){
+            const paExecute = await SystemConnector.executePostActivity(data, false);
+            if (paExecute.messages && paExecute.messages.length > 0) {
+                await this.printMessages(paExecute.messages, silent);
+            } else {
+                Logger.success(`Executed post activity: ${description}`, silent);
             }
-        } else {
-            Logger.success(`Executed post activity: ${description}`, silent);
+        }else{
+            Logger.info(`Pre check for post activity ${description} skipped execution`, true);
         }
     }
 
@@ -53,6 +54,20 @@ export class PostActivity {
             } else {
                 return this._descriptions[0].descript;
             }
+        }
+    }
+
+    private async printMessages(messages: SYMSG[], silent?: boolean): Promise<void> {
+        for (const message of messages) {
+            const parsedMessage = await SystemConnector.getMessage({
+                class: message.msgid,
+                no: message.msgno,
+                v1: message.msgv1,
+                v2: message.msgv2,
+                v3: message.msgv3,
+                v4: message.msgv4,
+            });
+            Logger.msgty(message.msgty, parsedMessage, silent);
         }
     }
 

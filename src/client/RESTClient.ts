@@ -209,7 +209,7 @@ export class RESTClient implements IClient {
             filename = 'UNKNOWN_FILENAME';
         }
         formData.append('file', binary, filename);
-        formData.append('file_path', filePath,);
+        formData.append('file_path', filePath);
         await this._axiosInstance.post('/write_binary_file', formData, {
             headers: formData.getHeaders()
         });
@@ -531,11 +531,17 @@ export class RESTClient implements IClient {
         }
     }
 
-    public async executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
-        const result = (await this._axiosInstance.post('/execute_post_activity', data, {
+    public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
+        const formData = new FormData.default();
+        formData.append('data', data, 'data');
+        formData.append('pre', pre ? 'X' : '');
+        const result = (await this._axiosInstance.post('/execute_post_activity', formData, {
             timeout: 60000
         })).data;
-        return result.messages;
+        return {
+            messages: result.messages,
+            execute: result.execute === 'X'
+        };
     }
 
 }

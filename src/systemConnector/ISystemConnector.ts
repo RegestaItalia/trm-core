@@ -52,5 +52,5 @@ export interface ISystemConnector extends ISystemConnectorBase {
     refreshTransportTmsTxt: (trkorr: components.TRKORR) => Promise<void>,
     getDotAbapgit: (devclass: components.DEVCLASS) => Promise<Buffer>,
     getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}>,
-    executePostActivity: (data: Buffer) => Promise<struct.SYMSG[]>
+    executePostActivity: (data: Buffer, pre?: boolean) => Promise<{ messages: struct.SYMSG[], execute?: boolean }>
 }

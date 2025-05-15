@@ -12,6 +12,7 @@ Legend
 -------------------
 ! trm-server ^3.0.0
 * abapgit ignored objects
++ post activity pre check
 
 2025-05-08 v6.6.0
 -------------------
