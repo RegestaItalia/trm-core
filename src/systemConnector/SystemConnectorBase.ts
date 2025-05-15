@@ -13,6 +13,7 @@ import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryTy
 import { R3trans } from "node-r3trans";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
+export const TRM_SERVER_INTF: string = 'ZIF_TRM';
 export const TRM_REST_PACKAGE_NAME: string = 'trm-rest';
 export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';
 export const SKIP_TRKORR_TABL = 'ZTRM_SKIP_TRKORR';
@@ -202,6 +203,16 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         return this._installedPackages;
       }
     }
+    //if system has trm-server we can fetch with backend api
+    const serverExists: any[] = await this.readTable('TADIR',
+      [{ fieldName: 'OBJ_NAME' }],
+      `PGMID EQ 'R3TR' AND OBJECT EQ 'INTF' AND OBJ_NAME EQ '${TRM_SERVER_INTF}'`);
+    if (serverExists.length === 1) {
+      Logger.log(`INTF ${TRM_SERVER_INTF} exists`, true);
+      //TODO
+      return;
+    }
+
     var trmPackages: TrmPackage[] = [];
     var packageTransports: {
       package: TrmPackage,
