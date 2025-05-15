@@ -380,9 +380,9 @@ export namespace SystemConnector {
         return systemConnector.getAbapgitSource(devclass);
     }
 
-    export async function executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
+    export async function executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         await checkSystemConnector();
-        return systemConnector.executePostActivity(data);
+        return systemConnector.executePostActivity(data, pre);
     }
 
     export async function readClassDescriptions(clsname: components.SEOCLSNAME): Promise<struct.SEOCLASSTX[]> {

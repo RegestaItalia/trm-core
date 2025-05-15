@@ -502,11 +502,15 @@ export class RFCClient implements IClient {
         }
     }
 
-    public async executePostActivity(data: Buffer): Promise<struct.SYMSG[]> {
+    public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }>{
         const result = await this._call("ZTRM_EXECUTE_POST_ACTIVITY", {
-            iv_data: data
+            iv_data: data,
+            iv_pre: pre ? 'X' : ''
         });
-        return result['etMessages'];
+        return {
+            messages: result['etMessages'],
+            execute: result['evExecute'] === 'X'
+        };
     }
 
 }
