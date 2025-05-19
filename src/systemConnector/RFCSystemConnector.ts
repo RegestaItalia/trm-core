@@ -74,6 +74,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     protected async getR3transInfo(): Promise<string> {
         return this._client.getR3transInfo();
     }
+    
+    protected getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
+        return this._client.getInstalledPackagesBackend();
+    }
 
     public getConnectionData(): RFCConnection {
         return this._connection;
@@ -99,7 +103,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     }
 
     public async ping(): Promise<string> {
-        return await this._client.trmServerPing();
+        return this._client.trmServerPing();
     }
 
     public async getFileSystem(): Promise<struct.FILESYS> {
@@ -238,7 +242,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getDotAbapgit(devclass);
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}> {
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}> {
         return this._client.getAbapgitSource(devclass);
     }
 

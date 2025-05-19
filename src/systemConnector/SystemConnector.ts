@@ -375,7 +375,7 @@ export namespace SystemConnector {
         return systemConnector.getDotAbapgit(devclass);
     }
 
-    export async function getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}> {
+    export async function getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}> {
         await checkSystemConnector();
         return systemConnector.getAbapgitSource(devclass);
     }
