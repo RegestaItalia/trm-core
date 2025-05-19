@@ -218,11 +218,19 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         const installedPackagesBackend = await this.getInstalledPackagesBackend();
         for(const o of installedPackagesBackend){
           const transport = o.transport.trkorr ? new Transport(o.transport.trkorr, null, o.transport.migration) : null;
-          trmPackages.push((new TrmPackage(
-            o.name,
-            RegistryProvider.getRegistry(o.registry),
-            Manifest.fromAbapXml(o.manifest).setLinkedTransport(transport)
-          )).setDevclass(transport ? (await transport.getDevclass()) : null));
+          const manifest = Manifest.fromAbapXml(o.manifest);
+          if(transport){
+            manifest.setLinkedTransport(transport);
+          }
+          const trmPackage = new TrmPackage(o.name, RegistryProvider.getRegistry(o.registry), manifest);
+          if(transport){
+            trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
+          }else{
+            if(o.tdevc.length === 1){
+              trmPackage.setDevclass(o.tdevc[0].devclass);
+            }
+          }
+          trmPackages.push(trmPackage);
         }
         fromBackend = true;
       } catch (e) {

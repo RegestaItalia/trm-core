@@ -13,7 +13,7 @@ import * as fs from "fs";
 import path from "path";
 import * as cliProgress from "cli-progress";
 import { CliLogFileLogger, CliLogger, Logger } from "trm-commons";
-import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM } from "../client";
+import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC } from "../client";
 import { SystemConnector } from "../systemConnector";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
@@ -25,6 +25,7 @@ export class Transport {
     private _docs: Documentation[];
     private _trmRelevant: boolean;
     private _linkedTrmPackage: TrmPackage;
+    private _rootDevclass: DEVCLASS;
     public trmIdentifier?: TrmTransportIdentifier;
 
     constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET, private _migration?: boolean) {
@@ -109,50 +110,56 @@ export class Transport {
         return tasks;
     }
 
-    public async getDevclass(): Promise<DEVCLASS> {
-        const aE071 = await this.getE071();
-        var aDevclass = aE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC').map(o => o.objName);
+    public async getDevclass(aTdevc?: TDEVC[]): Promise<DEVCLASS> {
+        if (!this._rootDevclass) {
+            var aDevclass = [];
+            if (!aTdevc) {
+                const aE071 = await this.getE071();
+                aDevclass = aE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC').map(o => o.objName);
 
-        //check support for bulk operations
-        if (!SystemConnector.getSupportedBulk().getTransportObjects) {
-            for (const oE071 of aE071) {
-                if (oE071.pgmid === 'R3TR') {
-                    const tadir = await SystemConnector.getObject(oE071.pgmid, oE071.object, oE071.objName);
-                    if (!aDevclass.includes(tadir.devclass)) {
-                        aDevclass.push(tadir.devclass);
+                //check support for bulk operations
+                if (!SystemConnector.getSupportedBulk().getTransportObjects) {
+                    for (const oE071 of aE071) {
+                        if (oE071.pgmid === 'R3TR') {
+                            const tadir = await SystemConnector.getObject(oE071.pgmid, oE071.object, oE071.objName);
+                            if (!aDevclass.includes(tadir.devclass)) {
+                                aDevclass.push(tadir.devclass);
+                            }
+                        }
+                    }
+                } else {
+                    const aTadirObjects = await SystemConnector.getTransportObjectsBulk(this.trkorr);
+                    aDevclass = aDevclass.concat(aTadirObjects.map(o => o.devclass));
+                    aDevclass = Array.from(new Set(aDevclass))
+                }
+
+                aTdevc = [];
+                //for each devclass in aDevclass, add all the parent devclasses (stop when parentcl is empty)
+                for (var devclass of aDevclass) {
+                    while (devclass) {
+                        var tdevc = aTdevc.find(o => o.devclass === devclass);
+                        if (!tdevc) {
+                            tdevc = await SystemConnector.getDevclass(devclass);
+                            aTdevc.push(tdevc);
+                        }
+                        devclass = tdevc.parentcl;
                     }
                 }
+            }else{
+                aDevclass = aTdevc.map(o => o.devclass);
             }
-        } else {
-            const aTadirObjects = await SystemConnector.getTransportObjectsBulk(this.trkorr);
-            aDevclass = aDevclass.concat(aTadirObjects.map(o => o.devclass));
-            aDevclass = Array.from(new Set(aDevclass))
-        }
 
-        var aTdevc = [];
-        //for each devclass in aDevclass, add all the parent devclasses (stop when parentcl is empty)
-        for (var devclass of aDevclass) {
-            while (devclass) {
-                var tdevc = aTdevc.find(o => o.devclass === devclass);
-                if (!tdevc) {
-                    tdevc = await SystemConnector.getDevclass(devclass);
-                    aTdevc.push(tdevc);
+            //now look for the first root package that is included in the original aDevclass
+            while (aTdevc.length > 0 && !this._rootDevclass) {
+                const hierarchy = getPackageHierarchy(aTdevc);
+                if (aDevclass.includes(hierarchy.devclass)) {
+                    this._rootDevclass = hierarchy.devclass;
+                } else {
+                    aTdevc = aTdevc.filter(o => o.devclass !== hierarchy.devclass);
                 }
-                devclass = tdevc.parentcl;
             }
         }
-
-        //now look for the first root package that is included in the original aDevclass
-        var rootDevclass = null;
-        while (aTdevc.length > 0 && !rootDevclass) {
-            const hierarchy = getPackageHierarchy(aTdevc);
-            if (aDevclass.includes(hierarchy.devclass)) {
-                rootDevclass = hierarchy.devclass;
-            } else {
-                aTdevc = aTdevc.filter(o => o.devclass !== hierarchy.devclass);
-            }
-        }
-        return rootDevclass;
+        return this._rootDevclass;
     }
 
     public async getDate(): Promise<Date> {
@@ -711,7 +718,7 @@ export class Transport {
         for (const trkorr of objectInTransport) {
             try {
                 var oTransport = (transportsCache || []).find(o => o.trkorr === trkorr);
-                if(!oTransport){
+                if (!oTransport) {
                     oTransport = new Transport(trkorr);
                 }
                 const e070 = await oTransport.getE070();
@@ -788,13 +795,13 @@ export class Transport {
 
     public async migrate(rollback?: boolean): Promise<Transport | void> {
         if (!rollback) {
-            try{
+            try {
                 const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
                 return new Transport(trmTrkorr, null, true);
-            }catch(e){
-                if(e.exceptionType === 'SNRO_INTERVAL_NOT_FOUND'){
+            } catch (e) {
+                if (e.exceptionType === 'SNRO_INTERVAL_NOT_FOUND') {
                     throw new Error(`trm-server has no migration interval defined: re-install or execute post activities to generate number range interval.`);
-                }else{
+                } else {
                     throw e;
                 }
             }
