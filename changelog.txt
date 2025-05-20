@@ -13,6 +13,7 @@ Legend
 ! trm-server ^3.0.0
 * abapgit ignored objects
 + post activity pre check
++ get installed packages from backend where possible
 
 2025-05-08 v6.6.0
 -------------------
