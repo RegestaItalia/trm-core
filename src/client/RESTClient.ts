@@ -18,6 +18,9 @@ export class RESTClient implements IClient {
         this.endpoint = this.endpoint.trim();
         this._axiosInstance = getAxiosInstance({
             baseURL: this.endpoint,
+            params: {
+                'sap-client': `${this._login.client}`
+            },
             auth: {
                 username: this._login.user,
                 password: this._login.passwd
@@ -542,6 +545,24 @@ export class RESTClient implements IClient {
             messages: result.messages,
             execute: result.execute === 'X'
         };
+    }
+
+    public async getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
+        const result = (await this._axiosInstance.get('/get_installed_packages')).data;
+        return result.packages.map(o => {
+            o.xmanifest = o.xmanifest ? Buffer.from(o.xmanifest, 'base64').toString('utf8') : undefined;
+            return {
+                name: o.name,
+                version: o.version,
+                registry: o.registry,
+                manifest: o.xmanifest,
+                tdevc: o.tdevc,
+                transport: {
+                    trkorr: o.transport ? o.transport.trkorr : undefined,
+                    migration: o.transport ? o.transport.migration === 'X' : undefined
+                }
+            }
+        });
     }
 
     public async regenProg(prog: components.PROGNAME): Promise<void> {
