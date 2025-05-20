@@ -74,7 +74,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     protected async getR3transInfo(): Promise<string> {
         return this._client.getR3transInfo();
     }
-    
+
     protected getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
         return this._client.getInstalledPackagesBackend();
     }
@@ -242,12 +242,16 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getDotAbapgit(devclass);
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}> {
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.ZTY_SER_OBJ[] }> {
         return this._client.getAbapgitSource(devclass);
     }
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         return this._client.executePostActivity(data, pre);
+    }
+
+    public async regenProg(prog: components.PROGNAME): Promise<void> {
+        return this._client.regenProg(prog);
     }
 
 }

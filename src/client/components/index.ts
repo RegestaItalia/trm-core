@@ -54,3 +54,4 @@ export * from "./SYMSGV";
 export * from "./SEOCLSNAME";
 export * from "./LANGU";
 export * from "./SEODESCR";
+export * from "./PROGNAME";

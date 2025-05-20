@@ -26,6 +26,7 @@ export class PostActivity {
         if(description){
             Logger.loading(`Post activity: ${description}`, silent);
         }
+        await SystemConnector.regenProg('SAPLZTRM');
         const pre = await SystemConnector.executePostActivity(data, true);
         if(pre.messages){
             await this.printMessages(pre.messages, silent);

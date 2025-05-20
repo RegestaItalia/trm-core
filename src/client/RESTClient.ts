@@ -509,7 +509,7 @@ export class RESTClient implements IClient {
         return result;
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}> {
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.ZTY_SER_OBJ[] }> {
         const { headers, data } = await this._axiosInstance.get('/get_abapgit_source', {
             responseType: 'arraybuffer',
             headers: {
@@ -542,6 +542,12 @@ export class RESTClient implements IClient {
             messages: result.messages,
             execute: result.execute === 'X'
         };
+    }
+
+    public async regenProg(prog: components.PROGNAME): Promise<void> {
+        await this._axiosInstance.post('/regen_prog', {
+            prog
+        });
     }
 
 }

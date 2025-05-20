@@ -547,4 +547,10 @@ export class RFCClient implements IClient {
         });
     }
 
+    public async regenProg(prog: components.PROGNAME): Promise<void> {
+        await this._call("ZTRM_REGEN_PROG", {
+            iv_progname: prog
+        });
+    }
+
 }
