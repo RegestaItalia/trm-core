@@ -518,6 +518,21 @@ export class RFCClient implements IClient {
         const sXml = result['evPackages'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
         const oAbapXml = xml.xml2js(sXml, { compact: true });
         return oAbapXml['asx:abap']['asx:values']['PACKAGES'].item.map(o => {
+            var flatTdevc = [];
+            if (o['TDEVC'] && o['TDEVC']['TDEVC']) {
+                if (!Array.isArray(o['TDEVC']['TDEVC'])) {
+                    o['TDEVC']['TDEVC'] = [o['TDEVC']['TDEVC']];
+                }
+                flatTdevc = o['TDEVC']['TDEVC'].map((item) => {
+                    const flattened: Record<string, string> = {};
+                    for (const [key, value] of Object.entries(item)) {
+                        if (typeof value === 'object' && value !== null && '_text' in value) {
+                            flattened[key] = (value as any)._text;
+                        }
+                    }
+                    return flattened;
+                });
+            }
             return {
                 name: o['NAME']['_text'],
                 version: o['VERSION']['_text'],
@@ -525,8 +540,9 @@ export class RFCClient implements IClient {
                 manifest: o['XMANIFEST']['_text'] ? Buffer.from(o['XMANIFEST']['_text'], 'base64').toString('utf8') : undefined,
                 transport: {
                     trkorr: o['TRANSPORT']['TRKORR']['_text'],
-                    migration: o['TRANSPORT']['MIGRATION']['_text'],
-                }
+                    migration: o['TRANSPORT']['MIGRATION']['_text'] === 'X',
+                },
+                tdevc: normalize(flatTdevc)
             };
         });
     }
