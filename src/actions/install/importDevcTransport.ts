@@ -56,7 +56,9 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
 
         //4- import transport into system
         Logger.loading(`Importing ${context.runtime.packageTransports.devc.binaries.trkorr}`, true);
+        Logger.setPrefix(`(SAP Package) `);
         await context.runtime.packageTransports.devc.instance.import(importTimeout);
+        Logger.removePrefix();
         Logger.success(`Transport ${context.runtime.packageTransports.devc.binaries.trkorr} imported`, true);
         
         Logger.loading(`Finalizing import...`);

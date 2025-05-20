@@ -591,9 +591,9 @@ export class Transport {
                 }
             }
             if (!inQueue) {
-                throw new Error(`Transport request not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
+                throw new Error(`${this.trkorr} not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
             } else {
-                Logger.success(`Transport ${this.trkorr} ${sLog}.`, skipLog);
+                Logger.success(`${this.trkorr} ${sLog}.`, skipLog);
             }
         } else {
             Logger.error(`No target specified, unable to check queue!!`, true);
