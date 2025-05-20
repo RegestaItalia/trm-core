@@ -198,8 +198,14 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
 
         //5- set post install activities
         if (!context.rawInput.contextData.noInquirer) {
+            const hasPostActivities = context.runtime.trmPackage.latestReleaseManifest &&
+                                      Array.isArray(context.runtime.trmPackage.latestReleaseManifest.postActivities) &&
+                                      context.runtime.trmPackage.latestReleaseManifest.postActivities.length > 0;
+            if(hasPostActivities){
+                context.runtime.trmPackage.manifest.postActivities = context.runtime.trmPackage.latestReleaseManifest.postActivities;
+            }
             const inq = await Inquirer.prompt([{
-                message: `Do you want to edit post activities?`,
+                message: hasPostActivities ? `Do you want to edit ${context.runtime.trmPackage.manifest.postActivities.length} post activities?` : `Do you want to add post activities?`,
                 type: 'confirm',
                 name: 'editPostActivities',
                 default: false
