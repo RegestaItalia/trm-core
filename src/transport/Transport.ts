@@ -142,6 +142,14 @@ export class Transport {
             }
         }
 
+        /*
+            #143
+            TODO: Looking for solution
+            This is not 100% right, we should pick the first package in hierarchy
+            with object in e071 but even then there could be cases of packages
+            without objects in root package.
+        */
+        
         //now look for the first root package that is included in the original aDevclass
         var rootDevclass = null;
         while (aTdevc.length > 0 && !rootDevclass) {
@@ -152,6 +160,7 @@ export class Transport {
                 aTdevc = aTdevc.filter(o => o.devclass !== hierarchy.devclass);
             }
         }
+        
         return rootDevclass;
     }
 
