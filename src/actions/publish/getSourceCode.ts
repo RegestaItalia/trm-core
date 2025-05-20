@@ -28,7 +28,6 @@ export const getSourceCode: Step<PublishWorkflowContext> = {
             //2- get ignored objects
             context.runtime.abapGitData.dotAbapGit = await DotAbapGit.fromDevclass(context.rawInput.packageData.devclass);
             const ignoredPatterns = context.runtime.abapGitData.dotAbapGit.getIgnoredFiles();
-            context.runtime.packageData.tadir = context.runtime.packageData.tadir.filter(o => o.object === 'SUSH');
             context.runtime.packageData.tadir.forEach(o => {
                 const abapgitObject = sourceCode.objects.find(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
                 if(abapgitObject){

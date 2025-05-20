@@ -81,6 +81,9 @@ export const init: Step<PublishWorkflowContext> = {
         if (context.rawInput.packageData.manifest.sapEntries === undefined) {
             context.rawInput.packageData.manifest.sapEntries = {};
         }
+        if(!context.rawInput.packageData.manifest.postActivities){
+            context.rawInput.packageData.manifest.postActivities = [];
+        }
         if(typeof(context.rawInput.publishData.customizingTransports) === 'string'){
             context.rawInput.publishData.customizingTransports = context.rawInput.publishData.customizingTransports.split(',').map(o => {
                 try{
