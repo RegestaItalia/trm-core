@@ -11,6 +11,7 @@ import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
+import { TrmServerUpgrade } from "../commons";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = 'ZIF_TRM';
@@ -211,49 +212,51 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     Logger.log(`Include sources: ${includeSoruces}`, true);
     const aSourceTrkorr = includeSoruces ? (await this.getSourceTrkorr(refresh)) : [];
 
-    //if system has trm-server we can fetch with backend api
-    const serverExists: any[] = await this.readTable('TADIR',
-      [{ fieldName: 'OBJ_NAME' }],
-      `PGMID EQ 'R3TR' AND OBJECT EQ 'INTF' AND OBJ_NAME EQ '${TRM_SERVER_INTF}'`);
-    if (serverExists.length === 1) {
-      Logger.log(`INTF ${TRM_SERVER_INTF} exists`, true);
-      try {
-        var installedPackagesBackend = await this.getInstalledPackagesBackend();
-        if(!includeSoruces){
-          installedPackagesBackend = installedPackagesBackend.filter(o => !aSourceTrkorr.includes(o.transport.trkorr));
-        }
-        if(!includeLocals){
-          installedPackagesBackend = installedPackagesBackend.filter(o => o.registry !== LOCAL_RESERVED_KEYWORD);
-        }
-        for(const o of installedPackagesBackend){
-          const transport = o.transport.trkorr ? new Transport(o.transport.trkorr, null, o.transport.migration) : null;
-          const manifest = Manifest.fromAbapXml(o.manifest);
-          if(transport){
-            manifest.setLinkedTransport(transport);
+    if (TrmServerUpgrade.getInstance().getInstalledPackagesBackend()) {
+      //if system has trm-server we can fetch with backend api
+      const serverExists: any[] = await this.readTable('TADIR',
+        [{ fieldName: 'OBJ_NAME' }],
+        `PGMID EQ 'R3TR' AND OBJECT EQ 'INTF' AND OBJ_NAME EQ '${TRM_SERVER_INTF}'`);
+      if (serverExists.length === 1) {
+        Logger.log(`INTF ${TRM_SERVER_INTF} exists`, true);
+        try {
+          var installedPackagesBackend = await this.getInstalledPackagesBackend();
+          if (!includeSoruces) {
+            installedPackagesBackend = installedPackagesBackend.filter(o => !aSourceTrkorr.includes(o.transport.trkorr));
           }
-          const trmPackage = new TrmPackage(o.name, RegistryProvider.getRegistry(o.registry), manifest);
-          if(transport){
-            trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
-          }else{
-            if(o.tdevc.length === 1){
-              trmPackage.setDevclass(o.tdevc[0].devclass);
+          if (!includeLocals) {
+            installedPackagesBackend = installedPackagesBackend.filter(o => o.registry !== LOCAL_RESERVED_KEYWORD);
+          }
+          for (const o of installedPackagesBackend) {
+            const transport = o.transport.trkorr ? new Transport(o.transport.trkorr, null, o.transport.migration) : null;
+            const manifest = Manifest.fromAbapXml(o.manifest);
+            if (transport) {
+              manifest.setLinkedTransport(transport);
             }
+            const trmPackage = new TrmPackage(o.name, RegistryProvider.getRegistry(o.registry), manifest);
+            if (transport) {
+              trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
+            } else {
+              if (o.tdevc.length === 1) {
+                trmPackage.setDevclass(o.tdevc[0].devclass);
+              }
+            }
+            trmPackages.push(trmPackage);
           }
-          trmPackages.push(trmPackage);
+          fromBackend = true;
+        } catch (e) {
+          trmPackages = [];
+          Logger.error(e.toString(), true);
         }
-        fromBackend = true;
-      } catch (e) {
-        trmPackages = [];
-        Logger.error(e.toString(), true);
+      }
+      if (fromBackend) {
+        Logger.log(`Packages were fetched from backend`, true);
+        return trmPackages;
+      } else {
+        Logger.log(`Packages weren't fetched from backend, continue`, true);
       }
     }
 
-    if (fromBackend) {
-      Logger.log(`Packages were fetched from backend`, true);
-      return trmPackages;
-    } else {
-      Logger.log(`Packages weren't fetched from backend, continue`, true);
-    }
     var packageTransports: {
       package: TrmPackage,
       transports: Transport[]
