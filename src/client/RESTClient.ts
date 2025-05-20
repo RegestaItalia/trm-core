@@ -567,7 +567,7 @@ export class RESTClient implements IClient {
 
     public async regenProg(prog: components.PROGNAME): Promise<void> {
         await this._axiosInstance.post('/regen_prog', {
-            prog
+            progname: prog
         });
     }
 
