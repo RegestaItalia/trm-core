@@ -95,7 +95,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     protected getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
-        throw new Error("Method not implemented.");
+        return this._client.getInstalledPackagesBackend();
     }
 
     public getConnectionData(): RESTConnection {

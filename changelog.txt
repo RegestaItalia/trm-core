@@ -15,6 +15,7 @@ Legend
 + post activity pre check
 + get installed packages from backend where possible
 + regen SAPLZTRM before post activity
+* rest sap-client
 
 2025-05-08 v6.6.0
 -------------------
