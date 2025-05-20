@@ -93,6 +93,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     protected async getR3transInfo(): Promise<string> {
         return this._client.getR3transInfo();
     }
+    
+    protected getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
+        throw new Error("Method not implemented.");
+    }
 
     public getConnectionData(): RESTConnection {
         return this._connection;
@@ -266,7 +270,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getDotAbapgit(devclass);
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}> {
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}> {
         return this._client.getAbapgitSource(devclass);
     }
 

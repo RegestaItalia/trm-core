@@ -39,11 +39,11 @@ export class RFCClient implements IClient {
     }
 
     public async open() {
-        try{
+        try {
             Logger.loading(`Opening RFC connection`, true);
             await (await this.getRfcClient()).open();
             Logger.success(`RFC open`, true);
-        }catch(e){
+        } catch (e) {
             throw new RFCClientError("ZNO_CONN", null, e, e.message);
         }
     }
@@ -102,14 +102,14 @@ export class RFCClient implements IClient {
                     v3: e.abapMsgV3,
                     v4: e.abapMsgV4
                 };
-                if(sapMessage.no && sapMessage.class){
+                if (sapMessage.no && sapMessage.class) {
                     try {
                         message = await this._getMessage(true, sapMessage);
                     } catch (k) {
                         messageError = k;
                         message = `Couldn't read error message ${e.abapMsgClass} ${e.abapMsgNumber} ${e.abapMsgV1} ${e.abapMsgV2} ${e.abapMsgV3} ${e.abapMsgV4}`;
                     }
-                }else{
+                } else {
                     message = e.message;
                 }
                 var rfcClientError = new RFCClientError(e.key, sapMessage, e, message);
@@ -134,15 +134,15 @@ export class RFCClient implements IClient {
         if (aT100.length === 1 && aT100[0].text) {
             var msg = aT100[0].text;
             var counter = 1;
-            do{
-                if(msg.includes(`&${counter}`)){
+            do {
+                if (msg.includes(`&${counter}`)) {
                     msg = msg.replace(new RegExp(`&${counter}`, 'gmi'), data[`v${counter}`] || '');
                     msg = msg.replace(new RegExp(`&${counter}&`, 'gmi'), data[`v${counter}`] || '');
-                }else{
+                } else {
                     msg = msg.replace("&", data[`v${counter}`] || '');
                 }
                 counter++;
-            }while(counter <= 4);
+            } while (counter <= 4);
             msg = msg.replace(new RegExp(`&\\d*`, 'gmi'), '');
             msg = msg.replace(new RegExp(`&`, 'gmi'), '');
             return msg.trim();
@@ -482,7 +482,7 @@ export class RFCClient implements IClient {
         return result['evDotAbapgit'];
     }
 
-    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{zip: Buffer, objects: {pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME, fullPath: string}[]}> {
+    public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.ZTY_SER_OBJ[] }> {
         const result = await this._call("ZTRM_GET_ABAPGIT_SOURCE", {
             iv_devclass: devclass
         });
@@ -502,7 +502,7 @@ export class RFCClient implements IClient {
         }
     }
 
-    public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }>{
+    public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         const result = await this._call("ZTRM_EXECUTE_POST_ACTIVITY", {
             iv_data: data,
             iv_pre: pre ? 'X' : ''
@@ -511,6 +511,40 @@ export class RFCClient implements IClient {
             messages: result['etMessages'],
             execute: result['evExecute'] === 'X'
         };
+    }
+
+    public async getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
+        const result = await this._call("ZTRM_GET_INSTALLED_PACKAGES");
+        const sXml = result['evPackages'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
+        const oAbapXml = xml.xml2js(sXml, { compact: true });
+        return oAbapXml['asx:abap']['asx:values']['PACKAGES'].item.map(o => {
+            var flatTdevc = [];
+            if (o['TDEVC'] && o['TDEVC']['TDEVC']) {
+                if (!Array.isArray(o['TDEVC']['TDEVC'])) {
+                    o['TDEVC']['TDEVC'] = [o['TDEVC']['TDEVC']];
+                }
+                flatTdevc = o['TDEVC']['TDEVC'].map((item) => {
+                    const flattened: Record<string, string> = {};
+                    for (const [key, value] of Object.entries(item)) {
+                        if (typeof value === 'object' && value !== null && '_text' in value) {
+                            flattened[key] = (value as any)._text;
+                        }
+                    }
+                    return flattened;
+                });
+            }
+            return {
+                name: o['NAME']['_text'],
+                version: o['VERSION']['_text'],
+                registry: o['REGISTRY']['_text'],
+                manifest: o['XMANIFEST']['_text'] ? Buffer.from(o['XMANIFEST']['_text'], 'base64').toString('utf8') : undefined,
+                transport: {
+                    trkorr: o['TRANSPORT']['TRKORR']['_text'],
+                    migration: o['TRANSPORT']['MIGRATION']['_text'] === 'X',
+                },
+                tdevc: normalize(flatTdevc)
+            };
+        });
     }
 
 }

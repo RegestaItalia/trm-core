@@ -9,10 +9,11 @@ import { InstallPackage } from "./InstallPackage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
-import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
+import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
+export const TRM_SERVER_INTF: string = 'ZIF_TRM';
 export const TRM_REST_PACKAGE_NAME: string = 'trm-rest';
 export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';
 export const SKIP_TRKORR_TABL = 'ZTRM_SKIP_TRKORR';
@@ -33,6 +34,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
   protected abstract getR3transInfo(): Promise<string>
+  protected abstract getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]>
 
   constructor() {
 
@@ -193,6 +195,9 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async getInstalledPackages(includeSoruces: boolean = true, refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
+    var trmPackages: TrmPackage[] = [];
+    var fromBackend = false;
+
     if (!refresh) {
       if (includeSoruces && this._installedPackagesI) {
         Logger.log(`Cached version of installed packages with sources`, true);
@@ -202,14 +207,58 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         return this._installedPackages;
       }
     }
-    var trmPackages: TrmPackage[] = [];
+
+    Logger.log(`Include sources: ${includeSoruces}`, true);
+    const aSourceTrkorr = includeSoruces ? (await this.getSourceTrkorr(refresh)) : [];
+
+    //if system has trm-server we can fetch with backend api
+    const serverExists: any[] = await this.readTable('TADIR',
+      [{ fieldName: 'OBJ_NAME' }],
+      `PGMID EQ 'R3TR' AND OBJECT EQ 'INTF' AND OBJ_NAME EQ '${TRM_SERVER_INTF}'`);
+    if (serverExists.length === 1) {
+      Logger.log(`INTF ${TRM_SERVER_INTF} exists`, true);
+      try {
+        var installedPackagesBackend = await this.getInstalledPackagesBackend();
+        if(!includeSoruces){
+          installedPackagesBackend = installedPackagesBackend.filter(o => !aSourceTrkorr.includes(o.transport.trkorr));
+        }
+        if(!includeLocals){
+          installedPackagesBackend = installedPackagesBackend.filter(o => o.registry !== LOCAL_RESERVED_KEYWORD);
+        }
+        for(const o of installedPackagesBackend){
+          const transport = o.transport.trkorr ? new Transport(o.transport.trkorr, null, o.transport.migration) : null;
+          const manifest = Manifest.fromAbapXml(o.manifest);
+          if(transport){
+            manifest.setLinkedTransport(transport);
+          }
+          const trmPackage = new TrmPackage(o.name, RegistryProvider.getRegistry(o.registry), manifest);
+          if(transport){
+            trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
+          }else{
+            if(o.tdevc.length === 1){
+              trmPackage.setDevclass(o.tdevc[0].devclass);
+            }
+          }
+          trmPackages.push(trmPackage);
+        }
+        fromBackend = true;
+      } catch (e) {
+        trmPackages = [];
+        Logger.error(e.toString(), true);
+      }
+    }
+
+    if (fromBackend) {
+      Logger.log(`Packages were fetched from backend`, true);
+      return trmPackages;
+    } else {
+      Logger.log(`Packages weren't fetched from backend, continue`, true);
+    }
     var packageTransports: {
       package: TrmPackage,
       transports: Transport[]
     }[] = [];
     Logger.log(`Ready to read installed packages`, true);
-    Logger.log(`Include sources: ${includeSoruces}`, true);
-    const aSourceTrkorr = includeSoruces ? (await this.getSourceTrkorr(refresh)) : [];
     Logger.log(`Source trkorr ${JSON.stringify(aSourceTrkorr)}`, true);
     var aSkipTrkorr = await this.getIgnoredTrkorr();
     Logger.log(`Ignored trkorr ${JSON.stringify(aSkipTrkorr)}`, true);

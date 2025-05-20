@@ -22,3 +22,5 @@ export * from "./TRNSPACET";
 export * from "./TRNSPACETT";
 export * from "./SYMSG";
 export * from "./SEOCLASSTX";
+export * from "./ZTY_SER_OBJ";
+export * from "./ZTY_TRM_PACKAGE";
