@@ -34,7 +34,7 @@ export const setTransportTarget: Step<PublishWorkflowContext> = {
                     },
                     choices: context.runtime.systemData.transportTargets.map(o => {
                         return {
-                            name: `${o.sysnam} (${o.systxt})`,
+                            name: o.systxt ? `${o.sysnam} (${o.systxt})` : o.sysnam,
                             value: o.sysnam
                         }
                     })

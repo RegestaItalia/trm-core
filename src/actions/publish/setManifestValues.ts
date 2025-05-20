@@ -2,10 +2,11 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
 import { RegistryType } from "../../registry";
-import { Manifest, PostActivity } from "../../manifest";
+import { Manifest, PostActivity, TrmManifestAuthor } from "../../manifest";
 import chalk from "chalk";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 import { validatePackageVisibility } from "../../validators";
+import _ from 'lodash';
 
 /**
  * Set manifest values
@@ -32,23 +33,62 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         if (context.rawInput.publishData.keepLatestReleaseManifestValues) {
             if (context.runtime.trmPackage.latestReleaseManifest) {
                 Logger.log(`Setting manifest values like latest version (${context.runtime.trmPackage.latestReleaseManifest.version})`, true);
+
                 context.runtime.trmPackage.manifest.description = context.runtime.trmPackage.manifest.description || context.runtime.trmPackage.latestReleaseManifest.description;
                 context.runtime.trmPackage.manifest.git = context.runtime.trmPackage.manifest.git || context.runtime.trmPackage.latestReleaseManifest.git;
                 context.runtime.trmPackage.manifest.license = context.runtime.trmPackage.manifest.license || context.runtime.trmPackage.latestReleaseManifest.license;
                 context.runtime.trmPackage.manifest.website = context.runtime.trmPackage.manifest.website || context.runtime.trmPackage.latestReleaseManifest.website;
-                if(context.runtime.trmPackage.manifest.authors){
-                    if(Array.isArray(context.runtime.trmPackage.manifest.authors) && context.runtime.trmPackage.manifest.authors.length === 0){
-                        context.runtime.trmPackage.manifest.authors = context.runtime.trmPackage.latestReleaseManifest.authors;
+
+                if (context.runtime.trmPackage.manifest.authors) {
+                    if (Array.isArray(context.runtime.trmPackage.latestReleaseManifest.authors)) {
+                        if (!Array.isArray(context.runtime.trmPackage.manifest.authors)) {
+                            context.runtime.trmPackage.manifest.authors = Manifest.stringAuthorsToArray(context.runtime.trmPackage.manifest.authors);
+                        }
+                        context.runtime.trmPackage.latestReleaseManifest.authors.forEach(o => {
+                            if (o.email && o.name) {
+                                if (!(context.runtime.trmPackage.manifest.authors as TrmManifestAuthor[]).find(k => k.email === o.email && k.name === o.name)) {
+                                    (context.runtime.trmPackage.manifest.authors as TrmManifestAuthor[]).push(o);
+                                }
+                            } else if (o.email) {
+                                if (!(context.runtime.trmPackage.manifest.authors as TrmManifestAuthor[]).find(k => k.email === o.email)) {
+                                    (context.runtime.trmPackage.manifest.authors as TrmManifestAuthor[]).push(o);
+                                }
+                            } else if (o.name) {
+                                if (!(context.runtime.trmPackage.manifest.authors as TrmManifestAuthor[]).find(k => k.name === o.name)) {
+                                    (context.runtime.trmPackage.manifest.authors as TrmManifestAuthor[]).push(o);
+                                }
+                            }
+                        });
                     }
-                }else{
+                } else {
                     context.runtime.trmPackage.manifest.authors = context.runtime.trmPackage.latestReleaseManifest.authors;
                 }
-                if(context.runtime.trmPackage.manifest.keywords){
-                    if(Array.isArray(context.runtime.trmPackage.manifest.keywords) && context.runtime.trmPackage.manifest.keywords.length === 0){
-                        context.runtime.trmPackage.manifest.keywords = context.runtime.trmPackage.latestReleaseManifest.keywords;
+
+                if (context.runtime.trmPackage.manifest.keywords) {
+                    if (Array.isArray(context.runtime.trmPackage.latestReleaseManifest.keywords)) {
+                        if (!Array.isArray(context.runtime.trmPackage.manifest.keywords)) {
+                            context.runtime.trmPackage.manifest.keywords = Manifest.stringKeywordsToArray(context.runtime.trmPackage.manifest.keywords);
+                        }
+                        context.runtime.trmPackage.latestReleaseManifest.keywords.forEach(o => {
+                            if (!(context.runtime.trmPackage.manifest.keywords as string[]).find(k => k === o)) {
+                                (context.runtime.trmPackage.manifest.keywords as string[]).push(o);
+                            }
+                        });
                     }
-                }else{
+                } else {
                     context.runtime.trmPackage.manifest.keywords = context.runtime.trmPackage.latestReleaseManifest.keywords;
+                }
+
+                if (context.runtime.trmPackage.manifest.postActivities) {
+                    if (Array.isArray(context.runtime.trmPackage.latestReleaseManifest.postActivities)) {
+                        context.runtime.trmPackage.latestReleaseManifest.postActivities.forEach(o => {
+                            if(!context.runtime.trmPackage.manifest.postActivities.find(k => _.isEqual(k, o))){
+                                context.runtime.trmPackage.manifest.postActivities.push(o);
+                            }
+                        });
+                    }
+                } else {
+                    context.runtime.trmPackage.manifest.postActivities = context.runtime.trmPackage.latestReleaseManifest.postActivities;
                 }
             }
         }
@@ -168,9 +208,9 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             }]);
             context.runtime.trmPackage.manifest = { ...context.runtime.trmPackage.manifest, ...inq };
         }
-        if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL){
+        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
             context.runtime.trmPackage.manifest.private = true; //fixed value on local save
-        }else{
+        } else {
             Logger.info(`Package visibility: ${chalk.bold(context.runtime.trmPackage.manifest.private ? 'private' : 'public')}`);
         }
 
@@ -190,22 +230,16 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         }
 
         //4- set registry endpoint
-        if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL){
+        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
             context.runtime.trmPackage.manifest.registry = LOCAL_RESERVED_KEYWORD;
-        }else if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.PRIVATE){
+        } else if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PRIVATE) {
             context.runtime.trmPackage.manifest.registry = context.rawInput.packageData.registry.endpoint;
         }
 
         //5- set post install activities
         if (!context.rawInput.contextData.noInquirer) {
-            const hasPostActivities = context.runtime.trmPackage.latestReleaseManifest &&
-                                      Array.isArray(context.runtime.trmPackage.latestReleaseManifest.postActivities) &&
-                                      context.runtime.trmPackage.latestReleaseManifest.postActivities.length > 0;
-            if(hasPostActivities){
-                context.runtime.trmPackage.manifest.postActivities = context.runtime.trmPackage.latestReleaseManifest.postActivities;
-            }
             const inq = await Inquirer.prompt([{
-                message: hasPostActivities ? `Do you want to edit ${context.runtime.trmPackage.manifest.postActivities.length} post activities?` : `Do you want to add post activities?`,
+                message: context.runtime.trmPackage.manifest.postActivities.length > 0 ? `Do you want to edit ${context.runtime.trmPackage.manifest.postActivities.length} post activities?` : `Do you want to add post activities?`,
                 type: 'confirm',
                 name: 'editPostActivities',
                 default: false
@@ -217,7 +251,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 when: (hash) => {
                     return hash.editPostActivities
                 },
-                default: JSON.stringify(context.runtime.trmPackage.manifest.postActivities || [], null, 2),
+                default: JSON.stringify(context.runtime.trmPackage.manifest.postActivities, null, 2),
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
@@ -236,13 +270,13 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 context.runtime.trmPackage.manifest.postActivities = JSON.parse(inq.postActivities);
             }
         }
-        if(Array.isArray(context.runtime.trmPackage.manifest.postActivities) && context.runtime.trmPackage.manifest.postActivities.length > 0){
+        if (Array.isArray(context.runtime.trmPackage.manifest.postActivities) && context.runtime.trmPackage.manifest.postActivities.length > 0) {
             var removedPostActivities = [];
             Logger.loading(`Checking post activities...`);
-            for(const data of context.runtime.trmPackage.manifest.postActivities){
-                if(data.name){
-                    if(!removedPostActivities.find(c => c === data.name)){
-                        if(!(await PostActivity.exists(data.name))){
+            for (const data of context.runtime.trmPackage.manifest.postActivities) {
+                if (data.name) {
+                    if (!removedPostActivities.find(c => c === data.name)) {
+                        if (!(await PostActivity.exists(data.name))) {
                             removedPostActivities.push(data.name.trim().toUpperCase());
                         }
                     }
