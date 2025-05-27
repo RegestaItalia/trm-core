@@ -234,7 +234,11 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           }
           const trmPackage = new TrmPackage(o.name, RegistryProvider.getRegistry(o.registry), manifest);
           if (transport) {
-            trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
+            try {
+              trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
+            } catch (x) {
+              //devclass not found
+            }
           } else {
             if (o.tdevc.length === 1) {
               trmPackage.setDevclass(o.tdevc[0].devclass);
@@ -267,7 +271,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     var aMigrationTrkorr: components.ZTRM_TRKORR[];
     var aActualTrkorr: TRKORR[] = (await this.readTable('E071',
       [{ fieldName: 'TRKORR' }],
-      `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`
+      `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}' AND TRKORR EQ 'RSTK906391'`
     )).map(o => o.trkorr);
     //because we're extracting from e071, there will be multiple records with the same trkorr
     //unique array

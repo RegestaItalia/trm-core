@@ -90,6 +90,15 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                     };
                 }));
             }
+            var trObjs = await context.runtime.installData.transport.getE071();
+            const tasks = await context.runtime.installData.transport.getTasks();
+            for(const task of tasks){
+                trObjs = trObjs.concat(await task.getE071());
+            }
+            trObjs.forEach(o => {
+                //remove objects that are already in transport or its tasks
+                tadirObjects = tadirObjects.filter(k => !(k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName));
+            });
             for (const tadir of tadirObjects) {
                 try {
                     try {

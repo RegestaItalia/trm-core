@@ -390,9 +390,4 @@ export namespace SystemConnector {
         return systemConnector.readClassDescriptions(clsname);
     }
 
-    export async function regenProg(prog: components.PROGNAME): Promise<void> {
-        await checkSystemConnector();
-        return systemConnector.regenProg(prog);
-    }
-
 }
