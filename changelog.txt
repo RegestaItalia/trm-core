@@ -8,7 +8,7 @@ Legend
 + : added
 - : removed
 
-2025-05-27 v6.7.2
+2025-05-27 v6.8.0
 -------------------
 ! on install transport update, check tasks before add object attempt
 * commit before post activity run on RFC
