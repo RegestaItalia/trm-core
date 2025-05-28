@@ -5,13 +5,18 @@
 [![Core Latest version](https://img.shields.io/npm/v/trm-core)](https://www.npmjs.com/package/trm-core)
 [![Core Installs](https://img.shields.io/npm/dt/trm-core)](https://www.npmjs.com/package/trm-core)
 
-This module contains the core functionalities of TRM (Transport Request Manager).
+| 🚀 This project is funded and maintained by 🏦 | 🔗                                                             |
+|-------------------------------------------------|----------------------------------------------------------------|
+| Regesta S.p.A.                                  | [https://www.regestaitalia.eu/](https://www.regestaitalia.eu/) |
+| Clarex S.r.l.                                   | [https://www.clarex.it/](https://www.clarex.it/)               |
+
+This module contains the core functionalities of [TRM (Transport Request Manager)](https://trmregistry.com/).
 
 TRM is a software designed to make transports between SAP ECC/S4 systems easy.
 
 # Documentation <!-- {docsify-remove} -->
 
-Full documentation can be seen at [https://docs.trmregistry.com](https://docs.trmregistry.com).
+Full documentation can be seen at [https://docs.trmregistry.com/](https://docs.trmregistry.com).
 
 # Contributing <!-- {docsify-remove} -->
 
