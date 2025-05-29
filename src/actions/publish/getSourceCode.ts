@@ -35,14 +35,14 @@ export const getSourceCode: Step<PublishWorkflowContext> = {
                         if(minimatch(abapgitObject.fullPath, pattern, { matchBase: true })){
                             if(!context.runtime.abapGitData.sourceCode.ignoredObjects.find(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName)){
                                 context.runtime.abapGitData.sourceCode.ignoredObjects.push(o);
+                                Logger.log(`Excluding ${o.pgmid} ${o.object} ${o.objName} (.abapgit ignore)`, true);
                             }
                         }
                     });
                 }
             });
             if(ignoredPatterns.length > 0){
-                Logger.info(`Excluding ${context.runtime.abapGitData.sourceCode.ignoredObjects.length} object(s) as configured in .abapgit.xml:\n${ignoredPatterns.join('\n ')}`);
-
+                Logger.info(`Excluding ${context.runtime.abapGitData.sourceCode.ignoredObjects.length} object(s) as configured in .abapgit.xml: ${ignoredPatterns.join(', ')}`);
             }
         }catch(e){
             Logger.error(e.toString(), true);

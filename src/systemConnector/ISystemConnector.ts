@@ -1,4 +1,4 @@
-import { SapMessage } from "../client";
+import { ClientError, SapMessage } from "../client";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
@@ -7,7 +7,7 @@ import { RFCConnection } from "./RFCConnection";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
 export interface ISystemConnector extends ISystemConnectorBase {
-    supportedBulk: SystemConnectorSupportedBulk,
+    supportedBulk: SystemConnectorSupportedBulk, //indicates bulk operations allowed
     getConnectionData: () => RFCConnection | RESTConnection,
     getDest: () => string,
     getLogonLanguage: (c: boolean) => string,
@@ -52,5 +52,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     refreshTransportTmsTxt: (trkorr: components.TRKORR) => Promise<void>,
     getDotAbapgit: (devclass: components.DEVCLASS) => Promise<Buffer>,
     getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}>,
-    executePostActivity: (data: Buffer, pre?: boolean) => Promise<{ messages: struct.SYMSG[], execute?: boolean }>
+    executePostActivity: (data: Buffer, pre?: boolean) => Promise<{ messages: struct.SYMSG[], execute?: boolean }>,
+    isServerApisAllowed: () => Promise<true|ClientError>
 }

@@ -1,5 +1,5 @@
 import { Logger } from "trm-commons";
-import { RFCClient, SapMessage } from "../client";
+import { ClientError, RFCClient, RFCClientError, SapMessage } from "../client";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
 import { RFCConnection } from "./RFCConnection";
@@ -14,6 +14,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     private _lang: string;
     private _user: string;
     private _client: RFCClient;
+    private _isServerApisAllowed: true | RFCClientError;
 
     supportedBulk: SystemConnectorSupportedBulk = {
         getTransportObjects: false,
@@ -252,6 +253,13 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         return this._client.executePostActivity(data, pre);
+    }
+
+    public async isServerApisAllowed(): Promise<true|ClientError> {
+        if(this._isServerApisAllowed === undefined){
+            this._isServerApisAllowed = await this._client.isServerApisAllowed();
+        }
+        return this._isServerApisAllowed;
     }
 
 }

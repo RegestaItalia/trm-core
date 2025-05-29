@@ -47,7 +47,7 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
             Logger.loading(`Checking install transport...`);
 
             //2- check if a trm install transport already exists, create if it does not
-            context.runtime.installData.transport = await SystemConnector.getPackageWorkbenchTransport(context.runtime.remotePackageData.trmPackage);
+            context.runtime.installData.transport = await context.runtime.remotePackageData.trmPackage.getWbTransport();
             if (context.runtime.installData.transport) {
                 Logger.log(`Install transport (${context.runtime.installData.transport.trkorr}) already exists, won't create a new one.`, true);
                 Logger.loading(`Updating install transport...`);

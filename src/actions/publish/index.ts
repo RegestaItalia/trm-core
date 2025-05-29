@@ -2,7 +2,7 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
-import { IActionContext, setSystemPackages } from "..";
+import { checkServerAuth, IActionContext, setSystemPackages } from "..";
 import { AbstractRegistry } from "../../registry";
 import { init } from "./init";
 import { DEVCLASS, TADIR, TMSCSYS, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
@@ -194,6 +194,7 @@ const WORKFLOW_NAME = 'publish';
 */
 export async function publish(inputData: PublishActionInput): Promise<PublishActionOutput> {
     const workflow = [
+        checkServerAuth,
         init,
         setSystemPackages,
         setTransportTarget,

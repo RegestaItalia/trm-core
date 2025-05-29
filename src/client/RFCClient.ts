@@ -561,9 +561,19 @@ export class RFCClient implements IClient {
                     trkorr: o['TRANSPORT']['TRKORR']['_text'],
                     migration: o['TRANSPORT']['MIGRATION']['_text'] === 'X',
                 },
-                tdevc: normalize(flatTdevc)
+                tdevc: normalize(flatTdevc),
+                trkorr: o['TRKORR']['_text']
             };
         });
+    }
+
+    public async isServerApisAllowed(): Promise<true|RFCClientError> {
+        try{
+            await this._call("ZTRM_CHECK_AUTH");
+            return true;
+        }catch(e){
+            return e;
+        }
     }
 
 }

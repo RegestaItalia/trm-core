@@ -1,4 +1,4 @@
-import { TRKORR, DEVCLASS, TDEVC, TMSCSYS, TADIR, PGMID, TROBJTYPE, SOBJ_NAME } from "../client";
+import { TRKORR, DEVCLASS, TDEVC, TMSCSYS, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError } from "../client";
 import { AbstractRegistry } from "../registry";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
@@ -388,6 +388,11 @@ export namespace SystemConnector {
     export async function readClassDescriptions(clsname: components.SEOCLSNAME): Promise<struct.SEOCLASSTX[]> {
         await checkSystemConnector();
         return systemConnector.readClassDescriptions(clsname);
+    }
+    
+    export async function isServerApisAllowed(): Promise<true|ClientError> {
+        await checkSystemConnector();
+        return systemConnector.isServerApisAllowed();
     }
 
 }

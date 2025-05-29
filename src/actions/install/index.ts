@@ -6,7 +6,7 @@ import { Transport } from "../../transport";
 import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
 import { init } from "./init";
 import { Manifest, TrmManifest, TrmManifestDependency } from "../../manifest";
-import { IActionContext } from "..";
+import { checkServerAuth, IActionContext } from "..";
 import { setSystemPackages } from "../commons/setSystemPackages";
 import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
 import { checkIntegrity } from "./checkIntegrity";
@@ -282,6 +282,7 @@ const WORKFLOW_NAME = 'install';
 */
 export async function install(inputData: InstallActionInput): Promise<InstallActionOutput> {
     const workflow = [
+        checkServerAuth,
         init,
         setSystemPackages,
         setTrmServerUpgradeService,

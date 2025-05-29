@@ -10,7 +10,7 @@ import { IActionContext } from "..";
  * 
 */
 export const setSystemPackages: Step<IActionContext> = {
-    name: 'setSystemPackages',
+    name: 'set-system-packages',
     run: async (context: IActionContext): Promise<void> => {
         Logger.log('Set system packages step', true);
         
