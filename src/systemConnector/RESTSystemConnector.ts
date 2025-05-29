@@ -7,7 +7,7 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
-import { RESTClient, SapMessage } from "../client";
+import { ClientError, RESTClient, RESTClientError, SapMessage } from "../client";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
@@ -19,6 +19,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     private _lang: string;
     private _user: string;
     private _client: RESTClient;
+    private _isServerApisAllowed: true | RESTClientError;
 
     supportedBulk: SystemConnectorSupportedBulk;
 
@@ -276,6 +277,13 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         return this._client.executePostActivity(data, pre);
+    }
+
+    public async isServerApisAllowed(): Promise<true|ClientError> {
+        if(this._isServerApisAllowed === undefined){
+            this._isServerApisAllowed = await this._client.isServerApisAllowed();
+        }
+        return this._isServerApisAllowed;
     }
 
 }

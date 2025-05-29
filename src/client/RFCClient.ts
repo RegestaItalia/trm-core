@@ -566,4 +566,13 @@ export class RFCClient implements IClient {
         });
     }
 
+    public async isServerApisAllowed(): Promise<true|RFCClientError> {
+        try{
+            await this._call("ZTRM_CHECK_AUTH");
+            return true;
+        }catch(e){
+            return e;
+        }
+    }
+
 }

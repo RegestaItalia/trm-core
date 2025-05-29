@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-05-29 v6.8.1
+-------------------
+! check server api auth before install and publish
+
 2025-05-27 v6.8.0
 -------------------
 ! on install transport update, check tasks before add object attempt

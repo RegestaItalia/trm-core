@@ -565,4 +565,13 @@ export class RESTClient implements IClient {
         });
     }
 
+    public async isServerApisAllowed(): Promise<true | RESTClientError> {
+        try {
+            await this._axiosInstance.post('/check_auth');
+            return true;
+        } catch (e) {
+            return e;
+        }
+    }
+
 }
