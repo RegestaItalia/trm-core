@@ -244,6 +244,9 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
               trmPackage.setDevclass(o.tdevc[0].devclass);
             }
           }
+          if(o.trkorr){
+            trmPackage.setWbTransport(new Transport(o.trkorr));
+          }
           trmPackages.push(trmPackage);
         }
         fromBackend = true;

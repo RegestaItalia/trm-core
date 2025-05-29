@@ -561,7 +561,8 @@ export class RFCClient implements IClient {
                     trkorr: o['TRANSPORT']['TRKORR']['_text'],
                     migration: o['TRANSPORT']['MIGRATION']['_text'] === 'X',
                 },
-                tdevc: normalize(flatTdevc)
+                tdevc: normalize(flatTdevc),
+                trkorr: o['TRKORR']['_text']
             };
         });
     }

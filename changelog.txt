@@ -8,9 +8,11 @@ Legend
 + : added
 - : removed
 
-2025-05-29 v6.8.1
+2025-05-29 v6.9.0
 -------------------
 ! check server api auth before install and publish
+! trm-server ^3.1.0
+! read wb transport from package
 
 2025-05-27 v6.8.0
 -------------------

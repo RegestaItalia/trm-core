@@ -10,5 +10,6 @@ export type ZTY_TRM_PACKAGE = {
     transport: {
         trkorr?: TRKORR,
         migration?: boolean
-    }
+    },
+    trkorr?: TRKORR
 }

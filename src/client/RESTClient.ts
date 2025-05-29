@@ -560,7 +560,8 @@ export class RESTClient implements IClient {
                 transport: {
                     trkorr: o.transport ? o.transport.trkorr : undefined,
                     migration: o.transport ? o.transport.migration === 'X' : undefined
-                }
+                },
+                trkorr: o.trkorr
             }
         });
     }

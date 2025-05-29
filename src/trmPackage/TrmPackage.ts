@@ -6,6 +6,8 @@ import { TrmArtifact } from "./TrmArtifact";
 import { UserAuthorization, View } from "trm-registry-types";
 import { DEVCLASS } from "../client";
 import { R3transOptions } from "node-r3trans";
+import { Transport } from "../transport";
+import { SystemConnector } from "../systemConnector";
 
 export const DEFAULT_VERSION: string = "1.0.0";
 
@@ -15,6 +17,7 @@ export class TrmPackage {
     private _remoteArtifacts: any = {};
     private _remoteContent: any = {};
     private _devclass: DEVCLASS;
+    private _wbTransport: Transport;
 
     constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
     }
@@ -26,6 +29,18 @@ export class TrmPackage {
 
     public getDevclass(): DEVCLASS {
         return this._devclass;
+    }
+
+    public setWbTransport(transport: Transport): TrmPackage {
+        this._wbTransport = transport;
+        return this;
+    }
+
+    public async getWbTransport(): Promise<Transport> {
+        if(!this._wbTransport){
+            this._wbTransport = await SystemConnector.getPackageWorkbenchTransport(this);
+        }
+        return this._wbTransport;
     }
 
     public async exists(version: string = 'latest'): Promise<boolean> {
