@@ -48,6 +48,16 @@ export class RFCClient implements IClient {
         }
     }
 
+    public async close() {
+        try {
+            Logger.loading(`Closing RFC connection`, true);
+            await (await this.getRfcClient()).close();
+            Logger.success(`RFC closed`, true);
+        } catch (e) {
+            throw new RFCClientError("ZNO_CLOSE", null, e, e.message);
+        }
+    }
+
     public async checkConnection(): Promise<boolean> {
         if (!this._aliveCheck) {
             if ((await this.getRfcClient()).alive) {
@@ -60,7 +70,7 @@ export class RFCClient implements IClient {
         return (await this.getRfcClient()).alive;
     }
 
-    private async _call(fm: any, arg?: any, timeout?: number, noErrorParsing?: boolean): Promise<any> {
+    private async _call(fm: any, arg?: any, timeout?: number, noErrorParsing?: boolean, retryCount: number = 0): Promise<any> {
         var argNormalized;
         if (arg) {
             var emptyKeys = [];
@@ -89,6 +99,15 @@ export class RFCClient implements IClient {
             Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
             return responseNormalized;
         } catch (e) {
+            if(e.message === 'device or resource busy: device or resource busy' && retryCount <= 10){
+                //node-rfc #327 this issue is not yet solved
+                //for the time being try recalling
+                Logger.log('device or resource busy, retrying', true);
+                await new Promise(res => {
+                    setTimeout(res, 1000);
+                });
+                return this._call(fm, arg, timeout, noErrorParsing, retryCount + 1);
+            }
             if (noErrorParsing) {
                 throw e;
             } else {
@@ -544,12 +563,6 @@ export class RFCClient implements IClient {
                 },
                 tdevc: normalize(flatTdevc)
             };
-        });
-    }
-
-    public async regenProg(prog: components.PROGNAME): Promise<void> {
-        await this._call("ZTRM_REGEN_PROG", {
-            iv_progname: prog
         });
     }
 

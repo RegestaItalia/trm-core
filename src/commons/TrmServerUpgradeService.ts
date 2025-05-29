@@ -80,12 +80,4 @@ export class TrmServerUpgrade {
         }
     }
 
-    public getInstalledPackagesBackend(): boolean {
-        if(this.dummy){
-            return false; //defaults to core logic
-        }else{
-            return !(lt(this.currentVersion, '3.0.0') && gte(this.installVersion, '3.0.0'));
-        }
-    }
-
 }

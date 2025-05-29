@@ -87,15 +87,19 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._user;
     }
 
-    public async connect(): Promise<void> {
-        Logger.loading(`Connecting to ${this.getDest()}...`);
+    public async connect(silent: boolean = false): Promise<void> {
+        Logger.loading(`Connecting to ${this.getDest()}...`, silent);
         try {
             await this._client.open();
-            Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, false);
+            Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
         } catch (e) {
-            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, false);
+            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, silent);
             throw e;
         }
+    }
+
+    public async close(): Promise<void> {
+        await this._client.close();
     }
 
     public async checkConnection(): Promise<boolean> {
@@ -248,10 +252,6 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         return this._client.executePostActivity(data, pre);
-    }
-
-    public async regenProg(prog: components.PROGNAME): Promise<void> {
-        return this._client.regenProg(prog);
     }
 
 }

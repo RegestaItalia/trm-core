@@ -174,8 +174,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     } else {
                         Logger.log(`${trkorr} is linked to another package, will later be migrated`, true);
                         context.runtime.generatedData.migrations.push(oTransport);
-                        context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
                     }
+                    context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
                 } else if (trmRelevant) {
                     Logger.log(`${trkorr} is TRM relevant but no linked package (could be DEVC, LANG etc..). No migration, just tms refresh`, true);
                     context.runtime.generatedData.tmsTxtRefresh.push(oTransport);

@@ -43,7 +43,9 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
 
         //3- import transport into system
         Logger.loading(`Importing ${context.runtime.packageTransports.tadir.binaries.trkorr}`, true);
+        Logger.setPrefix(`(Workbench) `);
         await context.runtime.packageTransports.tadir.instance.import(importTimeout);
+        Logger.removePrefix();
         Logger.success(`Transport ${context.runtime.packageTransports.tadir.binaries.trkorr} imported`, true);
 
         Logger.loading(`Finalizing import...`);

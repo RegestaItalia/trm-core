@@ -277,9 +277,5 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         return this._client.executePostActivity(data, pre);
     }
-    
-    public async regenProg(prog: components.PROGNAME): Promise<void> {
-        return this._client.regenProg(prog);
-    }
 
 }

@@ -48,7 +48,9 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
 
         //3- import transport into system
         Logger.loading(`Importing ${context.runtime.packageTransports.cust.binaries.trkorr}`, true);
+        Logger.setPrefix(`(Customizing) `);
         await context.runtime.packageTransports.cust.instance.import(importTimeout);
+        Logger.removePrefix();
         Logger.success(`Transport ${context.runtime.packageTransports.cust.binaries.trkorr} imported`, true);
 
     },

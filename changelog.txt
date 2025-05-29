@@ -8,6 +8,13 @@ Legend
 + : added
 - : removed
 
+2025-05-27 v6.8.0
+-------------------
+! on install transport update, check tasks before add object attempt
+* commit before post activity run on RFC
+* post activity error log
++ node-rfc #327 -> device or resource busy, added workaround
+
 2025-05-20 v6.7.1
 -------------------
 ! get installed packages from backend with trm-server version check

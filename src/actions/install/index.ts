@@ -34,6 +34,7 @@ import { migrate } from "./migrate";
 import { AbstractRegistry } from "../../registry";
 import { executePostActivities } from "./executePostActivities";
 import { setTrmServerUpgradeService } from "./setTrmServerUpgradeService";
+import { commit } from "./commit";
 
 /**
  * ABAP package replacement during install
@@ -305,6 +306,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         refreshTmsTxt,
         setPackageIntegrity,
         generateInstallTransport,
+        commit,
         executePostActivities
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
