@@ -37,7 +37,7 @@ export class TrmPackage {
     }
 
     public async getWbTransport(): Promise<Transport> {
-        if(!this._wbTransport){
+        if(this._wbTransport === undefined){
             this._wbTransport = await SystemConnector.getPackageWorkbenchTransport(this);
         }
         return this._wbTransport;
