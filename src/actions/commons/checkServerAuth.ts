@@ -14,10 +14,10 @@ export const checkServerAuth: Step<IActionContext> = {
     name: 'check-server-auth',
     run: async (context: IActionContext): Promise<void> => {
         Logger.log('Check server auth step', true);
-        
+
         //1- check auth
         const auth = await SystemConnector.isServerApisAllowed();
-        if(auth instanceof ClientError){
+        if (auth instanceof ClientError) {
             throw auth;
         }
     }
