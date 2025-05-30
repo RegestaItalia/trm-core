@@ -572,7 +572,13 @@ export class RFCClient implements IClient {
             await this._call("ZTRM_CHECK_AUTH");
             return true;
         }catch(e){
-            return e;
+            //perhaps installed version has yet to be updated?
+            //TODO: this check will become deprecated with later releases
+            if(e.exceptionType !== 'CALL_FUNCTION_NOT_REMOTE'){
+                return e;
+            }else{
+                return true;
+            }
         }
     }
 
