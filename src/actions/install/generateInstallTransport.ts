@@ -51,11 +51,11 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
             if (context.runtime.installData.transport) {
                 Logger.log(`Install transport (${context.runtime.installData.transport.trkorr}) already exists, won't create a new one.`, true);
                 Logger.loading(`Updating install transport...`);
+                if (TrmServerUpgrade.getInstance().changeTrOwner()) {
+                    await context.runtime.installData.transport.changeOwner(SystemConnector.getLogonUser());
+                }
                 if (TrmServerUpgrade.getInstance().removeComments()) {
                     await context.runtime.installData.transport.removeComments();
-                }
-                if(TrmServerUpgrade.getInstance().changeTrOwner()) {
-                    await context.runtime.installData.transport.changeOwner(SystemConnector.getLogonUser());
                 }
             } else {
                 Logger.loading(`Generating install transport...`);
@@ -95,7 +95,7 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
             }
             var trObjs = await context.runtime.installData.transport.getE071();
             const tasks = await context.runtime.installData.transport.getTasks();
-            for(const task of tasks){
+            for (const task of tasks) {
                 trObjs = trObjs.concat(await task.getE071());
             }
             trObjs.forEach(o => {
@@ -142,22 +142,26 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
 
             //7- add namespace
             if (context.runtime.installData.namespace[0] === '/') {
-                Logger.log(`Adding namespace ${context.runtime.installData.namespace} without lock`, true);
-                try {
-                    await context.runtime.installData.transport.addObjects([{
-                        pgmid: 'R3TR',
-                        object: 'NSPC',
-                        objName: context.runtime.installData.namespace
-                    }], false);
-                } catch (e) {
-                    Logger.error(`Failed adding namespace ${context.runtime.installData.namespace}`, true);
-                    Logger.error(e.toString(), true);
+                if (!trObjs.find(o => o.pgmid === 'R3TR' && o.object === 'NSPC' && o.objName === context.runtime.installData.namespace)) {
+                    Logger.log(`Adding namespace ${context.runtime.installData.namespace} without lock`, true);
+                    try {
+                        await context.runtime.installData.transport.addObjects([{
+                            pgmid: 'R3TR',
+                            object: 'NSPC',
+                            objName: context.runtime.installData.namespace
+                        }], false);
+                    } catch (e) {
+                        Logger.error(`Failed adding namespace ${context.runtime.installData.namespace}`, true);
+                        Logger.error(e.toString(), true);
+                    }
+                } else {
+                    Logger.log(`Namespace ${context.runtime.installData.namespace} already in install transport`, true);
                 }
             }
 
             Logger.success(`Use ${context.runtime.installData.transport.trkorr} for transports in your landscape.`);
         } catch (e) {
-            Logger.error(`An error occurred during install transport generation.`);
+            Logger.error(`An error occurred during install transport generation/update.`);
             Logger.error(e.toString(), true);
         }
     }
