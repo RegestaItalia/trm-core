@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-06-03 v7.1.0
+-------------------
+* change tr owner on install tr update
+
 2025-06-03 v7.0.0
 -------------------
 ! trm-server ^4.0.0
