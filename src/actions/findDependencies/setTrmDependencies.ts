@@ -134,7 +134,7 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
             const allTransports = await Transport.getTransportsFromObject(tadir, transportsObjectCache);
             Logger.log(`Found ${allTransports.length} transports for object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
             for (const transport of allTransports) {
-                if(transportsObjectCache.find(o => o.trkorr === transport.trkorr)){
+                if (transportsObjectCache.find(o => o.trkorr === transport.trkorr)) {
                     transportsObjectCache.push(transport);
                 }
                 const transportCache = transportsCache.find(o => o.trkorr === transport.trkorr);
@@ -188,29 +188,27 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
                 append = true;
             } else {
                 devclass = await _getRootDevclass(tadir.devclass);
-                if(devclass){
+                if (devclass && !tadirDependencies.find(o => o.object.PGMID === 'R3TR' && o.object.OBJECT === 'DEVC' && o.object.OBJ_NAME === devclass)) {
                     //this root might be TRM package
                     //add as a dependency, will check later
-                    if(!tadirDependencies.find(o => o.object.PGMID === 'R3TR' && o.object.OBJECT === 'DEVC' && o.object.OBJ_NAME === devclass)){
-                        tadirDependencies.push({
-                            object: {
-                                PGMID: 'R3TR',
-                                OBJECT: 'DEVC',
-                                OBJ_NAME: devclass,
-                                DEVCLASS: devclass
-                            },
-                            foundIn: tadir
-                        });
-                    }
+                    tadirDependencies.push({
+                        object: {
+                            PGMID: 'R3TR',
+                            OBJECT: 'DEVC',
+                            OBJ_NAME: devclass,
+                            DEVCLASS: devclass
+                        },
+                        foundIn: tadir
+                    });
                     append = false;
-                }else{
+                } else {
                     Logger.log(`Object without TRM package`, true);
                     //doesn't have trm package
                     append = true;
                 }
             }
         }
-        if(append){
+        if (append) {
             arrayIndex1 = trmDependencies.findIndex(o => o.devclass === devclass);
             if (arrayIndex1 < 0) {
                 arrayIndex1 = trmDependencies.push({
