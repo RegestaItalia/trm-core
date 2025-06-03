@@ -1,0 +1,1 @@
+export type TR_AS4USER = string;

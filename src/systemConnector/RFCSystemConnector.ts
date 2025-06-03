@@ -262,4 +262,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._isServerApisAllowed;
     }
 
+    public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
+        return this._client.changeTrOwner(trkorr, owner);
+    }
+
 }

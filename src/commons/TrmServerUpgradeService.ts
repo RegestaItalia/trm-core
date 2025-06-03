@@ -80,4 +80,12 @@ export class TrmServerUpgrade {
         }
     }
 
+    public changeTrOwner(): boolean {
+        if(this.dummy){
+            return true;
+        }else{
+            return !(lt(this.currentVersion, '4.0.0') && gte(this.installVersion, '4.0.0'));
+        }
+    }
+
 }
