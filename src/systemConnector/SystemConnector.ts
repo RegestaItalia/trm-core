@@ -395,4 +395,9 @@ export namespace SystemConnector {
         return systemConnector.isServerApisAllowed();
     }
 
+    export async function changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.changeTrOwner(trkorr, owner);
+    }
+
 }

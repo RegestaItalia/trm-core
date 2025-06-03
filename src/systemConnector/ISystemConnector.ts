@@ -53,5 +53,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getDotAbapgit: (devclass: components.DEVCLASS) => Promise<Buffer>,
     getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}>,
     executePostActivity: (data: Buffer, pre?: boolean) => Promise<{ messages: struct.SYMSG[], execute?: boolean }>,
-    isServerApisAllowed: () => Promise<true|ClientError>
+    isServerApisAllowed: () => Promise<true|ClientError>,
+    changeTrOwner: (trkorr: components.TRKORR, owner: components.TR_AS4USER) => Promise<void>
 }

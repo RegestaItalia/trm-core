@@ -13,7 +13,7 @@ import * as fs from "fs";
 import path from "path";
 import * as cliProgress from "cli-progress";
 import { CliLogFileLogger, CliLogger, Logger } from "trm-commons";
-import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC } from "../client";
+import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
 import { SystemConnector } from "../systemConnector";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
@@ -824,6 +824,10 @@ export class Transport {
 
     public async refreshTmsTxt(): Promise<void> {
         await SystemConnector.refreshTransportTmsTxt(this.trkorr);
+    }
+
+    public async changeOwner(newOwner: TR_AS4USER): Promise<void> {
+        await SystemConnector.changeTrOwner(this.trkorr, newOwner);
     }
 
 }

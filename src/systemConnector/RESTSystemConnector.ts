@@ -279,11 +279,15 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.executePostActivity(data, pre);
     }
 
-    public async isServerApisAllowed(): Promise<true|ClientError> {
-        if(this._isServerApisAllowed === undefined){
+    public async isServerApisAllowed(): Promise<true | ClientError> {
+        if (this._isServerApisAllowed === undefined) {
             this._isServerApisAllowed = await this._client.isServerApisAllowed();
         }
         return this._isServerApisAllowed;
+    }
+
+    public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
+        return this._client.changeTrOwner(trkorr, owner);
     }
 
 }

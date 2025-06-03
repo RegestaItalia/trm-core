@@ -55,3 +55,4 @@ export * from "./SEOCLSNAME";
 export * from "./LANGU";
 export * from "./SEODESCR";
 export * from "./PROGNAME";
+export * from "./TR_AS4USER";

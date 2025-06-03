@@ -2,7 +2,7 @@ import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
 import { getAxiosInstance, normalize } from "../commons";
-import { AxiosInstance, AxiosResponse } from "axios";
+import { AxiosError, AxiosInstance, AxiosResponse } from "axios";
 import * as FormData from "form-data";
 import { Logger } from "trm-commons";
 import { Login, RESTClientError, SapMessage } from ".";
@@ -47,6 +47,12 @@ export class RESTClient implements IClient {
                     return response;
                 }, async (error) => {
                     var axiosError;
+                    var message: string;
+                    var messageError: Error;
+                    var sapMessage: SapMessage = {
+                        class: undefined,
+                        no: undefined
+                    };
                     if (error.name === `Trm${AXIOS_CTX}Error`) {
                         axiosError = error.axiosError;
                     } else {
@@ -57,25 +63,27 @@ export class RESTClient implements IClient {
                             throw error;
                         }
                     }
-                    var message: string;
-                    var messageError;
-                    const sapMessage: SapMessage = {
-                        no: `${axiosError.response.data.message.msgno}`,
-                        class: axiosError.response.data.message.msgid,
-                        v1: axiosError.response.data.message.msgv1,
-                        v2: axiosError.response.data.message.msgv2,
-                        v3: axiosError.response.data.message.msgv3,
-                        v4: axiosError.response.data.message.msgv4
-                    };
-                    try {
-                        message = await this.getMessage(sapMessage);
-                    } catch (k) {
-                        messageError = k;
-                        message = `Couldn't read error message ${axiosError.response.data.message.msgid} ${axiosError.response.data.message.msgno} ${axiosError.response.data.message.msgv1} ${axiosError.response.data.message.msgv2} ${axiosError.response.data.message.msgv3} ${axiosError.response.data.message.msgv4}`;
+                    if (axiosError.response.data.message) {
+                        sapMessage = {
+                            no: `${axiosError.response.data.message.msgno}`,
+                            class: axiosError.response.data.message.msgid,
+                            v1: axiosError.response.data.message.msgv1,
+                            v2: axiosError.response.data.message.msgv2,
+                            v3: axiosError.response.data.message.msgv3,
+                            v4: axiosError.response.data.message.msgv4
+                        };
+                        try {
+                            message = await this.getMessage(sapMessage);
+                        } catch (k) {
+                            messageError = k;
+                            message = `Couldn't read error message ${axiosError.response.data.message.msgid} ${axiosError.response.data.message.msgno} ${axiosError.response.data.message.msgv1} ${axiosError.response.data.message.msgv2} ${axiosError.response.data.message.msgv3} ${axiosError.response.data.message.msgv4}`;
+                        }
+                    }else{
+                        throw error;
                     }
                     var rfcClientError = new RESTClientError(error.message, sapMessage, axiosError, message);
                     if (messageError) {
-                        rfcClientError.messageError = messageError;
+                        rfcClientError.messageError = messageError.toString();
                     }
                     if (axiosError.response.data.log) {
                         rfcClientError.messageLog = axiosError.response.data.log;
@@ -573,6 +581,13 @@ export class RESTClient implements IClient {
         } catch (e) {
             return e;
         }
+    }
+
+    public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
+        await this._axiosInstance.post('/change_tr_owner', {
+            trkorr,
+            new_owner: owner
+        });
     }
 
 }

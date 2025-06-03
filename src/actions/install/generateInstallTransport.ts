@@ -54,6 +54,9 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                 if (TrmServerUpgrade.getInstance().removeComments()) {
                     await context.runtime.installData.transport.removeComments();
                 }
+                if(TrmServerUpgrade.getInstance().changeTrOwner()) {
+                    await context.runtime.installData.transport.changeOwner(SystemConnector.getLogonUser());
+                }
             } else {
                 Logger.loading(`Generating install transport...`);
                 context.runtime.installData.transport = await Transport.createWb({

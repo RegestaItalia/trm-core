@@ -99,7 +99,7 @@ export class RFCClient implements IClient {
             Logger.success(`RFC resonse: ${JSON.stringify(responseNormalized)}`, true);
             return responseNormalized;
         } catch (e) {
-            if(e.message === 'device or resource busy: device or resource busy' && retryCount <= 10){
+            if (e.message === 'device or resource busy: device or resource busy' && retryCount <= 10) {
                 //node-rfc #327 this issue is not yet solved
                 //for the time being try recalling
                 Logger.log('device or resource busy, retrying', true);
@@ -567,19 +567,27 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async isServerApisAllowed(): Promise<true|RFCClientError> {
-        try{
+    public async isServerApisAllowed(): Promise<true | RFCClientError> {
+        try {
             await this._call("ZTRM_CHECK_AUTH");
             return true;
-        }catch(e){
+        } catch (e) {
             //perhaps installed version has yet to be updated?
             //TODO: this check will become deprecated with later releases
-            if(e.exceptionType !== 'CALL_FUNCTION_NOT_REMOTE'){
+            if (e.exceptionType !== 'CALL_FUNCTION_NOT_REMOTE') {
                 return e;
-            }else{
+            } else {
                 return true;
             }
         }
+    }
+
+
+    public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
+        await this._call("ZTRM_CHANGE_TR_OWNER", {
+            iv_trkorr: trkorr,
+            iv_new_owner: owner
+        });
     }
 
 }
