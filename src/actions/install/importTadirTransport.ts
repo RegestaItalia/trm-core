@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "trm-commons";
+import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import _ from 'lodash';
@@ -36,17 +36,30 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             r3transOption: context.rawInput.contextData.r3transOptions
         });
 
-        if(TrmServerUpgrade.getInstance().deleteFromTms()){
+        if (TrmServerUpgrade.getInstance().deleteFromTms()) {
             //2 - delete from tms buffer (if it exists)
             await context.runtime.packageTransports.tadir.instance.deleteFromTms(SystemConnector.getDest());
         }
 
         //3- import transport into system
+        const originalLPrefix = Logger.getPrefix();
+        const originalIPrefix = Inquirer.getPrefix();
+        const prefix = `(Workbench) `;
+        if (originalLPrefix) {
+            Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+        } else {
+            Logger.setPrefix(prefix);
+        }
+        if (originalIPrefix) {
+            Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+        } else {
+            Inquirer.setPrefix(prefix);
+        }
         Logger.loading(`Importing ${context.runtime.packageTransports.tadir.binaries.trkorr}`, true);
-        Logger.setPrefix(`(Workbench) `);
         await context.runtime.packageTransports.tadir.instance.import(importTimeout);
-        Logger.removePrefix();
         Logger.success(`Transport ${context.runtime.packageTransports.tadir.binaries.trkorr} imported`, true);
+        Logger.setPrefix(originalLPrefix);
+        Inquirer.setPrefix(originalIPrefix);
 
         Logger.loading(`Finalizing import...`);
 
@@ -66,7 +79,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             await SystemConnector.tadirInterface(object);
         }
 
-        if(TrmServerUpgrade.getInstance().deleteFromTms()){
+        if (TrmServerUpgrade.getInstance().deleteFromTms()) {
             //5- remove from skipped transports (may be there because of previous failed install)
             await SystemConnector.removeSkipTrkorr(context.runtime.packageTransports.tadir.binaries.trkorr);
         }

@@ -8,6 +8,11 @@ Legend
 + : added
 - : removed
 
+2025-06-04 v7.2.1
+-------------------
+* inquirer/logger prefix on install dependency
++ removed useless wb transport find on package first install
+
 2025-06-03 v7.2.0
 -------------------
 * find dependency with custom object not found without devc reference

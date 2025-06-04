@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "trm-commons";
+import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 
@@ -47,12 +47,24 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
         await context.runtime.packageTransports.cust.instance.deleteFromTms(SystemConnector.getDest());
 
         //3- import transport into system
+        const originalLPrefix = Logger.getPrefix();
+        const originalIPrefix = Inquirer.getPrefix();
+        const prefix = `(Customizing) `;
+        if(originalLPrefix){
+            Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+        }else{
+            Logger.setPrefix(prefix);
+        }
+        if(originalIPrefix){
+            Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+        }else{
+            Inquirer.setPrefix(prefix);
+        }
         Logger.loading(`Importing ${context.runtime.packageTransports.cust.binaries.trkorr}`, true);
-        Logger.setPrefix(`(Customizing) `);
         await context.runtime.packageTransports.cust.instance.import(importTimeout);
-        Logger.removePrefix();
         Logger.success(`Transport ${context.runtime.packageTransports.cust.binaries.trkorr} imported`, true);
-
+        Logger.setPrefix(originalLPrefix);
+        Inquirer.setPrefix(originalIPrefix);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Rollback CUST Transport step', true);
