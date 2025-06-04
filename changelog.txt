@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-06-03 v7.2.0
+-------------------
+* find dependency with custom object not found without devc reference
+
 2025-06-03 v7.1.0
 -------------------
 * change tr owner on install tr update
