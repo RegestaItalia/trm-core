@@ -56,15 +56,22 @@ export const installDependencies: Step<InstallWorkflowContext> = {
 
         //3- run install workflow for each missing dependency
         var counter: number = 0;
+        const originalLPrefix = Logger.getPrefix();
+        const originalIPrefix = Inquirer.getPrefix();
         for(const dependency of context.runtime.dependenciesToInstall){
             counter++;
             Logger.loading(`Getting ready to install missing dependency "${dependency.name}"...`);
-            var prefix = `  (${counter}/${context.runtime.dependenciesToInstall.length}) `;
-            if(Logger.getPrefix()){
-                prefix = `${Logger.getPrefix()} -> ${prefix}`;
+            var prefix = `(${counter}/${context.runtime.dependenciesToInstall.length}) `;
+            if(originalLPrefix){
+                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+            }else{
+                Logger.setPrefix(`  ${prefix}`);
             }
-            Logger.setPrefix(prefix);
-            Inquirer.setPrefix(prefix);
+            if(originalIPrefix){
+                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+            }else{
+                Inquirer.setPrefix(`  ${prefix}`);
+            }
             var inputData: InstallDependencyActionInput = {
                 dependencyDataPackage: {
                     name: dependency.name,
@@ -81,8 +88,8 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
             const result = await InstallDependencyWkf(inputData);
             Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-            Logger.removePrefix();
-            Inquirer.removePrefix();
+            Logger.setPrefix(originalLPrefix)
+            Inquirer.setPrefix(originalIPrefix);
         }
     }
 }

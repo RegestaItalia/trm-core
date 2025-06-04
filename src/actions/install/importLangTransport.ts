@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "trm-commons";
+import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 
@@ -17,13 +17,13 @@ import { Transport } from "../../transport";
 export const importLangTransport: Step<InstallWorkflowContext> = {
     name: 'import-lang-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(context.rawInput.installData.import.noLang){
+        if (context.rawInput.installData.import.noLang) {
             Logger.log(`Skipping import LANG transport (user input)`, true);
             return false;
-        }else{
-            if(context.runtime.packageTransports.lang.binaries){
+        } else {
+            if (context.runtime.packageTransports.lang.binaries) {
                 return true;
-            }else{
+            } else {
                 Logger.log(`Skipping import LANG transport (no transports in package)`, true);
                 return false;
             }
@@ -47,11 +47,24 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         await context.runtime.packageTransports.lang.instance.deleteFromTms(SystemConnector.getDest());
 
         //3- import transport into system
+        const originalLPrefix = Logger.getPrefix();
+        const originalIPrefix = Inquirer.getPrefix();
+        const prefix = `(Translations) `;
+        if (originalLPrefix) {
+            Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+        } else {
+            Logger.setPrefix(prefix);
+        }
+        if (originalIPrefix) {
+            Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+        } else {
+            Inquirer.setPrefix(prefix);
+        }
         Logger.loading(`Importing ${context.runtime.packageTransports.lang.binaries.trkorr}`, true);
-        Logger.setPrefix(`(Translations) `);
         await context.runtime.packageTransports.lang.instance.import(importTimeout);
-        Logger.removePrefix();
         Logger.success(`Transport ${context.runtime.packageTransports.lang.binaries.trkorr} imported`, true);
+        Logger.setPrefix(originalLPrefix);
+        Inquirer.setPrefix(originalIPrefix);
 
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {

@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "trm-commons";
+import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { TADIR } from "../../client";
@@ -26,16 +26,16 @@ import { TADIR } from "../../client";
 export const importDevcTransport: Step<InstallWorkflowContext> = {
     name: 'import-devc-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(context.rawInput.installData.installDevclass.keepOriginal){
+        if (context.rawInput.installData.installDevclass.keepOriginal) {
             return true;
-        }else{
+        } else {
             Logger.log(`Skipping import DEVC transport (user input - devclass already generated)`, true);
             return false;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Import DEVC Transport step', true);
-        
+
         //1- check if root devclass already exists. save parent devclass for later
         Logger.loading(`Getting ready to import...`);
         const rootDevclass = await SystemConnector.getDevclass(context.runtime.originalData.hierarchy.devclass);
@@ -55,18 +55,31 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         await context.runtime.packageTransports.devc.instance.deleteFromTms(SystemConnector.getDest());
 
         //4- import transport into system
+        const originalLPrefix = Logger.getPrefix();
+        const originalIPrefix = Inquirer.getPrefix();
+        const prefix = `(SAP Package) `;
+        if (originalLPrefix) {
+            Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+        } else {
+            Logger.setPrefix(prefix);
+        }
+        if (originalIPrefix) {
+            Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+        } else {
+            Inquirer.setPrefix(prefix);
+        }
         Logger.loading(`Importing ${context.runtime.packageTransports.devc.binaries.trkorr}`, true);
-        Logger.setPrefix(`(SAP Package) `);
         await context.runtime.packageTransports.devc.instance.import(importTimeout);
-        Logger.removePrefix();
         Logger.success(`Transport ${context.runtime.packageTransports.devc.binaries.trkorr} imported`, true);
+        Logger.setPrefix(originalLPrefix);
+        Inquirer.setPrefix(originalIPrefix);
         
         Logger.loading(`Finalizing import...`);
-        
+
         //5- replace root devclass parent devclass
-        if(rootDevclass && rootDevclass.parentcl){
+        if (rootDevclass && rootDevclass.parentcl) {
             await SystemConnector.setPackageSuperpackage(context.runtime.originalData.hierarchy.devclass, rootDevclass.parentcl)
-        }else{
+        } else {
             await SystemConnector.clearPackageSuperpackage(context.runtime.originalData.hierarchy.devclass);
         }
 
