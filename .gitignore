@@ -6,3 +6,4 @@ sapnwrfc.ini
 dev_rfc.log
 _noderfc.log
 src/test.ts
+*.tgz

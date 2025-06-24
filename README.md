@@ -14,6 +14,10 @@ This module contains the core functionalities of [TRM (Transport Request Manager
 
 TRM is a software designed to make transports between SAP ECC/S4 systems easy.
 
+# Requirements
+
+- [Node ^22.12.0](https://github.com/nodejs/node/releases/tag/v22.12.0)
+
 # Documentation <!-- {docsify-remove} -->
 
 Full documentation can be seen at [https://docs.trmregistry.com/](https://docs.trmregistry.com).
