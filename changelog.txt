@@ -8,9 +8,9 @@ Legend
 + : added
 - : removed
 
-2025-07-08 TODO
-* install package hierarchy
+2025-07-08 v7.3.0
 + enforce node engine ^22.12.0 with post install script
+* install package hierarchy
 
 2025-06-04 v7.2.1
 -------------------
