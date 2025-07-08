@@ -17,7 +17,8 @@
     "cleanBuild": "rimraf dist/",
     "build": "npm run cleanBuild && tsc --sourceMap false",
     "test": "jest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "postinstall": "node dist/scripts/checkEngine.js"
   },
   "keywords": [
     "trm",
@@ -26,7 +27,7 @@
   "homepage": "https://www.trmregistry.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RegestaItalia/trm-core.git"
+    "url": "git+https://github.com/RegestaItalia/trm-core.git"
   },
   "author": {
     "name": "Simone Gaffurini",
@@ -86,5 +87,8 @@
     "ts-jest": "^29.1.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": "^22.12.0"
   }
 }
