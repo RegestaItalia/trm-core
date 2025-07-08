@@ -26,7 +26,9 @@ export function getPackageHierarchy(input: TDEVC[]): PackageHierarchy {
         }
     });
 
-    if (roots.length > 1) {
+    if (roots.length === 0) {
+        throw new Error(`No root found in package hierarchy.`);
+    } else if (roots.length > 1) {
         throw new Error(`Multiple roots found in package hierarchy.`);
     }
 
