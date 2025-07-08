@@ -9,6 +9,7 @@ Legend
 - : removed
 
 2025-07-08 v7.3.0
+-------------------
 + enforce node engine ^22.12.0 with post install script
 * install package hierarchy
 
