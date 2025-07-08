@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
-import { Logger, Inquirer } from "trm-commons";
+import { Logger } from "trm-commons";
 import { parsePackageName } from "../../commons";
 import { validRange } from "semver";
 import { RegistryType } from "../../registry";
@@ -59,9 +59,6 @@ export const init: Step<InstallDependencyWorkflowContext> = {
         }
         if(!context.rawInput.installData.installDevclass){
             context.rawInput.installData.installDevclass = {};
-        }
-        if(context.rawInput.contextData.noInquirer){
-            Logger.info(`Dependency "${context.rawInput.dependencyDataPackage.name}" will be installed with default options.`);
         }
     },
     revert: async (context: InstallDependencyWorkflowContext): Promise<void> => {
