@@ -81,10 +81,11 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         //4- build the package hierarchy, based on the original
         Logger.loading(`Updating ABAP packages hierarchy...`);
         const aDummyTdevc: TDEVC[] = [];
+        var parentcl;
         const originalPackageHierarchy = getPackageHierarchy(context.runtime.packageTransportsData.tdevc);
         for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
+            parentcl = '';
             const originalRoot = originalPackageHierarchy.devclass === packageReplacement.originalDevclass;
-            var parentcl;
             if(!originalRoot){
                 const originalParentCl = context.runtime.packageTransportsData.tdevc.find(o => o.devclass === packageReplacement.originalDevclass).parentcl;
                 if(originalParentCl){
@@ -93,7 +94,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
             }
             aDummyTdevc.push({
                 devclass: packageReplacement.installDevclass,
-                parentcl: parentcl || ''
+                parentcl: parentcl
             });
         }
         const installPackageHierarchy = getPackageHierarchy(aDummyTdevc);
