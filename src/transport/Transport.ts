@@ -112,10 +112,9 @@ export class Transport {
 
     public async getDevclass(aTdevc?: TDEVC[]): Promise<DEVCLASS> {
         if (!this._rootDevclass) {
-            var aDevclass = [];
+            const aE071 = await this.getE071();
             if (!aTdevc) {
-                const aE071 = await this.getE071();
-                aDevclass = aE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC').map(o => o.objName);
+                var aDevclass = aE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC').map(o => o.objName);
 
                 //check support for bulk operations
                 if (!SystemConnector.getSupportedBulk().getTransportObjects) {
@@ -134,33 +133,33 @@ export class Transport {
                 }
 
                 aTdevc = [];
-                //for each devclass in aDevclass, add all the parent devclasses (stop when parentcl is empty)
+                /*
+                    #143
+                    Find root package from E071 object list
+                    This is not 100% right because the root package found by E071 object list
+                    might not actually be the root of the package (cases where the root package doesn't have an object
+                    but has a subpackage with objects).
+                    The original logic used was this: find the root based on package hierachy.
+                    This is also not 100% right because after install, users might move the root package to another package
+                    making it a subpackage, invalidating the logic.
+                */
+                //for each devclass in aDevclass, add all the parent devclasses (#143 XX stop when parentcl is empty XX)
                 for (var devclass of aDevclass) {
-                    while (devclass) {
+                    //while (devclass) {
                         var tdevc = aTdevc.find(o => o.devclass === devclass);
                         if (!tdevc) {
                             tdevc = await SystemConnector.getDevclass(devclass);
                             aTdevc.push(tdevc);
                         }
-                        devclass = tdevc.parentcl;
-                    }
+                        //devclass = tdevc.parentcl;
+                    //}
                 }
-            }else{
-                aDevclass = aTdevc.map(o => o.devclass);
             }
-
-            /*
-                #143
-                TODO: Looking for solution
-                This is not 100% right, we should pick the first package in hierarchy
-                with object in e071 but even then there could be cases of packages
-                without objects in root package.
-            */
 
             //now look for the first root package that is included in the original aDevclass
             while (aTdevc.length > 0 && !this._rootDevclass) {
                 const hierarchy = getPackageHierarchy(aTdevc);
-                if (aDevclass.includes(hierarchy.devclass)) {
+                if (aTdevc.find(o => o.devclass === hierarchy.devclass)) {
                     this._rootDevclass = hierarchy.devclass;
                 } else {
                     aTdevc = aTdevc.filter(o => o.devclass !== hierarchy.devclass);
