@@ -8,11 +8,12 @@ Legend
 + : added
 - : removed
 
-2025-07-08 TODO
+2025-07-15 7.4.0
 -------------------
-- dependency install doesn't ask for cust/lang/package replacements anymore
-! install asks for cust/lang/package replacements when not provided
+- dependency install doesn't ask for cust/lang/package replacements anymore if not needed
+! install asks for cust/lang/package replacements when not provided by default parameter
 ! import logger shows package name
+! trm-server ^5.0.0
 
 2025-07-08 v7.3.0
 -------------------
