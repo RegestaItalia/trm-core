@@ -32,7 +32,7 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Import CUST Transport step', true);
 
-        Logger.loading(`Importing...`);
+        Logger.loading(`Importing ${context.rawInput.packageData.name} customizing...`);
         const importTimeout = context.rawInput.installData.import.timeout;
 
         //1- upload transport into system

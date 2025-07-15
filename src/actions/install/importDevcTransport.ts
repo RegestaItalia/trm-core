@@ -40,7 +40,7 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         Logger.loading(`Getting ready to import...`);
         const rootDevclass = await SystemConnector.getDevclass(context.runtime.originalData.hierarchy.devclass);
 
-        Logger.loading(`Importing...`);
+        Logger.loading(`Importing ${context.rawInput.packageData.name}...`);
         const importTimeout = context.rawInput.installData.import.timeout;
 
         //2- upload transport into system

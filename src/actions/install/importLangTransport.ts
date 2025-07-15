@@ -32,7 +32,7 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Import LANG Transport step', true);
 
-        Logger.loading(`Importing...`);
+        Logger.loading(`Importing ${context.rawInput.packageData.name} translations...`);
         const importTimeout = context.rawInput.installData.import.timeout;
 
         //1- upload transport into system

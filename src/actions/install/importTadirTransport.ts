@@ -25,7 +25,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Import TADIR Transport step', true);
 
-        Logger.loading(`Importing...`);
+        Logger.loading(`Importing ${context.rawInput.packageData.name}...`);
         const importTimeout = context.rawInput.installData.import.timeout;
 
         //1- upload transport into system
