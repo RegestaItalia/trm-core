@@ -85,6 +85,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             if(inputData.contextData){
                 inputData.contextData.noR3transInfo = true;
             }
+            delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
             Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
             const result = await InstallDependencyWkf(inputData);
             Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
