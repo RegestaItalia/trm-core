@@ -340,6 +340,14 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
 
         //6- edit dependencies/sap entries
         if (!context.rawInput.contextData.noInquirer) {
+            var inqDefault1 = context.runtime.trmPackage.manifest.dependencies || [];
+            if(inqDefault1.length === 0){
+                (inqDefault1 as any).push({
+                    name: '<<name>>',
+                    version: '<<version>>',
+                    registry: '<<registry?>>'
+                });
+            }
             const inq = await Inquirer.prompt([{
                 message: `Do you want to manually edit dependencies?`,
                 type: 'confirm',
@@ -353,7 +361,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 when: (hash) => {
                     return hash.editDependencies
                 },
-                default: JSON.stringify(context.runtime.trmPackage.manifest.dependencies, null, 2),
+                default: JSON.stringify(inqDefault1, null, 2),
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
@@ -373,6 +381,13 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             }
         }
         if (!context.rawInput.contextData.noInquirer) {
+            var inqDefault2 = context.runtime.trmPackage.manifest.sapEntries || {};
+            if(Object.keys(inqDefault2).length === 0){
+                inqDefault2['<<table>>'] = [{
+                    '<<field1>>': '<<value1>>',
+                    '<<field2>>': '<<value2>>'
+                }];
+            }
             const inq = await Inquirer.prompt([{
                 message: `Do you want to manually required SAP objects?`,
                 type: 'confirm',
@@ -386,7 +401,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 when: (hash) => {
                     return hash.editSapEntries
                 },
-                default: JSON.stringify(context.runtime.trmPackage.manifest.sapEntries, null, 2),
+                default: JSON.stringify(inqDefault2, null, 2),
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
