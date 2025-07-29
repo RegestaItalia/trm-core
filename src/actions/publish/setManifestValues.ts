@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
-import { PUBLIC_RESERVED_KEYWORD, Registry, RegistryType } from "../../registry";
+import { RegistryProvider, RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency } from "../../manifest";
 import chalk from "chalk";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
@@ -447,7 +447,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         for(var dependency of (context.runtime.trmPackage.manifest.dependencies || [])){
             if(!dependency.integrity){
                 //fetch in origin system
-                dependency.integrity = await SystemConnector.getPackageIntegrity(new TrmPackage(dependency.name, new Registry(dependency.registry || PUBLIC_RESERVED_KEYWORD)));
+                dependency.integrity = await SystemConnector.getPackageIntegrity(new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry)));
                 if(!dependency.integrity){
                     Logger.warning(`Dependency ${dependency.name} has no integrity match: registry might reject this!`);
                 }
