@@ -7,7 +7,7 @@ export namespace RegistryProvider {
 
     export var registry: AbstractRegistry[] = [];
     
-    export function getRegistry(endpoint?: string): AbstractRegistry {
+    export function getRegistry(endpoint?: string, filePath?: string): AbstractRegistry {
         var foundRegistry: AbstractRegistry;
         if(endpoint){
             endpoint = endpoint.toLowerCase().trim();
@@ -19,7 +19,7 @@ export namespace RegistryProvider {
                 registry.push(foundRegistry);
             }
         }else if(endpoint === LOCAL_RESERVED_KEYWORD){
-            foundRegistry = new FileSystem();
+            foundRegistry = new FileSystem(filePath);
         }else{
             foundRegistry = registry.find(o => o.endpoint === endpoint);
             if(!foundRegistry){
