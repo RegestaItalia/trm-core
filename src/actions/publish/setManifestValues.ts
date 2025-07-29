@@ -1,12 +1,14 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
-import { RegistryType } from "../../registry";
-import { Manifest, PostActivity, TrmManifestAuthor } from "../../manifest";
+import { RegistryProvider, RegistryType } from "../../registry";
+import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency } from "../../manifest";
 import chalk from "chalk";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 import { validatePackageVisibility } from "../../validators";
 import _ from 'lodash';
+import { SystemConnector } from "../../systemConnector";
+import { TrmPackage } from "../../trmPackage";
 
 /**
  * Set manifest values
@@ -21,7 +23,11 @@ import _ from 'lodash';
  * 
  * 5- set post install activities
  * 
- * 6- normalize manifest values
+ * 6- edit dependencies/sap entries
+ * 
+ * 7- fetch missing dependencies integrity
+ * 
+ * 8- normalize manifest values
  * 
 */
 export const setManifestValues: Step<PublishWorkflowContext> = {
@@ -82,13 +88,57 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 if (context.runtime.trmPackage.manifest.postActivities) {
                     if (Array.isArray(context.runtime.trmPackage.latestReleaseManifest.postActivities)) {
                         context.runtime.trmPackage.latestReleaseManifest.postActivities.forEach(o => {
-                            if(!context.runtime.trmPackage.manifest.postActivities.find(k => _.isEqual(k, o))){
+                            if (!context.runtime.trmPackage.manifest.postActivities.find(k => _.isEqual(k, o))) {
                                 context.runtime.trmPackage.manifest.postActivities.push(o);
                             }
                         });
                     }
                 } else {
                     context.runtime.trmPackage.manifest.postActivities = context.runtime.trmPackage.latestReleaseManifest.postActivities;
+                }
+
+                //compare trm dependencies - if automatic dependency search disabled and one or more is missing
+                if(context.rawInput.publishData.noDependenciesDetection){
+                    var missingDependencies: TrmManifestDependency[] = [];
+                    (context.runtime.trmPackage.latestReleaseManifest.dependencies || []).forEach(o => {
+                        if(!(context.runtime.trmPackage.manifest.dependencies || []).find(k => {
+                            return k.name === o.name && k.registry === o.registry;
+                        })){
+                            missingDependencies.push(o);
+                        }
+                    });
+                    if(missingDependencies.length > 0){
+                        if(!context.rawInput.contextData.noInquirer){
+                            const inq = await Inquirer.prompt({
+                                type: 'select',
+                                message: `Dependency`,
+                                name: 'dependencies',
+                                choices: missingDependencies.map(o => {
+                                    var name;
+                                    if(o.registry){
+                                        name = `${o.name} (${o.registry})`;
+                                    }else{
+                                        name = o.name;
+                                    }
+                                    return {
+                                        name,
+                                        value: o
+                                    };
+                                })
+                            });
+                            context.runtime.trmPackage.manifest.dependencies = (context.runtime.trmPackage.manifest.dependencies || []).concat((inq.dependencies || []));
+                        }else{
+                            Logger.warning(`Latest version of the package had the following dependencies:`);
+                            missingDependencies.forEach(o => {
+                                if(o.registry){
+                                    Logger.warning(` ${o.name} (${o.registry})`);
+                                }else{
+                                    Logger.warning(` ${o.name}`);
+                                }
+                            });
+                            Logger.warning(`Include them manually later if still relveant.`);
+                        }
+                    }
                 }
             }
         }
@@ -238,6 +288,19 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
 
         //5- set post install activities
         if (!context.rawInput.contextData.noInquirer) {
+            var inqDefault1 = context.runtime.trmPackage.manifest.postActivities || [];
+            if(inqDefault1.length === 0){
+                inqDefault1.push({
+                    name: '<<class name>>',
+                    parameters: [{
+                        name: '<<parameter1>>',
+                        value: '<<value1>>'
+                    }, {
+                        name: '<<parameter2>>',
+                        value: '<<value2>>'
+                    }]
+                })
+            }
             const inq = await Inquirer.prompt([{
                 message: context.runtime.trmPackage.manifest.postActivities.length > 0 ? `Do you want to edit ${context.runtime.trmPackage.manifest.postActivities.length} post activities?` : `Do you want to add post activities?`,
                 type: 'confirm',
@@ -251,7 +314,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 when: (hash) => {
                     return hash.editPostActivities
                 },
-                default: JSON.stringify(context.runtime.trmPackage.manifest.postActivities, null, 2),
+                default: JSON.stringify(inqDefault1, null, 2),
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
@@ -273,22 +336,125 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         if (Array.isArray(context.runtime.trmPackage.manifest.postActivities) && context.runtime.trmPackage.manifest.postActivities.length > 0) {
             var removedPostActivities = [];
             Logger.loading(`Checking post activities...`);
-            for (const data of context.runtime.trmPackage.manifest.postActivities) {
+            for (var data of context.runtime.trmPackage.manifest.postActivities) {
                 if (data.name) {
+                    data.name = data.name.trim().toUpperCase();
                     if (!removedPostActivities.find(c => c === data.name)) {
                         if (!(await PostActivity.exists(data.name))) {
-                            removedPostActivities.push(data.name.trim().toUpperCase());
+                            removedPostActivities.push(data.name);
                         }
                     }
                 }
+                if(Array.isArray(data.parameters)){
+                    data.parameters.forEach(p => {
+                        if(p.name){
+                            p.name = p.name.trim().toUpperCase();
+                        }
+                    });
+                }
             }
             removedPostActivities.forEach(name => {
-                Logger.error(`Class "${name.trim().toUpperCase()}" does not exist and will be removed from post activities list.`);
+                Logger.error(`Class "${name}" does not exist and will be removed from post activities list.`);
                 context.runtime.trmPackage.manifest.postActivities = context.runtime.trmPackage.manifest.postActivities.filter(o => o.name !== name);
             });
         }
 
-        //6- normalize manifest values
+        //6- edit dependencies/sap entries
+        if (!context.rawInput.contextData.noInquirer) {
+            var inqDefault2 = context.runtime.trmPackage.manifest.dependencies || [];
+            if(inqDefault2.length === 0){
+                (inqDefault2 as any).push({
+                    name: '<<name>>',
+                    version: '<<version>>',
+                    registry: '<<registry?>>'
+                });
+            }
+            const inq = await Inquirer.prompt([{
+                message: `Do you want to manually edit dependencies?`,
+                type: 'confirm',
+                name: 'editDependencies',
+                default: false
+            }, {
+                message: 'Editor dependencies',
+                type: 'editor',
+                name: 'dependencies',
+                postfix: '.json',
+                when: (hash) => {
+                    return hash.editDependencies
+                },
+                default: JSON.stringify(inqDefault2, null, 2),
+                validate: (input) => {
+                    try {
+                        const parsedInput = JSON.parse(input);
+                        if (Array.isArray(parsedInput)) {
+                            return true;
+                        } else {
+                            return 'Invalid array';
+                        }
+                    } catch (e) {
+                        return 'Invalid JSON';
+                    }
+                }
+            }]);
+            if (inq.dependencies) {
+                Logger.log(`Dependencies were manually changed: before -> ${JSON.stringify(context.runtime.trmPackage.manifest.dependencies)}, after -> ${JSON.parse(inq.dependencies)}`, true);
+                context.runtime.trmPackage.manifest.dependencies = JSON.parse(inq.dependencies);
+            }
+        }
+        if (!context.rawInput.contextData.noInquirer) {
+            var inqDefault3 = context.runtime.trmPackage.manifest.sapEntries || {};
+            if(Object.keys(inqDefault3).length === 0){
+                inqDefault3['<<table>>'] = [{
+                    '<<field1>>': '<<value1>>',
+                    '<<field2>>': '<<value2>>'
+                }];
+            }
+            const inq = await Inquirer.prompt([{
+                message: `Do you want to manually required SAP objects?`,
+                type: 'confirm',
+                name: 'editSapEntries',
+                default: false
+            }, {
+                message: 'Edit SAP entries',
+                type: 'editor',
+                name: 'sapEntries',
+                postfix: '.json',
+                when: (hash) => {
+                    return hash.editSapEntries
+                },
+                default: JSON.stringify(inqDefault3, null, 2),
+                validate: (input) => {
+                    try {
+                        const parsedInput = JSON.parse(input);
+                        if (typeof (parsedInput) === 'object' && !Array.isArray(parsedInput)) {
+                            return true;
+                        } else {
+                            return 'Invalid object';
+                        }
+                    } catch (e) {
+                        return 'Invalid JSON';
+                    }
+                }
+            }]);
+            if (inq.sapEntries) {
+                Logger.log(`SAP entries were manually changed: before -> ${JSON.stringify(context.runtime.trmPackage.manifest.sapEntries)}, after -> ${JSON.parse(inq.sapEntries)}`, true);
+                context.runtime.trmPackage.manifest.sapEntries = JSON.parse(inq.sapEntries);
+            }
+        }
+
+        //7- fetch missing dependencies integrity
+        Logger.loading(`Reading manifest...`);
+        for(var dependency of (context.runtime.trmPackage.manifest.dependencies || [])){
+            if(!dependency.integrity){
+                //fetch in origin system
+                dependency.integrity = await SystemConnector.getPackageIntegrity(new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry)));
+                if(!dependency.integrity){
+                    Logger.warning(`Dependency ${dependency.name} has no integrity match: registry might reject this!`);
+                }
+            }
+        }
+
+        //8- normalize manifest values
         context.runtime.trmPackage.manifest = Manifest.normalize(context.runtime.trmPackage.manifest, false);
     }
 }
