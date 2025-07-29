@@ -62,7 +62,7 @@
     "semver": "^7.5.4",
     "semver-sort": "^1.0.0",
     "spdx-license-ids": "^3.0.13",
-    "trm-commons": "^1.0.0",
+    "trm-commons": "^1.1.0",
     "trm-registry-types": "^1.1.1",
     "uuid": "^9.0.1",
     "xml-beautify": "^1.2.3",
