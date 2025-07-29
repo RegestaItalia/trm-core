@@ -5,7 +5,7 @@ import { TrmPackage } from "../../trmPackage";
 import { parsePackageName } from "../../commons";
 import { createHash } from "crypto";
 import { SystemConnector } from "../../systemConnector";
-import { RegistryType } from "../../registry";
+import { AbstractRegistry, RegistryType } from "../../registry";
 
 /**
  * Init
@@ -27,6 +27,17 @@ export const init: Step<InstallWorkflowContext> = {
         Logger.log('Init step', true);
         const registry = context.rawInput.packageData.registry;
 
+        //Local registry
+        var actualRegistry: AbstractRegistry;
+        var actualTrmPackage: TrmPackage;
+        //
+        if (registry.getRegistryType() === RegistryType.LOCAL) {
+            //if it's a local package it could be a download from a registry
+            actualTrmPackage = (await registry.getArtifact(null, null)).getManifest().getPackage();
+            actualRegistry = actualTrmPackage.registry;
+            context.rawInput.packageData.name = actualTrmPackage.packageName;
+        }
+
         //1- check package name is compliant
         context.rawInput.packageData.name = parsePackageName({
             fullName: context.rawInput.packageData.name
@@ -43,6 +54,7 @@ export const init: Step<InstallWorkflowContext> = {
         } else {
             Logger.loading(`Searching TRM package in registry ${registry.name}...`);
         }
+
         const trmPackage = new TrmPackage(context.rawInput.packageData.name, registry);
         const artifact = await trmPackage.fetchRemoteArtifact(context.rawInput.packageData.version);
         const integrity = createHash("sha512").update(artifact.binary).digest("hex");
@@ -60,12 +72,12 @@ export const init: Step<InstallWorkflowContext> = {
 
         //4- set package data from registry
         context.runtime = {
-            registry,
+            registry: actualRegistry || registry,
             update: undefined,
             rollback: false,
             remotePackageData: {
                 version: context.rawInput.packageData.version,
-                trmPackage,
+                trmPackage: actualTrmPackage || trmPackage,
                 trmManifest,
                 manifest,
                 artifact,

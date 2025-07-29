@@ -12,6 +12,7 @@ export const LOCAL_RESERVED_KEYWORD = 'local';
 export class FileSystem implements AbstractRegistry {
     endpoint: string;
     name: string = LOCAL_RESERVED_KEYWORD;
+    private _artifact: TrmArtifact;
 
     constructor(private _filePath?: string) {
         if (this._filePath) {
@@ -111,7 +112,11 @@ export class FileSystem implements AbstractRegistry {
     public async getArtifact(name: string, version: string = 'latest'): Promise<TrmArtifact> {
         if (this._filePath) {
             try{
-                return new TrmArtifact(readFileSync(this._filePath));
+                if(!this._artifact){
+                    this._artifact = new TrmArtifact(readFileSync(this._filePath));
+                    this._artifact.setFilePath(this._filePath);
+                }
+                return this._artifact;
             }catch(e){
                 throw new Error(`File system couldn't read package`);
             }
