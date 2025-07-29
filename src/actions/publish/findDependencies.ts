@@ -104,39 +104,6 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                 }
             }
         });
-        if (!context.rawInput.contextData.noInquirer) {
-            const inq = await Inquirer.prompt([{
-                message: `Do you want to manually edit dependencies?`,
-                type: 'confirm',
-                name: 'editDependencies',
-                default: false
-            }, {
-                message: 'Editor dependencies',
-                type: 'editor',
-                name: 'dependencies',
-                postfix: '.json',
-                when: (hash) => {
-                    return hash.editDependencies
-                },
-                default: JSON.stringify(context.runtime.trmPackage.manifest.dependencies, null, 2),
-                validate: (input) => {
-                    try {
-                        const parsedInput = JSON.parse(input);
-                        if (Array.isArray(parsedInput)) {
-                            return true;
-                        } else {
-                            return 'Invalid array';
-                        }
-                    } catch (e) {
-                        return 'Invalid JSON';
-                    }
-                }
-            }]);
-            if (inq.dependencies) {
-                Logger.log(`Dependencies were manually changed: before -> ${JSON.stringify(context.runtime.trmPackage.manifest.dependencies)}, after -> ${JSON.parse(inq.dependencies)}`, true);
-                context.runtime.trmPackage.manifest.dependencies = JSON.parse(inq.dependencies);
-            }
-        }
 
         //4- set sap entries in manifest
         Logger.log(`Adding SAP objects dependencies to manifest`, true);
@@ -155,38 +122,5 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                 }
             });
         });
-        if (!context.rawInput.contextData.noInquirer) {
-            const inq = await Inquirer.prompt([{
-                message: `Do you want to manually required SAP objects?`,
-                type: 'confirm',
-                name: 'editSapEntries',
-                default: false
-            }, {
-                message: 'Edit SAP entries',
-                type: 'editor',
-                name: 'sapEntries',
-                postfix: '.json',
-                when: (hash) => {
-                    return hash.editSapEntries
-                },
-                default: JSON.stringify(context.runtime.trmPackage.manifest.sapEntries, null, 2),
-                validate: (input) => {
-                    try {
-                        const parsedInput = JSON.parse(input);
-                        if (typeof (parsedInput) === 'object' && !Array.isArray(parsedInput)) {
-                            return true;
-                        } else {
-                            return 'Invalid object';
-                        }
-                    } catch (e) {
-                        return 'Invalid JSON';
-                    }
-                }
-            }]);
-            if (inq.sapEntries) {
-                Logger.log(`SAP entries were manually changed: before -> ${JSON.stringify(context.runtime.trmPackage.manifest.sapEntries)}, after -> ${JSON.parse(inq.sapEntries)}`, true);
-                context.runtime.trmPackage.manifest.sapEntries = JSON.parse(inq.sapEntries);
-            }
-        }
     }
 }
