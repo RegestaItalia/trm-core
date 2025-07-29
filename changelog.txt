@@ -13,6 +13,7 @@ Legend
 - dependency install doesn't ask for cust/lang/package replacements anymore
 ! install asks for cust/lang/package replacements when not provided
 ! import logger shows package name
+* local package install
 
 2025-07-08 v7.3.0
 -------------------
