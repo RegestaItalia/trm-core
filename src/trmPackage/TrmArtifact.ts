@@ -13,9 +13,14 @@ export class TrmArtifact {
     private _zip: AdmZip;
     private _binaries: TransportBinary[];
     private _content: any;
+    private _filePath: string;
 
     constructor(public binary: Buffer, private _distFolder?: string, private _srcFolder?: string, private _manifest?: Manifest) {
         this._zip = new AdmZip.default(binary);
+    }
+
+    public setFilePath(filePath: string){
+        this._filePath = filePath;
     }
 
     public getManifest(): Manifest | null {
@@ -35,7 +40,7 @@ export class TrmArtifact {
                     jsonManifest.sapEntries = { ...jsonManifest.sapEntries, ...sapEntries };
                 }
                 const trmManifest = Manifest.normalize(jsonManifest, false);
-                this._manifest = new Manifest(trmManifest);
+                this._manifest = new Manifest(trmManifest, this._filePath);
             }
         }
         return this._manifest;

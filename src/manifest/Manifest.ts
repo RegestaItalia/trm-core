@@ -29,7 +29,7 @@ function getManifestAuthor(sAuthor: string) {
 }
 
 export class Manifest {
-    constructor(private _manifest: TrmManifest) {
+    constructor(private _manifest: TrmManifest, private _filePath?: string) {
     }
 
     public get(keepRuntimeValues: boolean = false): TrmManifest {
@@ -301,7 +301,7 @@ export class Manifest {
 
     public getPackage(): TrmPackage {
         const manifest = this.get(true);
-        const registry = RegistryProvider.getRegistry(manifest.registry);
+        const registry = RegistryProvider.getRegistry(manifest.registry, this._filePath);
         return new TrmPackage(manifest.name, registry, this);
     }
 

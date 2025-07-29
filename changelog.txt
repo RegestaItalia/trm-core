@@ -15,6 +15,7 @@ Legend
 ! import logger shows package name
 ! set/overwrite dependencies with or without automatic detection
 + manifest template for post activities, trm dependency and sap entries
+* local package install
 
 2025-07-08 v7.3.0
 -------------------
