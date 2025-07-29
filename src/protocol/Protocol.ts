@@ -20,12 +20,16 @@ export class Protocol {
                 const nodePath = process.execPath;
                 const address: AddressInfo = this._server.address() as AddressInfo;
                 const url = `http://localhost:${address.port}`;
-                await ProtocolRegistry.register({
+                /*await ProtocolRegistry.register({
                     protocol: "trm",
                     command: `"${nodePath}" "${path.join(__dirname, "./callback.js")}" ${url} $_URL_`,
                     override: true,
                     terminal: false,
                     script: false
+                });*/
+                await ProtocolRegistry.register(`trm`, `"${nodePath}" "${path.join(__dirname, "./callback.js")}" ${url} $_URL_`, {
+                    override: true,
+                    terminal: true
                 });
             });
         }

@@ -16,7 +16,7 @@ TRM is a software designed to make transports between SAP ECC/S4 systems easy.
 
 # Requirements
 
-- [Node ^22.12.0](https://github.com/nodejs/node/releases/tag/v22.12.0)
+- [Node >=22.12.0](https://github.com/nodejs/node/releases/tag/v22.12.0)
 
 # Documentation <!-- {docsify-remove} -->
 
