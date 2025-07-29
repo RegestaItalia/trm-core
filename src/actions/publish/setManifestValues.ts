@@ -336,17 +336,25 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         if (Array.isArray(context.runtime.trmPackage.manifest.postActivities) && context.runtime.trmPackage.manifest.postActivities.length > 0) {
             var removedPostActivities = [];
             Logger.loading(`Checking post activities...`);
-            for (const data of context.runtime.trmPackage.manifest.postActivities) {
+            for (var data of context.runtime.trmPackage.manifest.postActivities) {
                 if (data.name) {
+                    data.name = data.name.trim().toUpperCase();
                     if (!removedPostActivities.find(c => c === data.name)) {
                         if (!(await PostActivity.exists(data.name))) {
-                            removedPostActivities.push(data.name.trim().toUpperCase());
+                            removedPostActivities.push(data.name);
                         }
                     }
                 }
+                if(Array.isArray(data.parameters)){
+                    data.parameters.forEach(p => {
+                        if(p.name){
+                            p.name = p.name.trim().toUpperCase();
+                        }
+                    });
+                }
             }
             removedPostActivities.forEach(name => {
-                Logger.error(`Class "${name.trim().toUpperCase()}" does not exist and will be removed from post activities list.`);
+                Logger.error(`Class "${name}" does not exist and will be removed from post activities list.`);
                 context.runtime.trmPackage.manifest.postActivities = context.runtime.trmPackage.manifest.postActivities.filter(o => o.name !== name);
             });
         }
