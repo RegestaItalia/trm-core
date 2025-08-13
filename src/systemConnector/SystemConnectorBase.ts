@@ -11,7 +11,6 @@ import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
-import { TrmServerUpgrade } from "../commons";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = 'ZIF_TRM';

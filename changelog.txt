@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-07-30 v7.4.4
+-------------------
+! node-r3trans ^2.0.0
+
 2025-07-30 v7.4.3
 -------------------
 ! trm-commons ^2.0.0 as peer dependency
