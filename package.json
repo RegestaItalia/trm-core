@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "7.4.4",
+  "version": "7.4.5",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -54,7 +54,7 @@
     "lodash": "^4.17.21",
     "minimatch": "^10.0.1",
     "node-html-parser": "^7.0.1",
-    "node-r3trans": "^2.0.0",
+    "node-r3trans": "^2.0.1",
     "object-keys-normalizer": "^1.0.1",
     "opener": "^1.5.2",
     "parse-multipart-data": "^1.5.0",
