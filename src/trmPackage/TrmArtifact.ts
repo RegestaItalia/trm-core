@@ -97,7 +97,7 @@ export class TrmArtifact {
         if (!this._content) {
             this._content = {};
             try {
-                const transportBinaries = await this.getTransportBinaries();
+                const transportBinaries = await this.getTransportBinaries(r3transConfig);
                 const r3trans = new R3trans(r3transConfig);
                 for (const transportBinary of transportBinaries) {
                     const tableEntries = await r3trans.getTableEntries(transportBinary.binaries.data);
