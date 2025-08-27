@@ -47,7 +47,7 @@ export class TrmArtifact {
     }
 
     public replaceManifest(oManifest: Manifest) {
-        const manifestBuffer = Buffer.from(JSON.stringify(oManifest.get(false), null, 2), 'utf8');
+        const manifestBuffer = Buffer.from(oManifest.getJSON(), 'utf8');
         this._zip.updateFile('manifest.json', manifestBuffer);
     }
 
@@ -192,12 +192,9 @@ export class TrmArtifact {
                 Logger.error(`Couldn't add source code to TRM artifact!`);
             }
         }
-
-        var oManifest = data.manifest.get(false);
-        var oSapEntries = oManifest.sapEntries;
-        delete oManifest.sapEntries;
-
-        const manifestBuffer = Buffer.from(JSON.stringify(oManifest, null, 2), 'utf8');
+        
+        const oSapEntries = data.manifest.get().sapEntries;
+        const manifestBuffer = Buffer.from(data.manifest.getJSON(["sapEntries"]), 'utf8');
         Logger.log(`Adding manifest.json`, true);
         artifact.addFile(`manifest.json`, manifestBuffer, `manifest`);
         if (oSapEntries && Object.keys(oSapEntries).length > 0) {

@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+XXXX-XX-XX vX.X.X
+-------------------
+! manifest.json keys order
+
 2025-08-27 v7.4.6
 -------------------
 * template manifest values
