@@ -288,19 +288,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
 
         //5- set post install activities
         if (!context.rawInput.contextData.noInquirer) {
-            var inqDefault1 = context.runtime.trmPackage.manifest.postActivities || [];
-            if(inqDefault1.length === 0){
-                inqDefault1.push({
-                    name: '<<class name>>',
-                    parameters: [{
-                        name: '<<parameter1>>',
-                        value: '<<value1>>'
-                    }, {
-                        name: '<<parameter2>>',
-                        value: '<<value2>>'
-                    }]
-                })
-            }
+            const inqDefault1 = context.runtime.trmPackage.manifest.postActivities || [];
             const inq = await Inquirer.prompt([{
                 message: context.runtime.trmPackage.manifest.postActivities.length > 0 ? `Do you want to edit ${context.runtime.trmPackage.manifest.postActivities.length} post activities?` : `Do you want to add post activities?`,
                 type: 'confirm',
@@ -314,7 +302,16 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 when: (hash) => {
                     return hash.editPostActivities
                 },
-                default: JSON.stringify(inqDefault1, null, 2),
+                default: JSON.stringify(inqDefault1.length === 0 ? [{
+                    name: '<<class name>>',
+                    parameters: [{
+                        name: '<<parameter1>>',
+                        value: '<<value1>>'
+                    }, {
+                        name: '<<parameter2>>',
+                        value: '<<value2>>'
+                    }]
+                }] : inqDefault1, null, 2),
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
@@ -361,14 +358,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
 
         //6- edit dependencies/sap entries
         if (!context.rawInput.contextData.noInquirer) {
-            var inqDefault2 = context.runtime.trmPackage.manifest.dependencies || [];
-            if(inqDefault2.length === 0){
-                (inqDefault2 as any).push({
-                    name: '<<name>>',
-                    version: '<<version>>',
-                    registry: '<<registry?>>'
-                });
-            }
+            const inqDefault2 = context.runtime.trmPackage.manifest.dependencies || [];
             const inq = await Inquirer.prompt([{
                 message: `Do you want to manually edit dependencies?`,
                 type: 'confirm',
@@ -382,7 +372,11 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 when: (hash) => {
                     return hash.editDependencies
                 },
-                default: JSON.stringify(inqDefault2, null, 2),
+                default: JSON.stringify(inqDefault2.length === 0 ? [{
+                    name: '<<name>>',
+                    version: '<<version>>',
+                    registry: '<<registry?>>'
+                }] : inqDefault2, null, 2),
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
@@ -402,13 +396,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             }
         }
         if (!context.rawInput.contextData.noInquirer) {
-            var inqDefault3 = context.runtime.trmPackage.manifest.sapEntries || {};
-            if(Object.keys(inqDefault3).length === 0){
-                inqDefault3['<<table>>'] = [{
-                    '<<field1>>': '<<value1>>',
-                    '<<field2>>': '<<value2>>'
-                }];
-            }
+            const inqDefault3 = context.runtime.trmPackage.manifest.sapEntries || {};
             const inq = await Inquirer.prompt([{
                 message: `Do you want to manually required SAP objects?`,
                 type: 'confirm',
@@ -422,7 +410,12 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 when: (hash) => {
                     return hash.editSapEntries
                 },
-                default: JSON.stringify(inqDefault3, null, 2),
+                default: JSON.stringify(Object.keys(inqDefault3).length === 0 ? {
+                    '<<table>>': [{
+                        '<<field1>>': '<<value1>>',
+                        '<<field2>>': '<<value2>>'
+                    }]
+                } : inqDefault3, null, 2),
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);

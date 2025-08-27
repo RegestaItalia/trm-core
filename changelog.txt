@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-08-27 v7.4.6
+-------------------
+* template manifest values
+
 2025-08-17 v7.4.5
 -------------------
 ! node-r3trans ^2.0.1
