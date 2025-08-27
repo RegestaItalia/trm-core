@@ -17,7 +17,7 @@ export class TrmPackage {
     private _remoteArtifacts: any = {};
     private _remoteContent: any = {};
     private _devclass: DEVCLASS;
-    private _wbTransport: Transport;
+    private _wbTransport: Transport | false;
 
     constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
     }
@@ -38,7 +38,15 @@ export class TrmPackage {
 
     public async getWbTransport(): Promise<Transport> {
         if(this._wbTransport === undefined){
-            this._wbTransport = await SystemConnector.getPackageWorkbenchTransport(this);
+            const transports = await SystemConnector.getWbTransports(this);
+            if(transports.length === 1){
+                this._wbTransport = transports[0];
+            }else{
+                this._wbTransport = false;
+            }
+        }
+        if(this._wbTransport === false){
+            return undefined;
         }
         return this._wbTransport;
     }

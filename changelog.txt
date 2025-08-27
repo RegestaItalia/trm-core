@@ -8,6 +8,11 @@ Legend
 + : added
 - : removed
 
+XXXX-XX-XX vX.X.X
+-------------------
+! get workbench method
++ handle install transport for same package local/remote
+
 2025-08-27 v7.4.6
 -------------------
 * template manifest values

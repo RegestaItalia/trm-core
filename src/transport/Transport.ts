@@ -23,7 +23,8 @@ export class Transport {
     private _e070: E070;
     private _e071: E071[];
     private _docs: Documentation[];
-    private _trmRelevant: boolean;
+    private _trmPackageName: string;
+    private _trmPackageVersion: string;
     private _linkedTrmPackage: TrmPackage;
     private _rootDevclass: DEVCLASS;
     public trmIdentifier?: TrmTransportIdentifier;
@@ -174,15 +175,39 @@ export class Transport {
         return fromAbapToDate(e070.as4Date, e070.as4Time);
     }
 
-    public async isTrmRelevant(): Promise<boolean> {
-        if (this._trmRelevant === undefined) {
+    public async getTrmPackageName(): Promise<string> {
+        if(this._trmPackageName === undefined){
             const e071 = await this.getE071();
             const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
-            const hasName = trmComments.find(o => /name=/i.test(o.objName));
-            const hasVersion = trmComments.find(o => /version=/i.test(o.objName));
-            this._trmRelevant = (hasName && hasVersion) ? true : false;
+            trmComments.forEach(s => {
+                if(!this._trmPackageName){
+                    try{
+                        this._trmPackageName = /name=(\S*)/i.exec(s.objName)[1];
+                    }catch(e){ }
+                }
+            });
         }
-        return this._trmRelevant;
+        return this._trmPackageName;
+    }
+    public async getTrmPackageVersion(): Promise<string> {
+        if(this._trmPackageVersion === undefined){
+            const e071 = await this.getE071();
+            const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
+            trmComments.forEach(s => {
+                if(!this._trmPackageVersion){
+                    try{
+                        this._trmPackageVersion = /version=(\S*)/i.exec(s.objName)[1];
+                    }catch(e){ }
+                }
+            });
+        }
+        return this._trmPackageVersion;
+    }
+
+    public async isTrmRelevant(): Promise<boolean> {
+        const packageName = await this.getTrmPackageName();
+        const packageVersion = await this.getTrmPackageVersion();
+        return !!(packageName && packageVersion);
     }
 
     public async download(): Promise<{
