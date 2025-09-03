@@ -13,7 +13,7 @@ import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 export class RFCSystemConnector extends SystemConnectorBase implements ISystemConnector {
     private _lang: string;
     private _user: string;
-    private _client: RFCClient;
+    protected _client: RFCClient;
     private _isServerApisAllowed: true | RFCClientError;
 
     supportedBulk: SystemConnectorSupportedBulk = {
@@ -99,7 +99,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         }
     }
 
-    public async close(): Promise<void> {
+    public async closeConnection(): Promise<void> {
         await this._client.close();
     }
 
@@ -255,8 +255,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.executePostActivity(data, pre);
     }
 
-    public async isServerApisAllowed(): Promise<true|ClientError> {
-        if(this._isServerApisAllowed === undefined){
+    public async isServerApisAllowed(): Promise<true | ClientError> {
+        if (this._isServerApisAllowed === undefined) {
             this._isServerApisAllowed = await this._client.isServerApisAllowed();
         }
         return this._isServerApisAllowed;

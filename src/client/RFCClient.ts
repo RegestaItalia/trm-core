@@ -11,7 +11,7 @@ import * as xml from "xml-js";
 const nodeRfcLib = 'node-rfc';
 
 export class RFCClient implements IClient {
-    private _rfcClient: any;
+    protected _rfcClient: any;
     private _aliveCheck: boolean = false;
 
     constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string) {
