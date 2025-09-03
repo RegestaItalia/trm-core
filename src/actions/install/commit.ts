@@ -23,7 +23,7 @@ export const commit: Step<InstallWorkflowContext> = {
 
         //1- Close and re open connection
         Logger.loading(`Closing rfc connection...`, true);
-        await (SystemConnector.systemConnector as RFCSystemConnector).close();
+        await (SystemConnector.systemConnector as RFCSystemConnector).closeConnection();
         Logger.loading(`Opening rfc connection...`, true);
         await (SystemConnector.systemConnector as RFCSystemConnector).connect(true);
         Logger.success(`Commit OK`, true);
