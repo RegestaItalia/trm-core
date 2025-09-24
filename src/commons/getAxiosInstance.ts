@@ -1,4 +1,4 @@
-import axios, { AxiosResponse, CreateAxiosDefaults } from "axios";
+import axios, { AxiosInstance, AxiosResponse, CreateAxiosDefaults } from "axios";
 import { inspect } from "util";
 import { CliLogFileLogger, Logger } from "trm-commons";
 import { parse as htmlParser } from 'node-html-parser';
@@ -17,8 +17,8 @@ function _getInternalId(response: AxiosResponse<any, any>){
     }
 }
 
-export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCtx) {
-    const instance = axios.create(config);
+export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCtx, inj?: AxiosInstance) {
+    var instance: AxiosInstance = inj || axios.create(config);
     instance.interceptors.request.use((request) => {
         const internalId = uuidv4();
         request.headers.set(AXIOS_INTERNAL_HEADER, internalId);

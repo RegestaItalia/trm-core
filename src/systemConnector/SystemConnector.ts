@@ -56,6 +56,11 @@ export namespace SystemConnector {
         return systemConnector.connect();
     }
 
+    export async function closeConnection(): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.closeConnection();
+    }
+
     export async function checkConnection(): Promise<boolean> {
         await checkSystemConnector();
         return systemConnector.checkConnection();

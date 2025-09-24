@@ -18,12 +18,12 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     private _dest: string;
     private _lang: string;
     private _user: string;
-    private _client: RESTClient;
+    protected _client: RESTClient;
     private _isServerApisAllowed: true | RESTClientError;
 
     supportedBulk: SystemConnectorSupportedBulk;
 
-    constructor(private _connection: RESTConnection, private _login: Login) {
+    constructor(private _connection: RESTConnection, private _login: Login, normalizeEndpoint: boolean = true) {
         super();
         this.supportedBulk = {
             getTransportObjects: true,
@@ -32,10 +32,12 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
         this._user = this._login.user;
-        Logger.log(`REST connection data before normalize: ${JSON.stringify(this._connection)}`, true);
-        this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
-            removeTrailingSlash: true
-        });
+        if(normalizeEndpoint){
+            Logger.log(`REST connection data before normalize: ${JSON.stringify(this._connection)}`, true);
+            this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
+                removeTrailingSlash: true
+            });
+        }
         if (!new RegExp(`${ENDPOINT_RESOURCE_BASE}$`, 'gmi').test(this._connection.endpoint)) {
             this._connection.endpoint = `${this._connection.endpoint}${ENDPOINT_RESOURCE_BASE}`;
         }
@@ -117,6 +119,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
             Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, false);
             throw e;
         }
+    }
+
+    public async closeConnection(): Promise<void> {
+        //
     }
 
     public async checkConnection(): Promise<boolean> {

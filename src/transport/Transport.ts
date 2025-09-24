@@ -405,6 +405,10 @@ export class Transport {
         } else {
             rc = await this._isInTmsQueue(skipLog, false, secondsTimeout);
         }
+        //TODO: is this relevant? when releasing there shouldn't be an rc!
+        //the only status is given by the release log, otherwise a release will simply place the transport in queue
+        //but without import, no rc...
+        //probably was copy and pasted, but I feel like this switch is never used as rc always used to come as 0 (now -1 to avoid confusion)
         if (!skipLog && !tmpFolder) { //with tmpFolder, release status already printed
             switch (rc) {
                 case 4:
@@ -590,7 +594,6 @@ export class Transport {
         var inQueue = false;
         var rc: number = 12;
         if (this._trTarget) {
-            var sLog = `status unknown`;
             var inQueueAttempts = 0;
             while (!inQueue && (new Date()).getTime() < timeoutDate.getTime()) {
                 inQueueAttempts++;
@@ -601,14 +604,18 @@ export class Transport {
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
                 if (!checkImpSing) {
-                    sLog = `released`;
+                    //without check if in import, simply check if in queue
                     inQueue = tmsQueue.length > 0;
                 } else {
                     //if importing, get the last transport in queue (if re installing, there are more than 1)
-                    sLog = `imported`;
                     if (tmsQueue.length > 0) {
                         inQueue = tmsQueue[0].impsing !== 'X';
-                        rc = parseInt(tmsQueue[0].maxrc);
+                        if(!tmsQueue[0].maxrc){
+                            //no rc => transport wasn't imported! set as -1 (field is blank, do not confuse with 0 which is success)
+                            rc = -1;
+                        }else{
+                            rc = parseInt(tmsQueue[0].maxrc);
+                        }
                     } else {
                         inQueue = false;
                     }
@@ -617,7 +624,12 @@ export class Transport {
             if (!inQueue) {
                 throw new Error(`${this.trkorr} not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
             } else {
-                Logger.success(`${this.trkorr} ${sLog}.`, skipLog);
+                if(!checkImpSing){
+                    //without check of import, we're releasing the transport (publish?)
+                    //set rc to -1 as it is irrelevant
+                    Logger.success(`${this.trkorr} released.`, skipLog);
+                    rc = -1;
+                }
             }
         } else {
             Logger.error(`No target specified, unable to check queue!!`, true);
@@ -792,6 +804,12 @@ export class Transport {
         const rc = await this._isInTmsQueue(false, true, timeout);
         Logger.log(`Transport ${this.trkorr} import ended: return code ${rc}`, true);
         switch (rc) {
+            case -1:
+                Logger.error(`${this.trkorr} import has no return code!`);
+                break;
+            case 0:
+                Logger.success(`${this.trkorr} import ended with success.`);
+                break;
             case 4:
                 Logger.warning(`${this.trkorr} import ended with warning.`);
                 break;

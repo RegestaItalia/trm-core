@@ -2,7 +2,7 @@ import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
 import { getAxiosInstance, normalize } from "../commons";
-import { AxiosError, AxiosInstance, AxiosResponse } from "axios";
+import { AxiosInstance, AxiosResponse } from "axios";
 import * as FormData from "form-data";
 import { Logger } from "trm-commons";
 import { Login, RESTClientError, SapMessage } from ".";
@@ -11,7 +11,7 @@ import { parse as parseMultipart } from "parse-multipart-data";
 const AXIOS_CTX = "RestServer";
 
 export class RESTClient implements IClient {
-    private _axiosInstance: AxiosInstance;
+    protected _axiosInstance: AxiosInstance;
     private _connected: boolean = false;
 
     constructor(public endpoint: string, public rfcdest: components.RFCDEST, private _login: Login, private _cLangu: string) {
