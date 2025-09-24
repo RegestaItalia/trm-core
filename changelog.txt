@@ -13,6 +13,7 @@ Legend
 ! transport rc read
 ! get workbench method
 + handle install transport for same package local/remote
+! manifest.json keys order
 
 2025-09-24 v7.5.3
 -------------------
