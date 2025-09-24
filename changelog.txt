@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-09-16 v7.5.2
+-------------------
++ DOMA senvi parser
+
 2025-09-03 v7.5.1
 -------------------
 ! trm-commons ^3.2.0
