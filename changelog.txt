@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-09-26 v7.6.0
+-------------------
+! transport rc read
+
 2025-09-24 v7.5.3
 -------------------
 ! trm-commons ^3.3.2
