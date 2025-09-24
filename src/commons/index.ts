@@ -10,7 +10,6 @@ export * from "./getParentFromHierarchy";
 export * from "./getPackageNamespace";
 export * from "./LogTableStruct";
 export * from "./getAxiosInstance";
-export * from "./getNpmGlobalPath"
 export * from "./getNodePackage";
 export * from "./getCoreTrmDependencies";
 export * from "./checkCoreTrmDependencies";

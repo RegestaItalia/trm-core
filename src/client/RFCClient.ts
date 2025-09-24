@@ -1,8 +1,8 @@
 import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
-import { getNpmGlobalPath, normalize } from "../commons";
-import { Logger } from "trm-commons";
+import { normalize } from "../commons";
+import { getGlobalNodeModules, Logger } from "trm-commons";
 import { existsSync } from "fs";
 import path from "path";
 import { RFCClientError, SapMessage } from ".";
@@ -11,10 +11,10 @@ import * as xml from "xml-js";
 const nodeRfcLib = 'node-rfc';
 
 export class RFCClient implements IClient {
-    private _rfcClient: any;
+    protected _rfcClient: any;
     private _aliveCheck: boolean = false;
 
-    constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string) {
+    constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string, private _globalNodeModulesPath?: string) {
         try {
             process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
         } catch (e) {
@@ -27,8 +27,7 @@ export class RFCClient implements IClient {
 
     private async getRfcClient(): Promise<any> {
         if (!this._rfcClient) {
-            const globalPath = await getNpmGlobalPath();
-            const libPath = path.join(globalPath, nodeRfcLib);
+            const libPath = path.join(this._globalNodeModulesPath || getGlobalNodeModules(), nodeRfcLib);
             Logger.log(`Node RFC lib path: ${libPath}`, true);
             if (!existsSync(libPath)) {
                 throw new RFCClientError("ZRFC_LIB_NOT_FOUND", null, null, `${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
