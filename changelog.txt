@@ -8,9 +8,31 @@ Legend
 + : added
 - : removed
 
-XXXX-XX-XX vX.X.X
+2025-09-26 v7.6.0
 -------------------
+! transport rc read
+! get workbench method
++ handle install transport for same package local/remote
 ! manifest.json keys order
+
+2025-09-24 v7.5.3
+-------------------
+! trm-commons ^3.3.2
+
+2025-09-16 v7.5.2
+-------------------
++ DOMA senvi parser
+
+2025-09-03 v7.5.1
+-------------------
+! trm-commons ^3.2.0
+
+2025-09-03 v7.5.0
+-------------------
+! trm-commons ^3.1.0
+* npm global path
++ rfc closeConnection method
+! private/protected methods/attributes
 
 2025-08-27 v7.4.6
 -------------------

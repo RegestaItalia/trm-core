@@ -52,10 +52,16 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
-  public async getPackageWorkbenchTransport(oPackage: TrmPackage): Promise<Transport> {
+  public async getWbTransports(trmPackage?: string | TrmPackage): Promise<Transport[]> {
+    var sqlWhere = `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`;
+    if (trmPackage instanceof TrmPackage) {
+      sqlWhere += ` AND OBJ_NAME EQ '${trmPackage.packageName}'`;
+    } else if (typeof trmPackage === 'string') {
+      sqlWhere += ` AND OBJ_NAME EQ '${trmPackage}'`;
+    }
     var aTrkorr: TRKORR[] = (await this.readTable('E071',
       [{ fieldName: 'TRKORR' }],
-      `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`
+      sqlWhere
     )).map(o => o.trkorr);
     //because we're extracting from e071, there will be multiple records with the same trkorr
     //unique array
@@ -78,22 +84,34 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     //filter transports
     aTrkorr = aTrkorr.filter(trkorr => !aSkipTrkorr.includes(trkorr));
 
-    const transports: Transport[] = aTrkorr.map(trkorr => new Transport(trkorr));
+
     var packageTransports: Transport[] = [];
-    for (const transport of transports) {
-      const transportPackage = await transport.getLinkedPackage();
-      if (transportPackage) {
-        if (TrmPackage.compare(transportPackage, oPackage)) {
+    var transports: Transport[] = aTrkorr.map(trkorr => new Transport(trkorr));
+    for (let i = transports.length - 1; i >= 0; i--) {
+      if (!await transports[i].getLinkedPackage()) { //keep only transports with a valid linked package
+        transports.splice(i, 1);
+      }
+    }
+    if (trmPackage instanceof TrmPackage) {
+      for (const transport of transports) {
+        const transportPackage = await transport.getLinkedPackage();
+        if (transportPackage) {
+          if (TrmPackage.compare(transportPackage, trmPackage)) {
+            packageTransports.push(transport);
+          }
+        }
+      }
+      return [await Transport.getLatest(packageTransports)];
+    } else if (typeof trmPackage === 'string') {
+      for (const transport of transports) {
+        if ((await transport.getTrmPackageName()) === trmPackage) {
           packageTransports.push(transport);
         }
       }
+      return packageTransports;
+    } else {
+      return transports;
     }
-
-    if (packageTransports.length > 0) {
-      return await Transport.getLatest(packageTransports);
-    }
-
-    return null;
   }
 
   public async getSourceTrkorr(refresh?: boolean): Promise<TRKORR[]> {

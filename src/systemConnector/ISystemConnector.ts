@@ -13,6 +13,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getLogonLanguage: (c: boolean) => string,
     getLogonUser: () => string,
     connect: () => Promise<void>,
+    closeConnection: () => Promise<void>,
     checkConnection: () => Promise<boolean>,
     ping: () => Promise<string>,
     getFileSystem: () => Promise<struct.FILESYS>,
