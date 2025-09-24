@@ -5,3 +5,4 @@ export * from "./DtelSenviParser";
 export * from "./ViewSenviParser";
 export * from "./ProgSenviParser";
 export * from "./FuncSenviParser";
+export * from "./DomaSenviParser";
