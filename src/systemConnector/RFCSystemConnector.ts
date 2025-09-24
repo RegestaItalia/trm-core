@@ -21,7 +21,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         getExistingObjects: false
     };
 
-    constructor(private _connection: RFCConnection, private _login: Login, private _traceDir?: string) {
+    constructor(private _connection: RFCConnection, private _login: Login, private _traceDir?: string, _globalNodeModulesPath?: string) {
         super();
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
@@ -29,7 +29,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         if (!this._connection.saprouter) {
             delete this._connection.saprouter;
         }
-        this._client = new RFCClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir);
+        this._client = new RFCClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir, _globalNodeModulesPath);
     }
 
     protected getSysname(): string {
