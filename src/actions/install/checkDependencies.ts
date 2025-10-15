@@ -29,7 +29,7 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
         //1- execute check dependencies workflow
         const inputData: CheckPackageDependenciesActionInput = {
             packageData: {
-                package: context.runtime.remotePackageData.trmPackage
+                manifest: context.runtime.remotePackageData.manifest
             },
             contextData: {
                 systemPackages: context.rawInput.contextData.systemPackages
@@ -52,18 +52,6 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
         }
 
         //2- filter dependencies
-        result.dependencyStatus.forEach(o => {
-            if(!o.match){
-                context.runtime.dependenciesToInstall.push(o.dependency);
-            }else{
-                if(!o.safe){
-                    if(context.rawInput.installData.checks.safe){
-                        throw new Error(`Dependency "${o.dependency.name}" is installed, but integrity doesn't match.`);
-                    }else{
-                        Logger.warning(`Dependency "${o.dependency.name}" is installed, but integrity doesn't match.`);
-                    }
-                }
-            }
-        });
+        context.runtime.dependenciesToInstall = result.dependencyStatus.filter(o => !o.match).map(k => k.dependency);
     }
 }

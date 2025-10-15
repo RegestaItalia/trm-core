@@ -1,4 +1,4 @@
-import { Ping, Release, View, WhoAmI } from "trm-registry-types";
+import { Package, Ping, WhoAmI } from "trm-registry-types";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
 
@@ -11,10 +11,8 @@ export abstract class AbstractRegistry {
     getAuthData: () => any;
     ping: () => Promise<Ping>;
     whoAmI: () => Promise<WhoAmI>;
-    packageExists: (name: string, version?: string) => Promise<boolean>;
-    view: (name: string, version: string) => Promise<View>;
-    getArtifact: (name: string, version: string) => Promise<TrmArtifact>;
-    publishArtifact: (packageName: string, version: string, artifact: TrmArtifact, readme?: string) => Promise<void>;
-    unpublish: (packageName: string, version: string) => Promise<void>;
-    getReleases: (packageName: string, versionRange: string) => Promise<Release[]>;
+    getPackage: (fullName: string, version: string) => Promise<Package>;
+    validatePublish: (fullName: string, version: string) => Promise<void>;
+    publish: (fullName: string, version: string, artifact: TrmArtifact, readme?: string) => Promise<void>;
+    unpublish: (fullName: string, version: string) => Promise<void>;
 }

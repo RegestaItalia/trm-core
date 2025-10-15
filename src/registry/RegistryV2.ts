@@ -1,7 +1,7 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, OAuth2Data, Ping, Release, View, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, OAuth2Data, Package, Ping, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
@@ -13,11 +13,11 @@ import _ from 'lodash';
 import { getAxiosInstance } from "../commons";
 import { AbstractRegistry } from "./AbstractRegistry";
 
-const AXIOS_CTX = "Registry";
+const AXIOS_CTX = "RegistryV2";
 
 export const PUBLIC_RESERVED_KEYWORD = 'public';
 
-export class Registry implements AbstractRegistry {
+export class RegistryV2 implements AbstractRegistry {
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
     private _authData: any;
@@ -59,11 +59,11 @@ export class Registry implements AbstractRegistry {
             baseURL: this.endpoint
         }, AXIOS_CTX);
     }
-    
+
     public compare(registry: AbstractRegistry): boolean {
-        if(registry instanceof Registry){
+        if (registry instanceof RegistryV2) {
             return this.endpoint === registry.endpoint;
-        }else{
+        } else {
             return false;
         }
     }
@@ -75,15 +75,15 @@ export class Registry implements AbstractRegistry {
     public async authenticate(defaultData: any = {}): Promise<AbstractRegistry> {
         Logger.log(`Registry authentication request`, true);
         const ping = await this.ping();
-        Logger.log(`Registry authentication type is: ${ping.authenticationType}`, true);
-        if (ping.authenticationType !== AuthenticationType.NO_AUTH) {
-            if (ping.authenticationType === AuthenticationType.BASIC) {
+        Logger.log(`Registry authentication type is: ${ping.authentication_type}`, true);
+        if (ping.authentication_type !== AuthenticationType.NO_AUTH) {
+            if (ping.authentication_type === AuthenticationType.BASIC) {
                 await this._basicAuth(defaultData);
             }
-            if (ping.authenticationType === AuthenticationType.OAUTH2) {
+            if (ping.authentication_type === AuthenticationType.OAUTH2) {
                 await this._oauth2(defaultData);
             }
-            if (ping.authenticationType === AuthenticationType.TOKEN) {
+            if (ping.authentication_type === AuthenticationType.TOKEN) {
                 await this._tokenAuth(defaultData);
             }
         }
@@ -206,13 +206,13 @@ export class Registry implements AbstractRegistry {
             runAuthFlow = true;
         }
         if (runAuthFlow) {
-            const oAuth2: OAuth2Data = ping.authenticationData;
+            const oAuth2: OAuth2Data = ping.authentication_data;
             const oAuth2ProtocolPath = "//oauth2";
             const sRedirectUri = `trm:${oAuth2ProtocolPath}`;
-            const oAuth2Url = new URL(oAuth2.authorizationUrl);
+            const oAuth2Url = new URL(oAuth2.authorization_url);
             const oAuth2State = randomUUID();
-            oAuth2Url.searchParams.append("client_id", oAuth2.clientId);
-            oAuth2Url.searchParams.append("response_type", oAuth2.responseType);
+            oAuth2Url.searchParams.append("client_id", oAuth2.client_id);
+            oAuth2Url.searchParams.append("response_type", oAuth2.response_type);
             oAuth2Url.searchParams.append("redirect_uri", sRedirectUri);
             oAuth2Url.searchParams.append("state", oAuth2State);
             var sAuth2Url = oAuth2Url.toString();
@@ -264,7 +264,11 @@ export class Registry implements AbstractRegistry {
     public async ping(): Promise<Ping> {
         if (!this._ping) {
             try {
-                this._ping = (await this._axiosInstance.get('/')).data;
+                this._ping = (await this._axiosInstance.get('/', {
+                    headers: {
+                        "Authorization": undefined //force ping no auth
+                    }
+                })).data;
             } catch (e) {
                 throw new Error('Registry cannot be reached.')
             }
@@ -279,70 +283,44 @@ export class Registry implements AbstractRegistry {
         return this._whoami;
     }
 
-    public async packageExists(name: string, version?: string): Promise<boolean> {
-        var responseStatus: number;
-        try {
-            responseStatus = (await this._axiosInstance.get('/view', {
-                params: {
-                    name,
-                    version
-                }
-            })).status;
-        } catch (e) {
-            responseStatus = 404;
-        }
-        return responseStatus === 200;
-    }
-
-    public async view(name: string, version: string = 'latest'): Promise<View> {
-        const response = (await this._axiosInstance.get('/view', {
+    public async getPackage(fullName: string, version: string = 'latest'): Promise<Package> {
+        const response = (await this._axiosInstance.get(`/package/${fullName}`, {
             params: {
-                name,
                 version
             }
         })).data;
         return response;
     }
 
-    public async getArtifact(name: string, version: string = 'latest'): Promise<TrmArtifact> {
-        const response = (await this._axiosInstance.get('/install', {
-            params: {
-                name,
-                version
-            },
-            headers: {
-                'Accept': 'application/octet-stream'
-            },
-            responseType: 'arraybuffer'
-        })).data;
-        return new TrmArtifact(response);
+    public async validatePublish(fullName: string, version: string = 'latest'): Promise<void> {
+        try {
+            const status = (await this._axiosInstance.get(`/publish/check/${fullName}`, {
+                params: {
+                    version
+                }
+            })).status;
+            if(status !== 200){
+                
+            }
+        } catch(e) {
+            throw new Error();
+        }
     }
 
-    public async publishArtifact(packageName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<void> {
-        const fileName = `${packageName}@${version}`.replace('.', '_') + '.trm';
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<void> {
+        const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, fileName);
-        formData.append('readme', readme,);
-        await this._axiosInstance.post('/publish', formData, {
+        formData.append('readme', Buffer.from(readme), 'readme.md');
+        await this._axiosInstance.post(`/publish/${fullName}`, formData, {
             headers: formData.getHeaders()
         });
     }
 
-    public async unpublish(packageName: string, version: string): Promise<void> {
-        await this._axiosInstance.post('/unpublish', {
-            package: packageName,
+    public async unpublish(fullName: string, version: string): Promise<void> {
+        await this._axiosInstance.post(`/unpublish/${fullName}`, {
             version
         });
-    }
-
-    public async getReleases(packageName: string, versionRange: string): Promise<Release[]> {
-        const response = (await this._axiosInstance.get('/releases', {
-            params: {
-                name: packageName,
-                version: versionRange
-            }
-        })).data;
-        return response;
     }
 
 }

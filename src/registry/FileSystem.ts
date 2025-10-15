@@ -1,4 +1,4 @@
-import { AuthenticationType, MessageType, Ping, Release, UserAuthorization, View, WhoAmI } from "trm-registry-types";
+import { AuthenticationType, MessageType, Package, Ping, WhoAmI } from "trm-registry-types";
 import { AbstractRegistry } from "./AbstractRegistry";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
@@ -27,7 +27,7 @@ export class FileSystem implements AbstractRegistry {
             if (!this.name) {
                 throw new Error(`Couldn't determine file name.`);
             }
-            if(existsSync(this._filePath) && lstatSync(this._filePath).isDirectory()){
+            if (existsSync(this._filePath) && lstatSync(this._filePath).isDirectory()) {
                 throw new Error(`"${this._filePath}" is a directory. File name is missing.`);
             }
             if (existsSync(this.endpoint)) {
@@ -47,9 +47,9 @@ export class FileSystem implements AbstractRegistry {
     }
 
     public compare(registry: AbstractRegistry): boolean {
-        if(registry instanceof FileSystem){
+        if (registry instanceof FileSystem) {
             return this._filePath === registry._filePath;
-        }else{
+        } else {
             return false;
         }
     }
@@ -69,11 +69,11 @@ export class FileSystem implements AbstractRegistry {
     public async ping(): Promise<Ping> {
         if (this._filePath) {
             return {
-                authenticationType: AuthenticationType.NO_AUTH,
-                wallMessage: {
+                authentication_type: AuthenticationType.NO_AUTH,
+                messages: [{
                     text: `File system: "${this.name}", "${this.endpoint}"`,
                     type: MessageType.INFO
-                }
+                }]
             };
         }
         return null;
@@ -82,66 +82,55 @@ export class FileSystem implements AbstractRegistry {
     public async whoAmI(): Promise<WhoAmI> {
         if (this._filePath) {
             return {
-                username: userInfo().username
+                user: userInfo().username
             }
         }
         return null;
     }
 
-    public async packageExists(name: string, version?: string): Promise<boolean> {
+    public async getPackage(fullName: string, version: string): Promise<Package> {
         if (this._filePath) {
-            return false;
-        }
-        return null;
-    }
-
-    public async view(name: string, version: string = 'latest'): Promise<View> {
-        if (this._filePath) {
-            const userAuthorizations: UserAuthorization = {
-                canCreateReleases: true
-            };
-            var error = new Error(`File system can't view packages!`);
-            (error as any).response = {
-                userAuthorizations
-            };
-            throw error;
-        }
-        return null;
+            return {
+                name: fullName,
+                latest: version,
+                versions: [version],
+                deprecated: false,
+                manifest: {},
+                checksum: null,
+                download_link: this._filePath
+            }
+        } throw new Error(`File system can't view packages!`);
     }
 
     public async getArtifact(name: string, version: string = 'latest'): Promise<TrmArtifact> {
         if (this._filePath) {
-            try{
-                if(!this._artifact){
+            try {
+                if (!this._artifact) {
                     this._artifact = new TrmArtifact(readFileSync(this._filePath));
                     this._artifact.setFilePath(this._filePath);
                 }
                 return this._artifact;
-            }catch(e){
+            } catch (e) {
                 throw new Error(`File system couldn't read package`);
             }
         }
         return null;
     }
 
-    public async publishArtifact(packageName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<void> {
+    public async validatePublish(fullName: string, version: string): Promise<void> {
+        //always valid, already checked in contructor
+    }
+
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<void> {
         if (this._filePath) {
             return writeFile(this._filePath, artifact.binary, {
                 flag: 'w'
             });
         }
-        return null;
     }
 
     public async unpublish(packageName: string, version: string): Promise<void> {
         throw new Error(`File system can't delete packages!`);
-    }
-
-    public async getReleases(packageName: string, versionRange: string): Promise<Release[]> {
-        if (this._filePath) {
-            return [];
-        }
-        return null;
     }
 
 }

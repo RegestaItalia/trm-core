@@ -29,7 +29,7 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
         //1- execute check sap entries workflow
         const inputData: CheckSapEntriesActionInput = {
             packageData: {
-                package: context.runtime.remotePackageData.trmPackage
+                manifest: context.runtime.remotePackageData.manifest
             },
             printOptions: {
                 entriesStatus: false,

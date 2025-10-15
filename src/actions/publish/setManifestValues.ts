@@ -186,7 +186,6 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 validate: (input: boolean) => {
                     return validatePackageVisibility(
                         context.rawInput.packageData.registry.getRegistryType(),
-                        context.rawInput.packageData.name,
                         input,
                         context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
                     );

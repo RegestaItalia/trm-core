@@ -4,7 +4,6 @@ import { Logger } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
 import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../../registry";
 import { satisfies } from "semver";
-import { SystemConnector } from "../../systemConnector";
 
 /**
  * Analyze
@@ -24,14 +23,14 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
         if(context.output.dependencies.length > 0){
             return true;
         }else{
-            Logger.info(`Package ${context.rawInput.packageData.package.packageName} has no TRM package dependencies`, !context.rawInput.printOptions.information);
+            Logger.info(`Package ${context.rawInput.packageData.manifest.name} has no TRM package dependencies`, !context.rawInput.printOptions.information);
             return false;
         }
     },
     run: async (context: CheckPackageDependenciesWorkflowContext): Promise<void> => {
         Logger.log('Analyze step', true);
 
-        Logger.info(`Package ${context.rawInput.packageData.package.packageName} has ${context.output.dependencies.length} TRM package dependencies`, !context.rawInput.printOptions.information);
+        Logger.info(`Package ${context.rawInput.packageData.manifest.name} has ${context.output.dependencies.length} TRM package dependencies`, !context.rawInput.printOptions.information);
         
         //1- build required tables fields
         var table = {
@@ -60,21 +59,6 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
                 tableData.push('ERR!');
                 context.runtime.dependenciesStatus.badVersion.push(dependency);
             }
-            try{
-                const installedPackageIntegrity = await SystemConnector.getPackageIntegrity(systemInstalledPackage);
-                if(installedPackageIntegrity === dependency.integrity){
-                    tableData.push('Safe');
-                    context.runtime.dependenciesStatus.goodIntegrity.push(dependency);
-                }else{
-                    tableData.push('Unsafe');
-                    context.runtime.dependenciesStatus.badIntegrity.push(dependency);
-                }
-            }catch(e){
-                tableData.push('Unknown');
-                context.runtime.dependenciesStatus.badIntegrity.push(dependency);
-                Logger.error(e.toString(), true);
-                Logger.error(`Couldn't retrieve package integrity`, true);
-            }
             table.data.push(tableData);
         }
 
@@ -89,8 +73,7 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
             } else {
                 context.output.dependencyStatus.push({
                     dependency: o,
-                    match: true,
-                    safe: null
+                    match: true
                 });
             }
         });
@@ -101,32 +84,7 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
             } else {
                 context.output.dependencyStatus.push({
                     dependency: o,
-                    match: false,
-                    safe: null
-                });
-            }
-        });
-        context.runtime.dependenciesStatus.goodIntegrity.forEach(o => {
-            const i = context.output.dependencyStatus.findIndex(k => k.dependency.name === o.name && k.dependency.registry === o.registry);
-            if (i >= 0) {
-                context.output.dependencyStatus[i].safe = true;
-            } else {
-                context.output.dependencyStatus.push({
-                    dependency: o,
-                    match: null,
-                    safe: true
-                });
-            }
-        });
-        context.runtime.dependenciesStatus.badIntegrity.forEach(o => {
-            const i = context.output.dependencyStatus.findIndex(k => k.dependency.name === o.name && k.dependency.registry === o.registry);
-            if (i >= 0) {
-                context.output.dependencyStatus[i].safe = false;
-            } else {
-                context.output.dependencyStatus.push({
-                    dependency: o,
-                    match: null,
-                    safe: false
+                    match: false
                 });
             }
         });

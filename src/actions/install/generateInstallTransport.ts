@@ -4,6 +4,8 @@ import { Logger } from "trm-commons";
 import { getPackageNamespace, TrmServerUpgrade } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
+import { TrmPackage } from "../../trmPackage";
+import { Manifest } from "../../manifest";
 
 /**
  * Generate install transport
@@ -49,7 +51,12 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
             //2- check if a trm install transport already exists, create if it does not
             if(context.runtime.update){
                 //only if already installed
-                context.runtime.installData.transport = await context.runtime.remotePackageData.trmPackage.getWbTransport();
+                const oTrmPackage = new TrmPackage(
+                    context.runtime.remotePackageData.manifest.name,
+                    context.runtime.registry,
+                    new Manifest(context.runtime.remotePackageData.manifest)
+                );
+                context.runtime.installData.transport = await oTrmPackage.getWbTransport();
             }
             if (context.runtime.installData.transport) {
                 Logger.log(`Install transport (${context.runtime.installData.transport.trkorr}) already exists, won't create a new one.`, true);
@@ -70,10 +77,10 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
             }
 
             //3- add comments, documentation and rename transport
-            await context.runtime.installData.transport.addComment(`name=${context.runtime.remotePackageData.trmManifest.name}`);
-            await context.runtime.installData.transport.addComment(`version=${context.runtime.remotePackageData.trmManifest.version}`);
-            await context.runtime.installData.transport.setDocumentation(context.runtime.remotePackageData.manifest.getAbapXml());
-            await context.runtime.installData.transport.rename(`@X1@TRM: ${context.runtime.remotePackageData.trmManifest.name} v${context.runtime.remotePackageData.trmManifest.version}`);
+            await context.runtime.installData.transport.addComment(`name=${context.runtime.remotePackageData.manifest.name}`);
+            await context.runtime.installData.transport.addComment(`version=${context.runtime.remotePackageData.manifest.version}`);
+            await context.runtime.installData.transport.setDocumentation(new Manifest(context.runtime.remotePackageData.manifest).getAbapXml());
+            await context.runtime.installData.transport.rename(`@X1@TRM: ${context.runtime.remotePackageData.manifest.name} v${context.runtime.remotePackageData.manifest.version}`);
 
             //4- add tadir objects and try to lock
             var tadirObjects = context.runtime.packageTransportsData.tadir;

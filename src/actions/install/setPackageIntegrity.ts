@@ -21,7 +21,7 @@ export const setPackageIntegrity: Step<InstallWorkflowContext> = {
         await SystemConnector.setPackageIntegrity({
             package_name: context.rawInput.packageData.name,
             package_registry: packageRegistry,
-            integrity: context.runtime.remotePackageData.integrity
+            integrity: context.runtime.remotePackageData.data.checksum
         });
     }
 }

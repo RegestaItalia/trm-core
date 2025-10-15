@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
-import { Inquirer, inspect, Logger } from "trm-commons";
+import { inspect, Logger } from "trm-commons";
 import { FindDependenciesActionInput, findDependencies as FindDependenciesWkf } from ".."
 import { RegistryType } from "../../registry";
 

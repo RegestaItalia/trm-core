@@ -1,4 +1,4 @@
-import { AbstractRegistry, Registry } from "../registry";
+import { AbstractRegistry } from "../registry";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { Transport } from "../transport";

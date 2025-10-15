@@ -1,6 +1,6 @@
 import { AbstractRegistry } from "./AbstractRegistry";
 import { FileSystem, LOCAL_RESERVED_KEYWORD } from "./FileSystem";
-import { PUBLIC_RESERVED_KEYWORD, Registry } from "./Registry";
+import { PUBLIC_RESERVED_KEYWORD, RegistryV2 } from "./RegistryV2";
 import { RegistryType } from "./RegistryType";
 
 export namespace RegistryProvider {
@@ -15,7 +15,7 @@ export namespace RegistryProvider {
         if(!endpoint || endpoint === PUBLIC_RESERVED_KEYWORD){
             foundRegistry = registry.find(o => o.getRegistryType() === RegistryType.PUBLIC);
             if(!foundRegistry){
-                foundRegistry = new Registry(PUBLIC_RESERVED_KEYWORD);
+                foundRegistry = new RegistryV2(PUBLIC_RESERVED_KEYWORD);
                 registry.push(foundRegistry);
             }
         }else if(endpoint === LOCAL_RESERVED_KEYWORD){
@@ -23,7 +23,7 @@ export namespace RegistryProvider {
         }else{
             foundRegistry = registry.find(o => o.endpoint === endpoint);
             if(!foundRegistry){
-                foundRegistry = new Registry(endpoint, endpoint);
+                foundRegistry = new RegistryV2(endpoint, endpoint);
                 registry.push(foundRegistry);
             }
         }

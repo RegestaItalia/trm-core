@@ -86,15 +86,15 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                 }]);
             }
         } else {
-            if (context.runtime.remotePackageData.trmManifest.namespace) {
-                replicense = context.runtime.remotePackageData.trmManifest.namespace.replicense;
-                if (context.runtime.remotePackageData.trmManifest.namespace.texts && context.runtime.remotePackageData.trmManifest.namespace.texts.length > 0) {
-                    if (context.runtime.remotePackageData.trmManifest.namespace.texts.length === 1 || context.rawInput.contextData.noInquirer) {
+            if (context.runtime.remotePackageData.manifest.namespace) {
+                replicense = context.runtime.remotePackageData.manifest.namespace.replicense;
+                if (context.runtime.remotePackageData.manifest.namespace.texts && context.runtime.remotePackageData.manifest.namespace.texts.length > 0) {
+                    if (context.runtime.remotePackageData.manifest.namespace.texts.length === 1 || context.rawInput.contextData.noInquirer) {
                         texts = {
                             namespace: context.runtime.installData.namespace,
-                            descriptn: context.runtime.remotePackageData.trmManifest.namespace.texts[0].description,
-                            owner: context.runtime.remotePackageData.trmManifest.namespace.texts[0].owner,
-                            spras: context.runtime.remotePackageData.trmManifest.namespace.texts[0].language
+                            descriptn: context.runtime.remotePackageData.manifest.namespace.texts[0].description,
+                            owner: context.runtime.remotePackageData.manifest.namespace.texts[0].owner,
+                            spras: context.runtime.remotePackageData.manifest.namespace.texts[0].language
                         };
                     } else {
                         if (!context.rawInput.contextData.noInquirer) {
@@ -102,7 +102,7 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                                 type: 'list',
                                 message: 'Choose namespace install text',
                                 name: 'choice',
-                                choices: context.runtime.remotePackageData.trmManifest.namespace.texts.map(o => {
+                                choices: context.runtime.remotePackageData.manifest.namespace.texts.map(o => {
                                     return {
                                         name: `${o.language} ${o.description} ${o.owner}`,
                                         value: {

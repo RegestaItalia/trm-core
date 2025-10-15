@@ -5,11 +5,10 @@ import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
 import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
 import { init } from "./init";
-import { Manifest, TrmManifest, TrmManifestDependency } from "../../manifest";
+import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { checkServerAuth, IActionContext } from "..";
 import { setSystemPackages } from "../commons/setSystemPackages";
 import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
-import { checkIntegrity } from "./checkIntegrity";
 import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
@@ -35,6 +34,7 @@ import { AbstractRegistry } from "../../registry";
 import { executePostActivities } from "./executePostActivities";
 import { setTrmServerUpgradeService } from "./setTrmServerUpgradeService";
 import { commit } from "./commit";
+import { Package } from "trm-registry-types";
 
 /**
  * ABAP package replacement during install
@@ -109,10 +109,6 @@ export type InstallActionInputInstallData = {
      * Optional checks to perform during installation.
      */
     checks?: {
-        /**
-         * Install in safe mode.
-         */
-        safe?: boolean;
 
         /**
          * Whether to skip checking for all SAP entries.
@@ -198,11 +194,6 @@ export interface InstallActionInput {
         version?: string;
 
         /**
-         * Package integrity checksum.
-         */
-        integrity?: string;
-
-        /**
          * The registry where the package is stored.
          */
         registry: AbstractRegistry;
@@ -226,12 +217,9 @@ type WorkflowRuntime = {
     update: boolean,
     rollback: boolean,
     remotePackageData: {
-        version: string
-        trmPackage: TrmPackage,
-        artifact: TrmArtifact,
-        manifest: Manifest,
-        trmManifest: TrmManifest,
-        integrity: string
+        data: Package,
+        manifest: TrmManifest,
+        artifact: TrmArtifact
     },
     packageTransports: {
         devc: TransportRuntime,
@@ -264,7 +252,7 @@ type WorkflowRuntime = {
 }
 
 export type InstallActionOutput = {
-    trmPackage: TrmPackage,
+    manifest: TrmManifest,
     registry: AbstractRegistry,
     installTransport?: Transport
 }
@@ -287,7 +275,6 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         setSystemPackages,
         setTrmServerUpgradeService,
         checkAlreadyInstalled,
-        checkIntegrity,
         checkSapEntries,
         checkDependencies,
         setR3trans,
@@ -315,11 +302,11 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         rawInput: inputData
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    const trmPackage = result.runtime.remotePackageData.trmPackage;
+    const manifest = result.runtime.remotePackageData.manifest;
     const registry = result.runtime.registry;
     const installTransport = result.runtime.installData.transport;
     return {
-        trmPackage,
+        manifest,
         registry,
         installTransport
     }

@@ -149,6 +149,7 @@ type WorkflowRuntime = {
         package: TrmPackage,
         registry: AbstractRegistry,
         latestReleaseManifest?: TrmManifest,
+        releasesInRegistry?: string[],
         manifest: TrmManifest,
         artifact?: TrmArtifact
     },

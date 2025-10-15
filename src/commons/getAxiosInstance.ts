@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';
 export const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
 
-export type AxiosCtx = 'Registry' | 'RestServer';
+export type AxiosCtx = 'RegistryV2' | 'RestServer';
 
 function _getInternalId(response: AxiosResponse<any, any>){
     try{

@@ -20,17 +20,12 @@ export const init: Step<CheckPackageDependenciesWorkflowContext> = {
         context.runtime = {
             dependenciesStatus: {
                 goodVersion: [],
-                badVersion: [],
-                goodIntegrity: [],
-                badIntegrity: []
+                badVersion: []
             }
         };
 
-        //1- set dependencies (read manifest)
-        if(context.rawInput.packageData.package.manifest){
-            const manifest = context.rawInput.packageData.package.manifest.get();
-            context.output.dependencies = manifest.dependencies || [];
-        }
+        //1- set dependencies
+        context.output.dependencies = context.rawInput.packageData.manifest.dependencies || [];
 
         //2- fill missing input data
         if(!context.rawInput.printOptions){
