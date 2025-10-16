@@ -33,6 +33,11 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         if (context.runtime.installData.namespace[0] !== '/') {
             Logger.log(`Package install namespace is ${context.runtime.installData.namespace}`, true);
             return;
+        }else{
+            if(context.rawInput.installData.installDevclass.skipNamespace){
+                Logger.info(`Skipping install of namespace ${context.runtime.installData.namespace}`, false);
+                return;
+            }
         }
 
         //2- check if namespace already exists (only if customer namespace)

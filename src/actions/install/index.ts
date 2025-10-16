@@ -149,6 +149,11 @@ export type InstallActionInputInstallData = {
          * List of package replacements to apply during installation. Ignored if used with keep original.
          */
         replacements?: InstallPackageReplacements[];
+
+        /**
+         * Skip install of namespace (if package has customer namespace).
+         */
+        skipNamespace?: boolean
     };
 
     /**
