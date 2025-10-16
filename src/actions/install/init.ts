@@ -5,11 +5,9 @@ import { TrmArtifact } from "../../trmPackage";
 import { createHash } from "crypto";
 import { SystemConnector } from "../../systemConnector";
 import { AbstractRegistry, RegistryType } from "../../registry";
-import { readFileSync } from "fs";
 import { valid } from "semver";
-import axios, { AxiosError } from "axios";
 import { TrmManifest } from "../../manifest";
-import { Package } from "trm-registry-types";
+import { Package, Ping } from "trm-registry-types";
 
 /**
  * Init
@@ -39,8 +37,7 @@ export const init: Step<InstallWorkflowContext> = {
         if (registry.getRegistryType() === RegistryType.LOCAL) {
             //if it's a local package it could be a download from a registry
             try {
-                packageData = await registry.getPackage('dummy', 'dummy');
-                artifact = new TrmArtifact(readFileSync(packageData.download_link));
+                artifact = await registry.downloadArtifact('dummy', 'dummy');
             } catch {
                 throw new Error(`Unable to read local package.`);
             }
@@ -57,34 +54,18 @@ export const init: Step<InstallWorkflowContext> = {
         //2- fetch package in registry
         if (registry.getRegistryType() !== RegistryType.LOCAL) {
             Logger.loading(`Fetching package in registry ${registry.name}...`);
-            var buffer: Buffer;
             packageData = await registry.getPackage(context.rawInput.packageData.name, context.rawInput.packageData.version);
-            if (packageData.download_link) {
-                try {
-                    buffer = (await axios.get(packageData.download_link, {
-                        headers: {
-                            'Accept': 'application/octet-stream'
-                        },
-                        responseType: 'arraybuffer'
-                    })).data;
-                } catch (e) {
-                    Logger.error(e.toString(), true);
-                    Logger.error(`Failed to fetch package at ${packageData.download_link}: ${(e as AxiosError).message}`);
-                    throw e;
-                }
-            }
-            if (!buffer) {
-                throw new Error();
-            }else{
-                const checksum = createHash("sha512").update(buffer).digest("hex");
-                if(checksum !== packageData.checksum){
-                    throw new Error();
-                }
-            }
-            try {
-                artifact = new TrmArtifact(buffer);
-            } catch {
-                throw new Error(`Unable to read artifact.`);
+            artifact = await registry.downloadArtifact(context.rawInput.packageData.name, context.rawInput.packageData.version);
+            const checksum = createHash("sha512").update(artifact.binary).digest("hex");
+            if (checksum !== packageData.checksum) {
+                var ping: Ping;
+                try{
+                    ping = await registry.ping();
+                }catch { }
+                Logger.error(`SECURITY ISSUE! Release checksum does NOT match!`);
+                Logger.error(`SECURITY ISSUE! Expected SHA is ${packageData.checksum}, current SHA is ${checksum}`);
+                Logger.error(`SECURITY ISSUE! Please, report the issue to ${ping && ping.alert_email ? ping.alert_email : 'registry moderation team'}`);
+                throw new Error(`Cannot continue due to security issues.`);
             }
             manifest = artifact.getManifest().get();
         }

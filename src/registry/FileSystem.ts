@@ -94,12 +94,17 @@ export class FileSystem implements AbstractRegistry {
                 name: fullName,
                 latest: version,
                 versions: [version],
+                yanked_versions: [],
                 deprecated: false,
                 manifest: {},
                 checksum: null,
                 download_link: this._filePath
             }
         } throw new Error(`File system can't view packages!`);
+    }
+
+    public async downloadArtifact(fullName: string, version: string): Promise<TrmArtifact> {
+        return new TrmArtifact(readFileSync(this._filePath));
     }
 
     public async getArtifact(name: string, version: string = 'latest'): Promise<TrmArtifact> {
@@ -129,8 +134,12 @@ export class FileSystem implements AbstractRegistry {
         }
     }
 
-    public async unpublish(packageName: string, version: string): Promise<void> {
+    public async unpublish(fullName: string, version: string): Promise<void> {
         throw new Error(`File system can't delete packages!`);
+    }
+
+    public async deprecate(fullName: string, version: string, reason: string): Promise<void> {
+        throw new Error(`File system can't deprecate packages!`);
     }
 
 }

@@ -1,6 +1,6 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
-import { AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
+import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
 import { AuthOAuth2, AuthenticationType, OAuth2Data, Package, Ping, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
@@ -292,18 +292,33 @@ export class RegistryV2 implements AbstractRegistry {
         return response;
     }
 
-    public async validatePublish(fullName: string, version: string = 'latest'): Promise<void> {
+    public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
+        var buffer: Buffer;
+        const packageData = await this.getPackage(fullName, version);
         try {
-            const status = (await this._axiosInstance.get(`/publish/check/${fullName}`, {
-                params: {
-                    version
-                }
-            })).status;
-            if(status !== 200){
-                
+            buffer = (await this._axiosInstance.get(packageData.download_link, {
+                headers: {
+                    'Accept': 'application/octet-stream',
+                    "Authorization": undefined //force download no auth
+                },
+                responseType: 'arraybuffer'
+            })).data;
+        } catch (e) {
+            Logger.error(e.toString(), true);
+            Logger.error(`Failed to fetch package at ${packageData.download_link}: ${(e as AxiosError).message}`);
+            throw e;
+        }
+        return new TrmArtifact(buffer);
+    }
+
+    public async validatePublish(fullName: string, version: string = 'latest'): Promise<void> {
+        const status = (await this._axiosInstance.get(`/publish/check/${fullName}`, {
+            params: {
+                version
             }
-        } catch(e) {
-            throw new Error();
+        })).status;
+        if (status !== 204) {
+            throw new Error(`Package cannot be published`);
         }
     }
 
@@ -313,13 +328,28 @@ export class RegistryV2 implements AbstractRegistry {
         formData.append('artifact', artifact.binary, fileName);
         formData.append('readme', Buffer.from(readme), 'readme.md');
         await this._axiosInstance.post(`/publish/${fullName}`, formData, {
+            params: {
+                version
+            },
             headers: formData.getHeaders()
         });
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {
-        await this._axiosInstance.post(`/unpublish/${fullName}`, {
-            version
+        await this._axiosInstance.post(`/unpublish/${fullName}`, null, {
+            params: {
+                version
+            }
+        });
+    }
+
+    public async deprecate(fullName: string, version: string, reason: string): Promise<void> {
+        await this._axiosInstance.post(`/deprecate/${fullName}`, {
+            deprecate_note: reason
+        }, {
+            params: {
+                version
+            }
         });
     }
 

@@ -12,7 +12,9 @@ export abstract class AbstractRegistry {
     ping: () => Promise<Ping>;
     whoAmI: () => Promise<WhoAmI>;
     getPackage: (fullName: string, version: string) => Promise<Package>;
+    downloadArtifact: (fullName: string, version: string) => Promise<TrmArtifact>;
     validatePublish: (fullName: string, version: string) => Promise<void>;
     publish: (fullName: string, version: string, artifact: TrmArtifact, readme?: string) => Promise<void>;
     unpublish: (fullName: string, version: string) => Promise<void>;
+    deprecate: (fullName: string, version: string, reason: string) => Promise<void>;
 }
