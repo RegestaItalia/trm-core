@@ -12,18 +12,17 @@ import { OAuth2Body } from "trm-registry-types";
 import _ from 'lodash';
 import { getAxiosInstance } from "../commons";
 import { AbstractRegistry } from "./AbstractRegistry";
+import NodeCache from "node-cache";
 
 const AXIOS_CTX = "RegistryV2";
 
 export const PUBLIC_RESERVED_KEYWORD = 'public';
 
 export class RegistryV2 implements AbstractRegistry {
+    private _cache: NodeCache = new NodeCache({ stdTTL: 60, useClones: false });
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
     private _authData: any;
-
-    private _ping: Ping;
-    private _whoami: WhoAmI;
 
     constructor(public endpoint: string, public name: string = 'Unknown') {
         var envEndpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT;
@@ -87,7 +86,7 @@ export class RegistryV2 implements AbstractRegistry {
                 await this._tokenAuth(defaultData);
             }
         }
-        this._whoami = null;
+        this._cache.flushAll();
         return this;
     }
 
@@ -262,34 +261,48 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async ping(): Promise<Ping> {
-        if (!this._ping) {
+        var data: Ping | Error = this._cache.get('ping');
+        if (!data) {
             try {
-                this._ping = (await this._axiosInstance.get('/', {
+                data = (await this._axiosInstance.get('/', {
                     headers: {
                         "Authorization": undefined //force ping no auth
                     }
                 })).data;
-            } catch (e) {
-                throw new Error('Registry cannot be reached.')
+            } catch {
+                data = new Error('Registry cannot be reached.')
             }
+            this._cache.set('ping', data);
         }
-        return this._ping;
+        if (data instanceof Error) {
+            throw data;
+        } else {
+            return data;
+        }
     }
 
     public async whoAmI(): Promise<WhoAmI> {
-        if (!this._whoami) {
-            this._whoami = (await this._axiosInstance.get('/whoami')).data;
+        var data: WhoAmI = this._cache.get('whoami');
+        if (!data) {
+            data = (await this._axiosInstance.get('/whoami')).data;
+            this._cache.set('whoami', data);
         }
-        return this._whoami;
+        return data;
     }
 
     public async getPackage(fullName: string, version: string = 'latest'): Promise<Package> {
-        const response = (await this._axiosInstance.get(`/package/${fullName}`, {
-            params: {
-                version
-            }
-        })).data;
-        return response;
+        //should this be cached? if download is used somewhere outside install, this could be a problem
+        //download links might have a time window
+        var data: Package = this._cache.get(`${fullName}-${version}`);
+        if (!data) {
+            data = (await this._axiosInstance.get(`/package/${fullName}`, {
+                params: {
+                    version
+                }
+            })).data;
+            this._cache.set(`${fullName}-${version}`, data);
+        }
+        return data;
     }
 
     public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
