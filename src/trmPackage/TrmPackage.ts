@@ -45,9 +45,8 @@ export class TrmPackage {
             throw new Error(`Cannot publish package ${packageName}: expected name is ${this.packageName}`);
         }
         const packageVersion = trmManifest.version;
-        const readme = data.readme || '';
         Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
-        await this.registry.publish(packageName, packageVersion, artifact, readme);
+        await this.registry.publish(packageName, packageVersion, artifact, data.readme);
 
         //set
         this.manifest = new Manifest(trmManifest);

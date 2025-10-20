@@ -148,7 +148,7 @@ export class RegistryV2 implements AbstractRegistry {
             when: !token
         }]);
         token = token || inq1.token;
-        axiosHeaders.setAuthorization(`token ${token}`);
+        axiosHeaders.setAuthorization(`Bearer ${token}`);
         this._axiosInstance = getAxiosInstance(axiosDefaults, AXIOS_CTX);
         this._authData = {
             token
@@ -265,9 +265,7 @@ export class RegistryV2 implements AbstractRegistry {
         if (!data) {
             try {
                 data = (await this._axiosInstance.get('/', {
-                    headers: {
-                        "Authorization": undefined //force ping no auth
-                    }
+                    headers: {}
                 })).data;
             } catch {
                 data = new Error('Registry cannot be reached.')
@@ -291,18 +289,11 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async getPackage(fullName: string, version: string = 'latest'): Promise<Package> {
-        //should this be cached? if download is used somewhere outside install, this could be a problem
-        //download links might have a time window
-        var data: Package = this._cache.get(`${fullName}-${version}`);
-        if (!data) {
-            data = (await this._axiosInstance.get(`/package/${fullName}`, {
-                params: {
-                    version
-                }
-            })).data;
-            this._cache.set(`${fullName}-${version}`, data);
-        }
-        return data;
+        return (await this._axiosInstance.get(`/package/${fullName}`, {
+            params: {
+                version
+            }
+        })).data;
     }
 
     public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
@@ -312,9 +303,10 @@ export class RegistryV2 implements AbstractRegistry {
             buffer = (await this._axiosInstance.get(packageData.download_link, {
                 headers: {
                     'Accept': 'application/octet-stream',
-                    "Authorization": undefined //force download no auth
                 },
-                responseType: 'arraybuffer'
+                maxRedirects: 10,
+                responseType: 'arraybuffer',
+                validateStatus: s => s >= 200 && s < 400,
             })).data;
         } catch (e) {
             Logger.error(e.toString(), true);
@@ -335,17 +327,25 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<void> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<Package> {
         const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
-        formData.append('artifact', artifact.binary, fileName);
-        formData.append('readme', Buffer.from(readme), 'readme.md');
-        await this._axiosInstance.post(`/publish/${fullName}`, formData, {
+        formData.append('artifact', artifact.binary, {
+            filename: fileName,
+            contentType: 'application/octet-stream'
+        });
+        if (readme) {
+            formData.append('readme', Buffer.from(readme), {
+                filename: 'readme.md',
+                contentType: 'text/markdown'
+            });
+        }
+        return (await this._axiosInstance.post(`/publish/${fullName}`, formData, {
             params: {
                 version
             },
             headers: formData.getHeaders()
-        });
+        })).data;
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {

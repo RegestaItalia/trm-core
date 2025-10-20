@@ -76,7 +76,7 @@ export class FileSystem implements AbstractRegistry {
                 }]
             };
         }
-        return null;
+        throw new Error(`Missing file path!`);
     }
 
     public async whoAmI(): Promise<WhoAmI> {
@@ -85,7 +85,7 @@ export class FileSystem implements AbstractRegistry {
                 user: userInfo().username
             }
         }
-        return null;
+        throw new Error(`Missing file path!`);
     }
 
     public async getPackage(fullName: string, version: string): Promise<Package> {
@@ -100,7 +100,8 @@ export class FileSystem implements AbstractRegistry {
                 checksum: null,
                 download_link: this._filePath
             }
-        } throw new Error(`File system can't view packages!`);
+        }
+        throw new Error(`File system can't view packages!`);
     }
 
     public async downloadArtifact(fullName: string, version: string): Promise<TrmArtifact> {
@@ -119,19 +120,21 @@ export class FileSystem implements AbstractRegistry {
                 throw new Error(`File system couldn't read package`);
             }
         }
-        return null;
+        throw new Error(`Missing file path!`);
     }
 
     public async validatePublish(fullName: string, version: string): Promise<void> {
         //always valid, already checked in contructor
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<void> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<Package> {
         if (this._filePath) {
-            return writeFile(this._filePath, artifact.binary, {
+            await writeFile(this._filePath, artifact.binary, {
                 flag: 'w'
             });
+            return this.getPackage(fullName, version);
         }
+        throw new Error(`Missing file path!`);
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {

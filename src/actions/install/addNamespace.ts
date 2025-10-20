@@ -20,8 +20,6 @@ export const addNamespace: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Add namespace step', true);
 
-        context.runtime.rollback = true;
-
         //1- set namespace
         var originalNamespace = getPackageNamespace(context.runtime.originalData.hierarchy.devclass);
         Logger.log(`Package original namespace is ${originalNamespace}`, true);

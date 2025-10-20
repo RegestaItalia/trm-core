@@ -54,8 +54,8 @@ export const init: Step<InstallWorkflowContext> = {
         //2- fetch package in registry
         if (registry.getRegistryType() !== RegistryType.LOCAL) {
             Logger.loading(`Fetching package in registry ${registry.name}...`);
-            packageData = await registry.getPackage(context.rawInput.packageData.name, context.rawInput.packageData.version);
-            artifact = await registry.downloadArtifact(context.rawInput.packageData.name, context.rawInput.packageData.version);
+            packageData = await registry.getPackage(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
+            artifact = await registry.downloadArtifact(packageData.name, packageData.manifest.version);
             const checksum = createHash("sha512").update(artifact.binary).digest("hex");
             if (checksum !== packageData.checksum) {
                 var ping: Ping;
@@ -75,7 +75,6 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime = {
             registry: actualRegistry || registry,
             update: undefined,
-            rollback: false,
             remotePackageData: {
                 data: packageData,
                 artifact,
@@ -176,13 +175,6 @@ export const init: Step<InstallWorkflowContext> = {
             if (!(await SystemConnector.isTransportLayerExist(context.rawInput.installData.installDevclass.transportLayer))) {
                 throw new Error(`Transport layer "${context.rawInput.installData.installDevclass.transportLayer}" doesn't exist.`);
             }
-        }
-    },
-    revert: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Rollback init step', true);
-
-        if (context.runtime && context.runtime.rollback) {
-            Logger.success(`Rollback executed.`);
         }
     }
 }

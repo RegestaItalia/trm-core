@@ -50,8 +50,6 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
                 if (await context.runtime.systemData.custTransport.canBeDeleted()) {
                     await context.runtime.systemData.custTransport.delete();
                     Logger.success(`Executed rollback on transport ${context.runtime.systemData.custTransport.trkorr}`, true);
-                } else {
-                    throw new Error(`Transport ${context.runtime.systemData.custTransport.trkorr} cannot be deleted (released?)`);
                 }
             } catch (e) {
                 Logger.error(`Unable to rollback transport ${context.runtime.systemData.custTransport.trkorr}!`);

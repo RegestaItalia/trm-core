@@ -144,7 +144,6 @@ export interface PublishActionInput {
 }
 
 type WorkflowRuntime = {
-    rollback: boolean,
     trmPackage: {
         package: TrmPackage,
         registry: AbstractRegistry,

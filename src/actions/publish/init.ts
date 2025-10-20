@@ -7,6 +7,7 @@ import { clean, inc, valid } from "semver";
 import { SystemConnector } from "../../systemConnector";
 import { RegistryType } from "../../registry";
 import { Transport } from "../../transport";
+import { TrmManifest } from "../../manifest";
 
 /**
  * Init
@@ -86,15 +87,16 @@ export const init: Step<PublishWorkflowContext> = {
         //3- validate version
         Logger.loading(`Validating version...`);
         var automaticVersion: boolean = false;
-        context.runtime.trmPackage.releasesInRegistry = [];
-        context.rawInput.packageData.version = clean(context.rawInput.packageData.version);
+        var releasesInRegistry: string[];
+        var latestReleaseManifest: TrmManifest;
+        context.rawInput.packageData.version = clean(context.rawInput.packageData.version || '');
         try {
             Logger.loading(`Getting package latest release from registry...`, true);
             const packageData = await registry.getPackage(context.rawInput.packageData.name, 'latest');
-            context.runtime.trmPackage.latestReleaseManifest = packageData.manifest;
-            context.runtime.trmPackage.releasesInRegistry = packageData.versions;
+            latestReleaseManifest = packageData.manifest;
+            releasesInRegistry = packageData.versions;
         } catch { }
-        if (!context.runtime.trmPackage.latestReleaseManifest) {
+        if (!latestReleaseManifest) {
             //first time publish
             if (!context.rawInput.packageData.version) {
                 context.rawInput.packageData.version = '1.0.0';
@@ -102,16 +104,16 @@ export const init: Step<PublishWorkflowContext> = {
             }
         } else {
             if (!context.rawInput.packageData.version) {
-                context.rawInput.packageData.version = inc(context.runtime.trmPackage.latestReleaseManifest.version, "patch");
+                context.rawInput.packageData.version = inc(latestReleaseManifest.version, "patch");
                 automaticVersion = true;
             } else {
-                if (context.runtime.trmPackage.releasesInRegistry.includes(context.rawInput.packageData.version)) {
+                if (releasesInRegistry.includes(context.rawInput.packageData.version)) {
                     throw new Error(`Version "${context.rawInput.packageData.version}" already published.`);
                 }
             }
             if (registry.getRegistryType() === RegistryType.PUBLIC) {
                 Logger.log(`Public registry, checking if visibility is the same as latest release`, true);
-                if(context.rawInput.publishData.private !== context.runtime.trmPackage.latestReleaseManifest.private){
+                if(typeof(context.rawInput.publishData.private) === 'boolean' && context.rawInput.publishData.private !== latestReleaseManifest.private){
                     throw new Error(`Cannot change package visibility to ${context.rawInput.publishData.private ? 'private' : 'public'}`);
                 }
             }
@@ -130,11 +132,11 @@ export const init: Step<PublishWorkflowContext> = {
                     name: 'version',
                     default: context.rawInput.packageData.version,
                     when: (hash) => {
-                        return hash.acceptDefaultVersion;
+                        return !hash.acceptDefaultVersion;
                     },
                     validate: (v) => {
                         if (valid(v)) {
-                            if (context.runtime.trmPackage.releasesInRegistry.includes(v)) {
+                            if (releasesInRegistry.includes(v)) {
                                 return `Version "${v}" already published.`;
                             } else {
                                 return true;
@@ -150,17 +152,18 @@ export const init: Step<PublishWorkflowContext> = {
         //4- validate publish data
         Logger.loading(`Validating data...`);
         await registry.validatePublish(context.rawInput.packageData.name, context.rawInput.packageData.version);
-        if (!context.runtime.trmPackage.latestReleaseManifest) {
+        if (!latestReleaseManifest) {
             Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, registry.getRegistryType() === RegistryType.LOCAL);
         }
         Logger.info(`Ready to publish ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`);
 
         //5- set runtime data
         context.runtime = {
-            rollback: false,
             trmPackage: {
                 package: new TrmPackage(context.rawInput.packageData.name, registry),
                 registry,
+                latestReleaseManifest,
+                releasesInRegistry,
                 manifest: {
                     ...context.rawInput.packageData.manifest,
                     ...{
@@ -199,12 +202,6 @@ export const init: Step<PublishWorkflowContext> = {
         });
         if (context.rawInput.publishData.skipCustomizingTransports) {
             context.rawInput.publishData.customizingTransports = [];
-        }
-    },
-    revert: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Rollback init step', true);
-        if (context.runtime && context.runtime.rollback) {
-            Logger.success(`Rollback executed.`);
         }
     }
 }

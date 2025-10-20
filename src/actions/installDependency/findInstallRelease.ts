@@ -22,13 +22,11 @@ export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
         //1- get releases in range from registry
         const packageData = await context.rawInput.dependencyDataPackage.registry.getPackage(context.rawInput.dependencyDataPackage.name, 'latest');
         const versions = packageData.versions.filter(v => satisfies(v, context.rawInput.dependencyDataPackage.versionRange));
-        if (versions.length === 0) {
-            throw new Error(`Dependency "${context.rawInput.dependencyDataPackage.name}": releases not found in range ${context.rawInput.dependencyDataPackage.versionRange}.`);
-        }
+        const yanked = packageData.yanked_versions.filter(v => satisfies(v, context.rawInput.dependencyDataPackage.versionRange));
 
-        const sortedVersions = desc(versions);
         if (context.rawInput.dependencyDataPackage.integrity) {
             //3- find matching integrity release (if provided)
+            const sortedVersions = desc(versions.concat(yanked));
             for (const sortedVersion of sortedVersions) {
                 if (!context.runtime.installVersion) {
                     try {
@@ -40,7 +38,11 @@ export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
                 }
             }
         } else {
-            context.runtime.installVersion = sortedVersions[0];
+            if (versions.length === 0) {
+                throw new Error(`Dependency "${context.rawInput.dependencyDataPackage.name}": releases not found in range ${context.rawInput.dependencyDataPackage.versionRange}.`);
+            } else {
+                context.runtime.installVersion = desc(versions)[0];
+            }
         }
     }
 }

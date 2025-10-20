@@ -220,7 +220,6 @@ type TransportRuntime = {
 type WorkflowRuntime = {
     registry: AbstractRegistry,
     update: boolean,
-    rollback: boolean,
     remotePackageData: {
         data: Package,
         manifest: TrmManifest,
