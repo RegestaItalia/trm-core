@@ -267,8 +267,11 @@ export class RegistryV2 implements AbstractRegistry {
                 data = (await this._axiosInstance.get('/', {
                     headers: {}
                 })).data;
-            } catch {
-                data = new Error('Registry cannot be reached.')
+            } catch (e) {
+                if (e.errors) {
+                    e.errors.forEach(err => Logger.error(err.message));
+                }
+                data = new Error(`Registry "${this.name}" cannot be reached.`)
             }
             this._cache.set('ping', data);
         }
@@ -280,20 +283,41 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async whoAmI(): Promise<WhoAmI> {
-        var data: WhoAmI = this._cache.get('whoami');
+        var data: WhoAmI | Error = this._cache.get('whoami');
         if (!data) {
+            try{
             data = (await this._axiosInstance.get('/whoami')).data;
+            }catch(e){
+                data = e;
+            }
             this._cache.set('whoami', data);
         }
-        return data;
+        if(data instanceof Error){
+            throw data;
+        }else{
+            return data;
+        }
     }
 
     public async getPackage(fullName: string, version: string = 'latest'): Promise<Package> {
-        return (await this._axiosInstance.get(`/package/${fullName}`, {
-            params: {
-                version
+        var data: Package | Error = this._cache.get(`package-${fullName}-${version}`);
+        if (!data) {
+            try {
+                data = (await this._axiosInstance.get(`/package/${fullName}`, {
+                    params: {
+                        version
+                    }
+                })).data;
+            } catch (e) {
+                data = e;
             }
-        })).data;
+            this._cache.set(`package-${fullName}-${version}`, data);
+        }
+        if(data instanceof Error){
+            throw data;
+        }else{
+            return data;
+        }
     }
 
     public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
