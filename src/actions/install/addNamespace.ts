@@ -20,8 +20,6 @@ export const addNamespace: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Add namespace step', true);
 
-        context.runtime.rollback = true;
-
         //1- set namespace
         var originalNamespace = getPackageNamespace(context.runtime.originalData.hierarchy.devclass);
         Logger.log(`Package original namespace is ${originalNamespace}`, true);
@@ -33,6 +31,11 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         if (context.runtime.installData.namespace[0] !== '/') {
             Logger.log(`Package install namespace is ${context.runtime.installData.namespace}`, true);
             return;
+        }else{
+            if(context.rawInput.installData.installDevclass.skipNamespace){
+                Logger.info(`Skipping install of namespace ${context.runtime.installData.namespace}`, false);
+                return;
+            }
         }
 
         //2- check if namespace already exists (only if customer namespace)
@@ -86,15 +89,15 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                 }]);
             }
         } else {
-            if (context.runtime.remotePackageData.trmManifest.namespace) {
-                replicense = context.runtime.remotePackageData.trmManifest.namespace.replicense;
-                if (context.runtime.remotePackageData.trmManifest.namespace.texts && context.runtime.remotePackageData.trmManifest.namespace.texts.length > 0) {
-                    if (context.runtime.remotePackageData.trmManifest.namespace.texts.length === 1 || context.rawInput.contextData.noInquirer) {
+            if (context.runtime.remotePackageData.manifest.namespace) {
+                replicense = context.runtime.remotePackageData.manifest.namespace.replicense;
+                if (context.runtime.remotePackageData.manifest.namespace.texts && context.runtime.remotePackageData.manifest.namespace.texts.length > 0) {
+                    if (context.runtime.remotePackageData.manifest.namespace.texts.length === 1 || context.rawInput.contextData.noInquirer) {
                         texts = {
                             namespace: context.runtime.installData.namespace,
-                            descriptn: context.runtime.remotePackageData.trmManifest.namespace.texts[0].description,
-                            owner: context.runtime.remotePackageData.trmManifest.namespace.texts[0].owner,
-                            spras: context.runtime.remotePackageData.trmManifest.namespace.texts[0].language
+                            descriptn: context.runtime.remotePackageData.manifest.namespace.texts[0].description,
+                            owner: context.runtime.remotePackageData.manifest.namespace.texts[0].owner,
+                            spras: context.runtime.remotePackageData.manifest.namespace.texts[0].language
                         };
                     } else {
                         if (!context.rawInput.contextData.noInquirer) {
@@ -102,7 +105,7 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                                 type: 'list',
                                 message: 'Choose namespace install text',
                                 name: 'choice',
-                                choices: context.runtime.remotePackageData.trmManifest.namespace.texts.map(o => {
+                                choices: context.runtime.remotePackageData.manifest.namespace.texts.map(o => {
                                     return {
                                         name: `${o.language} ${o.description} ${o.owner}`,
                                         value: {

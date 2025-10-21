@@ -3,7 +3,7 @@ import { inspect } from "util";
 import { Logger } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
 import { IActionContext, setSystemPackages } from "../commons";
-import { TrmManifestDependency } from "../../manifest";
+import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { init } from "./init";
 import { analyze } from "./analyze";
 
@@ -26,9 +26,9 @@ export interface CheckPackageDependenciesActionInput {
      */
     packageData: {
         /**
-         * TRM Package instance.
+         * TRM Manifest.
          */
-        package: TrmPackage;
+        manifest: TrmManifest;
     };
     
     /**
@@ -50,9 +50,7 @@ export interface CheckPackageDependenciesActionInput {
 type WorkflowRuntime = {
     dependenciesStatus: {
         goodVersion: TrmManifestDependency[],
-        badVersion: TrmManifestDependency[],
-        goodIntegrity: TrmManifestDependency[],
-        badIntegrity: TrmManifestDependency[]
+        badVersion: TrmManifestDependency[]
     }
 }
 
@@ -60,8 +58,7 @@ export type CheckPackageDependenciesActionOutput = {
     dependencies: TrmManifestDependency[],
     dependencyStatus: {
         dependency: TrmManifestDependency,
-        match: boolean,
-        safe: boolean
+        match: boolean
     }[]
 }
 

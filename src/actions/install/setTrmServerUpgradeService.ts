@@ -27,7 +27,7 @@ export const setTrmServerUpgradeService: Step<InstallWorkflowContext> = {
         //1- set service
         TrmServerUpgrade.createInstance(
             context.rawInput.contextData.systemPackages.find(o => o.compareName(TRM_SERVER_PACKAGE_NAME)).manifest.get().version,
-            context.runtime.remotePackageData.trmManifest.version
+            context.runtime.remotePackageData.manifest.version
         );
     }
 }

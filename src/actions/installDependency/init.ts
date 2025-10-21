@@ -42,7 +42,6 @@ export const init: Step<InstallDependencyWorkflowContext> = {
 
         //4- fill runtime values
         context.runtime = {
-            rollback: false,
             installOutput: undefined,
             installVersion: undefined
         }
@@ -59,13 +58,6 @@ export const init: Step<InstallDependencyWorkflowContext> = {
         }
         if(!context.rawInput.installData.installDevclass){
             context.rawInput.installData.installDevclass = {};
-        }
-    },
-    revert: async (context: InstallDependencyWorkflowContext): Promise<void> => {
-        Logger.log('Rollback init step', true);
-        
-        if(context.runtime && context.runtime.rollback){
-            Logger.success(`Rollback executed.`);
         }
     }
 }

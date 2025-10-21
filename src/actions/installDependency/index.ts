@@ -43,7 +43,6 @@ export interface InstallDependencyActionInput {
 }
 
 type WorkflowRuntime = {
-    rollback: boolean,
     installVersion: string,
     installOutput: InstallActionOutput
 }

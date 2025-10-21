@@ -1,14 +1,12 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
-import { RegistryProvider, RegistryType } from "../../registry";
+import { RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency } from "../../manifest";
 import chalk from "chalk";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 import { validatePackageVisibility } from "../../validators";
 import _ from 'lodash';
-import { SystemConnector } from "../../systemConnector";
-import { TrmPackage } from "../../trmPackage";
 
 /**
  * Set manifest values
@@ -25,9 +23,7 @@ import { TrmPackage } from "../../trmPackage";
  * 
  * 6- edit dependencies/sap entries
  * 
- * 7- fetch missing dependencies integrity
- * 
- * 8- normalize manifest values
+ * 7- normalize manifest values
  * 
 */
 export const setManifestValues: Step<PublishWorkflowContext> = {
@@ -186,7 +182,6 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 validate: (input: boolean) => {
                     return validatePackageVisibility(
                         context.rawInput.packageData.registry.getRegistryType(),
-                        context.rawInput.packageData.name,
                         input,
                         context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
                     );
@@ -435,19 +430,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             }
         }
 
-        //7- fetch missing dependencies integrity
-        Logger.loading(`Reading manifest...`);
-        for(var dependency of (context.runtime.trmPackage.manifest.dependencies || [])){
-            if(!dependency.integrity){
-                //fetch in origin system
-                dependency.integrity = await SystemConnector.getPackageIntegrity(new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry)));
-                if(!dependency.integrity){
-                    Logger.warning(`Dependency ${dependency.name} has no integrity match: registry might reject this!`);
-                }
-            }
-        }
-
-        //8- normalize manifest values
+        //7- normalize manifest values
         context.runtime.trmPackage.manifest = Manifest.normalize(context.runtime.trmPackage.manifest, false);
     }
 }

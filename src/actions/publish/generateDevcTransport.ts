@@ -13,7 +13,6 @@ export const generateDevcTransport: Step<PublishWorkflowContext> = {
     name: 'generate-devc-transport',
     run: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.log('Generate DEVC transport step', true);
-        context.runtime.rollback = true;
 
         //1- generate transport
         Logger.loading(`Generating transports...`);
@@ -35,8 +34,6 @@ export const generateDevcTransport: Step<PublishWorkflowContext> = {
                 if (await context.runtime.systemData.devcTransport.canBeDeleted()) {
                     await context.runtime.systemData.devcTransport.delete();
                     Logger.success(`Executed rollback on transport ${context.runtime.systemData.devcTransport.trkorr}`, true);
-                } else {
-                    throw new Error(`Transport ${context.runtime.systemData.devcTransport.trkorr} cannot be deleted (released?)`);
                 }
             } catch (e) {
                 Logger.error(`Unable to rollback transport ${context.runtime.systemData.devcTransport.trkorr}!`);

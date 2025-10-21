@@ -27,11 +27,8 @@ export const init: Step<CheckSapEntriesWorkflowContext> = {
             missingTables: []
         };
         
-        //1- set sap entries (read manifest)
-        if(context.rawInput.packageData.package.manifest){
-            const manifest = context.rawInput.packageData.package.manifest.get();
-            context.output.sapEntries = manifest.sapEntries || {};
-        }
+        //1- set sap entries
+        context.output.sapEntries = context.rawInput.packageData.manifest.sapEntries || {};
 
         //2- fill missing input data
         if(!context.rawInput.printOptions){

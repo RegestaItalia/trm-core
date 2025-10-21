@@ -76,7 +76,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 dependencyDataPackage: {
                     name: dependency.name,
                     versionRange: dependency.version,
-                    integrity: dependency.integrity,
+                    //integrity: TODO: should come from input
                     registry: RegistryProvider.getRegistry(dependency.registry)
                 },
                 contextData: _.cloneDeep(context.rawInput.contextData),

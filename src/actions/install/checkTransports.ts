@@ -169,7 +169,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                 const linkedPackage = await oTransport.getLinkedPackage();
                 if (linkedPackage) {
                     Logger.log(`${trkorr} package is ${linkedPackage.packageName}`, true);
-                    if (linkedPackage.compareName(context.runtime.remotePackageData.trmManifest.name) && linkedPackage.compareRegistry(context.runtime.registry)) {
+                    if (linkedPackage.compareName(context.runtime.remotePackageData.manifest.name) && linkedPackage.compareRegistry(context.runtime.registry)) {
                         Logger.log(`${trkorr} same package (updating?)`, true);
                     } else {
                         Logger.log(`${trkorr} is linked to another package, will later be migrated`, true);
@@ -182,7 +182,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                 } else {
                     if (await oTransport.isReleased()) {
                         Logger.warning(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()}`);
-                        Logger.warning(`If you continue, TRM will replace the content of transport ${trkorr} with the content of the transport with the same number of package "${context.runtime.remotePackageData.trmManifest.name}".`);
+                        Logger.warning(`If you continue, TRM will replace the content of transport ${trkorr} with the content of the transport with the same number of package "${context.runtime.remotePackageData.manifest.name}".`);
                         Logger.warning(`All of the content of the existing transport will remain untouched, however you need to manually create a new transport if you want to use it again in the future.`);
                         if (!context.rawInput.installData.import.replaceExistingTransports) {
                             var continueInstall;

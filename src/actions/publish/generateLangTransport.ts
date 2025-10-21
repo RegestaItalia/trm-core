@@ -56,8 +56,6 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
                 if (await context.runtime.systemData.langTransport.canBeDeleted()) {
                     await context.runtime.systemData.langTransport.delete();
                     Logger.success(`Executed rollback on transport ${context.runtime.systemData.langTransport.trkorr}`, true);
-                } else {
-                    throw new Error(`Transport ${context.runtime.systemData.langTransport.trkorr} cannot be deleted (released?)`);
                 }
             } catch (e) {
                 Logger.error(`Unable to rollback transport ${context.runtime.systemData.langTransport.trkorr}!`);
