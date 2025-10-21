@@ -34,7 +34,7 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
         
         //1- build required tables fields
         var table = {
-            header: ['Dependency', 'Registry', 'Dependency range', 'Version on system', 'Version status', 'Integrity status'],
+            header: ['Dependency', 'Registry', 'Dependency range', 'Version on system', 'Version status'],
             data: []
         };
 

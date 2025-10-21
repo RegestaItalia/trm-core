@@ -31,5 +31,8 @@ export const init: Step<CheckPackageDependenciesWorkflowContext> = {
         if(!context.rawInput.printOptions){
             context.rawInput.printOptions = {};
         }
+        if(!context.rawInput.contextData){
+            context.rawInput.contextData = {};
+        }
     }
 }

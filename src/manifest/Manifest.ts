@@ -220,11 +220,6 @@ export class Manifest {
                         "_text": o.registry
                     }
                 }
-                if (o.integrity) {
-                    obj['INTEGRITY'] = {
-                        "_text": o.integrity
-                    }
-                }
                 if (Object.keys(obj).length > 0) {
                     dependencies.push(obj);
                 }
@@ -469,10 +464,6 @@ export class Manifest {
                         dependency.name = originalDependency.name.trim().toLowerCase().replace(/\s/g, '');
                         if (semver.validRange(originalDependency.version)) {
                             dependency.version = originalDependency.version;
-                            dependency.integrity = originalDependency.integrity;
-                            if (!dependency.integrity) {
-                                throw new Error(`Dependency ${dependency.name} is missing its integrity.`);
-                            }
                             if (originalDependency.registry) {
                                 dependency.registry = originalDependency.registry;
                             }
@@ -654,7 +645,6 @@ export class Manifest {
                 manifest.dependencies = oAbapManifest.dependencies.item.map(o => {
                     return {
                         name: o.name?.text,
-                        integrity: o.integrity?.text,
                         version: o.version?.text,
                         registry: o.registry?.text
                     };
@@ -662,7 +652,6 @@ export class Manifest {
             } else {
                 manifest.dependencies = [{
                     name: oAbapManifest.dependencies.item.name?.text,
-                    integrity: oAbapManifest.dependencies.item.integrity?.text,
                     version: oAbapManifest.dependencies.item.version?.text,
                     registry: oAbapManifest.dependencies.item.registry?.text
                 }];

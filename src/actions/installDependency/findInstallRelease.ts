@@ -31,7 +31,7 @@ export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
                 if (!context.runtime.installVersion) {
                     try {
                         const packageVersion = await context.rawInput.dependencyDataPackage.registry.getPackage(context.rawInput.dependencyDataPackage.name, sortedVersion);
-                        if (context.rawInput.dependencyDataPackage.integrity === packageVersion.checksum) {
+                        if (context.rawInput.dependencyDataPackage.integrity === packageVersion.checksum) { //TODO: should also pass specific version, so check integrity and version from lock file
                             context.runtime.installVersion = sortedVersion;
                         }
                     } catch { }

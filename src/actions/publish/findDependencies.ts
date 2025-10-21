@@ -84,19 +84,9 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                     const dependencyVersionRange = `^${dependencyManifest.version}`;
 
                     const dependencyRegistry = o.package.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.package.registry.endpoint;
-                    if (!o.integrity) {
-                        if(o.ignoreNoIntegrity){
-                            Logger.warning(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name}: ${dependencyVersionRange} (Integrity not found!)`);
-                        }else{
-                            throw new Error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name}: Integrity not found!`);
-                        }
-                    }else{
-                        Logger.info(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) ${dependencyManifest.name} ${dependencyVersionRange}`);
-                    }
                     context.runtime.trmPackage.manifest.dependencies.push({
                         name: dependencyManifest.name,
                         version: dependencyVersionRange,
-                        integrity: o.integrity,
                         registry: dependencyRegistry
                     });
                 } else {
