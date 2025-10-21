@@ -7,7 +7,7 @@ import { InstallPackage } from "./InstallPackage";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
-    getPackageWorkbenchTransport: (oPackage: TrmPackage) => Promise<Transport>,
+    getWbTransports:(trmPackage?: string | TrmPackage) => Promise<Transport[]>,
     getSourceTrkorr: () => Promise<components.TRKORR[]>,
     getIgnoredTrkorr: () => Promise<components.TRKORR[]>,
     getObject: (pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<struct.TADIR>,
