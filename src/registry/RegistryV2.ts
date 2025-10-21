@@ -285,16 +285,16 @@ export class RegistryV2 implements AbstractRegistry {
     public async whoAmI(): Promise<WhoAmI> {
         var data: WhoAmI | Error = this._cache.get('whoami');
         if (!data) {
-            try{
-            data = (await this._axiosInstance.get('/whoami')).data;
-            }catch(e){
+            try {
+                data = (await this._axiosInstance.get('/whoami')).data;
+            } catch (e) {
                 data = e;
             }
             this._cache.set('whoami', data);
         }
-        if(data instanceof Error){
+        if (data instanceof Error) {
             throw data;
-        }else{
+        } else {
             return data;
         }
     }
@@ -302,20 +302,26 @@ export class RegistryV2 implements AbstractRegistry {
     public async getPackage(fullName: string, version: string = 'latest'): Promise<Package> {
         var data: Package | Error = this._cache.get(`package-${fullName}-${version}`);
         if (!data) {
+            var ttl: number;
             try {
                 data = (await this._axiosInstance.get(`/package/${fullName}`, {
                     params: {
                         version
                     }
                 })).data;
+                if ((data as Package).download_link_expiry) {
+                    try {
+                        ttl = Math.max(0, Math.floor(((data as Package).download_link_expiry - Date.now()) / 1000));
+                    } catch { }
+                }
             } catch (e) {
                 data = e;
             }
-            this._cache.set(`package-${fullName}-${version}`, data);
+            this._cache.set(`package-${fullName}-${version}`, data, ttl);
         }
-        if(data instanceof Error){
+        if (data instanceof Error) {
             throw data;
-        }else{
+        } else {
             return data;
         }
     }
