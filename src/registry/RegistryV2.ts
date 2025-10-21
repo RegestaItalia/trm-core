@@ -10,7 +10,7 @@ import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
 import _ from 'lodash';
-import { getAxiosInstance } from "../commons";
+import { getAxiosInstance, getNodePackage } from "../commons";
 import { AbstractRegistry } from "./AbstractRegistry";
 import NodeCache from "node-cache";
 
@@ -23,6 +23,7 @@ export class RegistryV2 implements AbstractRegistry {
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
     private _authData: any;
+    private _userAgent: string;
 
     constructor(public endpoint: string, public name: string = 'Unknown') {
         var envEndpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT;
@@ -55,8 +56,20 @@ export class RegistryV2 implements AbstractRegistry {
             throw new Error(`Registry address length is too long! Maximum allowed is 100.`);
         }
         this._axiosInstance = getAxiosInstance({
-            baseURL: this.endpoint
+            baseURL: this.endpoint,
+            headers: this.getDefaultAxiosHeaders()
         }, AXIOS_CTX);
+    }
+
+    private getDefaultAxiosHeaders(): AxiosHeaders {
+        var axiosHeaders: AxiosHeaders = new AxiosHeaders();
+        if (!this._userAgent) {
+            try {
+                this._userAgent = `trm-core v${getNodePackage().version}`;
+            } catch { }
+        }
+        axiosHeaders.setUserAgent(this._userAgent || `trm-core`);
+        return axiosHeaders;
     }
 
     public compare(registry: AbstractRegistry): boolean {
@@ -91,7 +104,7 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     private async _basicAuth(defaultData: any = {}) {
-        var axiosHeaders: AxiosHeaders = new AxiosHeaders();
+        var axiosHeaders: AxiosHeaders = this.getDefaultAxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
             headers: axiosHeaders
@@ -128,7 +141,7 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     private async _tokenAuth(defaultData: any = {}) {
-        var axiosHeaders: AxiosHeaders = new AxiosHeaders();
+        var axiosHeaders: AxiosHeaders = this.getDefaultAxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
             headers: axiosHeaders
@@ -247,7 +260,7 @@ export class RegistryV2 implements AbstractRegistry {
             }
         }
         this._authData = authData;
-        var axiosHeaders: AxiosHeaders = new AxiosHeaders();
+        var axiosHeaders: AxiosHeaders = this.getDefaultAxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
             headers: axiosHeaders
