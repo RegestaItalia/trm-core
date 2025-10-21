@@ -54,7 +54,10 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
             // - case 3: overwriting a registry package with its local package -> get all wb transports with matching name, show them as a list
             if (context.runtime.update) {
                 //case 1
-                context.runtime.installData.transport = await context.runtime.remotePackageData.trmPackage.getWbTransport();
+                context.runtime.installData.transport = await (new TrmPackage(
+                    context.rawInput.packageData.name,
+                    context.rawInput.packageData.registry
+                )).getWbTransport();
             } else {
                 if (!context.rawInput.contextData.noInquirer) {
                     //case 3
