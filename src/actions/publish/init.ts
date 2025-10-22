@@ -169,7 +169,7 @@ export const init: Step<PublishWorkflowContext> = {
                     ...{
                         name: context.rawInput.packageData.name,
                         version: context.rawInput.packageData.version,
-                        private: context.rawInput.publishData.private
+                        private: typeof(context.rawInput.publishData.private) === 'undefined' ? (latestReleaseManifest ? latestReleaseManifest.private : undefined) : context.rawInput.publishData.private
                     }
                 }
             },
