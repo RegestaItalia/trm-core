@@ -396,34 +396,13 @@ export class Transport {
     }
 
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string, secondsTimeout?: number): Promise<void> {
-        var rc: number;
         Logger.loading('Releasing transport...', skipLog);
         await SystemConnector.releaseTrkorr(this.trkorr, lock, secondsTimeout);
         await SystemConnector.dequeueTransport(this.trkorr);
         if (tmpFolder) {
-            rc = await this.readReleaseLog(tmpFolder, secondsTimeout);
+            await this.readReleaseLog(tmpFolder, secondsTimeout);
         } else {
-            rc = await this._isInTmsQueue(skipLog, false, secondsTimeout);
-        }
-        //TODO: is this relevant? when releasing there shouldn't be an rc!
-        //the only status is given by the release log, otherwise a release will simply place the transport in queue
-        //but without import, no rc...
-        //probably was copy and pasted, but I feel like this switch is never used as rc always used to come as 0 (now -1 to avoid confusion)
-        if (!skipLog && !tmpFolder) { //with tmpFolder, release status already printed
-            switch (rc) {
-                case 4:
-                    Logger.warning(`${this.trkorr} release ended with warning.`);
-                    break;
-                case 8:
-                    Logger.error(`${this.trkorr} release ended with error.`);
-                    break;
-                case 12:
-                    Logger.error(`${this.trkorr} release was cancelled.`);
-                    break;
-                case 16:
-                    Logger.error(`${this.trkorr} release was cancelled.`);
-                    break;
-            }
+            await this._isInTmsQueue(skipLog, false, secondsTimeout);
         }
     }
 
