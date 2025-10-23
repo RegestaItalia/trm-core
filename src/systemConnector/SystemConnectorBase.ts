@@ -55,9 +55,9 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getWbTransports(trmPackage?: string | TrmPackage): Promise<Transport[]> {
     var sqlWhere = `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`;
     if (trmPackage instanceof TrmPackage) {
-      sqlWhere += ` AND OBJ_NAME EQ '${trmPackage.packageName}'`;
+      sqlWhere += ` AND OBJ_NAME EQ 'name=${trmPackage.packageName}'`;
     } else if (typeof trmPackage === 'string') {
-      sqlWhere += ` AND OBJ_NAME EQ '${trmPackage}'`;
+      sqlWhere += ` AND OBJ_NAME EQ 'name=${trmPackage}'`;
     }
     var aTrkorr: TRKORR[] = (await this.readTable('E071',
       [{ fieldName: 'TRKORR' }],
@@ -289,7 +289,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     var aMigrationTrkorr: components.ZTRM_TRKORR[];
     var aActualTrkorr: TRKORR[] = (await this.readTable('E071',
       [{ fieldName: 'TRKORR' }],
-      `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}' AND TRKORR EQ 'RSTK906391'`
+      `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`
     )).map(o => o.trkorr);
     //because we're extracting from e071, there will be multiple records with the same trkorr
     //unique array
