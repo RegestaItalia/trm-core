@@ -2,8 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { desc } from "semver-sort";
-import { TrmPackage } from "../../trmPackage";
-import { createHash } from "crypto";
+import { satisfies } from "semver";
 
 /**
  * Find release in range to install
@@ -21,29 +20,29 @@ export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
         Logger.log('Find install release step', true);
 
         //1- get releases in range from registry
-        const releases = await context.rawInput.dependencyDataPackage.registry.getReleases(context.rawInput.dependencyDataPackage.name, context.rawInput.dependencyDataPackage.versionRange);
-        if (releases.length === 0) {
-            throw new Error(`Dependency "${context.rawInput.dependencyDataPackage.name}": releases not found in range ${context.rawInput.dependencyDataPackage.versionRange}.`);
-        }
-        
-        const sortedVersions = desc(releases.map(o => o.version));
-        if(context.rawInput.installData.checks && context.rawInput.installData.checks.safe){
-            if(context.rawInput.dependencyDataPackage.integrity){
-                //3- find matching integrity release (if provided)
-                for(const sortedVersion of sortedVersions){
-                    if(!context.runtime.installVersion){
-                        const oArtifact = await new TrmPackage(context.rawInput.dependencyDataPackage.name, context.rawInput.dependencyDataPackage.registry).fetchRemoteArtifact(sortedVersion);
-                        const fetchedIntegrity = createHash("sha512").update(oArtifact.binary).digest("hex");
-                        if (context.rawInput.dependencyDataPackage.integrity === fetchedIntegrity) {
+        const packageData = await context.rawInput.dependencyDataPackage.registry.getPackage(context.rawInput.dependencyDataPackage.name, 'latest');
+        const versions = packageData.versions.filter(v => satisfies(v, context.rawInput.dependencyDataPackage.versionRange));
+        const yanked = packageData.yanked_versions.filter(v => satisfies(v, context.rawInput.dependencyDataPackage.versionRange));
+
+        if (context.rawInput.dependencyDataPackage.integrity) {
+            //3- find matching integrity release (if provided)
+            const sortedVersions = desc(versions.concat(yanked));
+            for (const sortedVersion of sortedVersions) {
+                if (!context.runtime.installVersion) {
+                    try {
+                        const packageVersion = await context.rawInput.dependencyDataPackage.registry.getPackage(context.rawInput.dependencyDataPackage.name, sortedVersion);
+                        if (context.rawInput.dependencyDataPackage.integrity === packageVersion.checksum) { //TODO: should also pass specific version, so check integrity and version from lock file
                             context.runtime.installVersion = sortedVersion;
                         }
-                    }
+                    } catch { }
                 }
-            }else{
-                throw new Error(`Running in safe mode but no integrity was provided for dependency "${context.rawInput.dependencyDataPackage.name}" install.`);
             }
-        }else{
-            context.runtime.installVersion = sortedVersions[0];
+        } else {
+            if (versions.length === 0) {
+                throw new Error(`Dependency "${context.rawInput.dependencyDataPackage.name}": releases not found in range ${context.rawInput.dependencyDataPackage.versionRange}.`);
+            } else {
+                context.runtime.installVersion = desc(versions)[0];
+            }
         }
     }
 }

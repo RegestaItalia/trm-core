@@ -46,7 +46,7 @@ export const getSourceCode: Step<PublishWorkflowContext> = {
             }
         }catch(e){
             Logger.error(e.toString(), true);
-            Logger.info(`AbapGit Developer Version was not found, source code won't be exported.`);
+            Logger.info(`AbapGit Developer Version was not found, source code won't be exported.`, true); //TODO: temp delete log
         }
     }
 }

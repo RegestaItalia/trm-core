@@ -65,6 +65,33 @@ export class Manifest {
         this._manifest.registry = endpoint;
     }
 
+    public getJSON(ignoredKeys: string[] = []): string {
+        const KEYS_ORDER = [
+            "name",
+            "version",
+            "registry",
+            "private",
+            "description",
+            "backwardsCompatible",
+            "distFolder",
+            "srcFolder",
+            "namespace",
+            "website",
+            "git",
+            "license",
+            "authors",
+            "keywords",
+            "dependencies",
+            "sapEntries",
+            "postActivities",
+        ] satisfies readonly (keyof TrmManifest & string)[];
+        var obj = this.get(false);
+        ignoredKeys.forEach(k => {
+            delete obj[k];
+        })
+        return this.jsonStringifyWithKeyOrder(obj, KEYS_ORDER, 2);
+    }
+
     public getAbapXml(): string {
         const manifest = this.get();
         var oAbapXml = {
@@ -218,11 +245,6 @@ export class Manifest {
                 if (o.registry) {
                     obj['REGISTRY'] = {
                         "_text": o.registry
-                    }
-                }
-                if (o.integrity) {
-                    obj['INTEGRITY'] = {
-                        "_text": o.integrity
                     }
                 }
                 if (Object.keys(obj).length > 0) {
@@ -469,10 +491,6 @@ export class Manifest {
                         dependency.name = originalDependency.name.trim().toLowerCase().replace(/\s/g, '');
                         if (semver.validRange(originalDependency.version)) {
                             dependency.version = originalDependency.version;
-                            dependency.integrity = originalDependency.integrity;
-                            if (!dependency.integrity) {
-                                throw new Error(`Dependency ${dependency.name} is missing its integrity.`);
-                            }
                             if (originalDependency.registry) {
                                 dependency.registry = originalDependency.registry;
                             }
@@ -526,7 +544,7 @@ export class Manifest {
         if (manifestClone.postActivities && manifestClone.postActivities.length > 0) {
             var originalPostActivities = manifestClone.postActivities;
             delete manifestClone.postActivities;
-            if(Array.isArray(originalPostActivities) && originalPostActivities.length > 0){
+            if (Array.isArray(originalPostActivities) && originalPostActivities.length > 0) {
                 manifestClone.postActivities = [];
                 originalPostActivities.forEach((pa) => {
                     if (!pa.name) {
@@ -654,7 +672,6 @@ export class Manifest {
                 manifest.dependencies = oAbapManifest.dependencies.item.map(o => {
                     return {
                         name: o.name?.text,
-                        integrity: o.integrity?.text,
                         version: o.version?.text,
                         registry: o.registry?.text
                     };
@@ -662,7 +679,6 @@ export class Manifest {
             } else {
                 manifest.dependencies = [{
                     name: oAbapManifest.dependencies.item.name?.text,
-                    integrity: oAbapManifest.dependencies.item.integrity?.text,
                     version: oAbapManifest.dependencies.item.version?.text,
                     registry: oAbapManifest.dependencies.item.registry?.text
                 }];
@@ -750,6 +766,29 @@ export class Manifest {
         } else {
             return [];
         }
+    }
+
+    private jsonStringifyWithKeyOrder<T extends object>(
+        obj: T,
+        order: readonly (keyof T & string)[],
+        space: number = 2
+    ): string {
+        const out: Record<string, unknown> = {};
+        const seen = new Set<string>(order as readonly string[]);
+
+        for (const key of order) {
+            if (Object.prototype.hasOwnProperty.call(obj, key) && (obj as any)[key] !== undefined) {
+                (out as any)[key] = (obj as any)[key];
+            }
+        }
+
+        for (const key of Object.keys(obj) as (keyof T & string)[]) {
+            if (!seen.has(key) && (obj as any)[key] !== undefined) {
+                (out as any)[key] = (obj as any)[key];
+            }
+        }
+
+        return JSON.stringify(out, null, space);
     }
 
 }

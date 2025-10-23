@@ -1,22 +1,22 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
-import { TrmPackage } from "../../trmPackage";
-import { parsePackageName } from "../../commons";
+import { TrmArtifact } from "../../trmPackage";
 import { createHash } from "crypto";
 import { SystemConnector } from "../../systemConnector";
 import { AbstractRegistry, RegistryType } from "../../registry";
+import { valid } from "semver";
+import { TrmManifest } from "../../manifest";
+import { Package, Ping } from "trm-registry-types";
 
 /**
  * Init
  * 
  * 1- check package name is compliant
  * 
- * 2- format install version -> set latest if nothing specified
+ * 2- format version
  * 
- * 3- fetch package in registry
- * 
- * 4- set package data from registry
+ * 3- set runtime data
  * 
  * 5- fill missing input data
  * 
@@ -27,61 +27,58 @@ export const init: Step<InstallWorkflowContext> = {
         Logger.log('Init step', true);
         const registry = context.rawInput.packageData.registry;
 
+        var artifact: TrmArtifact;
+        var manifest: TrmManifest;
+        var packageData: Package;
+
         //Local registry
         var actualRegistry: AbstractRegistry;
-        var actualTrmPackage: TrmPackage;
         //
         if (registry.getRegistryType() === RegistryType.LOCAL) {
             //if it's a local package it could be a download from a registry
-            actualTrmPackage = (await registry.getArtifact(null, null)).getManifest().getPackage();
-            actualRegistry = actualTrmPackage.registry;
-            context.rawInput.packageData.name = actualTrmPackage.packageName;
+            try {
+                artifact = await registry.downloadArtifact('dummy', 'dummy');
+            } catch {
+                throw new Error(`Unable to read local package.`);
+            }
+            const oManifest = artifact.getManifest();
+            manifest = oManifest.get();
+            packageData.manifest = manifest; //fill missing manifest
+            actualRegistry = oManifest.getPackage().registry;
+            context.rawInput.packageData.name = manifest.name;
         }
 
-        //1- check package name is compliant
-        context.rawInput.packageData.name = parsePackageName({
-            fullName: context.rawInput.packageData.name
-        }).fullName;
+        //1- format version
+        context.rawInput.packageData.version = valid(context.rawInput.packageData.version);
 
-        //2- format install version -> set latest if nothing specified
-        if (!context.rawInput.packageData.version || context.rawInput.packageData.version.trim().toLowerCase() === 'latest') {
-            context.rawInput.packageData.version = 'latest';
+        //2- fetch package in registry
+        if (registry.getRegistryType() !== RegistryType.LOCAL) {
+            Logger.loading(`Fetching package in registry ${registry.name}...`);
+            packageData = await registry.getPackage(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
+            artifact = await registry.downloadArtifact(packageData.name, packageData.manifest.version);
+            const checksum = createHash("sha512").update(artifact.binary).digest("base64");
+            if (checksum !== packageData.checksum) {
+                var ping: Ping;
+                try{
+                    ping = await registry.ping();
+                }catch { }
+                Logger.error(`SECURITY ISSUE! Release checksum does NOT match!`);
+                Logger.error(`SECURITY ISSUE! Expected SHA is ${packageData.checksum}, current SHA is ${checksum}`);
+                Logger.error(`SECURITY ISSUE! Please, report the issue to ${ping && ping.alert_email ? ping.alert_email : 'registry moderation team'}`);
+                throw new Error(`Cannot continue due to security issues.`);
+            }
+            manifest = artifact.getManifest().get();
         }
+        Logger.info(`Ready to install ${manifest.name} v${manifest.version}.`);
 
-        //3- fetch package in registry
-        if (registry.getRegistryType() === RegistryType.LOCAL) {
-            Logger.loading(`Reading TRM package data...`);
-        } else {
-            Logger.loading(`Searching TRM package in registry ${registry.name}...`);
-        }
-
-        const trmPackage = new TrmPackage(context.rawInput.packageData.name, registry);
-        const artifact = await trmPackage.fetchRemoteArtifact(context.rawInput.packageData.version);
-        const integrity = createHash("sha512").update(artifact.binary).digest("hex");
-        const manifest = await trmPackage.fetchRemoteManifest(context.rawInput.packageData.version);
-        const trmManifest = manifest.get();
-        var sVersion = trmManifest.version;
-        if (context.rawInput.packageData.version === 'latest') {
-            sVersion = `latest -> ${trmManifest.version}`;
-        }
-        if (registry.getRegistryType() === RegistryType.LOCAL) {
-            Logger.info(`Ready to install "${trmManifest.name}" version ${trmManifest.version}.`);
-        } else {
-            Logger.info(`Ready to install "${trmManifest.name}" version ${sVersion} from registry "${registry.name}".`);
-        }
-
-        //4- set package data from registry
+        //3- set runtime data
         context.runtime = {
             registry: actualRegistry || registry,
             update: undefined,
-            rollback: false,
             remotePackageData: {
-                version: context.rawInput.packageData.version,
-                trmPackage: actualTrmPackage || trmPackage,
-                trmManifest,
-                manifest,
+                data: packageData,
                 artifact,
-                integrity
+                manifest
             },
             dependenciesToInstall: [],
             r3trans: undefined,
@@ -125,7 +122,7 @@ export const init: Step<InstallWorkflowContext> = {
             }
         };
 
-        //5- fill missing input data
+        //4- fill missing input data
         if (context.rawInput.packageData.overwrite === undefined) {
             context.rawInput.packageData.overwrite = false;
         }
@@ -178,13 +175,6 @@ export const init: Step<InstallWorkflowContext> = {
             if (!(await SystemConnector.isTransportLayerExist(context.rawInput.installData.installDevclass.transportLayer))) {
                 throw new Error(`Transport layer "${context.rawInput.installData.installDevclass.transportLayer}" doesn't exist.`);
             }
-        }
-    },
-    revert: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Rollback init step', true);
-
-        if (context.runtime && context.runtime.rollback) {
-            Logger.success(`Rollback executed.`);
         }
     }
 }

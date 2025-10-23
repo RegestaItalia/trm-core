@@ -3,12 +3,11 @@ import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
 import { parsePackageName } from "../../commons";
 import { TrmPackage } from "../../trmPackage";
-import { clean } from "semver";
+import { clean, inc, valid } from "semver";
 import { SystemConnector } from "../../systemConnector";
 import { RegistryType } from "../../registry";
 import { Transport } from "../../transport";
-import chalk from "chalk";
-import { validatePackageVisibility } from "../../validators";
+import { TrmManifest } from "../../manifest";
 
 /**
  * Init
@@ -17,13 +16,11 @@ import { validatePackageVisibility } from "../../validators";
  *  
  * 2- fill missing context/input data
  *  
- * 3- normalize install version
+ * 3- validate version
  * 
- * 4- set runtime data
+ * 4- validate publish data
  * 
- * 5- check package existance
- * 
- * 6- check publish allowed
+ * 5- set runtime data
  * 
 */
 export const init: Step<PublishWorkflowContext> = {
@@ -38,17 +35,10 @@ export const init: Step<PublishWorkflowContext> = {
         });
         context.rawInput.packageData.name = parsedPackageName.fullName;
 
-        
-        if(registry.getRegistryType() === RegistryType.PUBLIC && registry.getRegistryType() !== RegistryType.LOCAL){
+
+        if (registry.getRegistryType() === RegistryType.PUBLIC) {
             Logger.log(`Public registry, checking if logged in`, true);
             await registry.whoAmI();
-            Logger.log(`Public registry, checking if package name is ok`, true);
-            if(parsedPackageName.organization && parsedPackageName.organization.length > 20){
-                throw new Error(`Invalid org "${parsedPackageName.organization}": length must be 20 characters long or less.`);
-            }
-            if(parsedPackageName.name.length > 20){
-                throw new Error(`Invalid package name "${parsedPackageName.name}": length must be 20 characters long or less.`);
-            }
         }
 
         //2- fill missing context/input data
@@ -81,85 +71,105 @@ export const init: Step<PublishWorkflowContext> = {
         if (context.rawInput.packageData.manifest.sapEntries === undefined) {
             context.rawInput.packageData.manifest.sapEntries = {};
         }
-        if(!context.rawInput.packageData.manifest.postActivities){
+        if (!context.rawInput.packageData.manifest.postActivities) {
             context.rawInput.packageData.manifest.postActivities = [];
         }
-        if(typeof(context.rawInput.publishData.customizingTransports) === 'string'){
+        if (typeof (context.rawInput.publishData.customizingTransports) === 'string') {
             context.rawInput.publishData.customizingTransports = context.rawInput.publishData.customizingTransports.split(',').map(o => {
-                try{
+                try {
                     return new Transport(o.trim());
-                }catch(e){
+                } catch (e) {
                     throw new Error(`Invalid customizing transport values: trkorr.`);
                 }
             });
         }
 
-        //3- normalize install version
-        if (!context.rawInput.packageData.version) {
-            context.rawInput.packageData.version = 'latest';
-        }
-        var normalizeVersion = true;
-        var normalizedVersion: string;
-        Logger.loading(`Checking package version...`);
-        while (normalizeVersion) {
-            //this method will also throw error in case the specified version already exists in the registry
-            normalizedVersion = await TrmPackage.normalizeVersion(context.rawInput.packageData.name, context.rawInput.packageData.version, registry);
-            if (normalizedVersion !== context.rawInput.packageData.version) {
-                Logger.info(`Version ${context.rawInput.packageData.version} -> ${normalizedVersion}`);
-                if (!context.rawInput.contextData.noInquirer) {
-                    const inq = await Inquirer.prompt([{
-                        name: 'acceptNormalized',
-                        message: `Continue publish as version ${normalizedVersion}?`,
-                        type: 'confirm',
-                        default: true
-                    }, {
-                        name: 'inputVersion',
-                        message: `Input version to publish`,
-                        type: 'input',
-                        when: (hash) => {
-                            return !hash.acceptNormalized
-                        },
-                        validate: (input) => {
-                            if (!input) {
-                                return false;
-                            } else {
-                                if (input.trim().toLowerCase() === 'latest') {
-                                    return true;
-                                } else {
-                                    return clean(input) ? true : false;
-                                }
-                            }
-                        }
-                    }]);
-                    if (inq.acceptNormalized) {
-                        normalizeVersion = false;
-                        context.rawInput.packageData.version = normalizedVersion;
-                    } else {
-                        normalizeVersion = true;
-                        context.rawInput.packageData.version = inq.inputVersion;
-                    }
-                } else {
-                    normalizeVersion = false;
-                    context.rawInput.packageData.version = normalizedVersion;
-                }
+        //3- validate version
+        Logger.loading(`Validating version...`);
+        var automaticVersion: boolean = false;
+        var releasesInRegistry: string[];
+        var latestReleaseManifest: TrmManifest;
+        context.rawInput.packageData.version = clean(context.rawInput.packageData.version || '');
+        try {
+            Logger.loading(`Getting package latest release from registry...`, true);
+            const packageData = await registry.getPackage(context.rawInput.packageData.name, 'latest');
+            latestReleaseManifest = packageData.manifest;
+            releasesInRegistry = packageData.versions;
+        } catch { }
+        if (!latestReleaseManifest) {
+            //first time publish
+            if (!context.rawInput.packageData.version) {
+                context.rawInput.packageData.version = '1.0.0';
+                automaticVersion = true;
+            }
+        } else {
+            if (!context.rawInput.packageData.version) {
+                context.rawInput.packageData.version = inc(latestReleaseManifest.version, "patch");
+                automaticVersion = true;
             } else {
-                normalizeVersion = false;
+                if (releasesInRegistry.includes(context.rawInput.packageData.version)) {
+                    throw new Error(`Version "${context.rawInput.packageData.version}" already published.`);
+                }
+            }
+            if (registry.getRegistryType() === RegistryType.PUBLIC) {
+                Logger.log(`Public registry, checking if visibility is the same as latest release`, true);
+                if(typeof(context.rawInput.publishData.private) === 'boolean' && context.rawInput.publishData.private !== latestReleaseManifest.private){
+                    throw new Error(`Cannot change package visibility to ${context.rawInput.publishData.private ? 'private' : 'public'}`);
+                }
             }
         }
-        Logger.info(`Release publish version: ${chalk.bold(context.rawInput.packageData.version)}`);
+        if (automaticVersion) {
+            Logger.info(`Automatically set publish version to "${context.rawInput.packageData.version}"`);
+            if (!context.rawInput.contextData.noInquirer) {
+                context.rawInput.packageData.version = (await Inquirer.prompt([{
+                    type: 'confirm',
+                    message: `Continue publish as version "${context.rawInput.packageData.version}"?`,
+                    default: true,
+                    name: 'acceptDefaultVersion'
+                }, {
+                    type: 'input',
+                    message: `Input publish version`,
+                    name: 'version',
+                    default: context.rawInput.packageData.version,
+                    when: (hash) => {
+                        return !hash.acceptDefaultVersion;
+                    },
+                    validate: (v) => {
+                        if (valid(v)) {
+                            if (releasesInRegistry.includes(v)) {
+                                return `Version "${v}" already published.`;
+                            } else {
+                                return true;
+                            }
+                        } else {
+                            return `Invalid version`;
+                        }
+                    }
+                }])).version || context.rawInput.packageData.version;
+            }
+        }
 
-        //4- set runtime data
+        //4- validate publish data
+        Logger.loading(`Validating data...`);
+        await registry.validatePublish(context.rawInput.packageData.name, context.rawInput.packageData.version);
+        if (!latestReleaseManifest) {
+            Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, registry.getRegistryType() === RegistryType.LOCAL);
+        }
+        Logger.info(`Ready to publish ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`);
+
+        //5- set runtime data
         context.runtime = {
-            rollback: false,
             trmPackage: {
                 package: new TrmPackage(context.rawInput.packageData.name, registry),
                 registry,
+                latestReleaseManifest,
+                releasesInRegistry,
                 manifest: {
                     ...context.rawInput.packageData.manifest,
                     ...{
                         name: context.rawInput.packageData.name,
                         version: context.rawInput.packageData.version,
-                        private: context.rawInput.publishData.private
+                        private: typeof(context.rawInput.publishData.private) === 'undefined' ? (latestReleaseManifest ? latestReleaseManifest.private : undefined) : context.rawInput.publishData.private
                     }
                 }
             },
@@ -190,47 +200,8 @@ export const init: Step<PublishWorkflowContext> = {
                 return 0;
             }
         });
-        if(context.rawInput.publishData.skipCustomizingTransports){
+        if (context.rawInput.publishData.skipCustomizingTransports) {
             context.rawInput.publishData.customizingTransports = [];
-        }
-
-        Logger.loading(`Checking package "${context.rawInput.packageData.name}"...`);
-
-        //5- check package existance
-        const packageExists = await context.runtime.trmPackage.package.exists();
-
-        //5- check publish allowed
-        const canPublishReleases = await context.runtime.trmPackage.package.canPublishReleases();
-        if (!canPublishReleases.canPublishReleases) {
-            if(canPublishReleases.cause){
-                Logger.error(canPublishReleases.cause);
-            }
-            throw new Error(`You are not not authorized to publish "${context.rawInput.packageData.name}" releases.`);
-        }
-
-        if (!packageExists) {
-            Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, registry.getRegistryType() === RegistryType.LOCAL);
-        }else{
-            context.runtime.trmPackage.latestReleaseManifest = (await context.runtime.trmPackage.package.fetchRemoteManifest('latest')).get();
-            if(context.runtime.trmPackage.manifest.private === undefined){
-                context.runtime.trmPackage.manifest.private = context.runtime.trmPackage.latestReleaseManifest.private;
-            }else{
-                const validateVisibility = validatePackageVisibility(
-                    context.rawInput.packageData.registry.getRegistryType(),
-                    context.rawInput.packageData.name,
-                    context.runtime.trmPackage.manifest.private,
-                    context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
-                );
-                if(validateVisibility !== true){
-                    throw new Error(validateVisibility);
-                }
-            }
-        }
-    },
-    revert: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Rollback init step', true);
-        if (context.runtime && context.runtime.rollback) {
-            Logger.success(`Rollback executed.`);
         }
     }
 }

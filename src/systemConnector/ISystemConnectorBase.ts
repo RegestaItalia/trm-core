@@ -1,4 +1,4 @@
-import { AbstractRegistry, Registry } from "../registry";
+import { AbstractRegistry } from "../registry";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { Transport } from "../transport";
@@ -7,7 +7,7 @@ import { InstallPackage } from "./InstallPackage";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
-    getPackageWorkbenchTransport: (oPackage: TrmPackage) => Promise<Transport>,
+    getWbTransports:(trmPackage?: string | TrmPackage) => Promise<Transport[]>,
     getSourceTrkorr: () => Promise<components.TRKORR[]>,
     getIgnoredTrkorr: () => Promise<components.TRKORR[]>,
     getObject: (pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<struct.TADIR>,

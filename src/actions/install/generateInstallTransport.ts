@@ -1,9 +1,12 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "trm-commons";
+import { Inquirer, Logger } from "trm-commons";
 import { getPackageNamespace, TrmServerUpgrade } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
+import { RegistryType } from "../../registry";
+import { TrmPackage } from "../../trmPackage";
+import { Manifest } from "../../manifest";
 
 /**
  * Generate install transport
@@ -46,12 +49,51 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
 
             Logger.loading(`Checking install transport...`);
 
-            //2- check if a trm install transport already exists, create if it does not
-            if(context.runtime.update){
-                //only if already installed
-                context.runtime.installData.transport = await context.runtime.remotePackageData.trmPackage.getWbTransport();
+            //2- case 1: updating a trm package -> get the install transport (if not released already)
+            // - case 2: overwriting a local package with its registry package -> get all wb transports with registry local and look for name matches, show them as a list
+            // - case 3: overwriting a registry package with its local package -> get all wb transports with matching name, show them as a list
+            if (context.runtime.update) {
+                //case 1
+                context.runtime.installData.transport = await (new TrmPackage(
+                    context.rawInput.packageData.name,
+                    context.rawInput.packageData.registry
+                )).getWbTransport();
+            } else {
+                if (!context.rawInput.contextData.noInquirer) {
+                    //case 3
+                    var transports = await SystemConnector.getWbTransports(context.rawInput.packageData.name); //both locals and with registry filtered by name
+                    if (context.runtime.registry.getRegistryType() !== RegistryType.LOCAL) {
+                        //case 2
+                        for (var i = transports.length - 1; i >= 0; i--) {
+                            const linkedPackage = await transports[i].getLinkedPackage();
+                            if (linkedPackage.registry.getRegistryType() !== RegistryType.LOCAL) { //leaves out locals only
+                                transports.splice(i, 1);
+                            }
+                        }
+                    }
+                    if (transports.length > 0) {
+                        const trkorr = (await Inquirer.prompt({
+                            name: 'trkorr',
+                            message: `Found ${transports.length} install transport(s) that might be linked to ${context.rawInput.packageData.name}, do you want to use one of these?`,
+                            type: 'select',
+                            choices: transports.map(o => {
+                                return {
+                                    name: o.trkorr,
+                                    value: o.trkorr
+                                };
+                            }).concat([{
+                                name: 'Generate new',
+                                value: null
+                            }])
+                        })).trkorr;
+                        if(trkorr){
+                            context.runtime.installData.transport = transports.find(o => o.trkorr === trkorr);
+                        }
+                    }
+                }
             }
             if (context.runtime.installData.transport) {
+                //one of the cases was a match
                 Logger.log(`Install transport (${context.runtime.installData.transport.trkorr}) already exists, won't create a new one.`, true);
                 Logger.loading(`Updating install transport...`);
                 if (TrmServerUpgrade.getInstance().changeTrOwner()) {
@@ -61,19 +103,20 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                     await context.runtime.installData.transport.removeComments();
                 }
             } else {
+                //no matches, generate
                 Logger.loading(`Generating install transport...`);
                 context.runtime.installData.transport = await Transport.createWb({
-                    text: `TRM generated transport`, //temporary name
+                    text: `TRM generated transport`, //temporary name replaced in step 3
                     target: context.rawInput.installData.installTransport.targetSystem || ''
                 });
                 Logger.log(`Generated transport ${context.runtime.installData.transport.trkorr}`, true);
             }
 
             //3- add comments, documentation and rename transport
-            await context.runtime.installData.transport.addComment(`name=${context.runtime.remotePackageData.trmManifest.name}`);
-            await context.runtime.installData.transport.addComment(`version=${context.runtime.remotePackageData.trmManifest.version}`);
-            await context.runtime.installData.transport.setDocumentation(context.runtime.remotePackageData.manifest.getAbapXml());
-            await context.runtime.installData.transport.rename(`@X1@TRM: ${context.runtime.remotePackageData.trmManifest.name} v${context.runtime.remotePackageData.trmManifest.version}`);
+            await context.runtime.installData.transport.addComment(`name=${context.runtime.remotePackageData.manifest.name}`);
+            await context.runtime.installData.transport.addComment(`version=${context.runtime.remotePackageData.manifest.version}`);
+            await context.runtime.installData.transport.setDocumentation(new Manifest(context.runtime.remotePackageData.manifest).getAbapXml());
+            await context.runtime.installData.transport.rename(`@X1@TRM: ${context.runtime.remotePackageData.manifest.name} v${context.runtime.remotePackageData.manifest.version}`);
 
             //4- add tadir objects and try to lock
             var tadirObjects = context.runtime.packageTransportsData.tadir;

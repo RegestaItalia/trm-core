@@ -1,14 +1,12 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
-import { RegistryProvider, RegistryType } from "../../registry";
+import { RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency } from "../../manifest";
 import chalk from "chalk";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 import { validatePackageVisibility } from "../../validators";
 import _ from 'lodash';
-import { SystemConnector } from "../../systemConnector";
-import { TrmPackage } from "../../trmPackage";
 
 /**
  * Set manifest values
@@ -25,9 +23,7 @@ import { TrmPackage } from "../../trmPackage";
  * 
  * 6- edit dependencies/sap entries
  * 
- * 7- fetch missing dependencies integrity
- * 
- * 8- normalize manifest values
+ * 7- normalize manifest values
  * 
 */
 export const setManifestValues: Step<PublishWorkflowContext> = {
@@ -98,26 +94,26 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 }
 
                 //compare trm dependencies - if automatic dependency search disabled and one or more is missing
-                if(context.rawInput.publishData.noDependenciesDetection){
+                if (context.rawInput.publishData.noDependenciesDetection) {
                     var missingDependencies: TrmManifestDependency[] = [];
                     (context.runtime.trmPackage.latestReleaseManifest.dependencies || []).forEach(o => {
-                        if(!(context.runtime.trmPackage.manifest.dependencies || []).find(k => {
+                        if (!(context.runtime.trmPackage.manifest.dependencies || []).find(k => {
                             return k.name === o.name && k.registry === o.registry;
-                        })){
+                        })) {
                             missingDependencies.push(o);
                         }
                     });
-                    if(missingDependencies.length > 0){
-                        if(!context.rawInput.contextData.noInquirer){
+                    if (missingDependencies.length > 0) {
+                        if (!context.rawInput.contextData.noInquirer) {
                             const inq = await Inquirer.prompt({
                                 type: 'select',
                                 message: `Dependency`,
                                 name: 'dependencies',
                                 choices: missingDependencies.map(o => {
                                     var name;
-                                    if(o.registry){
+                                    if (o.registry) {
                                         name = `${o.name} (${o.registry})`;
-                                    }else{
+                                    } else {
                                         name = o.name;
                                     }
                                     return {
@@ -127,12 +123,12 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                                 })
                             });
                             context.runtime.trmPackage.manifest.dependencies = (context.runtime.trmPackage.manifest.dependencies || []).concat((inq.dependencies || []));
-                        }else{
+                        } else {
                             Logger.warning(`Latest version of the package had the following dependencies:`);
                             missingDependencies.forEach(o => {
-                                if(o.registry){
+                                if (o.registry) {
                                     Logger.warning(` ${o.name} (${o.registry})`);
-                                }else{
+                                } else {
                                     Logger.warning(` ${o.name}`);
                                 }
                             });
@@ -181,12 +177,15 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                     value: true
                 }],
                 when: () => {
-                    return context.rawInput.packageData.registry.getRegistryType() !== RegistryType.LOCAL;
+                    //registry is not local, and
+                    //either it’s not public or it’s public but has no latest manifest
+                    const r = context.rawInput.packageData.registry.getRegistryType();
+                    const hasLatest = !!context.runtime.trmPackage.latestReleaseManifest;
+                    return r !== RegistryType.LOCAL && (r !== RegistryType.PUBLIC || !hasLatest);
                 },
                 validate: (input: boolean) => {
                     return validatePackageVisibility(
                         context.rawInput.packageData.registry.getRegistryType(),
-                        context.rawInput.packageData.name,
                         input,
                         context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
                     );
@@ -342,9 +341,9 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                         }
                     }
                 }
-                if(Array.isArray(data.parameters)){
+                if (Array.isArray(data.parameters)) {
                     data.parameters.forEach(p => {
-                        if(p.name){
+                        if (p.name) {
                             p.name = p.name.trim().toUpperCase();
                         }
                     });
@@ -435,19 +434,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             }
         }
 
-        //7- fetch missing dependencies integrity
-        Logger.loading(`Reading manifest...`);
-        for(var dependency of (context.runtime.trmPackage.manifest.dependencies || [])){
-            if(!dependency.integrity){
-                //fetch in origin system
-                dependency.integrity = await SystemConnector.getPackageIntegrity(new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry)));
-                if(!dependency.integrity){
-                    Logger.warning(`Dependency ${dependency.name} has no integrity match: registry might reject this!`);
-                }
-            }
-        }
-
-        //8- normalize manifest values
+        //7- normalize manifest values
         context.runtime.trmPackage.manifest = Manifest.normalize(context.runtime.trmPackage.manifest, false);
     }
 }

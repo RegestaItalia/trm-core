@@ -23,7 +23,8 @@ export class Transport {
     private _e070: E070;
     private _e071: E071[];
     private _docs: Documentation[];
-    private _trmRelevant: boolean;
+    private _trmPackageName: string;
+    private _trmPackageVersion: string;
     private _linkedTrmPackage: TrmPackage;
     private _rootDevclass: DEVCLASS;
     public trmIdentifier?: TrmTransportIdentifier;
@@ -174,15 +175,39 @@ export class Transport {
         return fromAbapToDate(e070.as4Date, e070.as4Time);
     }
 
-    public async isTrmRelevant(): Promise<boolean> {
-        if (this._trmRelevant === undefined) {
+    public async getTrmPackageName(): Promise<string> {
+        if(this._trmPackageName === undefined){
             const e071 = await this.getE071();
             const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
-            const hasName = trmComments.find(o => /name=/i.test(o.objName));
-            const hasVersion = trmComments.find(o => /version=/i.test(o.objName));
-            this._trmRelevant = (hasName && hasVersion) ? true : false;
+            trmComments.forEach(s => {
+                if(!this._trmPackageName){
+                    try{
+                        this._trmPackageName = /name=(\S*)/i.exec(s.objName)[1];
+                    }catch(e){ }
+                }
+            });
         }
-        return this._trmRelevant;
+        return this._trmPackageName;
+    }
+    public async getTrmPackageVersion(): Promise<string> {
+        if(this._trmPackageVersion === undefined){
+            const e071 = await this.getE071();
+            const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
+            trmComments.forEach(s => {
+                if(!this._trmPackageVersion){
+                    try{
+                        this._trmPackageVersion = /version=(\S*)/i.exec(s.objName)[1];
+                    }catch(e){ }
+                }
+            });
+        }
+        return this._trmPackageVersion;
+    }
+
+    public async isTrmRelevant(): Promise<boolean> {
+        const packageName = await this.getTrmPackageName();
+        const packageVersion = await this.getTrmPackageVersion();
+        return !!(packageName && packageVersion);
     }
 
     public async download(): Promise<{
@@ -371,30 +396,13 @@ export class Transport {
     }
 
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string, secondsTimeout?: number): Promise<void> {
-        var rc: number;
         Logger.loading('Releasing transport...', skipLog);
         await SystemConnector.releaseTrkorr(this.trkorr, lock, secondsTimeout);
         await SystemConnector.dequeueTransport(this.trkorr);
         if (tmpFolder) {
-            rc = await this.readReleaseLog(tmpFolder, secondsTimeout);
+            await this.readReleaseLog(tmpFolder, secondsTimeout);
         } else {
-            rc = await this._isInTmsQueue(skipLog, false, secondsTimeout);
-        }
-        if (!skipLog && !tmpFolder) { //with tmpFolder, release status already printed
-            switch (rc) {
-                case 4:
-                    Logger.warning(`${this.trkorr} release ended with warning.`);
-                    break;
-                case 8:
-                    Logger.error(`${this.trkorr} release ended with error.`);
-                    break;
-                case 12:
-                    Logger.error(`${this.trkorr} release was cancelled.`);
-                    break;
-                case 16:
-                    Logger.error(`${this.trkorr} release was cancelled.`);
-                    break;
-            }
+            await this._isInTmsQueue(skipLog, false, secondsTimeout);
         }
     }
 
@@ -565,7 +573,6 @@ export class Transport {
         var inQueue = false;
         var rc: number = 12;
         if (this._trTarget) {
-            var sLog = `status unknown`;
             var inQueueAttempts = 0;
             while (!inQueue && (new Date()).getTime() < timeoutDate.getTime()) {
                 inQueueAttempts++;
@@ -576,14 +583,18 @@ export class Transport {
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
                 if (!checkImpSing) {
-                    sLog = `released`;
+                    //without check if in import, simply check if in queue
                     inQueue = tmsQueue.length > 0;
                 } else {
                     //if importing, get the last transport in queue (if re installing, there are more than 1)
-                    sLog = `imported`;
                     if (tmsQueue.length > 0) {
                         inQueue = tmsQueue[0].impsing !== 'X';
-                        rc = parseInt(tmsQueue[0].maxrc);
+                        if(!tmsQueue[0].maxrc){
+                            //no rc => transport wasn't imported! set as -1 (field is blank, do not confuse with 0 which is success)
+                            rc = -1;
+                        }else{
+                            rc = parseInt(tmsQueue[0].maxrc);
+                        }
                     } else {
                         inQueue = false;
                     }
@@ -592,7 +603,12 @@ export class Transport {
             if (!inQueue) {
                 throw new Error(`${this.trkorr} not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
             } else {
-                Logger.success(`${this.trkorr} ${sLog}.`, skipLog);
+                if(!checkImpSing){
+                    //without check of import, we're releasing the transport (publish?)
+                    //set rc to -1 as it is irrelevant
+                    Logger.success(`${this.trkorr} released.`, skipLog);
+                    rc = -1;
+                }
             }
         } else {
             Logger.error(`No target specified, unable to check queue!!`, true);
@@ -767,6 +783,12 @@ export class Transport {
         const rc = await this._isInTmsQueue(false, true, timeout);
         Logger.log(`Transport ${this.trkorr} import ended: return code ${rc}`, true);
         switch (rc) {
+            case -1:
+                Logger.error(`${this.trkorr} import has no return code!`);
+                break;
+            case 0:
+                Logger.success(`${this.trkorr} import ended with success.`);
+                break;
             case 4:
                 Logger.warning(`${this.trkorr} import ended with warning.`);
                 break;

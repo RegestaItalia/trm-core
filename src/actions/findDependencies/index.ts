@@ -75,8 +75,6 @@ export type SapEntriesDependency = {
 export type TrmDependency = {
     devclass: DEVCLASS,
     package: TrmPackage,
-    ignoreNoIntegrity: boolean,
-    integrity?: string,
     sapEntries: SapEntriesDependency[]
 };
 

@@ -17,7 +17,7 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
             Logger.log(`Skipping post activities (user input)`, true);
             return false;
         } else {
-            if (context.runtime.remotePackageData.trmManifest.postActivities && context.runtime.remotePackageData.trmManifest.postActivities.length > 0) {
+            if (context.runtime.remotePackageData.manifest.postActivities && context.runtime.remotePackageData.manifest.postActivities.length > 0) {
                 if(TrmServerUpgrade.getInstance().executePostActivities()){
                     return true;
                 }else{
@@ -35,9 +35,9 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
         
         //1- execute post activities
         var counter: number = 0;
-        for(var data of context.runtime.remotePackageData.trmManifest.postActivities){
+        for(var data of context.runtime.remotePackageData.manifest.postActivities){
             counter++;
-            Logger.setPrefix(`(${counter}/${context.runtime.remotePackageData.trmManifest.postActivities.length}) `);
+            Logger.setPrefix(`(${counter}/${context.runtime.remotePackageData.manifest.postActivities.length}) `);
             try{
                 if(Array.isArray(data.parameters)){
                     data.parameters.forEach(param => {

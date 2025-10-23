@@ -1,9 +1,9 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
-import { TrmPackage } from "../../trmPackage";
 import { init } from "./init";
 import { analyze } from "./analyze";
+import { TrmManifest } from "../../manifest";
 
 /**
  * Input data for check SAP Entries action.
@@ -14,9 +14,9 @@ export interface CheckSapEntriesActionInput {
      */
     packageData: {
         /**
-         * TRM Package instance.
+         * TRM Manifest.
          */
-        package: TrmPackage;
+        manifest: TrmManifest;
     };
     
     /**

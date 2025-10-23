@@ -71,9 +71,9 @@ export namespace SystemConnector {
         return systemConnector.getTransportStatus(trkorr);
     }
 
-    export async function getPackageWorkbenchTransport(oPackage: TrmPackage): Promise<Transport> {
+    export async function getWbTransports(trmPackage?: string | TrmPackage): Promise<Transport[]> {
         await checkSystemConnector();
-        return systemConnector.getPackageWorkbenchTransport(oPackage);
+        return systemConnector.getWbTransports(trmPackage);
     }
 
     export async function getInstalledPackages(includeSources: boolean, refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {

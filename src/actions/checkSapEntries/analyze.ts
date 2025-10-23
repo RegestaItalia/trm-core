@@ -21,7 +21,7 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
         if (Object.keys(context.output.sapEntries).length > 0) {
             return true;
         } else {
-            Logger.info(`Package ${context.rawInput.packageData.package.packageName} has no SAP entries`, !context.rawInput.printOptions.information);
+            Logger.info(`Package ${context.rawInput.packageData.manifest.name} has no SAP entries`, !context.rawInput.printOptions.information);
             return false;
         }
     },
@@ -55,7 +55,7 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
             });
         });
 
-        Logger.info(`Package ${context.rawInput.packageData.package.packageName} has ${entriesCount} SAP entries`, !context.rawInput.printOptions.information);
+        Logger.info(`Package ${context.rawInput.packageData.manifest.name} has ${entriesCount} SAP entries`, !context.rawInput.printOptions.information);
         if(entriesCount === 0){
             return;
         }
