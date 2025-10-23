@@ -93,10 +93,10 @@ export class FileSystem implements AbstractRegistry {
             return {
                 name: fullName,
                 latest: version,
-                versions: [version],
+                versions: [],
                 yanked_versions: [],
                 deprecated: false,
-                manifest: {},
+                manifest: null,
                 checksum: null,
                 download_link: this._filePath
             }
