@@ -81,6 +81,7 @@ const _getTadirDependencies = async (tadirDependencies: TableDependency[]): Prom
         var arrayIndex1: number;
         var arrayIndex2: number;
         var append: boolean;
+        trmPackage = null;
         if (trmServerPackage && trmServerPackage.getDevclass() === tadir.devclass) {
             Logger.log(`Dependency with TRM SERVER package`, true);
             devclass = trmServerPackage.getDevclass();

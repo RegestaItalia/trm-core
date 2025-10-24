@@ -207,7 +207,8 @@ export class Transport {
     public async isTrmRelevant(): Promise<boolean> {
         const packageName = await this.getTrmPackageName();
         const packageVersion = await this.getTrmPackageVersion();
-        return !!(packageName && packageVersion);
+        const hasDocumentation = (await this.getDocumentation()).length > 0;
+        return !!(packageName && packageVersion && hasDocumentation);
     }
 
     public async download(): Promise<{
