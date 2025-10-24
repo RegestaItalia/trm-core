@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-10-24 v8.0.1
+-------------------
+* fix transport relevant for dependency detection issue
+
 2025-10-21 v8.0.0
 -------------------
 ! implement registry v2
