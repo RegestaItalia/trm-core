@@ -6,6 +6,7 @@ import { IActionContext, InstallActionInputContextData, InstallActionInputInstal
 import { init } from "./init";
 import { findInstallRelease } from "./findInstallRelease";
 import { installRelease } from "./installRelease";
+import { TrmPackage } from "../../trmPackage";
 
 /**
  * Input data for install dependency action.
@@ -32,17 +33,13 @@ export interface InstallDependencyActionInput {
          * The registry where the package is stored.
          */
         registry: AbstractRegistry;
-
-        /**
-         * Dependency integrity.
-         */
-        integrity?: string;
     };
 
     installData?: InstallActionInputInstallData
 }
 
 type WorkflowRuntime = {
+    trmPackage: TrmPackage,
     installVersion: string,
     installOutput: InstallActionOutput
 }

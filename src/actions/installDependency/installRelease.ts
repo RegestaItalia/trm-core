@@ -17,7 +17,7 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
         Logger.log('Install release step', true);
 
         if (!context.runtime.installVersion) {
-            throw new Error(`Couldn't find dependency "${context.rawInput.dependencyDataPackage.name}" on registry. Try manual install.`);
+            throw new Error(`Couldn't find dependency "${context.rawInput.dependencyDataPackage.name}" on registry.`);
         }
         
         //1- run install workflow

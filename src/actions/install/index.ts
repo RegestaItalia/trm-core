@@ -35,6 +35,7 @@ import { executePostActivities } from "./executePostActivities";
 import { setTrmServerUpgradeService } from "./setTrmServerUpgradeService";
 import { commit } from "./commit";
 import { Package } from "trm-registry-types";
+import { Lockfile } from "../../lockfile/Lockfile";
 
 /**
  * ABAP package replacement during install
@@ -109,6 +110,11 @@ export type InstallActionInputInstallData = {
      * Optional checks to perform during installation.
      */
     checks?: {
+
+        /**
+         * Lockfile (for dependencies install matching integrity/version).
+         */
+        lockfile?: Lockfile;
 
         /**
          * Whether to skip checking for all SAP entries.

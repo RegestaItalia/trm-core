@@ -3,15 +3,13 @@ import { InstallDependencyWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { desc } from "semver-sort";
 import { satisfies } from "semver";
+import { Lockfile } from "../../lockfile";
 
 /**
- * Find release in range to install
+ * Find release to install.
+ * If lockfile is provided, checksum is tested and lockfile version is extracted, else the latest release in range is taken
  * 
- * 1- get releases in range from registry
- * 
- * 2- sort releases
- * 
- * 3- find matching integrity release (if provided)
+ * 1- find version
  * 
 */
 export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
@@ -19,25 +17,18 @@ export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
         Logger.log('Find install release step', true);
 
-        //1- get releases in range from registry
-        const packageData = await context.rawInput.dependencyDataPackage.registry.getPackage(context.rawInput.dependencyDataPackage.name, 'latest');
-        const versions = packageData.versions.filter(v => satisfies(v, context.rawInput.dependencyDataPackage.versionRange));
-        const yanked = packageData.yanked_versions.filter(v => satisfies(v, context.rawInput.dependencyDataPackage.versionRange));
-
-        if (context.rawInput.dependencyDataPackage.integrity) {
-            //3- find matching integrity release (if provided)
-            const sortedVersions = desc(versions.concat(yanked));
-            for (const sortedVersion of sortedVersions) {
-                if (!context.runtime.installVersion) {
-                    try {
-                        const packageVersion = await context.rawInput.dependencyDataPackage.registry.getPackage(context.rawInput.dependencyDataPackage.name, sortedVersion);
-                        if (context.rawInput.dependencyDataPackage.integrity === packageVersion.checksum) { //TODO: should also pass specific version, so check integrity and version from lock file
-                            context.runtime.installVersion = sortedVersion;
-                        }
-                    } catch { }
-                }
+        //1- find version
+        const lock = context.rawInput.installData.checks.lockfile ? context.rawInput.installData.checks.lockfile.getLock(context.runtime.trmPackage) : null;
+        if (lock) {
+            const testLock = await Lockfile.testReleaseByLock(lock);
+            if(!testLock){
+                throw new Error(`Cannot continue due to security issues.`);
+            }else{
+                context.runtime.installVersion = lock.version;
             }
         } else {
+            const packageData = await context.rawInput.dependencyDataPackage.registry.getPackage(context.rawInput.dependencyDataPackage.name, 'latest');
+            const versions = packageData.versions.filter(v => satisfies(v, context.rawInput.dependencyDataPackage.versionRange));
             if (versions.length === 0) {
                 throw new Error(`Dependency "${context.rawInput.dependencyDataPackage.name}": releases not found in range ${context.rawInput.dependencyDataPackage.versionRange}.`);
             } else {

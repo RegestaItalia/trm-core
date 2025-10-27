@@ -2,15 +2,29 @@ import { Logger } from "trm-commons";
 import { LOCAL_RESERVED_KEYWORD, RegistryProvider } from "../registry";
 import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
-import { Lockfile } from "./Lockfile";
 import { jsonStringifyWithKeyOrder } from "../commons";
+import { createHash } from "crypto";
 
-export class Lock {
+export interface Lock {
+    name: string,
+    version: string,
+    registry: string,
+    integrity: string
+}
 
-    private constructor(public lockfile: Lockfile) { }
+export interface LockfileContent {
+    lockfileVersion: number,
+    name?: string,
+    version?: string,
+    packages?: Lock[]
+}
 
-    public static async generate(root: TrmPackage, packages?: TrmPackage[]): Promise<Lock> {
-        var lock: Lockfile = {
+export class Lockfile {
+
+    private constructor(public lockfile: LockfileContent) { }
+
+    public static async generate(root: TrmPackage, packages?: TrmPackage[]): Promise<Lockfile> {
+        var lock: LockfileContent = {
             lockfileVersion: 1,
             packages: []
         };
@@ -26,7 +40,7 @@ export class Lock {
                 throw new Error(`Cannot generate lockfile: dependency with local package "${dep.name}"`);
             } else {
                 const depRegistry = RegistryProvider.getRegistry(dep.registry);
-                if(root.compareName(dep.name) && root.compareRegistry(depRegistry)){
+                if (root.compareName(dep.name) && root.compareRegistry(depRegistry)) {
                     throw new Error(`Package "${dep.name}" has declared invalid dependency with itself`);
                 }
                 if (!lock.packages.find(o => o.name === dep.name && o.registry === depRegistry.endpoint)) {
@@ -47,7 +61,7 @@ export class Lock {
                 }
             }
         }
-        return new Lock(lock);
+        return new Lockfile(lock);
     }
 
     public toJson(): string {
@@ -55,8 +69,33 @@ export class Lock {
             "lockfileVersion",
             "name",
             "version"
-        ] satisfies readonly (keyof Lockfile & string)[];
+        ] satisfies readonly (keyof LockfileContent & string)[];
         return jsonStringifyWithKeyOrder(this.lockfile, KEYS_ORDER, 2);
+    }
+
+    public getLock(trmPackage: TrmPackage): Lock {
+        const lock = this.lockfile.packages?.find(o => trmPackage.compareName(o.name) && trmPackage.compareRegistry(RegistryProvider.getRegistry(o.registry)));
+        if (!lock) {
+            throw new Error(`Lock for package "${trmPackage.packageName}", registry "${trmPackage.registry.endpoint}" not found`);
+        }
+        return lock;
+    }
+
+    public static async testReleaseByLock(lock: Lock): Promise<boolean> {
+        const registry = RegistryProvider.getRegistry(lock.registry);
+        const ping = await registry.ping();
+        const release = await registry.getPackage(lock.name, lock.version);
+        const artifact = await registry.downloadArtifact(lock.name, lock.version);
+        const checksum = createHash("sha512").update(artifact.binary).digest("base64");
+        if (release.checksum !== lock.integrity || checksum !== lock.integrity) {
+            Logger.error(`SECURITY ISSUE! Release "${lock.name}", registry "${lock.registry}", integrity in lockfile does NOT match!`);
+            Logger.error(`SECURITY ISSUE! Registry SHA is ${release.checksum}`);
+            Logger.error(`SECURITY ISSUE! Artifact SHA is ${checksum}`);
+            Logger.error(`SECURITY ISSUE! Lockfile SHA is ${lock.integrity}`);
+            Logger.error(`SECURITY ISSUE! Please, report the issue to ${ping && ping.alert_email ? ping.alert_email : 'registry moderation team'}`);
+            return false;
+        }
+        return true;
     }
 
 }

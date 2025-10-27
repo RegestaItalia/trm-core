@@ -4,6 +4,7 @@ import { Logger } from "trm-commons";
 import { parsePackageName } from "../../commons";
 import { validRange } from "semver";
 import { RegistryType } from "../../registry";
+import { TrmPackage } from "../../trmPackage";
 
 /**
  * Init
@@ -31,7 +32,7 @@ export const init: Step<InstallDependencyWorkflowContext> = {
 
         //2- check registry is not local
         if(context.rawInput.dependencyDataPackage.registry.getRegistryType() === RegistryType.LOCAL){
-            throw new Error(`Cannot install package "${context.rawInput.dependencyDataPackage.name}": TRM package has to be installed manually.`);
+            throw new Error(`Cannot install local package "${context.rawInput.dependencyDataPackage.name}": TRM package has to be installed manually.`);
         }
 
         //3- validate version range
@@ -42,6 +43,7 @@ export const init: Step<InstallDependencyWorkflowContext> = {
 
         //4- fill runtime values
         context.runtime = {
+            trmPackage: new TrmPackage(context.rawInput.dependencyDataPackage.name, context.rawInput.dependencyDataPackage.registry),
             installOutput: undefined,
             installVersion: undefined
         }
