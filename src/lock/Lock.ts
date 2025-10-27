@@ -3,7 +3,6 @@ import { LOCAL_RESERVED_KEYWORD, RegistryProvider } from "../registry";
 import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 import { Lockfile } from "./Lockfile";
-import { writeFileSync } from "fs";
 import { jsonStringifyWithKeyOrder } from "../commons";
 
 export class Lock {
@@ -26,9 +25,11 @@ export class Lock {
             if (dep.registry === LOCAL_RESERVED_KEYWORD) {
                 throw new Error(`Cannot generate lockfile: dependency with local package "${dep.name}"`);
             } else {
-                const registryResolved = RegistryProvider.getRegistry(dep.registry).endpoint; //resolve to actual endpoint
-                if (!lock.packages.find(o => o.name === dep.name && o.registry === registryResolved)) {
-                    const depRegistry = RegistryProvider.getRegistry(dep.registry);
+                const depRegistry = RegistryProvider.getRegistry(dep.registry);
+                if(root.compareName(dep.name) && root.compareRegistry(depRegistry)){
+                    throw new Error(`Package "${dep.name}" has declared invalid dependency with itself`);
+                }
+                if (!lock.packages.find(o => o.name === dep.name && o.registry === depRegistry.endpoint)) {
                     const depPackage = packages.find(o => o.compareName(dep.name) && o.compareRegistry(depRegistry));
                     if (depPackage) {
                         const depManifest = depPackage.manifest.get();
@@ -36,12 +37,12 @@ export class Lock {
                         lock.packages.push({
                             name: dep.name,
                             version: depManifest.version,
-                            registry: registryResolved,
+                            registry: depRegistry.endpoint,
                             integrity: depIntegrity
                         });
                         dependencies = dependencies.concat(depManifest.dependencies || []);
                     } else {
-                        Logger.warning(`Dependency "${dep.name}", registry "${registryResolved}" not found in system ${SystemConnector.getDest()}`);
+                        Logger.warning(`Dependency "${dep.name}", registry "${depRegistry.endpoint}" not found in system ${SystemConnector.getDest()}`);
                     }
                 }
             }
@@ -49,14 +50,13 @@ export class Lock {
         return new Lock(lock);
     }
 
-    public toFile(path: string): void {
+    public toJson(): string {
         const KEYS_ORDER = [
             "lockfileVersion",
             "name",
             "version"
         ] satisfies readonly (keyof Lockfile & string)[];
-        const json = jsonStringifyWithKeyOrder(this.lockfile, KEYS_ORDER, 2);
-        writeFileSync(path, json);
+        return jsonStringifyWithKeyOrder(this.lockfile, KEYS_ORDER, 2);
     }
 
 }
