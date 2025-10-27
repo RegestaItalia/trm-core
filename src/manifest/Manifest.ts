@@ -1,7 +1,7 @@
 import * as xml from "xml-js";
 import * as semver from "semver";
 import { TrmManifest } from "./TrmManifest";
-import { normalize } from "../commons";
+import { jsonStringifyWithKeyOrder, normalize } from "../commons";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../registry";
@@ -83,13 +83,13 @@ export class Manifest {
             "keywords",
             "dependencies",
             "sapEntries",
-            "postActivities",
+            "postActivities"
         ] satisfies readonly (keyof TrmManifest & string)[];
         var obj = this.get(false);
         ignoredKeys.forEach(k => {
             delete obj[k];
         })
-        return this.jsonStringifyWithKeyOrder(obj, KEYS_ORDER, 2);
+        return jsonStringifyWithKeyOrder(obj, KEYS_ORDER, 2);
     }
 
     public getAbapXml(): string {
@@ -766,29 +766,6 @@ export class Manifest {
         } else {
             return [];
         }
-    }
-
-    private jsonStringifyWithKeyOrder<T extends object>(
-        obj: T,
-        order: readonly (keyof T & string)[],
-        space: number = 2
-    ): string {
-        const out: Record<string, unknown> = {};
-        const seen = new Set<string>(order as readonly string[]);
-
-        for (const key of order) {
-            if (Object.prototype.hasOwnProperty.call(obj, key) && (obj as any)[key] !== undefined) {
-                (out as any)[key] = (obj as any)[key];
-            }
-        }
-
-        for (const key of Object.keys(obj) as (keyof T & string)[]) {
-            if (!seen.has(key) && (obj as any)[key] !== undefined) {
-                (out as any)[key] = (obj as any)[key];
-            }
-        }
-
-        return JSON.stringify(out, null, space);
     }
 
 }

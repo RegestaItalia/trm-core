@@ -5,6 +5,7 @@ import { TrmArtifact } from "./TrmArtifact";
 import { DEVCLASS } from "../client";
 import { Transport } from "../transport";
 import { SystemConnector } from "../systemConnector";
+import { Lock } from "../lock";
 
 export class TrmPackage {
     private _devclass: DEVCLASS;
@@ -67,6 +68,10 @@ export class TrmPackage {
 
     public compareName(name: string): boolean {
         return this.packageName.trim().toUpperCase() === name.trim().toUpperCase();
+    }
+
+    public async getLockfile(systemPackages?: TrmPackage[]): Promise<Lock> {
+        return Lock.generate(this, systemPackages);
     }
 
     public static async create(manifest: Manifest, registry: AbstractRegistry): Promise<TrmPackage> {

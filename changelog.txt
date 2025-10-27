@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-10-27 v8.1.0
+-------------------
++ moved lock file generation to core
+
 2025-10-24 v8.0.1
 -------------------
 * fix transport relevant for dependency detection issue
