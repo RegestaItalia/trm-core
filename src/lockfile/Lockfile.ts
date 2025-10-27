@@ -21,7 +21,7 @@ export interface LockfileContent {
 
 export class Lockfile {
 
-    private constructor(public lockfile: LockfileContent) { }
+    constructor(public lockfile: LockfileContent) { }
 
     public static async generate(root: TrmPackage, packages?: TrmPackage[]): Promise<Lockfile> {
         var lock: LockfileContent = {
