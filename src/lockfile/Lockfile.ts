@@ -14,6 +14,7 @@ export interface Lock {
 
 export interface LockfileContent {
     lockfileVersion: number,
+    source: string,
     name?: string,
     version?: string,
     packages?: Lock[]
@@ -26,6 +27,7 @@ export class Lockfile {
     public static async generate(root: TrmPackage, packages?: TrmPackage[]): Promise<Lockfile> {
         var lock: LockfileContent = {
             lockfileVersion: 1,
+            source: SystemConnector.getDest(),
             packages: []
         };
         if (!packages) {
@@ -67,6 +69,7 @@ export class Lockfile {
     public toJson(): string {
         const KEYS_ORDER = [
             "lockfileVersion",
+            "source",
             "name",
             "version"
         ] satisfies readonly (keyof LockfileContent & string)[];
