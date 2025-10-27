@@ -8,6 +8,7 @@ import { SystemConnector } from "../../systemConnector";
 import { RegistryType } from "../../registry";
 import { Transport } from "../../transport";
 import { TrmManifest } from "../../manifest";
+import chalk from "chalk";
 
 /**
  * Init
@@ -113,7 +114,7 @@ export const init: Step<PublishWorkflowContext> = {
             }
             if (registry.getRegistryType() === RegistryType.PUBLIC) {
                 Logger.log(`Public registry, checking if visibility is the same as latest release`, true);
-                if(typeof(context.rawInput.publishData.private) === 'boolean' && context.rawInput.publishData.private !== latestReleaseManifest.private){
+                if (typeof (context.rawInput.publishData.private) === 'boolean' && context.rawInput.publishData.private !== latestReleaseManifest.private) {
                     throw new Error(`Cannot change package visibility to ${context.rawInput.publishData.private ? 'private' : 'public'}`);
                 }
             }
@@ -149,13 +150,36 @@ export const init: Step<PublishWorkflowContext> = {
             }
         }
 
+        var isPrivate;
+        if (registry.getRegistryType() === RegistryType.LOCAL) {
+            isPrivate = true;
+        } else {
+            isPrivate = typeof (context.rawInput.publishData.private) === 'undefined' ? (latestReleaseManifest ? latestReleaseManifest.private : undefined) : context.rawInput.publishData.private;
+            if (typeof (isPrivate) === 'undefined') {
+                isPrivate = (await Inquirer.prompt({
+                    type: "list",
+                    message: "Package visibility",
+                    name: "private",
+                    default: isPrivate,
+                    choices: [{
+                        name: `Public`,
+                        value: false
+                    }, {
+                        name: `Private`,
+                        value: true
+                    }]
+                })).private;
+            }
+        }
+
         //4- validate publish data
         Logger.loading(`Validating data...`);
-        await registry.validatePublish(context.rawInput.packageData.name, context.rawInput.packageData.version);
+        await registry.validatePublish(context.rawInput.packageData.name, context.rawInput.packageData.version, isPrivate);
         if (!latestReleaseManifest) {
             Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, registry.getRegistryType() === RegistryType.LOCAL);
         }
         Logger.info(`Ready to publish ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`);
+        Logger.info(`Package visibility: ${chalk.bold(isPrivate ? 'private' : 'public')}`);
 
         //5- set runtime data
         context.runtime = {
@@ -169,7 +193,7 @@ export const init: Step<PublishWorkflowContext> = {
                     ...{
                         name: context.rawInput.packageData.name,
                         version: context.rawInput.packageData.version,
-                        private: typeof(context.rawInput.publishData.private) === 'undefined' ? (latestReleaseManifest ? latestReleaseManifest.private : undefined) : context.rawInput.publishData.private
+                        private: isPrivate
                     }
                 }
             },

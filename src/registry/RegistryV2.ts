@@ -359,10 +359,11 @@ export class RegistryV2 implements AbstractRegistry {
         return new TrmArtifact(buffer);
     }
 
-    public async validatePublish(fullName: string, version: string = 'latest'): Promise<void> {
+    public async validatePublish(fullName: string, version: string = 'latest', isPrivate: boolean): Promise<void> {
         const status = (await this._axiosInstance.get(`/publish/check/${fullName}`, {
             params: {
-                version
+                version,
+                private: isPrivate ? 'X' : 'N'
             }
         })).status;
         if (status !== 204) {

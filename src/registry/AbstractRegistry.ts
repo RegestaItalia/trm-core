@@ -13,7 +13,7 @@ export abstract class AbstractRegistry {
     whoAmI: () => Promise<WhoAmI>;
     getPackage: (fullName: string, version: string) => Promise<Package>;
     downloadArtifact: (fullName: string, version: string) => Promise<TrmArtifact>;
-    validatePublish: (fullName: string, version: string) => Promise<void>;
+    validatePublish: (fullName: string, version: string, isPrivate: boolean) => Promise<void>;
     publish: (fullName: string, version: string, artifact: TrmArtifact, readme?: string) => Promise<Package>;
     unpublish: (fullName: string, version: string) => Promise<void>;
     deprecate: (fullName: string, version: string, reason: string) => Promise<void>;
