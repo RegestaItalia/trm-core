@@ -94,6 +94,7 @@ type WorkflowRuntime = {
     }
 }
 export type FindDependenciesActionOutput = {
+    abort: boolean,
     trmPackageDependencies: {
         withTrmPackage: TrmDependency[],
         withoutTrmPackage: TrmDependency[]
@@ -130,6 +131,7 @@ export async function findDependencies(inputData: FindDependenciesActionInput): 
     });
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
     return {
+        abort: !!result.runtime.abort,
         trmPackageDependencies: {
             withTrmPackage: result.runtime.dependencies.withTrmPackage,
             withoutTrmPackage: result.runtime.dependencies.withoutTrmPackage,

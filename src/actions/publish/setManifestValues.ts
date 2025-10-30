@@ -104,10 +104,11 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                         }
                     });
                     if (missingDependencies.length > 0) {
+                        Logger.warning(`Latest version of the package had the ${missingDependencies.length} dependencies that are now missing`);
                         if (!context.rawInput.contextData.noInquirer) {
                             const inq = await Inquirer.prompt({
                                 type: 'select',
-                                message: `Dependency`,
+                                message: `Include dependencies (if still relevant)`,
                                 name: 'dependencies',
                                 choices: missingDependencies.map(o => {
                                     var name;
@@ -124,7 +125,6 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                             });
                             context.runtime.trmPackage.manifest.dependencies = (context.runtime.trmPackage.manifest.dependencies || []).concat((inq.dependencies || []));
                         } else {
-                            Logger.warning(`Latest version of the package had the following dependencies:`);
                             missingDependencies.forEach(o => {
                                 if (o.registry) {
                                     Logger.warning(` ${o.name} (${o.registry})`);
