@@ -1,4 +1,4 @@
-import { AuthenticationType, MessageType, Package, Ping, WhoAmI } from "trm-registry-types";
+import { AuthenticationType, Deprecate, DistTagAdd, DistTagRm, MessageType, Package, Ping, WhoAmI } from "trm-registry-types";
 import { AbstractRegistry } from "./AbstractRegistry";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
@@ -92,7 +92,9 @@ export class FileSystem implements AbstractRegistry {
         if (this._filePath) {
             return {
                 name: fullName,
-                latest: version,
+                dist_tags: {
+                    latest: version
+                },
                 versions: [],
                 yanked_versions: [],
                 deprecated: false,
@@ -141,8 +143,16 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system can't delete packages!`);
     }
 
-    public async deprecate(fullName: string, version: string, reason: string): Promise<void> {
+    public async deprecate(fullName: string, version: string, deprecate: Deprecate): Promise<void> {
         throw new Error(`File system can't deprecate packages!`);
+    }
+
+    public async addDistTag(fullName: string, distTag: DistTagAdd): Promise<void> {
+        throw new Error(`File system can't add dist tags!`);
+    }
+
+    public async rmDistTag(fullName: string, distTag: DistTagRm): Promise<void> {
+        throw new Error(`File system can't remove dist tags!`);
     }
 
 }

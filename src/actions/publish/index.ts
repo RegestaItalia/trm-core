@@ -23,6 +23,7 @@ import { finalizePublish } from "./finalizePublish";
 import { publishToRegistry } from "./publishToRegistry";
 import { getSourceCode } from "./getSourceCode";
 import { DotAbapGit } from "../../abapgit";
+import { ReleaseType } from "semver";
 
 /**
  * Input data for publish package action.
@@ -64,9 +65,29 @@ export interface PublishActionInput {
          * 
          * - first time publishing = 1.0.0
          * 
-         * - package exists = latest + 0.0.1
+         * - package exists = latest + inc
          */
         version?: string;
+
+        /**
+         * Increment type for releases without specific version.
+         */
+        inc?: ReleaseType;
+
+        /**
+         * Indicates a pre release.
+         */
+        preRelease?: boolean;
+
+        /**
+         * Pre release identifier.
+         */
+        preReleaseIdentifier?: string;
+
+        /**
+         * Tags for the release.
+         */
+        tags?: string[];
 
         /**
          * The registry where the package has to be stored.

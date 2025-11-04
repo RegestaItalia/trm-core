@@ -49,7 +49,8 @@ export const init: Step<InstallWorkflowContext> = {
         }
 
         //1- format version
-        context.rawInput.packageData.version = valid(context.rawInput.packageData.version);
+        //removed, version can also be a tag
+        //context.rawInput.packageData.version = valid(context.rawInput.packageData.version);
 
         //2- fetch package in registry
         if (registry.getRegistryType() !== RegistryType.LOCAL) {
@@ -69,7 +70,7 @@ export const init: Step<InstallWorkflowContext> = {
             }
             manifest = artifact.getManifest().get();
         }
-        Logger.info(`Ready to install ${manifest.name} v${manifest.version}.`);
+        Logger.info(`Ready to install ${manifest.name} v${manifest.version}${!valid(context.rawInput.packageData.version) ? ' (' + context.rawInput.packageData.version + ')' : ''}.`);
 
         //3- set runtime data
         context.runtime = {

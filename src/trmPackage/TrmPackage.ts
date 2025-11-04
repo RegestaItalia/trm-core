@@ -45,17 +45,22 @@ export class TrmPackage {
 
     public async publish(data: {
         artifact: TrmArtifact
-        readme?: string
+        readme?: string,
+        tags?: string[]
     }): Promise<TrmPackage> {
         const artifact = data.artifact;
         const trmManifest = artifact.getManifest().get();
         const packageName = trmManifest.name;
+        var tags: string;
         if (packageName !== this.packageName) {
             throw new Error(`Cannot publish package ${packageName}: expected name is ${this.packageName}`);
         }
         const packageVersion = trmManifest.version;
+        if(data.tags){
+            tags = data.tags.join(',');
+        }
         Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
-        await this.registry.publish(packageName, packageVersion, artifact, data.readme);
+        await this.registry.publish(packageName, packageVersion, artifact, data.readme, tags);
 
         //set
         this.manifest = new Manifest(trmManifest);

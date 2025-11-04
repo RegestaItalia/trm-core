@@ -26,10 +26,14 @@ export const publishToRegistry: Step<PublishWorkflowContext> = {
         });
         
         //2- publish to registry
+        if(context.rawInput.packageData.tags.length > 0){
+            Logger.info(`Publishing with tag${context.rawInput.packageData.tags.length === 1 ? '': 's'}: ${context.rawInput.packageData.tags.join(', ')}`);
+        }
         Logger.loading(`Publishing...`);
         await context.runtime.trmPackage.package.publish({
             artifact: context.runtime.trmPackage.artifact,
-            readme: context.rawInput.publishData.readme
+            readme: context.rawInput.publishData.readme,
+            tags: context.rawInput.packageData.tags
         });
     }
 }
