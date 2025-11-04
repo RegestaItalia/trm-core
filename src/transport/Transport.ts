@@ -159,7 +159,7 @@ export class Transport {
 
             //now look for the first root package that is included in the original aDevclass
             while (aTdevc.length > 0 && !this._rootDevclass) {
-                const hierarchy = getPackageHierarchy(aTdevc);
+                const hierarchy = getPackageHierarchy(aTdevc, true); //-> added parameter to ignore multiple roots
                 if (aTdevc.find(o => o.devclass === hierarchy.devclass)) {
                     this._rootDevclass = hierarchy.devclass;
                 } else {

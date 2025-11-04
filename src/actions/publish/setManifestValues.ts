@@ -165,32 +165,6 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 defaultKeywords = context.runtime.trmPackage.manifest.keywords;
             }
             var inq = await Inquirer.prompt([{
-                type: "list",
-                message: "Package visibility",
-                name: "private",
-                default: context.runtime.trmPackage.manifest.private,
-                choices: [{
-                    name: `Public`,
-                    value: false
-                }, {
-                    name: `Private`,
-                    value: true
-                }],
-                when: () => {
-                    //registry is not local, and
-                    //either it’s not public or it’s public but has no latest manifest
-                    const r = context.rawInput.packageData.registry.getRegistryType();
-                    const hasLatest = !!context.runtime.trmPackage.latestReleaseManifest;
-                    return r !== RegistryType.LOCAL && (r !== RegistryType.PUBLIC || !hasLatest);
-                },
-                validate: (input: boolean) => {
-                    return validatePackageVisibility(
-                        context.rawInput.packageData.registry.getRegistryType(),
-                        input,
-                        context.runtime.trmPackage.latestReleaseManifest ? context.runtime.trmPackage.latestReleaseManifest.private : undefined
-                    );
-                },
-            }, {
                 type: "input",
                 message: "Short description",
                 name: "description",
@@ -256,11 +230,6 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 //validate -> TODO should validate if on public registry!
             }]);
             context.runtime.trmPackage.manifest = { ...context.runtime.trmPackage.manifest, ...inq };
-        }
-        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
-            context.runtime.trmPackage.manifest.private = true; //fixed value on local save
-        } else {
-            Logger.info(`Package visibility: ${chalk.bold(context.runtime.trmPackage.manifest.private ? 'private' : 'public')}`);
         }
 
         //3- set namespace values (if necessary)

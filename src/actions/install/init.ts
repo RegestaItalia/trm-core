@@ -49,7 +49,8 @@ export const init: Step<InstallWorkflowContext> = {
         }
 
         //1- format version
-        context.rawInput.packageData.version = valid(context.rawInput.packageData.version);
+        //removed, version can also be a tag
+        //context.rawInput.packageData.version = valid(context.rawInput.packageData.version);
 
         //2- fetch package in registry
         if (registry.getRegistryType() !== RegistryType.LOCAL) {
@@ -62,14 +63,14 @@ export const init: Step<InstallWorkflowContext> = {
                 try{
                     ping = await registry.ping();
                 }catch { }
-                Logger.error(`SECURITY ISSUE! Release checksum does NOT match!`);
+                Logger.error(`SECURITY ISSUE! Release integrity does NOT match!`);
                 Logger.error(`SECURITY ISSUE! Expected SHA is ${packageData.checksum}, current SHA is ${checksum}`);
                 Logger.error(`SECURITY ISSUE! Please, report the issue to ${ping && ping.alert_email ? ping.alert_email : 'registry moderation team'}`);
                 throw new Error(`Cannot continue due to security issues.`);
             }
             manifest = artifact.getManifest().get();
         }
-        Logger.info(`Ready to install ${manifest.name} v${manifest.version}.`);
+        Logger.info(`Ready to install ${manifest.name} v${manifest.version}${!valid(context.rawInput.packageData.version) ? ' (' + context.rawInput.packageData.version + ')' : ''}.`);
 
         //3- set runtime data
         context.runtime = {

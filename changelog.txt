@@ -8,6 +8,14 @@ Legend
 + : added
 - : removed
 
+2025-11-04 v8.1.1
+-------------------
++ moved lock file generation to core
++ lock file can be used to determine dependency version
++ package visibility to test publish endpoint
++ release tags
+! getPackageHierarchy ignore multiple roots in setDevclass method
+
 2025-10-30 v8.0.2
 -------------------
 * fix no dependency detection comparison with latest release

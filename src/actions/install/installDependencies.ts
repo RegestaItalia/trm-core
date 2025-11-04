@@ -4,6 +4,7 @@ import { Logger, inspect, Inquirer } from "trm-commons";
 import { InstallDependencyActionInput, installDependency as InstallDependencyWkf } from ".."
 import { RegistryProvider } from "../../registry";
 import * as _ from "lodash";
+import { TrmPackage } from "../../trmPackage";
 
 const SUBWORKFLOW_NAME = 'install-dependency-sub-install';
 
@@ -76,7 +77,6 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 dependencyDataPackage: {
                     name: dependency.name,
                     versionRange: dependency.version,
-                    //integrity: TODO: should come from input
                     registry: RegistryProvider.getRegistry(dependency.registry)
                 },
                 contextData: _.cloneDeep(context.rawInput.contextData),

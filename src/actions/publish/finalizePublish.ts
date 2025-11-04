@@ -25,7 +25,7 @@ export const finalizePublish: Step<PublishWorkflowContext> = {
             
             //2- save integrity on system
             Logger.log(`Generating SHA512`, true);
-            const integrity = createHash("sha512").update(context.runtime.trmPackage.artifact.binary).digest("hex");
+            const integrity = createHash("sha512").update(context.runtime.trmPackage.artifact.binary).digest("base64");
             Logger.log(`SHA512: ${integrity}`, true);
             await SystemConnector.setPackageIntegrity({
                 package_name: context.rawInput.packageData.name,

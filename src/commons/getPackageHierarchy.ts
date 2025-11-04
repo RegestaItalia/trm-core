@@ -1,7 +1,7 @@
 import { TDEVC } from "../client";
 import { PackageHierarchy } from "./PackageHierarchy";
 
-export function getPackageHierarchy(input: TDEVC[]): PackageHierarchy {
+export function getPackageHierarchy(input: TDEVC[], ignoreMultiples?: boolean): PackageHierarchy {
     const map = new Map<string, PackageHierarchy>();
 
     // Build a mapping of devclass to its children
@@ -29,7 +29,9 @@ export function getPackageHierarchy(input: TDEVC[]): PackageHierarchy {
     if (roots.length === 0) {
         throw new Error(`No root found in package hierarchy.`);
     } else if (roots.length > 1) {
-        throw new Error(`Multiple roots found in package hierarchy.`);
+        if(!ignoreMultiples){
+            throw new Error(`Multiple roots found in package hierarchy.`);
+        }
     }
 
     return roots[0];

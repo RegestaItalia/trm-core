@@ -1,7 +1,7 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, OAuth2Data, Package, Ping, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, Ping, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
@@ -317,9 +317,9 @@ export class RegistryV2 implements AbstractRegistry {
         if (!data) {
             var ttl: number;
             try {
-                data = (await this._axiosInstance.get(`/package/${fullName}`, {
+                data = (await this._axiosInstance.get(`/package/${encodeURIComponent(fullName)}`, {
                     params: {
-                        version
+                        version: encodeURIComponent(version)
                     }
                 })).data;
                 if ((data as Package).download_link_expiry) {
@@ -359,10 +359,11 @@ export class RegistryV2 implements AbstractRegistry {
         return new TrmArtifact(buffer);
     }
 
-    public async validatePublish(fullName: string, version: string = 'latest'): Promise<void> {
-        const status = (await this._axiosInstance.get(`/publish/check/${fullName}`, {
+    public async validatePublish(fullName: string, version: string = 'latest', isPrivate: boolean): Promise<void> {
+        const status = (await this._axiosInstance.get(`/publish/check/${encodeURIComponent(fullName)}`, {
             params: {
-                version
+                version: encodeURIComponent(version),
+                private: isPrivate ? 'X' : 'N'
             }
         })).status;
         if (status !== 204) {
@@ -370,7 +371,7 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<Package> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string): Promise<Package> {
         const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, {
@@ -383,30 +384,48 @@ export class RegistryV2 implements AbstractRegistry {
                 contentType: 'text/markdown'
             });
         }
-        return (await this._axiosInstance.post(`/publish/${fullName}`, formData, {
-            params: {
-                version
-            },
+        var params = { version, tags };
+        if(!tags){
+            delete params.tags;
+        }
+        return (await this._axiosInstance.post(`/publish/${encodeURIComponent(fullName)}`, formData, {
+            params,
             headers: formData.getHeaders()
         })).data;
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {
-        await this._axiosInstance.post(`/unpublish/${fullName}`, null, {
+        await this._axiosInstance.post(`/unpublish/${encodeURIComponent(fullName)}`, null, {
             params: {
-                version
+                version: encodeURIComponent(version)
             }
         });
     }
 
-    public async deprecate(fullName: string, version: string, reason: string): Promise<void> {
-        await this._axiosInstance.post(`/deprecate/${fullName}`, {
-            deprecate_note: reason
+    public async deprecate(fullName: string, version: string, deprecate: Deprecate): Promise<void> {
+        await this._axiosInstance.post(`/deprecate/${encodeURIComponent(fullName)}`, {
+            deprecate_note: deprecate.deprecate_note
         }, {
             params: {
-                version
+                version: encodeURIComponent(version)
             }
         });
+    }
+
+    public async addDistTag(fullName: string, distTag: DistTagAdd): Promise<void> {
+        const status = (await this._axiosInstance.put(`/package/tag/${encodeURIComponent(fullName)}`, distTag)).status;
+        if (status !== 204) {
+            throw new Error(`Cannot add tag "${distTag.tag.trim().toUpperCase()}"`);
+        }
+    }
+
+    public async rmDistTag(fullName: string, distTag: DistTagRm): Promise<void> {
+        const status = (await this._axiosInstance.delete(`/package/tag/${encodeURIComponent(fullName)}`, {
+            data: distTag
+        })).status;
+        if (status !== 204) {
+            throw new Error(`Cannot remove tag "${distTag.tag.trim().toLowerCase()}"`);
+        }
     }
 
 }

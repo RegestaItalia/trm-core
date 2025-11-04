@@ -5,6 +5,7 @@ import { TrmArtifact } from "./TrmArtifact";
 import { DEVCLASS } from "../client";
 import { Transport } from "../transport";
 import { SystemConnector } from "../systemConnector";
+import { Lockfile } from "../lockfile";
 
 export class TrmPackage {
     private _devclass: DEVCLASS;
@@ -44,17 +45,22 @@ export class TrmPackage {
 
     public async publish(data: {
         artifact: TrmArtifact
-        readme?: string
+        readme?: string,
+        tags?: string[]
     }): Promise<TrmPackage> {
         const artifact = data.artifact;
         const trmManifest = artifact.getManifest().get();
         const packageName = trmManifest.name;
+        var tags: string;
         if (packageName !== this.packageName) {
             throw new Error(`Cannot publish package ${packageName}: expected name is ${this.packageName}`);
         }
         const packageVersion = trmManifest.version;
+        if(data.tags){
+            tags = data.tags.join(',');
+        }
         Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
-        await this.registry.publish(packageName, packageVersion, artifact, data.readme);
+        await this.registry.publish(packageName, packageVersion, artifact, data.readme, tags);
 
         //set
         this.manifest = new Manifest(trmManifest);
@@ -67,6 +73,10 @@ export class TrmPackage {
 
     public compareName(name: string): boolean {
         return this.packageName.trim().toUpperCase() === name.trim().toUpperCase();
+    }
+
+    public async getLockfile(systemPackages?: TrmPackage[]): Promise<Lockfile> {
+        return Lockfile.generate(this, systemPackages);
     }
 
     public static async create(manifest: Manifest, registry: AbstractRegistry): Promise<TrmPackage> {
