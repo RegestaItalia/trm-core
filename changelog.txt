@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-10-30 v8.0.2
+-------------------
+* fix no dependency detection comparison with latest release
+
 2025-10-24 v8.0.1
 -------------------
 * fix transport relevant for dependency detection issue

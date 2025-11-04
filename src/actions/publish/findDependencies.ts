@@ -60,57 +60,61 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         const result = await FindDependenciesWkf(inputData);
         Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
 
-        //2- find dependencies with custom packages and missing TRM package
-        const aUnknownDependencyDevclass = (result.trmPackageDependencies.withoutTrmPackage).map(o => o.devclass);
-        if (aUnknownDependencyDevclass.length > 0) {
-            Logger.error(`Package "${context.rawInput.packageData.devclass}" has ${aUnknownDependencyDevclass.length} missing ${aUnknownDependencyDevclass.length === 1 ? 'dependency' : 'dependencies'}:`);
-            aUnknownDependencyDevclass.forEach((d, i) => {
-                Logger.error(`  (${i + 1}/${aUnknownDependencyDevclass.length}) ${d}`);
-            });
-            throw new Error(`Resolve missing dependencies by publishing them as TRM packages.`);
-        }
+        context.rawInput.publishData.noDependenciesDetection = result.abort;
 
-        Logger.info(`Package "${context.rawInput.packageData.devclass}" has ${result.trmPackageDependencies.withTrmPackage.length} TRM package ${result.trmPackageDependencies.withTrmPackage.length === 1 ? 'dependency' : 'dependencies'} and ${result.objectDependencies.sapObjects.reduce((sum, obj) => sum + obj.dependencies.length, 0)} required SAP ${result.objectDependencies.sapObjects.reduce((sum, obj) => sum + obj.dependencies.length, 0) === 1 ? 'object' : 'objects'}.`);
+        if (!context.rawInput.publishData.noDependenciesDetection) {
+            //2- find dependencies with custom packages and missing TRM package
+            const aUnknownDependencyDevclass = (result.trmPackageDependencies.withoutTrmPackage).map(o => o.devclass);
+            if (aUnknownDependencyDevclass.length > 0) {
+                Logger.error(`Package "${context.rawInput.packageData.devclass}" has ${aUnknownDependencyDevclass.length} missing ${aUnknownDependencyDevclass.length === 1 ? 'dependency' : 'dependencies'}:`);
+                aUnknownDependencyDevclass.forEach((d, i) => {
+                    Logger.error(`  (${i + 1}/${aUnknownDependencyDevclass.length}) ${d}`);
+                });
+                throw new Error(`Resolve missing dependencies by publishing them as TRM packages.`);
+            }
 
-        //3- set trm dependencies in manifest
-        Logger.log(`Adding TRM package dependencies to manifest`, true);
-        Logger.loading(`Updating manifest...`);
-        result.trmPackageDependencies.withTrmPackage.forEach((o, i) => {
-            if (o.package.registry.getRegistryType() === RegistryType.LOCAL) {
-                Logger.error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot have dependency with ABAP package "${o.devclass}": TRM package was installed manually`);
-            } else {
-                if (o.package.manifest) {
-                    const dependencyManifest = o.package.manifest.get();
-                    const dependencyVersionRange = `^${dependencyManifest.version}`;
+            Logger.info(`Package "${context.rawInput.packageData.devclass}" has ${result.trmPackageDependencies.withTrmPackage.length} TRM package ${result.trmPackageDependencies.withTrmPackage.length === 1 ? 'dependency' : 'dependencies'} and ${result.objectDependencies.sapObjects.reduce((sum, obj) => sum + obj.dependencies.length, 0)} required SAP ${result.objectDependencies.sapObjects.reduce((sum, obj) => sum + obj.dependencies.length, 0) === 1 ? 'object' : 'objects'}.`);
 
-                    const dependencyRegistry = o.package.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.package.registry.endpoint;
-                    context.runtime.trmPackage.manifest.dependencies.push({
-                        name: dependencyManifest.name,
-                        version: dependencyVersionRange,
-                        registry: dependencyRegistry
-                    });
+            //3- set trm dependencies in manifest
+            Logger.log(`Adding TRM package dependencies to manifest`, true);
+            Logger.loading(`Updating manifest...`);
+            result.trmPackageDependencies.withTrmPackage.forEach((o, i) => {
+                if (o.package.registry.getRegistryType() === RegistryType.LOCAL) {
+                    Logger.error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot have dependency with ABAP package "${o.devclass}": TRM package was installed manually`);
                 } else {
-                    Logger.error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot find manifest of dependency in ABAP package "${o.devclass}"`);
-                }
-            }
-        });
+                    if (o.package.manifest) {
+                        const dependencyManifest = o.package.manifest.get();
+                        const dependencyVersionRange = `^${dependencyManifest.version}`;
 
-        //4- set sap entries in manifest
-        Logger.log(`Adding SAP objects dependencies to manifest`, true);
-        Logger.loading(`Updating manifest...`);
-        result.objectDependencies.sapObjects.forEach(o => {
-            if (!context.runtime.trmPackage.manifest.sapEntries[o.table]) {
-                context.runtime.trmPackage.manifest.sapEntries[o.table] = [];
-            }
-            o.dependencies.forEach(k => {
-                var tableKeys = k.object;
-                if (o.table === 'TADIR') {
-                    delete tableKeys['DEVCLASS']; //might be used wrongly as key in tadir (older versions of trm, might not be relevant)
-                }
-                if (!context.runtime.trmPackage.manifest.sapEntries[o.table].some(o => _isObjectEqual(o, tableKeys))) {
-                    context.runtime.trmPackage.manifest.sapEntries[o.table].push(tableKeys);
+                        const dependencyRegistry = o.package.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.package.registry.endpoint;
+                        context.runtime.trmPackage.manifest.dependencies.push({
+                            name: dependencyManifest.name,
+                            version: dependencyVersionRange,
+                            registry: dependencyRegistry
+                        });
+                    } else {
+                        Logger.error(`  (${i + 1}/${result.trmPackageDependencies.withTrmPackage.length}) Cannot find manifest of dependency in ABAP package "${o.devclass}"`);
+                    }
                 }
             });
-        });
+
+            //4- set sap entries in manifest
+            Logger.log(`Adding SAP objects dependencies to manifest`, true);
+            Logger.loading(`Updating manifest...`);
+            result.objectDependencies.sapObjects.forEach(o => {
+                if (!context.runtime.trmPackage.manifest.sapEntries[o.table]) {
+                    context.runtime.trmPackage.manifest.sapEntries[o.table] = [];
+                }
+                o.dependencies.forEach(k => {
+                    var tableKeys = k.object;
+                    if (o.table === 'TADIR') {
+                        delete tableKeys['DEVCLASS']; //might be used wrongly as key in tadir (older versions of trm, might not be relevant)
+                    }
+                    if (!context.runtime.trmPackage.manifest.sapEntries[o.table].some(o => _isObjectEqual(o, tableKeys))) {
+                        context.runtime.trmPackage.manifest.sapEntries[o.table].push(tableKeys);
+                    }
+                });
+            });
+        }
     }
 }
