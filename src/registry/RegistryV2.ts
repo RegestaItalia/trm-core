@@ -317,7 +317,7 @@ export class RegistryV2 implements AbstractRegistry {
         if (!data) {
             var ttl: number;
             try {
-                data = (await this._axiosInstance.get(`/package/${encodeURIComponent(fullName)}`, {
+                data = (await this._axiosInstance.get(`/package/${fullName}`, {
                     params: {
                         version: encodeURIComponent(version)
                     }
@@ -360,7 +360,7 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async validatePublish(fullName: string, version: string = 'latest', isPrivate: boolean): Promise<void> {
-        const status = (await this._axiosInstance.get(`/publish/check/${encodeURIComponent(fullName)}`, {
+        const status = (await this._axiosInstance.get(`/publish/check/${fullName}`, {
             params: {
                 version: encodeURIComponent(version),
                 private: isPrivate ? 'X' : 'N'
@@ -388,14 +388,14 @@ export class RegistryV2 implements AbstractRegistry {
         if(!tags){
             delete params.tags;
         }
-        return (await this._axiosInstance.post(`/publish/${encodeURIComponent(fullName)}`, formData, {
+        return (await this._axiosInstance.post(`/publish/${fullName}`, formData, {
             params,
             headers: formData.getHeaders()
         })).data;
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {
-        await this._axiosInstance.post(`/unpublish/${encodeURIComponent(fullName)}`, null, {
+        await this._axiosInstance.post(`/unpublish/${fullName}`, null, {
             params: {
                 version: encodeURIComponent(version)
             }
@@ -403,7 +403,7 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async deprecate(fullName: string, version: string, deprecate: Deprecate): Promise<void> {
-        await this._axiosInstance.post(`/deprecate/${encodeURIComponent(fullName)}`, {
+        await this._axiosInstance.post(`/deprecate/${fullName}`, {
             deprecate_note: deprecate.deprecate_note
         }, {
             params: {
@@ -413,14 +413,14 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async addDistTag(fullName: string, distTag: DistTagAdd): Promise<void> {
-        const status = (await this._axiosInstance.put(`/package/tag/${encodeURIComponent(fullName)}`, distTag)).status;
+        const status = (await this._axiosInstance.put(`/package/tag/${fullName}`, distTag)).status;
         if (status !== 204) {
             throw new Error(`Cannot add tag "${distTag.tag.trim().toUpperCase()}"`);
         }
     }
 
     public async rmDistTag(fullName: string, distTag: DistTagRm): Promise<void> {
-        const status = (await this._axiosInstance.delete(`/package/tag/${encodeURIComponent(fullName)}`, {
+        const status = (await this._axiosInstance.delete(`/package/tag/${fullName}`, {
             data: distTag
         })).status;
         if (status !== 204) {

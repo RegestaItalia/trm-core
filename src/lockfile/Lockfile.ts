@@ -22,7 +22,7 @@ export interface LockfileContent {
 
 export class Lockfile {
 
-    constructor(public lockfile: LockfileContent) { }
+    private constructor(public lockfile: LockfileContent) { }
 
     public static async generate(root: TrmPackage, packages?: TrmPackage[]): Promise<Lockfile> {
         var lock: LockfileContent = {
@@ -64,6 +64,13 @@ export class Lockfile {
             }
         }
         return new Lockfile(lock);
+    }
+
+    public static fromJson(json: any): Lockfile {
+        if(json.lockfileVersion === 1){
+            return new Lockfile(json);
+        }
+        throw new Error(`Unable to parse lockfile.`);
     }
 
     public toJson(): string {
