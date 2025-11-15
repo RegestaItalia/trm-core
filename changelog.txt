@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2025-11-15 v8.1.3
+-------------------
+* multiple dependencies detected for same object
+
 2025-11-07 v8.1.2
 -------------------
 - encode uri in registry endpoint

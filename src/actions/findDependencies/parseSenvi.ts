@@ -18,10 +18,14 @@ const _addEntry = (tableName: string, sapEntries: SapEntriesDependency[], depend
         });
         index--;
     }
-    sapEntries[index].dependencies.push({
-        foundIn: dependencyIn,
-        object: dependency
-    });
+    if (sapEntries[index].dependencies.find(o => _.isEqual(o.object, dependency))) {
+        Logger.log(`Skipping, dependency with ${JSON.stringify(dependency)} already declared`, true);
+    } else {
+        sapEntries[index].dependencies.push({
+            foundIn: dependencyIn,
+            object: dependency
+        });
+    }
     return sapEntries;
 }
 
@@ -74,17 +78,17 @@ export const parseSenvi: Step<FindDependenciesWorkflowContext> = {
                     if (SAP_SOURCE_SYSTEMS.includes(parsedSenvi.srcsystem) || SAP_AUTHORS.includes(parsedSenvi.author)) {
                         Logger.log(`Dependency with SAP object ${parsedSenvi.pgmid} ${parsedSenvi.object} ${parsedSenvi.objName}, package ${parsedSenvi.devclass}`, true);
                         context.runtime.dependencies.sapObjects = _addEntry('TADIR', _.cloneDeep(context.runtime.dependencies.sapObjects), senviObject.tadir, dependency);
-                        if(subObject){
+                        if (subObject) {
                             context.runtime.dependencies.sapObjects = _addEntry(subObject.table, _.cloneDeep(context.runtime.dependencies.sapObjects), senviObject.tadir, subObject.dependency);
                         }
                     } else {
                         Logger.log(`Dependency with custom object ${parsedSenvi.pgmid} ${parsedSenvi.object} ${parsedSenvi.objName}, package ${parsedSenvi.devclass}`, true);
                         context.runtime.dependencies.customObjects = _addEntry('TADIR', _.cloneDeep(context.runtime.dependencies.customObjects), senviObject.tadir, dependency);
-                        if(subObject){
+                        if (subObject) {
                             context.runtime.dependencies.customObjects = _addEntry(subObject.table, _.cloneDeep(context.runtime.dependencies.customObjects), senviObject.tadir, subObject.dependency);
                         }
                     }
-                }else{
+                } else {
                     Logger.log(`Skipping!`, true);
                 }
             }
