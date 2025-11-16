@@ -70,7 +70,7 @@ export const init: Step<InstallWorkflowContext> = {
             }
             manifest = artifact.getManifest().get();
         }
-        Logger.info(`Ready to install ${manifest.name} v${manifest.version}${!valid(context.rawInput.packageData.version) ? ' (' + context.rawInput.packageData.version + ')' : ''}.`);
+        Logger.info(`Ready to install ${manifest.name} v${manifest.version}${!valid(context.rawInput.packageData.version) ? ' (' + context.rawInput.packageData.version || 'latest' + ')' : ''}.`);
 
         //3- set runtime data
         context.runtime = {

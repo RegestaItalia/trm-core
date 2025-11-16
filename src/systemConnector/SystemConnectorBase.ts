@@ -404,6 +404,15 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           Logger.log(`trm-server imported is the one currenlty in use`, true);
           generatedTrmServerPackage.manifest = trmServerPackage.manifest;
         }
+      } else {
+        Logger.log(`trm-server from abapgit is the one currenlty in use, setting manifest value from registry`, true);
+        try {
+          const registryPackage = await RegistryProvider.getRegistry().getPackage(TRM_SERVER_PACKAGE_NAME, generatedTrmServerPackage.manifest.get().version);
+          generatedTrmServerPackage.manifest = new Manifest(registryPackage.manifest);
+        } catch (e) {
+          Logger.error(`Error fetching trm-server manifest in registry`, true);
+          Logger.error(e.toString(), true);
+        }
       }
       trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry())));
       trmPackages.push(generatedTrmServerPackage);
@@ -420,6 +429,15 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         if (trmRestPackage.manifest.get().version === generatedTrmRestPackage.manifest.get().version) {
           Logger.log(`trm-rest imported is the one currenlty in use`, true);
           generatedTrmRestPackage.manifest = trmRestPackage.manifest;
+        }
+      } else {
+        Logger.log(`trm-rest from abapgit is the one currenlty in use, setting manifest value from registry`, true);
+        try {
+          const registryPackage = await RegistryProvider.getRegistry().getPackage(TRM_REST_PACKAGE_NAME, generatedTrmRestPackage.manifest.get().version);
+          generatedTrmRestPackage.manifest = new Manifest(registryPackage.manifest);
+        } catch (e) {
+          Logger.error(`Error fetching trm-rest manifest in registry`, true);
+          Logger.error(e.toString(), true);
         }
       }
       trmPackages = trmPackages.filter(o => !(o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry())));

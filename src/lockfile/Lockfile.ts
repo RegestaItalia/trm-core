@@ -4,6 +4,7 @@ import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 import { jsonStringifyWithKeyOrder } from "../commons";
 import { createHash } from "crypto";
+import { satisfies } from "semver";
 
 export interface Lock {
     name: string,
@@ -83,9 +84,9 @@ export class Lockfile {
         return jsonStringifyWithKeyOrder(this.lockfile, KEYS_ORDER, 2);
     }
 
-    public getLock(trmPackage: TrmPackage): Lock {
+    public getLock(trmPackage: TrmPackage, versionRange: string): Lock {
         const lock = this.lockfile.packages?.find(o => trmPackage.compareName(o.name) && trmPackage.compareRegistry(RegistryProvider.getRegistry(o.registry)));
-        if (!lock) {
+        if (!lock || !satisfies(lock.version, versionRange)) {
             throw new Error(`Lock for package "${trmPackage.packageName}", registry "${trmPackage.registry.endpoint}" not found`);
         }
         return lock;
