@@ -6,7 +6,7 @@ import { Transport } from "../../transport";
 import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
 import { init } from "./init";
 import { TrmManifest, TrmManifestDependency } from "../../manifest";
-import { checkServerAuth, IActionContext } from "..";
+import { checkServerAuth, IActionContext, trmServerPa } from "..";
 import { setSystemPackages } from "../commons/setSystemPackages";
 import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
 import { checkSapEntries } from "./checkSapEntries";
@@ -283,6 +283,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         checkServerAuth,
         init,
         setSystemPackages,
+        trmServerPa,
         setTrmServerUpgradeService,
         checkAlreadyInstalled,
         checkSapEntries,

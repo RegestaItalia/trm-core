@@ -2,7 +2,7 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
-import { checkServerAuth, IActionContext, setSystemPackages } from "..";
+import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa } from "..";
 import { AbstractRegistry } from "../../registry";
 import { init } from "./init";
 import { DEVCLASS, TADIR, TMSCSYS, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
@@ -218,6 +218,7 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         checkServerAuth,
         init,
         setSystemPackages,
+        trmServerPa,
         setTransportTarget,
         setDevclass,
         findDependencies,
