@@ -589,4 +589,12 @@ export class RFCClient implements IClient {
         });
     }
 
+    public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
+        const result = await this._call("ZTRM_GET_DEPENDENCIES", {
+            iv_devclass: devclass,
+            iv_incl_sub: includeSubPackages ? 'X' : ' '
+        });
+        return result['etDependencies']
+    }
+
 }

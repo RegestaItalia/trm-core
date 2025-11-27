@@ -2,7 +2,6 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { FindDependenciesWorkflowContext, SapEntriesDependency } from ".";
 import { Logger } from "trm-commons";
 import { TADIR } from "../../client";
-import { SenviParser } from "../../dependency";
 import * as _ from "lodash";
 
 const SAP_SOURCE_SYSTEMS = ['SAP'];
@@ -38,7 +37,7 @@ const _addEntry = (tableName: string, sapEntries: SapEntriesDependency[], depend
 export const parseSenvi: Step<FindDependenciesWorkflowContext> = {
     name: 'parse-senvi',
     run: async (context: FindDependenciesWorkflowContext): Promise<void> => {
-        Logger.log('Parse SENVI step', true);
+        /*Logger.log('Parse SENVI step', true);
 
         //1- parse SENVI results
         const senviObjects = context.runtime.repositoryEnvironment.senvi;
@@ -93,6 +92,6 @@ export const parseSenvi: Step<FindDependenciesWorkflowContext> = {
                 }
             }
         }
-
+*/
     }
 }

@@ -3,7 +3,7 @@ export * from "./client";
 export * from "./commons";
 export * from "./manifest";
 export * from "./registry";
-export * from "./dependency";
+export * from "./dependencies";
 export * from "./systemConnector";
 export * from "./transport";
 export * from "./trmPackage";

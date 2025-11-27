@@ -24,3 +24,5 @@ export * from "./SYMSG";
 export * from "./SEOCLASSTX";
 export * from "./ZTY_SER_OBJ";
 export * from "./ZTY_TRM_PACKAGE";
+export * from "./ZTRM_OBJECT_DEPENDENCY";
+export * from "./ZTRM_OBJECT_DEPENDENCIES";

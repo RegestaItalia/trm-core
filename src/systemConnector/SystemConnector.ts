@@ -8,6 +8,7 @@ import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
+import { PackageDependencies } from "../dependencies";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -403,6 +404,11 @@ export namespace SystemConnector {
     export async function changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
         await checkSystemConnector();
         return systemConnector.changeTrOwner(trkorr, owner);
+    }
+
+    export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
+        await checkSystemConnector();
+        return systemConnector.getPackageDependencies(devclass, includeSubPackages);
     }
 
 }

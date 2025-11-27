@@ -32,7 +32,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
         this._user = this._login.user;
-        if(normalizeEndpoint){
+        if (normalizeEndpoint) {
             Logger.log(`REST connection data before normalize: ${JSON.stringify(this._connection)}`, true);
             this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
                 removeTrailingSlash: true
@@ -99,6 +99,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     protected getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
         return this._client.getInstalledPackagesBackend();
+    }
+    
+    protected getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
+        return null;
     }
 
     public getConnectionData(): RESTConnection {

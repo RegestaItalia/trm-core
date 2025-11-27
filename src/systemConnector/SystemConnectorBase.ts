@@ -11,6 +11,7 @@ import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
+import { PackageDependencies } from "../dependencies";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = 'ZIF_TRM';
@@ -35,6 +36,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
   protected abstract getR3transInfo(): Promise<string>
   protected abstract getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]>
+  protected abstract getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
 
   constructor() {
 
@@ -640,6 +642,11 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       [{ fieldName: 'CLSNAME' }, { fieldName: 'LANGU' }, { fieldName: 'DESCRIPT' }],
       `CLSNAME EQ '${clsname.trim().toUpperCase()}'`
     );
+  }
+
+  public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
+    const packageDependencies = await this.getPackageDependenciesInternal(devclass, includeSubPackages);
+    return new PackageDependencies(devclass, packageDependencies || []);
   }
 
 }
