@@ -11,21 +11,15 @@ export class PackageDependencies {
         })
     }
 
-    public getAll(): any {
+    public getAllTables(): any {
         var all = {};
-        var pushToTable = (table, o) => {
-            if (!all[table]) {
-                all[table] = [];
-            }
-            all[table].push(o);
-        }
         this.dependencies.forEach(d => {
-            d.tadir.forEach(o => {
-                pushToTable('TADIR', o);
-            });
-            d.tfdir.forEach(o => {
-                pushToTable('TFDIR', o);
-            });
+            Object.keys(d.tables).forEach(table => {
+                if (!all[table]) {
+                    all[table] = [];
+                }
+                all[table] = all[table].concat(d.tables[table]);
+            })
         });
         return all;
     }
