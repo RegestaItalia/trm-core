@@ -4,7 +4,7 @@ import { TrmPackage } from "../trmPackage";
 import { DependenciesGenericTable, ObjectDependencies } from "./ObjectDependencies";
 
 export type SapPackageDependencies = {
-    root: DEVCLASS,
+    package: DEVCLASS,
     dependencies: DependenciesGenericTable[]
 }
 
@@ -59,11 +59,10 @@ export class PackageDependencies {
         var sapPackages: SapPackageDependencies[] = [];
         for(const d of this.dependencies){
             for(const p of d.sapPackages){
-                const root = await SystemConnector.getRootDevclass(p.package);
-                var index = sapPackages.findIndex(o => o.root === root);
+                var index = sapPackages.findIndex(o => o.package === p.package);
                 if(index < 0){
                     index = sapPackages.push({
-                        root,
+                        package: p.package,
                         dependencies: []
                     }) - 1;
                 }
