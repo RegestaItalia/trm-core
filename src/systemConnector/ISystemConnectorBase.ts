@@ -36,5 +36,6 @@ export interface ISystemConnectorBase {
     getTrmRestPackage: () => Promise<TrmPackage>,
     readClassDescriptions: (clsname: components.SEOCLSNAME) => Promise<struct.SEOCLASSTX[]>,
     getPackageDependencies: (devclass: components.DEVCLASS, includeSubPackages: boolean) => Promise<PackageDependencies>,
-    getTableKeys: (tabname: components.TABNAME) => Promise<struct.DD03L[]>
+    getTableKeys: (tabname: components.TABNAME) => Promise<struct.DD03L[]>,
+    getRootDevclass: (devclass: components.DEVCLASS) => Promise<components.DEVCLASS> 
 }

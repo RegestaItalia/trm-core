@@ -3,22 +3,21 @@ import { RegistryProvider } from "../registry";
 import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 
+export type DependenciesGenericTable = {
+    tabname: string,
+    tabkey: any[]
+}
+
 export class ObjectDependencies {
 
     public readonly tables: any = {};
     public trmPackages: {
         trmPackage: TrmPackage,
-        dependencies: {
-            tabname: string,
-            tabkey: any[]
-        }[]
+        dependencies: DependenciesGenericTable[]
     }[] = [];
     public sapPackages: {
         package: DEVCLASS,
-        dependencies: {
-            tabname: string,
-            tabkey: any[]
-        }[]
+        dependencies: DependenciesGenericTable[]
     }[] = [];
 
 
@@ -29,6 +28,7 @@ export class ObjectDependencies {
             const tabkey = await this.addTableKey(d.tabname, d.tabkey);
             if(d.trmPackageName){
                 var trmPackage = new TrmPackage(d.trmPackageName, RegistryProvider.getRegistry(d.trmPackageRegistry));
+                trmPackage.setDevclass(d.devclass);
                 var iTrmPackage = this.trmPackages.findIndex(o => o.trmPackage.compareName(trmPackage.packageName) && o.trmPackage.compareRegistry(trmPackage.registry));
                 if(iTrmPackage < 0){
                     iTrmPackage = this.trmPackages.push({

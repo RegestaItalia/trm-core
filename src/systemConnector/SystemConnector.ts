@@ -416,4 +416,9 @@ export namespace SystemConnector {
         return systemConnector.getTableKeys(tabname);
     }
 
+    export async function getRootDevclass(devclass: DEVCLASS): Promise<DEVCLASS> {
+        await checkSystemConnector();
+        return systemConnector.getRootDevclass(devclass);
+    }
+    
 }

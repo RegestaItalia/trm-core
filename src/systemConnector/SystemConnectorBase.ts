@@ -27,6 +27,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   private _ignoredTrkorr: string[];
   private _r3transInfoLog: string;
   private _tableKeys: any = {};
+  private _rootDevclass: any = {};
 
   protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]>
   protected abstract getSysname(): string
@@ -652,13 +653,38 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getTableKeys(tabname: components.TABNAME): Promise<struct.DD03L[]> {
     tabname = tabname.trim().toUpperCase();
-    if(!this._tableKeys[tabname]){
+    if (!this._tableKeys[tabname]) {
       this._tableKeys[tabname] = await this.readTable('DD03L',
         [{ fieldName: 'FIELDNAME' }, { fieldName: 'POSITION' }, { fieldName: 'LENG' }],
         `TABNAME EQ '${tabname.trim().toUpperCase()}' AND AS4LOCAL EQ 'A' AND AS4VERS EQ '0000' AND KEYFLAG EQ 'X'`
       );
     }
     return this._tableKeys[tabname];
+  }
+
+  public async getRootDevclass(devclass: DEVCLASS): Promise<DEVCLASS> {
+    devclass = devclass.trim().toUpperCase();
+    var currentDevclass = devclass;
+    if (!this._rootDevclass[currentDevclass]) {
+      var pastDevclass: DEVCLASS[] = [];
+      while (currentDevclass) {
+        var res = (await this.readTable('TDEVC',
+          [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }],
+          `DEVCLASS EQ '${currentDevclass}'`
+        ))[0];
+        if (res.parentcl) {
+          pastDevclass.push(currentDevclass);
+          currentDevclass = res.parentcl;
+        } else {
+          pastDevclass.push(currentDevclass);
+          pastDevclass.forEach(p => {
+            this._rootDevclass[p] = res.devclass;
+          });
+          currentDevclass = null;
+        }
+      }
+    }
+    return this._rootDevclass[devclass];
   }
 
 }
