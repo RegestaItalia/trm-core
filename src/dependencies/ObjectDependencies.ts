@@ -1,19 +1,11 @@
 import { DEVCLASS, PGMID, SOBJ_NAME, TROBJTYPE, ZTRM_OBJECT_DEPENDENCY } from "../client";
 import { RegistryProvider } from "../registry";
+import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 
 export class ObjectDependencies {
 
-    public readonly tables: {
-        tadir?: {
-            pgmid: string,
-            object: string,
-            obj_name: string
-        }[],
-        tfdir?: {
-            funcname: string
-        }[]
-    } = {};
+    public readonly tables: any = {};
     public trmPackages: {
         trmPackage: TrmPackage,
         dependencies: {
@@ -30,19 +22,11 @@ export class ObjectDependencies {
     }[] = [];
 
 
-    constructor(public readonly pgmid: PGMID, public readonly object: TROBJTYPE, public readonly objName: SOBJ_NAME, dependencies: ZTRM_OBJECT_DEPENDENCY[]) {
-        dependencies.forEach(d => {
-            var tabkey: any;
-            switch (d.tabname) {
-                case 'TADIR':
-                    tabkey = this.addTadir(d.tabkey);
-                    break;
-                case 'TFDIR':
-                    tabkey = this.addTfdir(d.tabkey);
-                    break;
-                default:
-                    throw new Error(`Unhandled dependency with "${d.tabname}"`);
-            }
+    constructor(public readonly pgmid: PGMID, public readonly object: TROBJTYPE, public readonly objName: SOBJ_NAME) { }
+
+    public async setDependencies(dependencies: ZTRM_OBJECT_DEPENDENCY[]): Promise<ObjectDependencies> {
+        for(const d of dependencies){
+            const tabkey = await this.addTableKey(d.tabname, d.tabkey);
             if(d.trmPackageName){
                 var trmPackage = new TrmPackage(d.trmPackageName, RegistryProvider.getRegistry(d.trmPackageRegistry));
                 var iTrmPackage = this.trmPackages.findIndex(o => o.trmPackage.compareName(trmPackage.packageName) && o.trmPackage.compareRegistry(trmPackage.registry));
@@ -69,34 +53,26 @@ export class ObjectDependencies {
                     tabkey
                 });
             }
+        }
+        return this;
+    }
+
+    private async addTableKey(table: string, key: string): Promise<any> {
+        var offset = 0;
+        var parsed: any = {};
+        table = table.trim().toUpperCase();
+        var definition = await SystemConnector.getTableKeys(table);
+        definition = definition.sort((a, b) => Number(a.position) - Number(b.position));
+        if(!this.tables[table]){
+            this.tables[table] = [];
+        }
+        definition.forEach(def => {
+            const len = Number(def.leng);
+            parsed[def.fieldname] = key.slice(offset, offset + len);
+            offset += len;
         });
+        this.tables[table].push(parsed);
+        return parsed;
     }
 
-    private addTadir(key: string): any {
-        var tabkey: any;
-        const [pgmid, object, obj_name] = [key.slice(0, 4), key.slice(4, 8), key.slice(8, 48)];
-        if(!this.tables.tadir){
-            this.tables.tadir = [];
-        }
-        tabkey = {
-            pgmid,
-            object,
-            obj_name
-        };
-        this.tables.tadir.push(tabkey);
-        return tabkey;
-    }
-
-    private addTfdir(key: string): any {
-        var tabkey: any;
-        const [funcname] = [key.slice(0, 30)];
-        if(!this.tables.tfdir){
-            this.tables.tfdir = [];
-        }
-        tabkey = {
-            funcname
-        };
-        this.tables.tfdir.push(tabkey);
-        return tabkey;
-    }
 }

@@ -26,6 +26,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   private _sourceTrkorr: string[];
   private _ignoredTrkorr: string[];
   private _r3transInfoLog: string;
+  private _tableKeys: any = {};
 
   protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]>
   protected abstract getSysname(): string
@@ -646,7 +647,18 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
     const packageDependencies = await this.getPackageDependenciesInternal(devclass, includeSubPackages);
-    return new PackageDependencies(devclass, packageDependencies || []);
+    return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));
+  }
+
+  public async getTableKeys(tabname: components.TABNAME): Promise<struct.DD03L[]> {
+    tabname = tabname.trim().toUpperCase();
+    if(!this._tableKeys[tabname]){
+      this._tableKeys[tabname] = await this.readTable('DD03L',
+        [{ fieldName: 'FIELDNAME' }, { fieldName: 'POSITION' }, { fieldName: 'LENG' }],
+        `TABNAME EQ '${tabname.trim().toUpperCase()}' AND AS4LOCAL EQ 'A' AND AS4VERS EQ '0000' AND KEYFLAG EQ 'X'`
+      );
+    }
+    return this._tableKeys[tabname];
   }
 
 }

@@ -5,10 +5,13 @@ export class PackageDependencies {
 
     public readonly dependencies: ObjectDependencies[] = [];
 
-    constructor(public readonly devclass: DEVCLASS, packageDependencies: ZTRM_OBJECT_DEPENDENCIES[]) {
-        packageDependencies.forEach(d => {
-            this.dependencies.push(new ObjectDependencies(d.pgmid, d.object, d.objName, d.dependencies));
-        })
+    constructor(public readonly devclass: DEVCLASS) {}
+    
+    public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[]): Promise<PackageDependencies> {
+        for(const d of packageDependencies){
+            this.dependencies.push(await (new ObjectDependencies(d.pgmid, d.object, d.objName).setDependencies(d.dependencies || [])));
+        }
+        return this;
     }
 
     public getAllTables(): any {

@@ -395,8 +395,8 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.readClassDescriptions(clsname);
     }
-    
-    export async function isServerApisAllowed(): Promise<true|ClientError> {
+
+    export async function isServerApisAllowed(): Promise<true | ClientError> {
         await checkSystemConnector();
         return systemConnector.isServerApisAllowed();
     }
@@ -409,6 +409,11 @@ export namespace SystemConnector {
     export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
         await checkSystemConnector();
         return systemConnector.getPackageDependencies(devclass, includeSubPackages);
+    }
+
+    export async function getTableKeys(tabname: components.TABNAME): Promise<struct.DD03L[]> {
+        await checkSystemConnector();
+        return systemConnector.getTableKeys(tabname);
     }
 
 }

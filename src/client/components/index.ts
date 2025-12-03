@@ -56,3 +56,5 @@ export * from "./LANGU";
 export * from "./SEODESCR";
 export * from "./PROGNAME";
 export * from "./TR_AS4USER";
+export * from "./TABFDPOS";
+export * from "./DDLENG";
