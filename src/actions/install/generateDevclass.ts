@@ -94,7 +94,9 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
             }
             aDummyTdevc.push({
                 devclass: packageReplacement.installDevclass,
-                parentcl: parentcl
+                parentcl: parentcl,
+                dlvunit: '', // not used
+                tpclass: '' // not used
             });
         }
         const installPackageHierarchy = getPackageHierarchy(aDummyTdevc);

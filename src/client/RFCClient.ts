@@ -594,7 +594,17 @@ export class RFCClient implements IClient {
             iv_devclass: devclass,
             iv_incl_sub: includeSubPackages ? 'X' : ' '
         });
-        return result['etDependencies']
+        return result['etDependencies'];
+    }
+
+    public async getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
+        const result = await this._call("ZTRM_GET_DEPENDENCIES_SINGLE", {
+            is_object: {
+                object,
+                obj_name: objName
+            }
+        });
+        return result['etDependencies'];
     }
 
 }

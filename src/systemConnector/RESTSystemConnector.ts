@@ -100,8 +100,12 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     protected getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
         return this._client.getInstalledPackagesBackend();
     }
-    
+
     protected getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
+        return null;
+    }
+
+    protected getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
         return null;
     }
 

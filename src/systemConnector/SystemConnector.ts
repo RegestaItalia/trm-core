@@ -8,7 +8,7 @@ import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
-import { PackageDependencies } from "../dependencies";
+import { ObjectDependencies, PackageDependencies } from "../dependencies";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -409,6 +409,11 @@ export namespace SystemConnector {
     export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
         await checkSystemConnector();
         return systemConnector.getPackageDependencies(devclass, includeSubPackages);
+    }
+
+    export async function getObjectDependencies(object: TROBJTYPE, objName: SOBJ_NAME): Promise<ObjectDependencies> {
+        await checkSystemConnector();
+        return systemConnector.getObjectDependencies(object, objName);
     }
 
     export async function getTableKeys(tabname: components.TABNAME): Promise<struct.DD03L[]> {

@@ -84,6 +84,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getPackageDependencies(devclass, includeSubPackages);
     }
 
+    protected getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
+        return this._client.getObjectDependenciesInternal(object, objName);
+    }
+
     public getConnectionData(): RFCConnection {
         return this._connection;
     }

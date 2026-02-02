@@ -4,7 +4,7 @@ import * as struct from "../client/struct";
 import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
-import { PackageDependencies } from "../dependencies";
+import { ObjectDependencies, PackageDependencies } from "../dependencies";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
@@ -36,6 +36,7 @@ export interface ISystemConnectorBase {
     getTrmRestPackage: () => Promise<TrmPackage>,
     readClassDescriptions: (clsname: components.SEOCLSNAME) => Promise<struct.SEOCLASSTX[]>,
     getPackageDependencies: (devclass: components.DEVCLASS, includeSubPackages: boolean) => Promise<PackageDependencies>,
+    getObjectDependencies: (object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<ObjectDependencies>,
     getTableKeys: (tabname: components.TABNAME) => Promise<struct.DD03L[]>,
     getRootDevclass: (devclass: components.DEVCLASS) => Promise<components.DEVCLASS> 
 }

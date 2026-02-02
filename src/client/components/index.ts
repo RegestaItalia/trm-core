@@ -58,3 +58,4 @@ export * from "./PROGNAME";
 export * from "./TR_AS4USER";
 export * from "./TABFDPOS";
 export * from "./DDLENG";
+export * from "./TPCLASS";

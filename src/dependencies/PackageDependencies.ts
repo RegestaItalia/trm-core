@@ -1,10 +1,10 @@
-import { DEVCLASS, ZTRM_OBJECT_DEPENDENCIES } from "../client";
+import { DEVCLASS, TDEVC, ZTRM_OBJECT_DEPENDENCIES } from "../client";
 import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 import { DependenciesGenericTable, ObjectDependencies } from "./ObjectDependencies";
 
-export type SapPackageDependencies = {
-    package: DEVCLASS,
+export type GenericPackageDependencies = {
+    package: TDEVC,
     dependencies: DependenciesGenericTable[]
 }
 
@@ -17,7 +17,7 @@ export class PackageDependencies {
     
     public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[]): Promise<PackageDependencies> {
         for(const d of packageDependencies){
-            this.dependencies.push(await (new ObjectDependencies(d.pgmid, d.object, d.objName).setDependencies(d.dependencies || [])));
+            this.dependencies.push(await (new ObjectDependencies(d.object, d.objName).setDependencies(d.dependencies || [])));
         }
         return this;
     }
@@ -55,14 +55,14 @@ export class PackageDependencies {
         return trmPackages;
     }
 
-    public async getPackageDependencies(): Promise<SapPackageDependencies[]> {
-        var sapPackages: SapPackageDependencies[] = [];
+    public async getOtherPackageDependencies(): Promise<GenericPackageDependencies[]> {
+        var sapPackages: GenericPackageDependencies[] = [];
         for(const d of this.dependencies){
             for(const p of d.sapPackages){
-                var index = sapPackages.findIndex(o => o.package === p.package);
+                var index = sapPackages.findIndex(o => o.package.devclass === p.package);
                 if(index < 0){
                     index = sapPackages.push({
-                        package: p.package,
+                        package: await SystemConnector.getDevclass(p.package),
                         dependencies: []
                     }) - 1;
                 }

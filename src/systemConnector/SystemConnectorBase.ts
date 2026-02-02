@@ -1,7 +1,6 @@
 import { valid as semverValid } from "semver";
 import { inspect, Logger } from "trm-commons";
 import { Manifest } from "../manifest";
-import { DEVCLASS, PGMID, SOBJ_NAME, TRKORR, TROBJTYPE } from "../client/components";
 import { TADIR, TDEVC, TMSCSYS } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
@@ -11,7 +10,7 @@ import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
-import { PackageDependencies } from "../dependencies";
+import { ObjectDependencies, PackageDependencies } from "../dependencies";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = 'ZIF_TRM';
@@ -38,13 +37,14 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
   protected abstract getR3transInfo(): Promise<string>
   protected abstract getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]>
-  protected abstract getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
+  protected abstract getPackageDependenciesInternal(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
+  protected abstract getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]>
 
   constructor() {
 
   }
 
-  public async getTransportStatus(trkorr: TRKORR): Promise<string> {
+  public async getTransportStatus(trkorr: components.TRKORR): Promise<string> {
     const aTrkorrStatusCheck: any[] = (await this.readTable('E070',
       [{ fieldName: 'TRKORR' }, { fieldName: 'TRSTATUS' }],
       `TRKORR EQ '${trkorr}'`
@@ -63,7 +63,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     } else if (typeof trmPackage === 'string') {
       sqlWhere += ` AND OBJ_NAME EQ 'name=${trmPackage}'`;
     }
-    var aTrkorr: TRKORR[] = (await this.readTable('E071',
+    var aTrkorr: components.TRKORR[] = (await this.readTable('E071',
       [{ fieldName: 'TRKORR' }],
       sqlWhere
     )).map(o => o.trkorr);
@@ -118,7 +118,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
-  public async getSourceTrkorr(refresh?: boolean): Promise<TRKORR[]> {
+  public async getSourceTrkorr(refresh?: boolean): Promise<components.TRKORR[]> {
     if (!this._sourceTrkorr || refresh) {
       Logger.log(`Ready to read installed packages`, true);
       Logger.log(`Checking if ${SRC_TRKORR_TABL} exists`, true);
@@ -128,7 +128,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       if (tablExists.length === 1) {
         Logger.log(`TABL ${SRC_TRKORR_TABL} exists`, true);
         const srcTrkorr: {
-          trkorr: TRKORR
+          trkorr: components.TRKORR
         }[] = await this.readTable(SRC_TRKORR_TABL,
           [{ fieldName: 'TRKORR' }]
         );
@@ -140,7 +140,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return this._sourceTrkorr;
   }
 
-  public async getObject(pgmid: PGMID, object: TROBJTYPE, objName: SOBJ_NAME): Promise<TADIR> {
+  public async getObject(pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<TADIR> {
     const tadir: TADIR[] = await this.readTable('TADIR',
       [{ fieldName: 'PGMID' }, { fieldName: 'OBJECT' }, { fieldName: 'OBJ_NAME' }, { fieldName: 'DEVCLASS' }, { fieldName: 'SRCSYSTEM' }, { fieldName: 'AUTHOR' }],
       `PGMID EQ '${pgmid.trim().toUpperCase()}' AND OBJECT EQ '${object.trim().toUpperCase()}' AND OBJ_NAME EQ '${objName.trim().toUpperCase()}'`
@@ -150,7 +150,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
-  public async getIgnoredTrkorr(refresh?: boolean): Promise<TRKORR[]> {
+  public async getIgnoredTrkorr(refresh?: boolean): Promise<components.TRKORR[]> {
     if (!this._ignoredTrkorr || refresh) {
       Logger.log(`Reading ignored transports`, true);
       Logger.log(`Checking if ${SKIP_TRKORR_TABL} exists`, true);
@@ -160,7 +160,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       if (tablExists.length === 1) {
         Logger.log(`TABLE ${SKIP_TRKORR_TABL} exists`, true);
         const skipTrkorr: {
-          trkorr: TRKORR
+          trkorr: components.TRKORR
         }[] = await this.readTable(SKIP_TRKORR_TABL,
           [{ fieldName: 'TRKORR' }]
         );
@@ -291,7 +291,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     var aSkipTrkorr = await this.getIgnoredTrkorr();
     Logger.log(`Ignored trkorr ${JSON.stringify(aSkipTrkorr)}`, true);
     var aMigrationTrkorr: components.ZTRM_TRKORR[];
-    var aActualTrkorr: TRKORR[] = (await this.readTable('E071',
+    var aActualTrkorr: components.TRKORR[] = (await this.readTable('E071',
       [{ fieldName: 'TRKORR' }],
       `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`
     )).map(o => o.trkorr);
@@ -458,9 +458,9 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return trmPackages;
   }
 
-  public async getDevclass(devclass: DEVCLASS): Promise<TDEVC> {
+  public async getDevclass(devclass: components.DEVCLASS): Promise<TDEVC> {
     const tdevc: TDEVC[] = await this.readTable('TDEVC',
-      [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }],
+      [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }, { fieldName: 'TPCLASS' }, { fieldName: 'DLVUNIT' }],
       `DEVCLASS EQ '${devclass.trim().toUpperCase()}'`
     );
     if (tdevc.length === 1) {
@@ -481,7 +481,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
-  public async getSubpackages(devclass: DEVCLASS): Promise<TDEVC[]> {
+  public async getSubpackages(devclass: components.DEVCLASS): Promise<TDEVC[]> {
     const queryFields = [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }];
     var subpackages: {
       tdevc: TDEVC,
@@ -514,9 +514,9 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return subpackages.map(o => o.tdevc).filter(o => o.devclass !== devclass.trim().toUpperCase());
   }
 
-  public async getDevclassObjects(devclass: DEVCLASS, includeSubpackages: boolean = true): Promise<TADIR[]> {
+  public async getDevclassObjects(devclass: components.DEVCLASS, includeSubpackages: boolean = true): Promise<TADIR[]> {
     var aTadir: TADIR[] = [];
-    var aDevclass: DEVCLASS[] = [devclass];
+    var aDevclass: components.DEVCLASS[] = [devclass];
     if (includeSubpackages) {
       aDevclass = aDevclass.concat(((await this.getSubpackages(devclass)).map(o => o.devclass)));
     }
@@ -534,15 +534,15 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     );
   }
 
-  public async setPackageSuperpackage(devclass: DEVCLASS, superpackage: DEVCLASS): Promise<void> {
+  public async setPackageSuperpackage(devclass: components.DEVCLASS, superpackage: components.DEVCLASS): Promise<void> {
     return await this.tdevcInterface(devclass, superpackage);
   }
 
-  public async clearPackageSuperpackage(devclass: DEVCLASS): Promise<void> {
+  public async clearPackageSuperpackage(devclass: components.DEVCLASS): Promise<void> {
     return await this.tdevcInterface(devclass, null, true);
   }
 
-  public async setPackageTransportLayer(devclass: DEVCLASS, devlayer: components.DEVLAYER): Promise<void> {
+  public async setPackageTransportLayer(devclass: components.DEVCLASS, devlayer: components.DEVLAYER): Promise<void> {
     return await this.tdevcInterface(devclass, null, null, devlayer);
   }
 
@@ -651,6 +651,11 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));
   }
 
+  public async getObjectDependencies(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<ObjectDependencies> {
+    const objectDependencies = await this.getObjectDependenciesInternal(object, objName);
+    return (await new ObjectDependencies(object, objName).setDependencies(objectDependencies || []));
+  }
+
   public async getTableKeys(tabname: components.TABNAME): Promise<struct.DD03L[]> {
     tabname = tabname.trim().toUpperCase();
     if (!this._tableKeys[tabname]) {
@@ -662,11 +667,11 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return this._tableKeys[tabname];
   }
 
-  public async getRootDevclass(devclass: DEVCLASS): Promise<DEVCLASS> {
+  public async getRootDevclass(devclass: components.DEVCLASS): Promise<components.DEVCLASS> {
     devclass = devclass.trim().toUpperCase();
     var currentDevclass = devclass;
     if (!this._rootDevclass[currentDevclass]) {
-      var pastDevclass: DEVCLASS[] = [];
+      var pastDevclass: components.DEVCLASS[] = [];
       while (currentDevclass) {
         var res = (await this.readTable('TDEVC',
           [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }],

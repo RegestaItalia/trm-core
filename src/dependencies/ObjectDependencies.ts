@@ -21,28 +21,29 @@ export class ObjectDependencies {
     }[] = [];
 
 
-    constructor(public readonly pgmid: PGMID, public readonly object: TROBJTYPE, public readonly objName: SOBJ_NAME) { }
+    constructor(public readonly object: TROBJTYPE, public readonly objName: SOBJ_NAME) { }
 
     public async setDependencies(dependencies: ZTRM_OBJECT_DEPENDENCY[]): Promise<ObjectDependencies> {
-        for(const d of dependencies){
+        for (const d of dependencies) {
             const tabkey = await this.addTableKey(d.tabname, d.tabkey);
-            if(d.trmPackageName){
-                var trmPackage = new TrmPackage(d.trmPackageName, RegistryProvider.getRegistry(d.trmPackageRegistry));
-                trmPackage.setDevclass(d.devclass);
-                var iTrmPackage = this.trmPackages.findIndex(o => o.trmPackage.compareName(trmPackage.packageName) && o.trmPackage.compareRegistry(trmPackage.registry));
-                if(iTrmPackage < 0){
-                    iTrmPackage = this.trmPackages.push({
-                        trmPackage,
-                        dependencies: []
-                    }) - 1;
+            if (d.trmPackageName) {
+                var trmPackage = (await SystemConnector.getInstalledPackages(true, false, true)).find(o => o.compareName(d.trmPackageName) && o.compareRegistry(RegistryProvider.getRegistry(d.trmPackageRegistry)));
+                if (trmPackage) {
+                    var iTrmPackage = this.trmPackages.findIndex(o => o.trmPackage.compareName(trmPackage.packageName) && o.trmPackage.compareRegistry(trmPackage.registry));
+                    if (iTrmPackage < 0) {
+                        iTrmPackage = this.trmPackages.push({
+                            trmPackage,
+                            dependencies: []
+                        }) - 1;
+                    }
+                    this.trmPackages[iTrmPackage].dependencies.push({
+                        tabname: d.tabname,
+                        tabkey
+                    });
                 }
-                this.trmPackages[iTrmPackage].dependencies.push({
-                    tabname: d.tabname,
-                    tabkey
-                });
-            }else if(d.devclass){
+            } else if (d.devclass) {
                 var iDevclass = this.sapPackages.findIndex(o => o.package === d.devclass);
-                if(iDevclass < 0){
+                if (iDevclass < 0) {
                     iDevclass = this.sapPackages.push({
                         package: d.devclass,
                         dependencies: []
@@ -63,7 +64,7 @@ export class ObjectDependencies {
         table = table.trim().toUpperCase();
         var definition = await SystemConnector.getTableKeys(table);
         definition = definition.sort((a, b) => Number(a.position) - Number(b.position));
-        if(!this.tables[table]){
+        if (!this.tables[table]) {
             this.tables[table] = [];
         }
         definition.forEach(def => {
