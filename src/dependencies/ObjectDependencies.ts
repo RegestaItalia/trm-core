@@ -36,10 +36,14 @@ export class ObjectDependencies {
                             dependencies: []
                         }) - 1;
                     }
-                    this.trmPackages[iTrmPackage].dependencies.push({
-                        tabname: d.tabname,
-                        tabkey
-                    });
+                    var iTabKeys = this.trmPackages[iTrmPackage].dependencies.findIndex(o => o.tabname === d.tabname);
+                    if (iTabKeys < 0) {
+                        iTabKeys = this.trmPackages[iTrmPackage].dependencies.push({
+                            tabname: d.tabname,
+                            tabkey: []
+                        }) - 1;
+                    }
+                    this.trmPackages[iTrmPackage].dependencies[iTabKeys].tabkey.push(tabkey);
                 }
             } else if (d.devclass) {
                 var iDevclass = this.sapPackages.findIndex(o => o.package === d.devclass);
@@ -49,10 +53,14 @@ export class ObjectDependencies {
                         dependencies: []
                     }) - 1;
                 }
-                this.sapPackages[iDevclass].dependencies.push({
-                    tabname: d.tabname,
-                    tabkey
-                });
+                var iTabKeys = this.sapPackages[iDevclass].dependencies.findIndex(o => o.tabname === d.tabname);
+                if (iTabKeys < 0) {
+                    iTabKeys = this.sapPackages[iDevclass].dependencies.push({
+                        tabname: d.tabname,
+                        tabkey: []
+                    }) - 1;
+                }
+                this.sapPackages[iDevclass].dependencies[iTabKeys].tabkey.push(tabkey);
             }
         }
         return this;
