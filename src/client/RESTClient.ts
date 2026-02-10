@@ -590,4 +590,26 @@ export class RESTClient implements IClient {
         });
     }
 
+    public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
+        const result = (await this._axiosInstance.get('/get_package_dependencies', {
+            data: {
+                devclass,
+                incl_sub: includeSubPackages
+            }
+        })).data;
+        return result.dependencies;
+    }
+
+    public async getObjectDependencies(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
+        const result = (await this._axiosInstance.get('/get_object_dependencies', {
+            data: {
+                object: {
+                    object,
+                    obj_name: objName
+                }
+            }
+        })).data;
+        return result.dependencies;
+    }
+
 }

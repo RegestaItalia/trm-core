@@ -102,11 +102,11 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     protected getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
-        return null;
+        return this._client.getPackageDependencies(devclass, includeSubPackages);
     }
 
     protected getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
-        return null;
+        return this._client.getObjectDependencies(object, objName);
     }
 
     public getConnectionData(): RESTConnection {
