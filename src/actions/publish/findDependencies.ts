@@ -62,37 +62,41 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         Logger.info(`Package "${context.rawInput.packageData.devclass}" has ${trmDependencies.length} TRM package ${trmDependencies.length === 1 ? 'dependency' : 'dependencies'} and references/uses ${sapObjectsUsed} SAP ${sapObjectsUsed === 1 ? 'object' : 'objects'}.`);
 
         //3- set trm dependencies in manifest
-        Logger.log(`Adding TRM package dependencies to manifest`, true);
-        Logger.info(`Updating "${context.rawInput.packageData.name}" manifest with dependencies:`);
-        trmDependencies.forEach((o, i) => {
-            if (o.manifest) {
-                const dependencyManifest = o.manifest.get();
-                const dependencyVersionRange = `^${dependencyManifest.version}`;
-                const dependencyRegistry = o.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.registry.endpoint;
-                context.runtime.trmPackage.manifest.dependencies.push({
-                    name: dependencyManifest.name,
-                    version: dependencyVersionRange,
-                    registry: dependencyRegistry
-                });
-                Logger.info(`  (${i + 1}/${trmDependencies.length}) ${dependencyManifest.name}${dependencyRegistry ? ' (' + o.registry.name + ')' : ''} ${dependencyVersionRange}`);
-            } else {
-                Logger.error(`  (${i + 1}/${trmDependencies.length}) Cannot find manifest of dependency in ABAP package "${o.getDevclass()}"`);
-            }
-        });
+        if (trmDependencies.length > 0) {
+            Logger.log(`Adding TRM package dependencies to manifest`, true);
+            Logger.info(`Updating "${context.rawInput.packageData.name}" manifest with dependencies:`);
+            trmDependencies.forEach((o, i) => {
+                if (o.manifest) {
+                    const dependencyManifest = o.manifest.get();
+                    const dependencyVersionRange = `^${dependencyManifest.version}`;
+                    const dependencyRegistry = o.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.registry.endpoint;
+                    context.runtime.trmPackage.manifest.dependencies.push({
+                        name: dependencyManifest.name,
+                        version: dependencyVersionRange,
+                        registry: dependencyRegistry
+                    });
+                    Logger.info(`  (${i + 1}/${trmDependencies.length}) ${dependencyManifest.name}${dependencyRegistry ? ' (' + o.registry.name + ')' : ''} ${dependencyVersionRange}`);
+                } else {
+                    Logger.error(`  (${i + 1}/${trmDependencies.length}) Cannot find manifest of dependency in ABAP package "${o.getDevclass()}"`);
+                }
+            });
+        }
 
         //4- set sap entries in manifest
-        Logger.log(`Adding SAP objects dependencies to manifest`, true);
-        sapDependencies.forEach(o => {
-            o.dependencies.forEach(d => {
-                if (!context.runtime.trmPackage.manifest.sapEntries[d.tabname]) {
-                    context.runtime.trmPackage.manifest.sapEntries[d.tabname] = [];
-                }
-                d.tabkey.forEach(k => {
-                    if(!context.runtime.trmPackage.manifest.sapEntries[d.tabname].find(c => _.isEqual(c, k))){
-                        context.runtime.trmPackage.manifest.sapEntries[d.tabname].push(k);
+        if (sapDependencies.length > 0) {
+            Logger.log(`Adding SAP objects dependencies to manifest`, true);
+            sapDependencies.forEach(o => {
+                o.dependencies.forEach(d => {
+                    if (!context.runtime.trmPackage.manifest.sapEntries[d.tabname]) {
+                        context.runtime.trmPackage.manifest.sapEntries[d.tabname] = [];
                     }
+                    d.tabkey.forEach(k => {
+                        if (!context.runtime.trmPackage.manifest.sapEntries[d.tabname].find(c => _.isEqual(c, k))) {
+                            context.runtime.trmPackage.manifest.sapEntries[d.tabname].push(k);
+                        }
+                    });
                 });
             });
-        });
+        }
     }
 }

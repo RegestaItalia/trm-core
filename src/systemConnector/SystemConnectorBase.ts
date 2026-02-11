@@ -11,6 +11,7 @@ import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
+import { getPackageHierarchy } from "../commons";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = 'ZIF_TRM';
@@ -257,13 +258,11 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           if (transport) {
             try {
               trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
-            } catch (x) {
-              //devclass not found
-            }
+            } catch { }
           } else {
-            if (o.tdevc.length === 1) {
-              trmPackage.setDevclass(o.tdevc[0].devclass);
-            }
+            try{
+              trmPackage.setDevclass(getPackageHierarchy(o.tdevc).devclass);
+            }catch {}
           }
           trmPackage.setWbTransport(o.trkorr ? new Transport(o.trkorr) : null);
           trmPackages.push(trmPackage);
