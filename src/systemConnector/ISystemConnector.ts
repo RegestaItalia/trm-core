@@ -8,11 +8,12 @@ import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
 export interface ISystemConnector extends ISystemConnectorBase {
     supportedBulk: SystemConnectorSupportedBulk, //indicates bulk operations allowed
+    getNewConnection(): ISystemConnector,
     getConnectionData: () => RFCConnection | RESTConnection,
     getDest: () => string,
     getLogonLanguage: (c: boolean) => string,
     getLogonUser: () => string,
-    connect: () => Promise<void>,
+    connect: (silent: boolean) => Promise<void>,
     closeConnection: () => Promise<void>,
     checkConnection: () => Promise<boolean>,
     ping: () => Promise<string>,
@@ -55,5 +56,8 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}>,
     executePostActivity: (data: Buffer, pre?: boolean) => Promise<{ messages: struct.SYMSG[], execute?: boolean }>,
     isServerApisAllowed: () => Promise<true|ClientError>,
-    changeTrOwner: (trkorr: components.TRKORR, owner: components.TR_AS4USER) => Promise<void>
+    changeTrOwner: (trkorr: components.TRKORR, owner: components.TR_AS4USER) => Promise<void>,
+    createLogPolling: (event: components.ZTRM_POLLING_EVENT) => Promise<components.ZTRM_POLLING_ID>,
+    deleteLogPolling: (logID: components.ZTRM_POLLING_ID) => Promise<void>,
+    readLogPolling: (logID: components.ZTRM_POLLING_ID) => Promise<components.ZTRM_POLLING_LAST_MSG>
 }

@@ -589,10 +589,11 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
+    public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
         const result = await this._call("ZTRM_GET_DEPENDENCIES", {
             iv_devclass: devclass,
-            iv_incl_sub: includeSubPackages ? 'X' : ' '
+            iv_incl_sub: includeSubPackages ? 'X' : ' ',
+            iv_log_id: logId
         });
         return result['etDependencies'];
     }
@@ -605,6 +606,26 @@ export class RFCClient implements IClient {
             }
         });
         return result['etDependencies'];
+    }
+
+    public async createLogPolling(event: components.ZTRM_POLLING_EVENT): Promise<components.ZTRM_POLLING_ID> {
+        const result = await this._call("ZTRM_CREATE_LOG_POLLING", {
+            iv_event: event
+        });
+        return result['evId'];
+    }
+
+    public async deleteLogPolling(logID: components.ZTRM_POLLING_ID): Promise<void> {
+        await this._call("ZTRM_DELETE_LOG_POLLING", {
+            iv_id: logID
+        });
+    }
+
+    public async readLogPolling(logID: components.ZTRM_POLLING_ID): Promise<components.ZTRM_POLLING_LAST_MSG> {
+        const result = await this._call("ZTRM_READ_LOG_POLLING", {
+            iv_id: logID
+        });
+        return result['evLog'];
     }
 
 }

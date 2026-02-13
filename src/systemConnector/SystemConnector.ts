@@ -27,6 +27,11 @@ export namespace SystemConnector {
         }
     }
 
+    export function getNewConnection(): ISystemConnector {
+        checkSystemConnector();
+        return systemConnector.getNewConnection();
+    }
+
     export function getSupportedBulk(): SystemConnectorSupportedBulk {
         checkSystemConnector();
         return systemConnector.supportedBulk;
@@ -52,9 +57,9 @@ export namespace SystemConnector {
         return systemConnector.getLogonUser();
     }
 
-    export async function connect(): Promise<void> {
+    export async function connect(silent: boolean): Promise<void> {
         await checkSystemConnector();
-        return systemConnector.connect();
+        return systemConnector.connect(silent);
     }
 
     export async function closeConnection(): Promise<void> {
@@ -406,9 +411,9 @@ export namespace SystemConnector {
         return systemConnector.changeTrOwner(trkorr, owner);
     }
 
-    export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
+    export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
         await checkSystemConnector();
-        return systemConnector.getPackageDependencies(devclass, includeSubPackages);
+        return systemConnector.getPackageDependencies(devclass, includeSubPackages, log);
     }
 
     export async function getObjectDependencies(object: TROBJTYPE, objName: SOBJ_NAME): Promise<ObjectDependencies> {
@@ -425,5 +430,20 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.getRootDevclass(devclass);
     }
-    
+
+    export async function createLogPolling(event: components.ZTRM_POLLING_EVENT): Promise<components.ZTRM_POLLING_ID> {
+        await checkSystemConnector();
+        return systemConnector.createLogPolling(event);
+    }
+
+    export async function deleteLogPolling(logID: components.ZTRM_POLLING_ID): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.deleteLogPolling(logID);
+    }
+
+    export async function readLogPolling(logID: components.ZTRM_POLLING_ID): Promise<components.ZTRM_POLLING_LAST_MSG> {
+        await checkSystemConnector();
+        return systemConnector.readLogPolling(logID);
+    }
+
 }

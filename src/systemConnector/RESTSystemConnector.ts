@@ -23,7 +23,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     supportedBulk: SystemConnectorSupportedBulk;
 
-    constructor(private _connection: RESTConnection, private _login: Login, normalizeEndpoint: boolean = true) {
+    constructor(private _connection: RESTConnection, private _login: Login, private _normalizeEndpoint: boolean = true) {
         super();
         this.supportedBulk = {
             getTransportObjects: true,
@@ -32,7 +32,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
         this._user = this._login.user;
-        if (normalizeEndpoint) {
+        if (this._normalizeEndpoint) {
             Logger.log(`REST connection data before normalize: ${JSON.stringify(this._connection)}`, true);
             this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
                 removeTrailingSlash: true
@@ -51,6 +51,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._connection.rfcdest = this._connection.rfcdest.toUpperCase().trim();
         Logger.log(`REST connection data after normalize: ${JSON.stringify(this._connection)}`, true);
         this._client = new RESTClient(this._connection.endpoint, this._connection.rfcdest, this._login, this._lang[0]);
+    }
+
+    public getNewConnection(): ISystemConnector {
+        return new RESTSystemConnector(this._connection, this._login, this._normalizeEndpoint);
     }
 
     protected getSysname(): string {
@@ -101,8 +105,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getInstalledPackagesBackend();
     }
 
-    protected getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
-        return this._client.getPackageDependencies(devclass, includeSubPackages);
+    protected getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
+        return this._client.getPackageDependencies(devclass, includeSubPackages, logId);
     }
 
     protected getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
@@ -302,6 +306,18 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
         return this._client.changeTrOwner(trkorr, owner);
+    }
+
+    public async createLogPolling(event: components.ZTRM_POLLING_EVENT): Promise<components.ZTRM_POLLING_ID> {
+        return this._client.createLogPolling(event);
+    }
+
+    public async deleteLogPolling(logID: components.ZTRM_POLLING_ID): Promise<void> {
+        return this._client.deleteLogPolling(logID);
+    }
+
+    public async readLogPolling(logID: components.ZTRM_POLLING_ID): Promise<components.ZTRM_POLLING_LAST_MSG> {
+        return this._client.readLogPolling(logID);
     }
 
 }

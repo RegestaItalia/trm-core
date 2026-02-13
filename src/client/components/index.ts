@@ -59,3 +59,6 @@ export * from "./TR_AS4USER";
 export * from "./TABFDPOS";
 export * from "./DDLENG";
 export * from "./TPCLASS";
+export * from "./ZTRM_POLLING_ID";
+export * from "./ZTRM_POLLING_EVENT";
+export * from "./ZTRM_POLLING_LAST_MSG";

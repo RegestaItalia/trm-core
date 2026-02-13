@@ -1,4 +1,4 @@
-import { DEVCLASS, PGMID, SOBJ_NAME, TROBJTYPE, ZTRM_OBJECT_DEPENDENCY } from "../client";
+import { DEVCLASS, SOBJ_NAME, TROBJTYPE, ZTRM_OBJECT_DEPENDENCY } from "../client";
 import { RegistryProvider } from "../registry";
 import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";

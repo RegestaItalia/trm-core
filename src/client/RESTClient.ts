@@ -590,11 +590,12 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
+    public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
         const result = (await this._axiosInstance.get('/get_package_dependencies', {
             data: {
                 devclass,
-                incl_sub: includeSubPackages
+                incl_sub: includeSubPackages,
+                log_id: logId
             }
         })).data;
         return result.dependencies;
@@ -610,6 +611,30 @@ export class RESTClient implements IClient {
             }
         })).data;
         return result.dependencies;
+    }
+
+    public async createLogPolling(event: components.ZTRM_POLLING_EVENT): Promise<components.ZTRM_POLLING_ID> {
+        const result = (await this._axiosInstance.post('/create_log_polling', {
+            event
+        })).data;
+        return result.id;
+    }
+
+    public async deleteLogPolling(logID: components.ZTRM_POLLING_ID): Promise<void> {
+        await this._axiosInstance.delete('/delete_log_polling', {
+            data: {
+                id: logID
+            }
+        });
+    }
+
+    public async readLogPolling(logID: components.ZTRM_POLLING_ID): Promise<components.ZTRM_POLLING_LAST_MSG> {
+        const result = (await this._axiosInstance.get('/read_log_polling', {
+            data: {
+                id: logID
+            }
+        })).data;
+        return result.message;
     }
 
 }

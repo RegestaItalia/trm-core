@@ -1,3 +1,4 @@
+import { Logger } from "trm-commons";
 import { DEVCLASS, TDEVC, ZTRM_OBJECT_DEPENDENCIES } from "../client";
 import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
@@ -15,8 +16,11 @@ export class PackageDependencies {
 
     constructor(public readonly devclass: DEVCLASS) {}
     
-    public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[]): Promise<PackageDependencies> {
+    public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[], log?: boolean): Promise<PackageDependencies> {
+        var i = 1;
         for(const d of packageDependencies){
+            Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%)...`, !log);
+            i++;
             this.dependencies.push(await (new ObjectDependencies(d.object, d.objName).setDependencies(d.dependencies || [])));
         }
         return this;

@@ -12,6 +12,7 @@ import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, Regi
 import { R3trans } from "node-r3trans";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { getPackageHierarchy } from "../commons";
+import { SystemConnector } from "./SystemConnector";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = 'ZIF_TRM';
@@ -38,7 +39,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
   protected abstract getR3transInfo(): Promise<string>
   protected abstract getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]>
-  protected abstract getPackageDependenciesInternal(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
+  protected abstract getPackageDependenciesInternal(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
   protected abstract getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]>
 
   constructor() {
@@ -260,9 +261,9 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
               trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
             } catch { }
           } else {
-            try{
+            try {
               trmPackage.setDevclass(getPackageHierarchy(o.tdevc).devclass);
-            }catch {}
+            } catch { }
           }
           trmPackage.setWbTransport(o.trkorr ? new Transport(o.trkorr) : null);
           trmPackages.push(trmPackage);
@@ -645,9 +646,46 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     );
   }
 
-  public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
-    const packageDependencies = await this.getPackageDependenciesInternal(devclass, includeSubPackages);
-    return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));
+  public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
+    var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
+    if (log) {
+      // create logging poll
+      const newConnection = SystemConnector.getNewConnection();
+      await newConnection.connect(true);
+      const logId = await newConnection.createLogPolling('DEVCLASS_D');
+      const job = this.getPackageDependenciesInternal(devclass, includeSubPackages, logId);
+      var stopped = false;
+      const poll = (async () => {
+        while (!stopped) {
+          try {
+            const status = await newConnection.readLogPolling(logId);
+            if (status) {
+              Logger.loading(`${status}...`);
+            }
+          } catch { }
+          await new Promise(r => setTimeout(r, 500));
+        }
+      })();
+      try {
+        packageDependencies = await job;
+      } catch (e) {
+        try {
+          await newConnection.deleteLogPolling(logId);
+        } catch { }
+        throw e;
+      }
+      stopped = true;
+      await poll;
+      try {
+        await newConnection.deleteLogPolling(logId);
+        await newConnection.closeConnection();
+      } catch { }
+      return (await new PackageDependencies(devclass).setDependencies(packageDependencies || [], log));
+
+    } else {
+      packageDependencies = await this.getPackageDependenciesInternal(devclass, includeSubPackages);
+      return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));
+    }
   }
 
   public async getObjectDependencies(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<ObjectDependencies> {
