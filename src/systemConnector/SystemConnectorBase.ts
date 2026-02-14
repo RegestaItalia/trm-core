@@ -649,6 +649,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
     if (log) {
+      Logger.loading(`Finding dependencies (0.0%)...`);
       // create logging poll
       const newConnection = SystemConnector.getNewConnection();
       await newConnection.connect(true);

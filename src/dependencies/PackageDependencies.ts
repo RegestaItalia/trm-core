@@ -18,8 +18,10 @@ export class PackageDependencies {
     
     public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[], log?: boolean): Promise<PackageDependencies> {
         var i = 1;
+      Logger.loading(`Analyzing dependencies (0.0%)...`, !log);
         for(const d of packageDependencies){
             Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%)...`, !log);
+            Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%) > ${d.pgmid}${d.object}${d.objName}...`, true);
             i++;
             this.dependencies.push(await (new ObjectDependencies(d.object, d.objName).setDependencies(d.dependencies || [])));
         }

@@ -121,14 +121,14 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._user;
     }
 
-    public async connect(): Promise<void> {
+    public async connect(silent: boolean = false): Promise<void> {
         Logger.loading(`Connecting to ${this.getDest()}...`);
         try {
             await this._client.open();
             this._dest = await this._client.getDest();
-            Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, false);
+            Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
         } catch (e) {
-            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, false);
+            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, silent);
             throw e;
         }
     }
