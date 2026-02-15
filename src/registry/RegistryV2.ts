@@ -65,7 +65,7 @@ export class RegistryV2 implements AbstractRegistry {
         var axiosHeaders: AxiosHeaders = new AxiosHeaders();
         if (!this._userAgent) {
             try {
-                this._userAgent = `trm-core v${getNodePackage().version}`;
+                this._userAgent = `trm-core v${getNodePackage("trm-core").version}`;
             } catch { }
         }
         axiosHeaders.setUserAgent(this._userAgent || `trm-core`);
