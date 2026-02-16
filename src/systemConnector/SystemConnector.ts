@@ -8,6 +8,7 @@ import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
+import { ObjectDependencies, PackageDependencies } from "../dependencies";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -24,6 +25,11 @@ export namespace SystemConnector {
                 })
             });
         }
+    }
+
+    export function getNewConnection(): ISystemConnector {
+        checkSystemConnector();
+        return systemConnector.getNewConnection();
     }
 
     export function getSupportedBulk(): SystemConnectorSupportedBulk {
@@ -51,9 +57,9 @@ export namespace SystemConnector {
         return systemConnector.getLogonUser();
     }
 
-    export async function connect(): Promise<void> {
+    export async function connect(silent: boolean): Promise<void> {
         await checkSystemConnector();
-        return systemConnector.connect();
+        return systemConnector.connect(silent);
     }
 
     export async function closeConnection(): Promise<void> {
@@ -394,8 +400,8 @@ export namespace SystemConnector {
         await checkSystemConnector();
         return systemConnector.readClassDescriptions(clsname);
     }
-    
-    export async function isServerApisAllowed(): Promise<true|ClientError> {
+
+    export async function isServerApisAllowed(): Promise<true | ClientError> {
         await checkSystemConnector();
         return systemConnector.isServerApisAllowed();
     }
@@ -403,6 +409,41 @@ export namespace SystemConnector {
     export async function changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
         await checkSystemConnector();
         return systemConnector.changeTrOwner(trkorr, owner);
+    }
+
+    export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
+        await checkSystemConnector();
+        return systemConnector.getPackageDependencies(devclass, includeSubPackages, log);
+    }
+
+    export async function getObjectDependencies(object: TROBJTYPE, objName: SOBJ_NAME): Promise<ObjectDependencies> {
+        await checkSystemConnector();
+        return systemConnector.getObjectDependencies(object, objName);
+    }
+
+    export async function getTableKeys(tabname: components.TABNAME): Promise<struct.DD03L[]> {
+        await checkSystemConnector();
+        return systemConnector.getTableKeys(tabname);
+    }
+
+    export async function getRootDevclass(devclass: DEVCLASS): Promise<DEVCLASS> {
+        await checkSystemConnector();
+        return systemConnector.getRootDevclass(devclass);
+    }
+
+    export async function createLogPolling(event: components.ZTRM_POLLING_EVENT): Promise<components.ZTRM_POLLING_ID> {
+        await checkSystemConnector();
+        return systemConnector.createLogPolling(event);
+    }
+
+    export async function deleteLogPolling(logID: components.ZTRM_POLLING_ID): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.deleteLogPolling(logID);
+    }
+
+    export async function readLogPolling(logID: components.ZTRM_POLLING_ID): Promise<components.ZTRM_POLLING_LAST_MSG> {
+        await checkSystemConnector();
+        return systemConnector.readLogPolling(logID);
     }
 
 }

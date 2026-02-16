@@ -1,0 +1,1 @@
+export type ZTRM_POLLING_LAST_MSG = string;

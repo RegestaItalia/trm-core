@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "8.1.4",
+  "version": "8.2.0",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "license": "MIT",
   "trmDependencies": {
-    "trm-server": "^5.0.0"
+    "trm-server": "^5.1.0"
   },
   "dependencies": {
     "@esm2cjs/normalize-url": "^8.0.0",

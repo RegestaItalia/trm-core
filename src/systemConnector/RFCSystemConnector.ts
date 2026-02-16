@@ -21,7 +21,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         getExistingObjects: false
     };
 
-    constructor(private _connection: RFCConnection, private _login: Login, private _traceDir?: string, _globalNodeModulesPath?: string) {
+    constructor(private _connection: RFCConnection, private _login: Login, private _traceDir?: string, private _globalNodeModulesPath?: string) {
         super();
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
@@ -29,7 +29,11 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         if (!this._connection.saprouter) {
             delete this._connection.saprouter;
         }
-        this._client = new RFCClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir, _globalNodeModulesPath);
+        this._client = new RFCClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir, this._globalNodeModulesPath);
+    }
+
+    public getNewConnection(): ISystemConnector {
+        return new RFCSystemConnector(this._connection, this._login, this._traceDir, this._globalNodeModulesPath);
     }
 
     protected getSysname(): string {
@@ -78,6 +82,14 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     protected getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
         return this._client.getInstalledPackagesBackend();
+    }
+
+    protected getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
+        return this._client.getPackageDependencies(devclass, includeSubPackages, logId);
+    }
+
+    protected getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
+        return this._client.getObjectDependenciesInternal(object, objName);
     }
 
     public getConnectionData(): RFCConnection {
@@ -264,6 +276,18 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
         return this._client.changeTrOwner(trkorr, owner);
+    }
+
+    public async createLogPolling(event: components.ZTRM_POLLING_EVENT): Promise<components.ZTRM_POLLING_ID> {
+        return this._client.createLogPolling(event);
+    }
+
+    public async deleteLogPolling(logID: components.ZTRM_POLLING_ID): Promise<void> {
+        return this._client.deleteLogPolling(logID);
+    }
+
+    public async readLogPolling(logID: components.ZTRM_POLLING_ID): Promise<components.ZTRM_POLLING_LAST_MSG> {
+        return this._client.readLogPolling(logID);
     }
 
 }
