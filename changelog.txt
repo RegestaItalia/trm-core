@@ -12,6 +12,7 @@ Legend
 -------------------
 ! dependency detection moved to trm-server
 ! trm-server ^5.1.0 
+! package.json detection
 
 2025-11-16 v8.1.4
 -------------------
