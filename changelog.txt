@@ -8,6 +8,18 @@ Legend
 + : added
 - : removed
 
+2026-02-17 v8.2.3
+-------------------
+* find dependencies in publish action
+
+2026-02-17 v8.2.2
+-------------------
+* customer package indicator
+
+2026-02-17 v8.2.1
+-------------------
+! object dependency structure
+
 2026-02-11 v8.2.0
 -------------------
 ! dependency detection moved to trm-server
