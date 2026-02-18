@@ -26,7 +26,8 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
         Logger.log('Import TADIR Transport step', true);
 
         Logger.loading(`Importing ${context.rawInput.packageData.name}...`);
-        const importTimeout = context.rawInput.installData.import.timeout;
+        //TODO TEMP -> To change!
+        const importTimeout = context.rawInput.packageData.name === 'trm-server' ? 99999999999 : context.rawInput.installData.import.timeout;
 
         //1- upload transport into system
         Logger.loading(`Uploading ${context.runtime.packageTransports.tadir.binaries.trkorr}`, true);
