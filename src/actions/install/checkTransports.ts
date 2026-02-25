@@ -159,6 +159,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         context.runtime.installData.entries = context.runtime.packageTransportsData.e071;
 
         //9- check existance of trkorr in target system
+        Logger.loading(`Checking package transports...`);
         Logger.loading(`Checking if ${checkExistance.length} transports exist before importing them`, true);
         for (const trkorr of checkExistance) {
             const oTransport = new Transport(trkorr);

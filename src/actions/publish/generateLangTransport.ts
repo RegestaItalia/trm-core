@@ -43,9 +43,6 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
                 Logger.info(`Language transport has no content, deleting.`, true);
                 await context.runtime.systemData.langTransport.delete();
                 context.runtime.systemData.langTransport = undefined;
-            }else{
-                await context.runtime.systemData.langTransport.addComment(`name=${context.rawInput.packageData.name}`);
-                await context.runtime.systemData.langTransport.addComment(`version=${context.rawInput.packageData.version}`);
             }
         }
     },

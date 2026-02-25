@@ -171,6 +171,7 @@ type WorkflowRuntime = {
         latestReleaseManifest?: TrmManifest,
         releasesInRegistry?: string[],
         manifest: TrmManifest,
+        manifestXml?: string,
         artifact?: TrmArtifact
     },
     systemData: {

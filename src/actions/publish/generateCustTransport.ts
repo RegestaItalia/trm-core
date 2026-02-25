@@ -12,9 +12,9 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 export const generateCustTransport: Step<PublishWorkflowContext> = {
     name: 'generate-cust-transport',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if((context.rawInput.publishData.customizingTransports as Array<Transport>).length > 0){
+        if ((context.rawInput.publishData.customizingTransports as Array<Transport>).length > 0) {
             return true;
-        }else{
+        } else {
             Logger.log(`Skipping CUST transport generation (no customizing transports)`, true);
             return false;
         }
@@ -30,14 +30,12 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
             target: context.rawInput.systemData.transportTarget,
             text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (C)`
         });
-        await context.runtime.systemData.custTransport.addComment(`name=${context.rawInput.packageData.name}`);
-        await context.runtime.systemData.custTransport.addComment(`version=${context.rawInput.packageData.version}`);
-        for(const transport of (context.rawInput.publishData.customizingTransports as Array<Transport>)){
+        for (const transport of (context.rawInput.publishData.customizingTransports as Array<Transport>)) {
             await context.runtime.systemData.custTransport.addObjectsFromTransport(transport.trkorr);
         }
         //check transport has content (else delete)
         const e071 = await context.runtime.systemData.custTransport.getE071();
-        if(e071.length === 0){
+        if (e071.length === 0) {
             Logger.info(`Customizing transport has no content, deleting.`, true);
             await context.runtime.systemData.custTransport.delete();
             context.runtime.systemData.custTransport = undefined;

@@ -3,9 +3,7 @@ import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
 import { RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency } from "../../manifest";
-import chalk from "chalk";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
-import { validatePackageVisibility } from "../../validators";
 import _ from 'lodash';
 
 /**
@@ -24,6 +22,8 @@ import _ from 'lodash';
  * 6- edit dependencies/sap entries
  * 
  * 7- normalize manifest values
+ * 
+ * 8- transform into xml
  * 
 */
 export const setManifestValues: Step<PublishWorkflowContext> = {
@@ -405,5 +405,8 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
 
         //7- normalize manifest values
         context.runtime.trmPackage.manifest = Manifest.normalize(context.runtime.trmPackage.manifest, false);
+
+        //8- transform into xml
+        context.runtime.trmPackage.manifestXml = new Manifest(context.runtime.trmPackage.manifest).getAbapXml();
     }
 }

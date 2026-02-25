@@ -3,10 +3,11 @@ import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { getPackageNamespace, TrmServerUpgrade } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
-import { Transport } from "../../transport";
+import { COMMENT_OBJ, Transport } from "../../transport";
 import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { Manifest } from "../../manifest";
+import chalk from "chalk";
 
 /**
  * Generate install transport
@@ -139,27 +140,30 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                     };
                 }));
             }
+            //remove trm comments
+            tadirObjects = tadirObjects.filter(o => !(o.pgmid === '*' && o.object === COMMENT_OBJ));
+            //remove objects that are already in transport or its tasks
             var trObjs = await context.runtime.installData.transport.getE071();
             const tasks = await context.runtime.installData.transport.getTasks();
             for (const task of tasks) {
                 trObjs = trObjs.concat(await task.getE071());
             }
             trObjs.forEach(o => {
-                //remove objects that are already in transport or its tasks
                 tadirObjects = tadirObjects.filter(k => !(k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName));
             });
+            //add workbench objects to transport
             for (const tadir of tadirObjects) {
                 try {
                     try {
                         Logger.log(`Adding object ${tadir.pgmid} ${tadir.object} ${tadir.objName} with lock`, true);
                         await context.runtime.installData.transport.addObjects([tadir], true);
                     } catch (e) {
-                        Logger.log(`Failed, adding object ${tadir.pgmid} ${tadir.object} ${tadir.objName} without lock`, true);
+                        Logger.log(`Failed ${e.toString()}, adding without lock`, true);
                         await context.runtime.installData.transport.addObjects([tadir], false);
                     }
                 } catch (e) {
                     //object might be in transport already
-                    Logger.error(`Failed adding object ${tadir.pgmid} ${tadir.object} ${tadir.objName}`, true);
+                    Logger.warning(`Failed adding ${tadir.pgmid}${tadir.object}${tadir.objName} to transport ${context.runtime.installData.transport.trkorr}`);
                     Logger.error(e.toString(), true);
                 }
             }
@@ -170,7 +174,7 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                     Logger.log(`Including language transport ${context.runtime.packageTransports.lang.instance.trkorr}`, true);
                     await context.runtime.installData.transport.addObjectsFromTransport(context.runtime.packageTransports.lang.instance.trkorr);
                 } catch (e) {
-                    Logger.error(`Failed including language transport ${context.runtime.packageTransports.lang.instance.trkorr}`, true);
+                    Logger.warning(`Failed including language transport ${context.runtime.packageTransports.lang.instance.trkorr} to transport ${context.runtime.installData.transport.trkorr}`);
                     Logger.error(e.toString(), true);
                 }
             }
@@ -181,7 +185,7 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                     Logger.log(`Including customizing transport ${context.runtime.packageTransports.cust.instance.trkorr}`, true);
                     await context.runtime.installData.transport.addObjectsFromTransport(context.runtime.packageTransports.cust.instance.trkorr);
                 } catch (e) {
-                    Logger.error(`Failed including customizing transport ${context.runtime.packageTransports.cust.instance.trkorr}`, true);
+                    Logger.warning(`Failed including customizing transport ${context.runtime.packageTransports.cust.instance.trkorr} to transport ${context.runtime.installData.transport.trkorr}`);
                     Logger.error(e.toString(), true);
                 }
             }
@@ -197,7 +201,7 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                             objName: context.runtime.installData.namespace
                         }], false);
                     } catch (e) {
-                        Logger.error(`Failed adding namespace ${context.runtime.installData.namespace}`, true);
+                        Logger.warning(`Failed adding namespace ${context.runtime.installData.namespace} to transport ${context.runtime.installData.transport.trkorr}`);
                         Logger.error(e.toString(), true);
                     }
                 } else {
@@ -205,7 +209,7 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                 }
             }
 
-            Logger.success(`Use ${context.runtime.installData.transport.trkorr} for transports in your landscape.`);
+            Logger.success(`Use ${chalk.bold(context.runtime.installData.transport.trkorr)} for transports in ${SystemConnector.getDest()} landscape.`);
         } catch (e) {
             Logger.error(`An error occurred during install transport generation/update.`);
             Logger.error(e.toString(), true);

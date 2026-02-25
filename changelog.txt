@@ -11,6 +11,8 @@ Legend
 2026-02-25 v8.3.2
 -------------------
 * print message on install
+! removed buffer from registry debug log output
+! added manifest to all trm transports
 
 2026-02-17 v8.3.1
 -------------------

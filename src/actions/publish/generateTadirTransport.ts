@@ -37,15 +37,11 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
         //3- generate transport
         Logger.loading(`Generating transports...`);
         Logger.loading(`Generating TADIR transport...`, true);
-        const sManifestXml = new Manifest(context.runtime.trmPackage.manifest).getAbapXml();
         context.runtime.systemData.tadirTransport = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.TADIR,
             target: context.rawInput.systemData.transportTarget,
             text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`
         });
-        await context.runtime.systemData.tadirTransport.addComment(`name=${context.rawInput.packageData.name}`);
-        await context.runtime.systemData.tadirTransport.addComment(`version=${context.rawInput.packageData.version}`);
-        await context.runtime.systemData.tadirTransport.setDocumentation(sManifestXml);
         await context.runtime.systemData.tadirTransport.addObjects(aTadir, false);
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
