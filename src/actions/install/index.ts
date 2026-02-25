@@ -251,6 +251,7 @@ type WorkflowRuntime = {
     installData: {
         namespace: string,
         entries: E071[],
+        upgradingPackage?: TrmPackage,
         transport?: Transport
     },
     generatedData: {

@@ -11,12 +11,8 @@ function _validateDevclass(input: string, packagesNamespace: string): string | t
     if (sInput.length > 30) {
         return `Package name must not exceede 30 characters limit.`;
     }
-    if (packagesNamespace.startsWith('/')) {
-        if (!sInput.startsWith(packagesNamespace)) {
-            return `Package name must use namespace "${packagesNamespace}".`;
-        } else {
-            return true;
-        }
+    if (!sInput.startsWith(packagesNamespace)) {
+        return `Package name must use namespace "${packagesNamespace}".`;
     } else {
         return true;
     }
@@ -35,16 +31,16 @@ function _validateDevclass(input: string, packagesNamespace: string): string | t
 export const setInstallDevclass: Step<InstallWorkflowContext> = {
     name: 'set-install-devclass',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(context.rawInput.installData.installDevclass.keepOriginal){
+        if (context.rawInput.installData.installDevclass.keepOriginal) {
             Logger.log(`Skipping set devclass replacements (user input)`, true);
             return false;
-        }else{
+        } else {
             return true;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Set install devclass step', true);
-        
+
         //1- set replacements from input/find already defined replacements in system
         if (context.rawInput.installData.installDevclass.keepOriginal) {
             context.rawInput.installData.installDevclass.replacements = context.runtime.packageTransportsData.tdevc.map(o => {
@@ -65,40 +61,50 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         if (!rootDevclass) {
             rootDevclass = context.runtime.originalData.hierarchy.devclass;
         }
-        const packagesNamespace = getPackageNamespace(rootDevclass);
+        const originalNamespace = getPackageNamespace(rootDevclass);
+        var updateNamespace;
+        if (context.runtime.installData.upgradingPackage) {
+            updateNamespace = getPackageNamespace(context.runtime.installData.upgradingPackage.getDevclass());
+        }
 
         var inq1Prompts: Question[] = [];
-        context.runtime.packageTransportsData.tdevc.forEach(t => {
+        Logger.loading(`Analyzing packages...`);
+        for (const t of context.runtime.packageTransportsData.tdevc) {
+            var adaptDevclassName = t.devclass;
+            if (updateNamespace) {
+                adaptDevclassName = adaptDevclassName.replace(new RegExp(`^${originalNamespace}`, 'gmi'), updateNamespace);
+            }
             const replacement = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === t.devclass);
+            const packageExists = await SystemConnector.getDevclass(adaptDevclassName);
             if (!replacement) {
-                if(context.rawInput.contextData.noInquirer){
-                    const automaticValue = _validateDevclass(t.devclass, packagesNamespace);
-                    if(automaticValue === true){
+                if (context.rawInput.contextData.noInquirer) {
+                    const automaticValue = _validateDevclass(adaptDevclassName, updateNamespace || originalNamespace);
+                    if (automaticValue === true) {
                         context.rawInput.installData.installDevclass.replacements.push({
                             originalDevclass: t.devclass,
-                            installDevclass: t.devclass
+                            installDevclass: adaptDevclassName
                         });
-                    }else{
+                    } else {
                         throw new Error(automaticValue);
                     }
-                }else{
+                } else {
                     inq1Prompts.push({
                         type: "input",
                         name: t.devclass,
-                        default: t.devclass,
-                        message: `Input name for package "${t.devclass}"`,
+                        default: adaptDevclassName,
+                        message: packageExists ? `Rename ABAP Package "${adaptDevclassName}"?` : `ABAP Package "${adaptDevclassName}" will be generated. Do you want to rename it?`,
                         validate: (input) => {
-                            return _validateDevclass(input, packagesNamespace);
+                            return _validateDevclass(input, updateNamespace || originalNamespace);
                         }
                     });
                 }
             } else {
-                const devclassValid = _validateDevclass(replacement.installDevclass, packagesNamespace);
+                const devclassValid = _validateDevclass(replacement.installDevclass, updateNamespace || originalNamespace);
                 if (devclassValid !== true) {
                     throw new Error(devclassValid);
                 }
             }
-        });
+        }
         if (inq1Prompts.length > 0) {
             const inq1 = await Inquirer.prompt(inq1Prompts);
             Object.keys(inq1).forEach(k => {
@@ -116,11 +122,11 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         Logger.loading(`Updating install data...`);
         var installDevc: ZTRM_INSTALLDEVC[] = [];
         var packageRegistry: string;
-        if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC){
+        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
             packageRegistry = PUBLIC_RESERVED_KEYWORD;
-        }else if(context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL){
+        } else if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
             packageRegistry = LOCAL_RESERVED_KEYWORD;
-        }else{
+        } else {
             packageRegistry = context.rawInput.packageData.registry.endpoint;
         }
         context.rawInput.installData.installDevclass.replacements.forEach(o => {
