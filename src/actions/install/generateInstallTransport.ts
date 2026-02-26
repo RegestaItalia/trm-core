@@ -44,7 +44,7 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
         try {
             //1- check no temporary objects; it's sufficient to check that the namespace is not $
             if (getPackageNamespace(context.runtime.installData.namespace) === '$') {
-                Logger.warning(`Install transport was not generated because the package contains non-transportable objects.`);
+                Logger.warning(`Install transport was not generated because the install package is temporary ($).`, true);
                 return;
             }
 
