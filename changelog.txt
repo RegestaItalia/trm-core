@@ -8,7 +8,7 @@ Legend
 + : added
 - : removed
 
-2026-02-25 v8.3.2
+2026-02-25 v8.4.0
 -------------------
 * print message on install
 ! removed buffer from registry debug log output
