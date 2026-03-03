@@ -5,6 +5,7 @@ import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import _ from 'lodash';
 import { TrmServerUpgrade } from "../../commons";
+import isUnicodeSupported from "is-unicode-supported";
 
 /**
  * Import TADIR Transport.
@@ -26,8 +27,6 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
         Logger.log('Import TADIR Transport step', true);
 
         Logger.loading(`Importing ${context.rawInput.packageData.name}...`);
-        //TODO TEMP -> To change!
-        const importTimeout = context.rawInput.packageData.name === 'trm-server' ? 99999999999 : context.rawInput.installData.import.timeout;
 
         //1- upload transport into system
         Logger.loading(`Uploading ${context.runtime.packageTransports.tadir.binaries.trkorr}`, true);
@@ -45,7 +44,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
         //3- import transport into system
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(Workbench) `;
+        const prefix = `(${isUnicodeSupported() ? '🚚' : '⛟'} Workbench) `;
         if (originalLPrefix) {
             Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
         } else {
@@ -57,7 +56,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             Inquirer.setPrefix(prefix);
         }
         Logger.loading(`Importing ${context.runtime.packageTransports.tadir.binaries.trkorr}`, true);
-        await context.runtime.packageTransports.tadir.instance.import(importTimeout);
+        await context.runtime.packageTransports.tadir.instance.import();
         Logger.success(`Transport ${context.runtime.packageTransports.tadir.binaries.trkorr} imported`, true);
         Logger.setPrefix(originalLPrefix);
         Inquirer.setPrefix(originalIPrefix);

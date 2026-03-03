@@ -25,7 +25,7 @@ export class RegistryV2 implements AbstractRegistry {
     private _authData: any;
     private _userAgent: string;
 
-    constructor(public endpoint: string, public name: string = 'Unknown') {
+    constructor(public endpoint: string, public name: string = 'Unknown', private _coreVersion?: string) {
         var envEndpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT;
         Logger.log(`TRM_PUBLIC_REGISTRY_ENDPOINT Environment variable: ${envEndpoint}`, true);
         if (!envEndpoint || envEndpoint.trim().toLowerCase() === PUBLIC_RESERVED_KEYWORD) {
@@ -65,10 +65,12 @@ export class RegistryV2 implements AbstractRegistry {
         var axiosHeaders: AxiosHeaders = new AxiosHeaders();
         if (!this._userAgent) {
             try {
-                this._userAgent = `trm-core v${getNodePackage().version}`;
-            } catch { }
+                this._userAgent = `trm-core v${this._coreVersion || getNodePackage().version}`;
+            } catch {
+                this._userAgent = `trm-core with unknown version`
+            }
         }
-        axiosHeaders.setUserAgent(this._userAgent || `trm-core`);
+        axiosHeaders.setUserAgent(this._userAgent);
         return axiosHeaders;
     }
 

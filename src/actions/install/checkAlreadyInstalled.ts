@@ -23,10 +23,10 @@ export const checkAlreadyInstalled: Step<InstallWorkflowContext> = {
         const trmManifest = context.runtime.remotePackageData.manifest;
 
         //2- check if already installed
-        const installedPackage = installedPackages.find(o => Manifest.compare(o.manifest, new Manifest(manifest), false));
-        if(installedPackage){
+        context.runtime.installData.upgradingPackage = installedPackages.find(o => Manifest.compare(o.manifest, new Manifest(manifest), false));
+        if(context.runtime.installData.upgradingPackage){
             const installVersion = trmManifest.version;
-            const installedVersion = installedPackage.manifest.get().version;
+            const installedVersion = context.runtime.installData.upgradingPackage.manifest.get().version;
             context.runtime.update = true;
             if(eq(installVersion, installedVersion)){
                 if(context.rawInput.packageData.overwrite){

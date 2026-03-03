@@ -27,3 +27,4 @@ export * from "./ZTY_TRM_PACKAGE";
 export * from "./ZTRM_OBJECT_DEPENDENCY";
 export * from "./ZTRM_OBJECT_DEPENDENCIES";
 export * from "./DD03L";
+export * from "./TPSTAT";

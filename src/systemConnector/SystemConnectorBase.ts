@@ -29,6 +29,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   private _r3transInfoLog: string;
   private _tableKeys: any = {};
   private _rootDevclass: any = {};
+  private _timezone: string;
 
   protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]>
   protected abstract getSysname(): string
@@ -728,6 +729,132 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }
     }
     return this._rootDevclass[devclass];
+  }
+
+  public async getTimezone(): Promise<string> {
+    if (!this._timezone) {
+      const map: Record<string, string> = {
+        // Europe
+        CET: "Europe/Berlin",
+        EET: "Europe/Helsinki",
+        GMTUK: "Europe/London",
+        AZOREN: "Atlantic/Azores",
+        CYPRUS: "Asia/Nicosia",
+        MOLDVA: "Europe/Chisinau",
+        TURKEY: "Europe/Istanbul",
+
+        // Africa
+        CAT: "Africa/Harare",
+        EGYPT: "Africa/Cairo",
+        MOROCC: "Africa/Casablanca",
+
+        // Middle East
+        ISRAEL: "Asia/Jerusalem",
+        IRAN: "Asia/Tehran",
+        IRAQ: "Asia/Baghdad",
+        JORDAN: "Asia/Amman",
+        LBANON: "Asia/Beirut",
+        SYRIA: "Asia/Damascus",
+
+        // Asia
+        AFGHAN: "Asia/Kabul",
+        AZT: "Asia/Baku",
+        BDT: "Asia/Dhaka",
+        INDIA: "Asia/Kolkata",
+        JAPAN: "Asia/Tokyo",
+        NEPAL: "Asia/Kathmandu",
+        PKT: "Asia/Karachi",
+
+        // Russia zones
+        RUS02: "Europe/Kaliningrad",
+        RUS03: "Europe/Moscow",
+        RUS04: "Europe/Samara",
+        RUS05: "Asia/Yekaterinburg",
+        RUS06: "Asia/Omsk",
+        RUS07: "Asia/Krasnoyarsk",
+        RUS08: "Asia/Irkutsk",
+        RUS09: "Asia/Yakutsk",
+        RUS10: "Asia/Vladivostok",
+        RUS11: "Asia/Magadan",
+        RUS12: "Asia/Kamchatka",
+
+        // Australia
+        AUSEUC: "Australia/Eucla",
+        AUSLHI: "Australia/Lord_Howe",
+        AUSNSW: "Australia/Sydney",
+        AUSNT: "Australia/Darwin",
+        AUSQLD: "Australia/Brisbane",
+        AUSSA: "Australia/Adelaide",
+        AUSTAS: "Australia/Hobart",
+        AUSVIC: "Australia/Melbourne",
+        AUSWA: "Australia/Perth",
+        NORFLK: "Pacific/Norfolk",
+
+        // New Zealand
+        NZST: "Pacific/Auckland",
+        NZCHA: "Pacific/Chatham",
+
+        // Americas - North
+        ALA: "America/Anchorage",
+        ALAW: "America/Adak",
+        EST: "America/New_York",
+        EST_: "America/Toronto",
+        EST_NA: "America/New_York",
+        ESTNO: "America/New_York",
+        CST: "America/Chicago",
+        CST_NA: "America/Chicago",
+        CSTNO: "America/Chicago",
+        MST: "America/Denver",
+        MSTNO: "America/Phoenix",
+        MST_NA: "America/Denver",
+        PST: "America/Los_Angeles",
+        HAW: "Pacific/Honolulu",
+        NST: "America/St_Johns",
+        PIERRE: "America/Miquelon",
+
+        // Americas - South
+        ART: "America/Argentina/Buenos_Aires",
+        BRAZIL: "America/Sao_Paulo",
+        BRZLAN: "America/Manaus",
+        BRZLWE: "America/Rio_Branco",
+        CHILE: "America/Santiago",
+        CHILEE: "Pacific/Easter",
+        CHILEM: "America/Punta_Arenas",
+        PARAGY: "America/Asuncion",
+        URUGUA: "America/Montevideo",
+        GST: "America/Godthab",
+        GSTE: "America/Scoresbysund",
+        GSTW: "America/Godthab",
+        FLKLND: "Atlantic/Stanley",
+
+        // Other
+        FIJI: "Pacific/Fiji",
+        MAU: "Indian/Mauritius",
+
+        // UTC
+        UTC: "UTC",
+      };
+      try {
+        const sapTimezone: string = (await this.readTable('TTZCU', [{ fieldName: 'TZONESYS' }]))[0].tzonesys;
+        // Handle UTC dynamically (UTC+1, UTC+10, UTC-3, etc.)
+        const m = sapTimezone.match(/^UTC([+-])(\d{1,2})$/);
+        if (m) {
+          const sign = m[1];
+          const hours = Number(m[2]);
+          const etcSign = sign === "+" ? "-" : "+";
+          this._timezone = `Etc/GMT${etcSign}${hours}`;
+        }
+        if (!map[sapTimezone]) {
+          throw new Error(`Unsupported SAP timezone: ${sapTimezone}`);
+        }
+        this._timezone = map[sapTimezone];
+      } catch (e) {
+        Logger.error(`Cannot read/parse system timezone!`, true);
+        Logger.error(e.toString());
+        this._timezone = 'UTC'; //default
+      }
+    }
+    return this._timezone;
   }
 
 }

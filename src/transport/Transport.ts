@@ -15,6 +15,8 @@ import * as cliProgress from "cli-progress";
 import { CliLogFileLogger, CliLogger, Logger } from "trm-commons";
 import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
 import { SystemConnector } from "../systemConnector";
+import isUnicodeSupported from "is-unicode-supported";
+import chalk from "chalk";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
 
@@ -147,12 +149,12 @@ export class Transport {
                 //for each devclass in aDevclass, add all the parent devclasses (#143 XX stop when parentcl is empty XX)
                 for (var devclass of aDevclass) {
                     //while (devclass) {
-                        var tdevc = aTdevc.find(o => o.devclass === devclass);
-                        if (!tdevc) {
-                            tdevc = await SystemConnector.getDevclass(devclass);
-                            aTdevc.push(tdevc);
-                        }
-                        //devclass = tdevc.parentcl;
+                    var tdevc = aTdevc.find(o => o.devclass === devclass);
+                    if (!tdevc) {
+                        tdevc = await SystemConnector.getDevclass(devclass);
+                        aTdevc.push(tdevc);
+                    }
+                    //devclass = tdevc.parentcl;
                     //}
                 }
             }
@@ -172,32 +174,32 @@ export class Transport {
 
     public async getDate(): Promise<Date> {
         const e070 = await this.getE070();
-        return fromAbapToDate(e070.as4Date, e070.as4Time);
+        return await (fromAbapToDate(e070.as4Date, e070.as4Time));
     }
 
     public async getTrmPackageName(): Promise<string> {
-        if(this._trmPackageName === undefined){
+        if (this._trmPackageName === undefined) {
             const e071 = await this.getE071();
             const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
             trmComments.forEach(s => {
-                if(!this._trmPackageName){
-                    try{
+                if (!this._trmPackageName) {
+                    try {
                         this._trmPackageName = /name=(\S*)/i.exec(s.objName)[1];
-                    }catch(e){ }
+                    } catch (e) { }
                 }
             });
         }
         return this._trmPackageName;
     }
     public async getTrmPackageVersion(): Promise<string> {
-        if(this._trmPackageVersion === undefined){
+        if (this._trmPackageVersion === undefined) {
             const e071 = await this.getE071();
             const trmComments = e071.filter(o => o.pgmid === '*' && o.object === COMMENT_OBJ);
             trmComments.forEach(s => {
-                if(!this._trmPackageVersion){
-                    try{
+                if (!this._trmPackageVersion) {
+                    try {
                         this._trmPackageVersion = /version=(\S*)/i.exec(s.objName)[1];
-                    }catch(e){ }
+                    } catch (e) { }
                 }
             });
         }
@@ -396,18 +398,18 @@ export class Transport {
         return null;
     }
 
-    public async release(lock: boolean, skipLog: boolean, tmpFolder?: string, secondsTimeout?: number): Promise<void> {
+    public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
         Logger.loading('Releasing transport...', skipLog);
-        await SystemConnector.releaseTrkorr(this.trkorr, lock, secondsTimeout);
+        await SystemConnector.releaseTrkorr(this.trkorr, lock);
         await SystemConnector.dequeueTransport(this.trkorr);
         if (tmpFolder) {
-            await this.readReleaseLog(tmpFolder, secondsTimeout);
+            await this.readReleaseLog(tmpFolder);
         } else {
-            await this._isInTmsQueue(skipLog, false, secondsTimeout);
+            await this._isInTmsQueue(skipLog, false);
         }
     }
 
-    public async readReleaseLog(tmpFolder: string, secondsTimeout: number): Promise<number> {
+    public async readReleaseLog(tmpFolder: string): Promise<number> {
         const filePaths = await Transport._getFilePaths(this._fileNames);
         const localPath = path.join(tmpFolder, this._fileNames.releaseLog);
 
@@ -444,12 +446,10 @@ export class Transport {
             result: 'Needs update'
         });
 
-        const timeoutDate = new Date((new Date()).getTime() + (secondsTimeout * 1000));
-
         var exitWhile = false;
         var whileResult: 'ERROR' | 'WARNING' | 'SUCCESS' = null;
 
-        while (!exitWhile && (new Date()).getTime() < timeoutDate.getTime()) {
+        while (!exitWhile) {
             var logResult: ReleaseLogStep[] = [];
             try {
                 const logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
@@ -548,11 +548,11 @@ export class Transport {
                 error = new Error(`Error occurred during transport ${this.trkorr} release.`);
             }
             if (whileResult === "SUCCESS") {
-                Logger.success(`Transport ${this.trkorr} released with success.`);
+                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr} released with success.`);
                 rc = 0;
             }
             if (whileResult === "WARNING") {
-                Logger.warning(`Transport ${this.trkorr} released with warning.`);
+                Logger.warning(`${Transport.getTransportIcon()} ${this.trkorr} released with warning.`);
                 rc = 4;
             }
         }
@@ -564,22 +564,37 @@ export class Transport {
         }
     }
 
-    public async readImportLog(tmpFolder: string): Promise<void> {
-        //TODO
-    }
-
-    private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false, secondsTimeout): Promise<number> {
-        const timeoutDate = new Date((new Date()).getTime() + (secondsTimeout * 1000));
-        Logger.log(`TMS check for transport ${this.trkorr}, timeout date set to ${timeoutDate}`, true);
+    private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false): Promise<{ rc: number, message?: string }> {
+        Logger.log(`TMS check for transport ${this.trkorr}`, true);
         var inQueue = false;
         var rc: number = 12;
+        var message: string;
         if (this._trTarget) {
             var inQueueAttempts = 0;
-            while (!inQueue && (new Date()).getTime() < timeoutDate.getTime()) {
+            Logger.loading(`Checking transport status...`, skipLog);
+            while (!inQueue) {
                 inQueueAttempts++;
-                Logger.log(`Attempt ${inQueueAttempts}`, true);
-                Logger.loading(`Reading transport queue...`, skipLog);
-                await setTimeout(6000);
+                Logger.log(`Attempt ${inQueueAttempts}, reading in 3 seconds...`, true);
+                await setTimeout(3000);
+                if (!checkImpSing) {
+                    Logger.loading(`${Transport.getTransportIcon()} Releasing...`, skipLog);
+                } else {
+                    const lastCheck = new Date();
+                    try {
+                        const tpstat = await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget);
+                        if (tpstat.message) {
+                            const statDate = await fromAbapToDate(tpstat.moddate, tpstat.modtime);
+                            Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}, last update ${statDate.toISOString().split("T")[0]} ${statDate.toTimeString().split(" ")[0]}: ${tpstat.message}...`, skipLog);
+                        } else {
+                            Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}...`, skipLog);
+                        }
+                    } catch (e) {
+                        Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}, last update /: Unable to read status`, skipLog);
+                        Logger.error(`Unable to read status!`, true);
+                        Logger.error(e.toString(), true);
+                    }
+                }
+                //TODO: reading the queue is outdated now -> use getTransportImportStatus!
                 var tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
@@ -590,10 +605,10 @@ export class Transport {
                     //if importing, get the last transport in queue (if re installing, there are more than 1)
                     if (tmsQueue.length > 0) {
                         inQueue = tmsQueue[0].impsing !== 'X';
-                        if(!tmsQueue[0].maxrc){
+                        if (!tmsQueue[0].maxrc) {
                             //no rc => transport wasn't imported! set as -1 (field is blank, do not confuse with 0 which is success)
                             rc = -1;
-                        }else{
+                        } else {
                             rc = parseInt(tmsQueue[0].maxrc);
                         }
                     } else {
@@ -601,20 +616,21 @@ export class Transport {
                     }
                 }
             }
-            if (!inQueue) {
-                throw new Error(`${this.trkorr} not found in queue, timed out after ${inQueueAttempts + 1} attempts`);
+            if (!checkImpSing) {
+                //without check of import, we're releasing the transport (publish?)
+                //set rc to -1 as it is irrelevant
+                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr} released.`, skipLog);
+                rc = -1;
             } else {
-                if(!checkImpSing){
-                    //without check of import, we're releasing the transport (publish?)
-                    //set rc to -1 as it is irrelevant
-                    Logger.success(`${this.trkorr} released.`, skipLog);
-                    rc = -1;
-                }
+                //read final import message
+                try {
+                    message = (await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget)).message;
+                } catch { }
             }
         } else {
             Logger.error(`No target specified, unable to check queue!!`, true);
         }
-        return rc;
+        return { rc, message };
     }
 
     private static _getFileNames(trkorr: TRKORR, targetSystem: string): FileNames {
@@ -771,36 +787,36 @@ export class Transport {
         return latest;
     }
 
-    public async import(timeout: number = 180): Promise<void> {
+    public async import(): Promise<void> {
         if (!this._trTarget) {
             throw new Error('Missing transport target.');
         }
-        Logger.log(`Starting transport ${this.trkorr} import, timeout set to ${timeout}`, true);
+        Logger.log(`Starting ${this.trkorr} import`, true);
         Logger.loading(`Forwarding transport ${this.trkorr}`, true);
         await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
-        Logger.loading(`Importing transport ${this.trkorr}`, true);
+        Logger.loading(`Importing ${this.trkorr}`, true);
         await SystemConnector.importTransport(this.trkorr, this._trTarget);
         Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
-        const rc = await this._isInTmsQueue(false, true, timeout);
-        Logger.log(`Transport ${this.trkorr} import ended: return code ${rc}`, true);
-        switch (rc) {
+        const queue = await this._isInTmsQueue(false, true);
+        Logger.log(`Transport ${this.trkorr} import ended: return code ${queue.rc}`, true);
+        switch (queue.rc) {
             case -1:
                 Logger.error(`${this.trkorr} import has no return code!`);
                 break;
             case 0:
-                Logger.success(`${this.trkorr} import ended with success.`);
+                Logger.success(`${this.trkorr} import ended with success${queue.message ? ' -> ' + queue.message : '.'}`);
                 break;
             case 4:
-                Logger.warning(`${this.trkorr} import ended with warning.`);
+                Logger.warning(`${this.trkorr} import ended with warning${queue.message ? ' -> ' + queue.message : '.'}`);
                 break;
             case 8:
-                Logger.error(`${this.trkorr} import ended with error.`);
+                Logger.error(`${this.trkorr} import ended with error (check ${chalk.bold('STMS')})${queue.message ? ' -> ' + queue.message : '.'}`);
                 break;
             case 12:
-                Logger.error(`${this.trkorr} import was cancelled.`);
+                Logger.error(`${this.trkorr} import was cancelled${queue.message ? ' -> ' + queue.message : '.'}`);
                 break;
             case 16:
-                Logger.error(`${this.trkorr} import was cancelled.`);
+                Logger.error(`${this.trkorr} import was cancelled${queue.message ? ' -> ' + queue.message : '.'}`);
                 break;
         }
     }
@@ -850,6 +866,10 @@ export class Transport {
 
     public async changeOwner(newOwner: TR_AS4USER): Promise<void> {
         await SystemConnector.changeTrOwner(this.trkorr, newOwner);
+    }
+
+    public static getTransportIcon(): string {
+        return isUnicodeSupported() ? '🚚' : '⛟';
     }
 
 }

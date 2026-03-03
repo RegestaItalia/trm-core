@@ -38,5 +38,6 @@ export interface ISystemConnectorBase {
     getPackageDependencies: (devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean) => Promise<PackageDependencies>,
     getObjectDependencies: (object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<ObjectDependencies>,
     getTableKeys: (tabname: components.TABNAME) => Promise<struct.DD03L[]>,
-    getRootDevclass: (devclass: components.DEVCLASS) => Promise<components.DEVCLASS>
+    getRootDevclass: (devclass: components.DEVCLASS) => Promise<components.DEVCLASS>,
+    getTimezone: () => Promise<string>
 }

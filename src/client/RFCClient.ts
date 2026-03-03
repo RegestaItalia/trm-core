@@ -628,4 +628,12 @@ export class RFCClient implements IClient {
         return result['evLog'];
     }
 
+    public async getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
+        const result = await this._call("ZTRM_GET_TR_IMPORT_STATUS", {
+            iv_trkorr: trkorr,
+            iv_system: system
+        });
+        return result['esStatus'];
+    }
+
 }
