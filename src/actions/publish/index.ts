@@ -115,11 +115,6 @@ export interface PublishActionInput {
          * Publish transport target.
          */
         transportTarget?: TR_TARGET;
-
-        /**
-         * Release timeout (in seconds).
-         */
-        releaseTimeout: number;
     }
 
     /**

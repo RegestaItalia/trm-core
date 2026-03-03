@@ -446,4 +446,14 @@ export namespace SystemConnector {
         return systemConnector.readLogPolling(logID);
     }
 
+    export async function getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
+        await checkSystemConnector();
+        return systemConnector.getTransportImportStatus(trkorr, system);
+    }
+
+    export async function getTimezone(): Promise<string> {
+        await checkSystemConnector();
+        return systemConnector.getTimezone();
+    }
+
 }

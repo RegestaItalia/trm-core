@@ -4,6 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { TADIR } from "../../client";
+import isUnicodeSupported from "is-unicode-supported";
 
 /**
  * Import DEVC Transport.
@@ -41,7 +42,6 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         const rootDevclass = await SystemConnector.getDevclass(context.runtime.originalData.hierarchy.devclass);
 
         Logger.loading(`Importing ${context.rawInput.packageData.name}...`);
-        const importTimeout = context.rawInput.installData.import.timeout;
 
         //2- upload transport into system
         Logger.loading(`Uploading ${context.runtime.packageTransports.devc.binaries.trkorr}`, true);
@@ -57,7 +57,7 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         //4- import transport into system
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(SAP Package) `;
+        const prefix = `(${isUnicodeSupported() ? '🚚' : '⛟'} SAP Packages) `;
         if (originalLPrefix) {
             Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
         } else {
@@ -69,7 +69,7 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             Inquirer.setPrefix(prefix);
         }
         Logger.loading(`Importing ${context.runtime.packageTransports.devc.binaries.trkorr}`, true);
-        await context.runtime.packageTransports.devc.instance.import(importTimeout);
+        await context.runtime.packageTransports.devc.instance.import();
         Logger.success(`Transport ${context.runtime.packageTransports.devc.binaries.trkorr} imported`, true);
         Logger.setPrefix(originalLPrefix);
         Inquirer.setPrefix(originalIPrefix);

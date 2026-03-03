@@ -3,6 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
+import isUnicodeSupported from "is-unicode-supported";
 
 /**
  * Import LANG Transport.
@@ -33,7 +34,6 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         Logger.log('Import LANG Transport step', true);
 
         Logger.loading(`Importing ${context.rawInput.packageData.name} translations...`);
-        const importTimeout = context.rawInput.installData.import.timeout;
 
         //1- upload transport into system
         Logger.loading(`Uploading ${context.runtime.packageTransports.lang.binaries.trkorr}`, true);
@@ -49,7 +49,7 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         //3- import transport into system
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(Translations) `;
+        const prefix = `(${isUnicodeSupported() ? '🚚' : '⛟'} Translations) `;
         if (originalLPrefix) {
             Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
         } else {
@@ -61,7 +61,7 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
             Inquirer.setPrefix(prefix);
         }
         Logger.loading(`Importing ${context.runtime.packageTransports.lang.binaries.trkorr}`, true);
-        await context.runtime.packageTransports.lang.instance.import(importTimeout);
+        await context.runtime.packageTransports.lang.instance.import();
         Logger.success(`Transport ${context.runtime.packageTransports.lang.binaries.trkorr} imported`, true);
         Logger.setPrefix(originalLPrefix);
         Inquirer.setPrefix(originalIPrefix);

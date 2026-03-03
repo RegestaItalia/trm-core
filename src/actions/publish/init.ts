@@ -83,9 +83,7 @@ export const init: Step<PublishWorkflowContext> = {
             context.rawInput.contextData = {}
         }
         if (!context.rawInput.systemData) {
-            context.rawInput.systemData = {
-                releaseTimeout: 180
-            }
+            context.rawInput.systemData = {}
         }
         if (!context.rawInput.publishData) {
             context.rawInput.publishData = {

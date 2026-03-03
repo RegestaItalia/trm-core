@@ -78,7 +78,7 @@ export class RESTClient implements IClient {
                             messageError = k;
                             message = `Couldn't read error message ${axiosError.response.data.message.msgid} ${axiosError.response.data.message.msgno} ${axiosError.response.data.message.msgv1} ${axiosError.response.data.message.msgv2} ${axiosError.response.data.message.msgv3} ${axiosError.response.data.message.msgv4}`;
                         }
-                    }else{
+                    } else {
                         throw error;
                     }
                     var rfcClientError = new RESTClientError(error.message, sapMessage, axiosError, message);
@@ -635,6 +635,16 @@ export class RESTClient implements IClient {
             }
         })).data;
         return result.message;
+    }
+
+    public async getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
+        const result = (await this._axiosInstance.get('/get_transport_import_status', {
+            data: {
+                trkorr,
+                system
+            }
+        })).data;
+        return result.stat;
     }
 
 }

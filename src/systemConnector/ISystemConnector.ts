@@ -59,5 +59,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     changeTrOwner: (trkorr: components.TRKORR, owner: components.TR_AS4USER) => Promise<void>,
     createLogPolling: (event: components.ZTRM_POLLING_EVENT) => Promise<components.ZTRM_POLLING_ID>,
     deleteLogPolling: (logID: components.ZTRM_POLLING_ID) => Promise<void>,
-    readLogPolling: (logID: components.ZTRM_POLLING_ID) => Promise<components.ZTRM_POLLING_LAST_MSG>
+    readLogPolling: (logID: components.ZTRM_POLLING_ID) => Promise<components.ZTRM_POLLING_LAST_MSG>,
+    getTransportImportStatus: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<struct.TPSTAT>
 }

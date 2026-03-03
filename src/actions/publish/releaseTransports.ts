@@ -1,7 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
-import { TrmTransportIdentifier } from "../../transport";
 
 /**
  * Release transports
@@ -16,7 +15,6 @@ export const releaseTransports: Step<PublishWorkflowContext> = {
 
         //1- release
         const tmpFolder = context.rawInput.contextData.logTemporaryFolder;
-        const releaseTimeout = context.rawInput.systemData.releaseTimeout;
         context.runtime.systemData.releasedTransports.push(context.runtime.systemData.tadirTransport);
         if (context.runtime.systemData.langTransport) {
             context.runtime.systemData.releasedTransports.push(context.runtime.systemData.langTransport);
@@ -36,7 +34,7 @@ export const releaseTransports: Step<PublishWorkflowContext> = {
             await transport.setDocumentation(context.runtime.trmPackage.manifestXml);
             Logger.log(`Ready to release transport ${transport.trkorr}, ${transport.trmIdentifier}`, true);
             Logger.loading(`Releasing transport...`);
-            await transport.release(false, releaseTimeout ? true : false, tmpFolder, releaseTimeout);
+            await transport.release(false, false, tmpFolder);
             Logger.removePrefix();
             Inquirer.removePrefix();
         }

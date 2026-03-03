@@ -86,11 +86,6 @@ export type InstallActionInputInstallData = {
      */
     import?: {
         /**
-         * The timeout in milliseconds for TMS import.
-         */
-        timeout?: number;
-
-        /**
          * Whether to skip importing language transports.
          */
         noLang?: boolean;
