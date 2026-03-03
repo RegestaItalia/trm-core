@@ -10,13 +10,13 @@ export type CheckTrmDependencies = {
     dependencies: TrmPackage[]
 };
 
-export async function checkCoreTrmDependencies(systemPackages?: TrmPackage[]): Promise<CheckTrmDependencies> {
+export async function checkCoreTrmDependencies(systemPackages?: TrmPackage[], globalPath?: string): Promise<CheckTrmDependencies> {
     var returnData: CheckTrmDependencies = {
         dependencies: [],
         versionNotSatisfiedDependencies: [],
         missingDependencies: []
     };
-    const trmDependencies = getCoreTrmDependencies();
+    const trmDependencies = getCoreTrmDependencies(globalPath);
     if (trmDependencies && Object.keys(trmDependencies).length > 0) {
         const oPublicRegistry = RegistryProvider.getRegistry();
         if(!systemPackages){

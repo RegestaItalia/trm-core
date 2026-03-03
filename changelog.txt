@@ -8,13 +8,15 @@ Legend
 + : added
 - : removed
 
-2026-02-25 v8.4.0
+2026-03-03 v8.4.0
 -------------------
 * print message on install
 ! removed buffer from registry debug log output
 ! added manifest to all trm transports
 ! package replacement uses installed package namespace (if in update)
 ! trm-server ^5.2.0
++ import status logging
+! pass global npm path to avoid useless calls
 
 2026-02-17 v8.3.1
 -------------------
