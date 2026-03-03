@@ -9,10 +9,10 @@ export const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
 
 export type AxiosCtx = 'RegistryV2' | 'RestServer';
 
-function _getInternalId(response: AxiosResponse<any, any>){
-    try{
+function _getInternalId(response: AxiosResponse<any, any>) {
+    try {
         return response.request.getHeader(AXIOS_INTERNAL_HEADER)
-    }catch(e){
+    } catch (e) {
         return 'Unknown';
     }
 }
@@ -22,7 +22,7 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
     instance.interceptors.request.use((request) => {
         const internalId = uuidv4();
         request.headers.set(AXIOS_INTERNAL_HEADER, internalId);
-        if(Logger.logger instanceof CliLogFileLogger){
+        if (Logger.logger instanceof CliLogFileLogger) {
             request.headers.set(AXIOS_SESSION_HEADER, Logger.logger.getSessionId());
         }
         var sRequest = `${request.method} ${request.baseURL}${request.url}`;
@@ -45,7 +45,15 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         const internalId = _getInternalId(response);
         var sResponse = `status: ${response.status}, status text: ${response.statusText}`;
         if (response.data) {
-            sResponse += `, data: ${inspect(response.data, { breakLength: Infinity, compact: true })}`;
+            if (Buffer.isBuffer(response.data)) {
+                try {
+                    sResponse += `, data: <file of ${response.data.byteLength} bytes>`;
+                } catch {
+                    sResponse += `, data: <file of unknown bytes>`;
+                }
+            } else {
+                sResponse += `, data: ${inspect(response.data, { breakLength: Infinity, compact: true })}`;
+            }
         }
         Logger.log(`Ending ${sCtx} AXIOS request ${internalId}: ${sResponse}`, true);
         return response;
@@ -63,17 +71,17 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
                 }
                 if (error.response.data.message && typeof (error.response.data.message) === 'string') {
                     sError = error.response.data.message;
-                } else if(typeof(error.response.data) === 'string'){
-                    if(error.response.data[0] === '<'){
-                        try{
+                } else if (typeof (error.response.data) === 'string') {
+                    if (error.response.data[0] === '<') {
+                        try {
                             sError = htmlParser(error.response.data).querySelector('title').innerText;
-                        }catch(e){
+                        } catch (e) {
                             sError = error.response.data;
                         }
-                    }else{
+                    } else {
                         sError = error.response.data;
                     }
-                } else{
+                } else {
                     sError = error.response.statusText;
                 }
             } else {

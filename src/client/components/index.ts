@@ -62,3 +62,6 @@ export * from "./TPCLASS";
 export * from "./ZTRM_POLLING_ID";
 export * from "./ZTRM_POLLING_EVENT";
 export * from "./ZTRM_POLLING_LAST_MSG";
+export * from "./TRTPSTEP";
+export * from "./SYDATUM";
+export * from "./SYTIME";

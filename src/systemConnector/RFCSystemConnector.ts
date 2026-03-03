@@ -290,4 +290,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.readLogPolling(logID);
     }
 
+    public async getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
+        return this._client.getTransportImportStatus(trkorr, system);
+    }
+
 }

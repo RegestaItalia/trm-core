@@ -2,8 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join, resolve, sep } from 'node:path';
 import { getGlobalNodeModules } from 'trm-commons';
 
-export function getNodePackage(packageName?: string) {
-    const globalPath = getGlobalNodeModules();
+export function getNodePackage(globalPath?: string, packageName?: string) {
+    if(!globalPath){
+        globalPath = getGlobalNodeModules();
+    }
     if (__dirname.includes(globalPath)) {
         //prod
         const parts = __dirname.split(sep);
