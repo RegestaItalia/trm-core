@@ -425,7 +425,8 @@ export class Transport {
         const multibar = new cliProgress.MultiBar({
             clearOnComplete: true,
             hideCursor: true,
-            format: '> {stage} [{bar}] {exitCode} {result} '
+            format: '{stage} [{bar}] {exitCode} {result}',
+            barGlue: '⛟'
         }, cliProgress.Presets.legacy);
         var iEtp182 = 0;
         var iEtp183 = 0;
