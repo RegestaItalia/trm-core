@@ -4,6 +4,7 @@ import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 import { ObjectDependencies } from "./ObjectDependencies";
 import * as _ from "lodash";
+import * as cliProgress from "cli-progress";
 
 export type TrmPackageDependency = {
     trmPackage: TrmPackage,
@@ -38,15 +39,37 @@ export class PackageDependencies {
     constructor(public readonly devclass: DEVCLASS) { }
 
     public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[], log?: boolean): Promise<PackageDependencies> {
-        var i = 1;
-        Logger.loading(`Analyzing dependencies (0.0%)...`, !log);
-        for (const d of packageDependencies) {
-            Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%)...`, !log);
-            Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%) > ${d.pgmid}${d.object}${d.objName}...`, true);
-            i++;
-            this.allDependencies.push(await (new ObjectDependencies(d.object, d.objName).setDependencies(d.dependencies || [])));
+        var i = 0;
+        var logProgress: cliProgress.SingleBar;
+        if (log) {
+            logProgress = new cliProgress.SingleBar({
+                clearOnComplete: true,
+                hideCursor: true,
+                format: 'Analyzing dependencies [{bar}] {percentage}% ({value}/{total})'
+            }, cliProgress.Presets.legacy);
+            logProgress.start(packageDependencies.length, 0);
         }
-        Logger.loading(`Building dependency tree...`, !log);
+        //Logger.loading(`Analyzing dependencies (0.0%)...`, !log);
+        for (const d of packageDependencies) {
+            this.allDependencies.push(await (new ObjectDependencies(d.object, d.objName).setDependencies(d.dependencies || [])));
+            i++;
+            if (log) {
+                logProgress.update(i);
+            }
+            //Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%)...`, !log);
+            //Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%) > ${d.pgmid}${d.object}${d.objName}...`, true);
+        }
+        if (log) {
+            logProgress.stop();
+            logProgress = new cliProgress.SingleBar({
+                clearOnComplete: true,
+                hideCursor: true,
+                format: 'Building dependency tree [{bar}] {percentage}% ({value}/{total})'
+            }, cliProgress.Presets.legacy);
+            logProgress.start(this.allDependencies.length, 0);
+            i = 0;
+        }
+        //Logger.loading(`Building dependency tree...`, !log);
         for (const o of this.allDependencies) {
             for (const trmPackage of o.trmPackages) {
                 // only if the abap package of the trm package is not the same as the one analyzed
@@ -105,6 +128,13 @@ export class PackageDependencies {
                     }
                 }
             }
+            i++;
+            if (log) {
+                logProgress.update(i);
+            }
+        }
+        if (log) {
+            logProgress.stop();
         }
         return this;
     }

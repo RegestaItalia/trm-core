@@ -13,6 +13,7 @@ import { R3trans } from "node-r3trans";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { getPackageHierarchy } from "../commons";
 import { SystemConnector } from "./SystemConnector";
+import * as cliProgress from "cli-progress";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = 'ZIF_TRM';
@@ -650,7 +651,13 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
     if (log) {
-      Logger.loading(`Finding dependencies (0.0%)...`);
+      //Logger.loading(`Finding dependencies (0.0%)...`);
+      const logProgress = new cliProgress.SingleBar({
+        clearOnComplete: true,
+        hideCursor: true,
+        format: 'Finding dependencies [{bar}] {percentage}%'
+      }, cliProgress.Presets.legacy);
+      logProgress.start(100, 0);
       // create logging poll
       const newConnection = SystemConnector.getNewConnection();
       await newConnection.connect(true);
@@ -662,7 +669,12 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           try {
             const status = await newConnection.readLogPolling(logId);
             if (status) {
-              Logger.loading(`${status}...`);
+              //TODO: fix with a better solution, for now testing regex is ok...
+              const match = status.match(/\(([\d.]+)%\)/);
+              if(match){
+                logProgress.update(parseFloat(match[1]));
+                //Logger.loading(`${status}...`);
+              }
             }
           } catch { }
           await new Promise(r => setTimeout(r, 500));
@@ -682,6 +694,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         await newConnection.deleteLogPolling(logId);
         await newConnection.closeConnection();
       } catch { }
+      logProgress.stop();
       return (await new PackageDependencies(devclass).setDependencies(packageDependencies || [], log));
 
     } else {
