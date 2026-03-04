@@ -655,7 +655,8 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       const logProgress = new cliProgress.SingleBar({
         clearOnComplete: true,
         hideCursor: true,
-        format: 'Finding dependencies [{bar}] {percentage}%'
+        format: 'Finding dependencies [{bar}] {percentage}%',
+        barGlue: '>'
       }, cliProgress.Presets.legacy);
       logProgress.start(100, 0);
       // create logging poll
@@ -671,7 +672,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
             if (status) {
               //TODO: fix with a better solution, for now testing regex is ok...
               const match = status.match(/\(([\d.]+)%\)/);
-              if(match){
+              if (match) {
                 logProgress.update(parseFloat(match[1]));
                 //Logger.loading(`${status}...`);
               }
@@ -690,6 +691,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }
       stopped = true;
       await poll;
+      logProgress.update(100);
       try {
         await newConnection.deleteLogPolling(logId);
         await newConnection.closeConnection();
