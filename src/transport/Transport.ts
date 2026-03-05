@@ -15,7 +15,6 @@ import * as cliProgress from "cli-progress";
 import { CliLogFileLogger, CliLogger, Logger } from "trm-commons";
 import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
 import { SystemConnector } from "../systemConnector";
-import isUnicodeSupported from "is-unicode-supported";
 import chalk from "chalk";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
@@ -426,7 +425,7 @@ export class Transport {
             clearOnComplete: true,
             hideCursor: true,
             format: '{stage} [{bar}] {exitCode} {result}',
-            barGlue: '⛟'
+            barGlue: Transport.getTransportIcon()
         }, cliProgress.Presets.legacy);
         var iEtp182 = 0;
         var iEtp183 = 0;
@@ -870,7 +869,7 @@ export class Transport {
     }
 
     public static getTransportIcon(): string {
-        return isUnicodeSupported() ? '🚚' : '⛟';
+        return '⛟';
     }
 
 }

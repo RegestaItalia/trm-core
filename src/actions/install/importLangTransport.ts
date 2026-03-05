@@ -3,7 +3,6 @@ import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
-import isUnicodeSupported from "is-unicode-supported";
 
 /**
  * Import LANG Transport.
@@ -49,7 +48,7 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         //3- import transport into system
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(${isUnicodeSupported() ? '🚚' : '⛟'} Translations) `;
+        const prefix = `(${Transport.getTransportIcon()} Translations) `;
         if (originalLPrefix) {
             Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
         } else {

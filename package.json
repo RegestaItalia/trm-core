@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "8.4.3",
+  "version": "8.4.4",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -50,7 +50,6 @@
     "express": "^4.18.2",
     "get-root-path": "^3.0.1",
     "get-stack-trace": "^3.1.1",
-    "is-unicode-supported": "^2.1.0",
     "lodash": "^4.17.21",
     "luxon": "^3.7.2",
     "minimatch": "^10.0.1",
