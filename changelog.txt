@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-03-05 v8.4.4
+-------------------
+! removed emoji in transport log
+
 2026-03-04 v8.4.3
 -------------------
 ! temp: progress bar glue

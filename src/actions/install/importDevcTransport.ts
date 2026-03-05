@@ -4,7 +4,6 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { TADIR } from "../../client";
-import isUnicodeSupported from "is-unicode-supported";
 
 /**
  * Import DEVC Transport.
@@ -57,7 +56,7 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         //4- import transport into system
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(${isUnicodeSupported() ? '🚚' : '⛟'} SAP Packages) `;
+        const prefix = `(${Transport.getTransportIcon()} SAP Packages) `;
         if (originalLPrefix) {
             Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
         } else {
