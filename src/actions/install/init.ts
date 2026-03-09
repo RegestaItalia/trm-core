@@ -73,7 +73,11 @@ export const init: Step<InstallWorkflowContext> = {
         Logger.info(`Ready to install ${manifest.name} v${manifest.version}${!valid(context.rawInput.packageData.version) ? (' (' + ( context.rawInput.packageData.version || 'latest' ) + ')') : ''}.`);
 
         //3- set runtime data
+        if (!context.rawInput.contextData) {
+            context.rawInput.contextData = {};
+        }
         context.runtime = {
+            stopWarningShown: context.rawInput.contextData.noStopWarning ? true : false,
             registry: actualRegistry || registry,
             update: undefined,
             remotePackageData: {
@@ -126,9 +130,6 @@ export const init: Step<InstallWorkflowContext> = {
         //4- fill missing input data
         if (context.rawInput.packageData.overwrite === undefined) {
             context.rawInput.packageData.overwrite = false;
-        }
-        if (!context.rawInput.contextData) {
-            context.rawInput.contextData = {};
         }
         if (!context.rawInput.installData) {
             context.rawInput.installData = {};

@@ -75,6 +75,11 @@ export type InstallActionInputContextData = {
      * Use inquirer? (will force some decisions)
      */
     noInquirer?: boolean;
+
+    /**
+     * Don't show a stop warning when process starts.
+     */
+    noStopWarning?: boolean;
 }
 
 /**
@@ -219,6 +224,7 @@ type TransportRuntime = {
 }
 
 type WorkflowRuntime = {
+    stopWarningShown: boolean
     registry: AbstractRegistry,
     update: boolean,
     remotePackageData: {

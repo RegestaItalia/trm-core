@@ -4,6 +4,7 @@ import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { Manifest } from "../../manifest";
 import { SystemConnector } from "../../systemConnector";
+import { stopWarning } from "../stopWarning";
 
 /**
  * Generate TADIR transport
@@ -24,19 +25,23 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
         var aTadir = context.runtime.packageData.tadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
         context.runtime.abapGitData.sourceCode.ignoredObjects.forEach(o => {
             const objectIndex = aTadir.findIndex(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
-            if(objectIndex >= 0){
+            if (objectIndex >= 0) {
                 aTadir.splice(objectIndex, 1);
             }
         });
 
         //2- check tadir has content
-        if(aTadir.length === 0){
+        if (aTadir.length === 0) {
             throw new Error(`Package ${context.rawInput.packageData.devclass} has no content.`);
         }
-        
+
         //3- generate transport
         Logger.loading(`Generating transports...`);
         Logger.loading(`Generating TADIR transport...`, true);
+        if (!context.runtime.stopWarningShown) {
+            context.runtime.stopWarningShown = true;
+            stopWarning('publish');
+        }
         context.runtime.systemData.tadirTransport = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.TADIR,
             target: context.rawInput.systemData.transportTarget,

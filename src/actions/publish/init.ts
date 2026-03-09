@@ -231,6 +231,7 @@ export const init: Step<PublishWorkflowContext> = {
 
         //5- set runtime data
         context.runtime = {
+            stopWarningShown: context.rawInput.contextData.noStopWarning ? true : false,
             trmPackage: {
                 package: new TrmPackage(context.rawInput.packageData.name, registry),
                 registry,

@@ -11,6 +11,7 @@ Legend
 2026-03-09 v8.5.0
 -------------------
 + cg3z/cg3y actions
++ warning that indicates a process that should not be stopped
 
 2026-03-05 v8.4.4
 -------------------
