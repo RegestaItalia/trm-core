@@ -14,6 +14,7 @@ import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { getPackageHierarchy } from "../commons";
 import { SystemConnector } from "./SystemConnector";
 import * as cliProgress from "cli-progress";
+import { ISystemConnector } from "./ISystemConnector";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = 'ZIF_TRM';
@@ -660,8 +661,11 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }, cliProgress.Presets.legacy);
       logProgress.start(100, 0);
       // create logging poll
-      const newConnection = SystemConnector.getNewConnection();
-      await newConnection.connect(true);
+      const isStateless = SystemConnector.isStateless();
+      const newConnection = isStateless ? SystemConnector.systemConnector : SystemConnector.getNewConnection();
+      if (!isStateless) {
+        await newConnection.connect(true);
+      }
       const logId = await newConnection.createLogPolling('DEVCLASS_D');
       const job = this.getPackageDependenciesInternal(devclass, includeSubPackages, logId);
       var stopped = false;
@@ -694,7 +698,9 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       logProgress.update(100);
       try {
         await newConnection.deleteLogPolling(logId);
-        await newConnection.closeConnection();
+        if (!isStateless) {
+          await newConnection.closeConnection();
+        }
       } catch { }
       logProgress.stop();
       return (await new PackageDependencies(devclass).setDependencies(packageDependencies || [], log));

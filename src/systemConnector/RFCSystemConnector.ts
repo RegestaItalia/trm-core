@@ -20,6 +20,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         getTransportObjects: false,
         getExistingObjects: false
     };
+    isStateless: boolean = false;
 
     constructor(private _connection: RFCConnection, private _login: Login, private _traceDir?: string, private _globalNodeModulesPath?: string) {
         super();
