@@ -1,4 +1,4 @@
-# <a href="https://docs.trmregistry.com/"><img src="https://docs.trmregistry.com/_media/logo.png" height="40" alt="TRM"></a>
+# <a href="https://docs.trmregistry.com/"><img src="https://docs.trmregistry.com/logo.png" height="40" alt="TRM"></a>
 
 [![Contributor Covenant](https://img.shields.io/badge/Contributor%20Covenant-1.3.0-4baaaa.svg)](https://github.com/RegestaItalia/trm-docs/blob/main/CODE_OF_CONDUCT.md)
 [![Core License](https://img.shields.io/github/license/RegestaItalia/trm-core)](https://github.com/RegestaItalia/trm-core)
