@@ -12,6 +12,7 @@ Legend
 -------------------
 + cg3z/cg3y actions
 + warning that indicates a process that should not be stopped
+* rest reconnect
 
 2026-03-05 v8.4.4
 -------------------
