@@ -37,6 +37,11 @@ export namespace SystemConnector {
         return systemConnector.supportedBulk;
     }
 
+    export function isStateless(): boolean {
+        checkSystemConnector();
+        return systemConnector.isStateless;
+    }
+
     export function getConnectionData(): any {
         checkSystemConnector();
         return systemConnector.getConnectionData();

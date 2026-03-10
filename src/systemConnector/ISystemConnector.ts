@@ -8,6 +8,7 @@ import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
 export interface ISystemConnector extends ISystemConnectorBase {
     supportedBulk: SystemConnectorSupportedBulk, //indicates bulk operations allowed
+    isStateless: boolean,
     getNewConnection(): ISystemConnector,
     getConnectionData: () => RFCConnection | RESTConnection,
     getDest: () => string,

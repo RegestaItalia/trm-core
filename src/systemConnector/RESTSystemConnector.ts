@@ -22,6 +22,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     private _isServerApisAllowed: true | RESTClientError;
 
     supportedBulk: SystemConnectorSupportedBulk;
+    isStateless: boolean = true;
 
     constructor(private _connection: RESTConnection, private _login: Login, private _normalizeEndpoint: boolean = true) {
         super();
@@ -122,7 +123,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     public async connect(silent: boolean = false): Promise<void> {
-        Logger.loading(`Connecting to ${this.getDest()}...`);
+        Logger.loading(`Connecting to ${this.getDest()}...`, silent);
         try {
             await this._client.open();
             this._dest = await this._client.getDest();
