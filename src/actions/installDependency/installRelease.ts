@@ -28,7 +28,7 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
                 version: context.runtime.installVersion,
                 overwrite: false
             },
-            contextData: context.rawInput.contextData,
+            contextData: {...context.rawInput.contextData, ...{ noStopWarning: true }},
             installData: context.rawInput.installData
         };
         Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);

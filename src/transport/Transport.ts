@@ -634,7 +634,7 @@ export class Transport {
     }
 
     private static _getFileNames(trkorr: TRKORR, targetSystem: string): FileNames {
-        const trkorrRegex = /(\S{3})K(.*)/gi;
+        const trkorrRegex = /^(\S{3})K(.*)/gi;
         const regexIterator = trkorr.matchAll(trkorrRegex);
         var trkorrFileExtension;
         var trkorrNumber;
@@ -655,6 +655,19 @@ export class Transport {
             importLogV: `${trkorrFileExtension}V${trkorrNumber}.${targetSystem}`,
             importLogR: `${trkorrFileExtension}R${trkorrNumber}.${targetSystem}`,
             importLogG: `${trkorrFileExtension}G${trkorrNumber}.${targetSystem}`
+        }
+    }
+
+    public static getTrkorrFromFileName(filename: string): string {
+        const trkorrRegex = /^(?:K|R)([^\.]*)\.(\S{3})/gi;
+        const regexIterator = filename.matchAll(trkorrRegex);
+        try {
+            const matches = regexIterator.next().value;
+            const trkorrFileExtension = matches[2];
+            const trkorrNumber = matches[1];
+            return `${trkorrFileExtension}K${trkorrNumber}`
+        } catch (e) {
+            throw new Error(`Couldn't extract transport in filename "${filename}".`);
         }
     }
 

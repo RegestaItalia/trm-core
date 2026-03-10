@@ -4,6 +4,7 @@ import { Logger, Inquirer } from "trm-commons";
 import { getPackageNamespace } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { TRNLICENSE, TRNSPACET, TRNSPACETT } from "../../client";
+import { stopWarning } from "../stopWarning";
 
 /**
  * Add package namespace for repair.
@@ -132,6 +133,10 @@ export const addNamespace: Step<InstallWorkflowContext> = {
             if (texts.spras != SystemConnector.getLogonLanguage(true)) {
                 aTexts.push({ ...texts, ...{ spras: SystemConnector.getLogonLanguage(true) } });
             }
+        }
+        if(!context.runtime.stopWarningShown){
+            context.runtime.stopWarningShown = true;
+            stopWarning('install');
         }
         Logger.loading(`Installing namespace ${context.runtime.installData.namespace}...`);
         await SystemConnector.addNamespace(context.runtime.installData.namespace, replicense, aTexts);

@@ -47,6 +47,11 @@ export interface PublishActionInput {
          * Log temporary folder (for parsing R3Trans logs).
          */
         logTemporaryFolder?: string;
+
+        /**
+         * Don't show a stop warning when process starts.
+         */
+        noStopWarning?: boolean;
     };
 
     /**
@@ -160,6 +165,7 @@ export interface PublishActionInput {
 }
 
 type WorkflowRuntime = {
+    stopWarningShown: boolean,
     trmPackage: {
         package: TrmPackage,
         registry: AbstractRegistry,

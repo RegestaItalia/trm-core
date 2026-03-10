@@ -3,6 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
+import { stopWarning } from "../stopWarning";
 
 /**
  * Import LANG Transport.
@@ -36,6 +37,10 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
 
         //1- upload transport into system
         Logger.loading(`Uploading ${context.runtime.packageTransports.lang.binaries.trkorr}`, true);
+        if (!context.runtime.stopWarningShown) {
+            context.runtime.stopWarningShown = true;
+            stopWarning('install');
+        }
         context.runtime.packageTransports.lang.instance = await Transport.upload({
             binary: context.runtime.packageTransports.lang.binaries.binaries,
             trTarget: SystemConnector.getDest(),

@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { stopWarning } from "../stopWarning";
 
 /**
  * Generate LANG transport
@@ -12,10 +13,10 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 export const generateLangTransport: Step<PublishWorkflowContext> = {
     name: 'generate-lang-transport',
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if(context.rawInput.publishData.noLanguageTransport){
+        if (context.rawInput.publishData.noLanguageTransport) {
             Logger.log(`Skipping LANG transport generation (user input)`, true);
             return false;
-        }else{
+        } else {
             return true;
         }
     },
@@ -26,6 +27,10 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
         Logger.loading(`Generating transports...`);
         Logger.loading(`Generating LANG transport...`, true);
         const aDevc = context.runtime.packageData.tadir.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
+        if (!context.runtime.stopWarningShown) {
+            context.runtime.stopWarningShown = true;
+            stopWarning('publish');
+        }
         context.runtime.systemData.langTransport = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.LANG,
             target: context.rawInput.systemData.transportTarget,

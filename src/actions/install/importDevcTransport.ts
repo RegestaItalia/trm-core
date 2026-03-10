@@ -4,6 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { TADIR } from "../../client";
+import { stopWarning } from "../stopWarning";
 
 /**
  * Import DEVC Transport.
@@ -43,6 +44,10 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         Logger.loading(`Importing ${context.rawInput.packageData.name}...`);
 
         //2- upload transport into system
+        if (!context.runtime.stopWarningShown) {
+            context.runtime.stopWarningShown = true;
+            stopWarning('install');
+        }
         Logger.loading(`Uploading ${context.runtime.packageTransports.devc.binaries.trkorr}`, true);
         context.runtime.packageTransports.devc.instance = await Transport.upload({
             binary: context.runtime.packageTransports.devc.binaries.binaries,
@@ -72,7 +77,7 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         Logger.success(`Transport ${context.runtime.packageTransports.devc.binaries.trkorr} imported`, true);
         Logger.setPrefix(originalLPrefix);
         Inquirer.setPrefix(originalIPrefix);
-        
+
         Logger.loading(`Finalizing import...`);
 
         //5- replace root devclass parent devclass

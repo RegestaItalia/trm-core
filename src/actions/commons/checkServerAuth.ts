@@ -1,7 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { IActionContext } from "..";
 import { ClientError } from "../../client";
 
 /**
@@ -10,9 +9,9 @@ import { ClientError } from "../../client";
  * 1- check auth
  * 
 */
-export const checkServerAuth: Step<IActionContext> = {
+export const checkServerAuth: Step<any> = {
     name: 'check-server-auth',
-    run: async (context: IActionContext): Promise<void> => {
+    run: async (): Promise<void> => {
         Logger.log('Check server auth step', true);
 
         //1- check auth

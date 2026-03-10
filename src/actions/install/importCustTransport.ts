@@ -3,6 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
+import { stopWarning } from "../stopWarning";
 
 /**
  * Import CUST Transport.
@@ -36,6 +37,10 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
 
         //1- upload transport into system
         Logger.loading(`Uploading ${context.runtime.packageTransports.cust.binaries.trkorr}`, true);
+        if (!context.runtime.stopWarningShown) {
+            context.runtime.stopWarningShown = true;
+            stopWarning('install');
+        }
         context.runtime.packageTransports.cust.instance = await Transport.upload({
             binary: context.runtime.packageTransports.cust.binaries.binaries,
             trTarget: SystemConnector.getDest(),
@@ -49,14 +54,14 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         const prefix = `(${Transport.getTransportIcon()} Customizing) `;
-        if(originalLPrefix){
+        if (originalLPrefix) {
             Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-        }else{
+        } else {
             Logger.setPrefix(prefix);
         }
-        if(originalIPrefix){
+        if (originalIPrefix) {
             Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-        }else{
+        } else {
             Inquirer.setPrefix(prefix);
         }
         Logger.loading(`Importing ${context.runtime.packageTransports.cust.binaries.trkorr}`, true);

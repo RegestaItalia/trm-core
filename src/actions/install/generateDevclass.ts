@@ -5,6 +5,7 @@ import { getPackageHierarchy } from "../../commons";
 import { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { TrmServerUpgrade } from "../../commons/TrmServerUpgradeService";
+import { stopWarning } from "../stopWarning";
 
 /**
  * Check ABAP package existance and generate if needed.
@@ -19,34 +20,38 @@ import { TrmServerUpgrade } from "../../commons/TrmServerUpgradeService";
 export const generateDevclass: Step<InstallWorkflowContext> = {
     name: 'generate-devclass',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(context.rawInput.installData.installDevclass.keepOriginal){
+        if (context.rawInput.installData.installDevclass.keepOriginal) {
             Logger.log(`Skipping generate devclass devclass (user input)`, true);
             return false;
-        }else{
+        } else {
             return true;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Generate devclass step', true);
-        
+
         //2- find packages to generated
         Logger.loading(`Checking ABAP packages...`);
         var generate: DEVCLASS[] = [];
-        for(const replacement of context.rawInput.installData.installDevclass.replacements){
+        for (const replacement of context.rawInput.installData.installDevclass.replacements) {
             Logger.loading(`Checking existance of devclass ${replacement.installDevclass}...`, true);
             const oDevclass = await SystemConnector.getDevclass(replacement.installDevclass);
-            if(oDevclass){
+            if (oDevclass) {
                 Logger.log(`Devclass ${replacement.installDevclass} exists, skipping generation`, true);
-            }else{
+            } else {
                 Logger.log(`Devclass ${replacement.installDevclass} doesn't exist, will be generated`, true);
                 generate.push(replacement.installDevclass);
             }
         }
-        
+
         //3- generate missing packages
-        if(generate.length > 0){
+        if (generate.length > 0) {
+            if (!context.runtime.stopWarningShown) {
+                context.runtime.stopWarningShown = true;
+                stopWarning('install');
+            }
             const dlvunit = context.runtime.installData.namespace === '$' ? 'LOCAL' : 'HOME';
-            for(const devclass of generate){
+            for (const devclass of generate) {
                 Logger.loading(`Creating package ${devclass}...`);
                 const originalDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.installDevclass === devclass).originalDevclass;
                 Logger.log(`Original devclass ${originalDevclass}`, true);
@@ -86,9 +91,9 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
             parentcl = '';
             const originalRoot = originalPackageHierarchy.devclass === packageReplacement.originalDevclass;
-            if(!originalRoot){
+            if (!originalRoot) {
                 const originalParentCl = context.runtime.packageTransportsData.tdevc.find(o => o.devclass === packageReplacement.originalDevclass).parentcl;
-                if(originalParentCl){
+                if (originalParentCl) {
                     parentcl = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalParentCl).installDevclass;
                 }
             }
@@ -101,6 +106,10 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         }
         const installPackageHierarchy = getPackageHierarchy(aDummyTdevc);
         //clear all parentcl, except for root
+        if (!context.runtime.stopWarningShown) {
+            context.runtime.stopWarningShown = true;
+            stopWarning('install');
+        }
         for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
             const installRoot = installPackageHierarchy.devclass === packageReplacement.installDevclass;
             if (!installRoot) {
@@ -113,11 +122,11 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
             const originalParentCl = context.runtime.packageTransportsData.tdevc.find(o => o.devclass === packageReplacement.originalDevclass).parentcl;
             if (originalParentCl) {
                 const installParentCl = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass;
-                if(installParentCl){
+                if (installParentCl) {
                     if (!installRoot) {
-                        try{
+                        try {
                             await SystemConnector.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
-                        }catch(e){
+                        } catch (e) {
                             TrmServerUpgrade.getInstance().throwError(e);
                         }
                     }

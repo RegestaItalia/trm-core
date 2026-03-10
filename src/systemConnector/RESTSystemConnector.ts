@@ -54,7 +54,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     public getNewConnection(): ISystemConnector {
-        return new RESTSystemConnector(this._connection, this._login, this._normalizeEndpoint);
+        return this;
     }
 
     protected getSysname(): string {

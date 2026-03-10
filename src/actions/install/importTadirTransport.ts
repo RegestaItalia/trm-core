@@ -5,6 +5,7 @@ import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import _ from 'lodash';
 import { TrmServerUpgrade } from "../../commons";
+import { stopWarning } from "../stopWarning";
 
 /**
  * Import TADIR Transport.
@@ -29,6 +30,10 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
 
         //1- upload transport into system
         Logger.loading(`Uploading ${context.runtime.packageTransports.tadir.binaries.trkorr}`, true);
+        if (!context.runtime.stopWarningShown) {
+            context.runtime.stopWarningShown = true;
+            stopWarning('install');
+        }
         context.runtime.packageTransports.tadir.instance = await Transport.upload({
             binary: context.runtime.packageTransports.tadir.binaries.binaries,
             trTarget: SystemConnector.getDest(),
