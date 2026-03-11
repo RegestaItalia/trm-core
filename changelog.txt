@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-03-11 v8.5.2
+-------------------
++ check transport existance in cg3y
+
 2026-03-10 v8.5.1
 -------------------
 + stateless indicator in system connector

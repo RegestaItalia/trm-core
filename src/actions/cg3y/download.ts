@@ -3,6 +3,7 @@ import { Cg3yWorkflowContext } from ".";
 import { Transport } from "../../transport";
 import { Logger } from "trm-commons";
 import * as AdmZip from "adm-zip";
+import { SystemConnector } from "../../systemConnector";
 
 /**
  * Download
@@ -19,6 +20,11 @@ export const download: Step<Cg3yWorkflowContext> = {
     run: async (context: Cg3yWorkflowContext): Promise<void> => {
         Logger.log('Download step', true);
         const transport = new Transport(context.rawInput.trkorr);
+        Logger.loading(`Checking "${transport.trkorr}"...`);
+        const exists = !!(await transport.getE070());
+        if(!exists){
+            throw new Error(`Transport "${transport.trkorr}" was not found in ${SystemConnector.getDest()}.`);
+        }
 
         //1- check is released
         const isReleased = await transport.isReleased();
