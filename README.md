@@ -10,9 +10,15 @@
 | Regesta S.p.A.                                  | [https://www.regestaitalia.eu/](https://www.regestaitalia.eu/) |
 | Clarex S.r.l.                                   | [https://www.clarex.it/](https://www.clarex.it/)               |
 
-This module contains the core functionalities of [TRM (Transport Request Manager)](https://trmregistry.com/).
+[trm-core](https://www.npmjs.com/package/trm-core) is the server-side component of TRM.
 
-TRM is a software designed to make transports between SAP ECC/S4 systems easy.
+🚚 **TRM (Transport Request Manager)** is a package manager inspired solution built leveraging CTS that simplifies SAP ABAP transports.
+
+<p align="center">
+  <img src="https://docs.trmregistry.com/logo.png" alt="TRM Logo" />
+</p>
+
+TRM introduces **package-based software delivery** to the SAP ecosystem, bringing with it semantic versioning, dependency management, and automated deployment activities.
 
 # Requirements
 
