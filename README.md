@@ -4,6 +4,7 @@
 [![Core License](https://img.shields.io/github/license/RegestaItalia/trm-core)](https://github.com/RegestaItalia/trm-core)
 [![Core Latest version](https://img.shields.io/npm/v/trm-core)](https://www.npmjs.com/package/trm-core)
 [![Core Installs](https://img.shields.io/npm/dt/trm-core)](https://www.npmjs.com/package/trm-core)
+[![View Code Wiki](https://assets.codewiki.google/readme-badge/static.svg)](https://codewiki.google/github.com/regestaitalia/trm-docs)
 
 | 🚀 This project is funded and maintained by 🏦 | 🔗                                                             |
 |-------------------------------------------------|----------------------------------------------------------------|
