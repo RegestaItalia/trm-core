@@ -652,7 +652,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
     if (log) {
-      //Logger.loading(`Finding dependencies (0.0%)...`);
+      Logger.forceStop();
       const logProgress = new cliProgress.SingleBar({
         clearOnComplete: true,
         hideCursor: true,
@@ -678,7 +678,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
               const match = status.match(/\(([\d.]+)%\)/);
               if (match) {
                 logProgress.update(parseFloat(match[1]));
-                //Logger.loading(`${status}...`);
               }
             }
           } catch { }
@@ -704,7 +703,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       } catch { }
       logProgress.stop();
       return (await new PackageDependencies(devclass).setDependencies(packageDependencies || [], log));
-
     } else {
       packageDependencies = await this.getPackageDependenciesInternal(devclass, includeSubPackages);
       return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));

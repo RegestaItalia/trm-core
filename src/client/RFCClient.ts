@@ -255,71 +255,71 @@ export class RFCClient implements IClient {
     }
 
     public async getFileSystem(): Promise<struct.FILESYS> {
-        const result = await this._call("ZTRM_GET_FILE_SYS", {});
-        return result['evFileSys'];
+        const result = await this._call("/ATRM/GET_FILE_SYS", {});
+        return result['fileSys'];
     }
 
     public async getDirTrans(): Promise<components.PFEVALUE> {
-        const result = await this._call("ZTRM_GET_DIR_TRANS", {});
-        return result['evDirTrans'];
+        const result = await this._call("/ATRM/GET_DIR_TRANS", {});
+        return result['dirTrans'];
     }
 
     public async getBinaryFile(filePath: string): Promise<Buffer> {
-        const result = await this._call("ZTRM_GET_BINARY_FILE", {
-            iv_file_path: filePath
+        const result = await this._call("/ATRM/GET_BINARY_FILE", {
+            file_path: filePath
         });
-        return result['evFile'];
+        return result['file'];
     }
 
     public async writeBinaryFile(filePath: string, binary: Buffer): Promise<void> {
-        await this._call("ZTRM_WRITE_BINARY_FILE", {
-            iv_file_path: filePath,
-            iv_file: binary
+        await this._call("/ATRM/WRITE_BINARY_FILE", {
+            file_path: filePath,
+            file: binary
         });
     }
 
     public async createTocTransport(text: components.AS4TEXT, target: components.TR_TARGET): Promise<components.TRKORR> {
-        const result = await this._call("ZTRM_CREATE_TOC", {
-            iv_text: text,
-            iv_target: target.trim().toUpperCase()
+        const result = await this._call("/ATRM/CREATE_TOC", {
+            text: text,
+            target: target.trim().toUpperCase()
         });
-        return result['evTrkorr'];
+        return result['trkorr'];
     }
 
     public async createWbTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
-        const result = await this._call("ZTRM_CREATE_IMPORT_TR", {
-            iv_text: text,
-            iv_target: target.trim().toUpperCase()
+        const result = await this._call("/ATRM/CREATE_IMPORT_TR", {
+            text: text,
+            target: target.trim().toUpperCase()
         });
-        return result['evTrkorr'];
+        return result['trkorr'];
     }
 
     public async setTransportDoc(trkorr: components.TRKORR, doc: struct.TLINE[]): Promise<void> {
-        await this._call("ZTRM_SET_TRANSPORT_DOC", {
-            iv_trkorr: trkorr.trim().toUpperCase(),
-            it_doc: doc
+        await this._call("/ATRM/SET_TRANSPORT_DOC", {
+            trkorr: trkorr.trim().toUpperCase(),
+            doc: doc
         });
     }
 
     public async getDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]> {
-        const result = await this._call("ZTRM_GET_DEVCLASS_OBJS", {
-            iv_devclass: devclass.trim().toUpperCase()
+        const result = await this._call("/ATRM/GET_DEVCLASS_OBJS", {
+            devclass: devclass.trim().toUpperCase()
         });
-        return result['etTadir'];
+        return result['tadir'];
     }
 
     public async removeComments(trkorr: components.TRKORR, object: components.TROBJTYPE): Promise<void> {
-        await this._call("ZTRM_REMOVE_TR_COMMENTS", {
-            iv_trkorr: trkorr.trim().toUpperCase(),
-            iv_object: object.trim().toUpperCase()
+        await this._call("/ATRM/REMOVE_TR_COMMENTS", {
+            trkorr: trkorr.trim().toUpperCase(),
+            object: object.trim().toUpperCase()
         });
     }
 
     public async addToTransportRequest(trkorr: components.TRKORR, content: struct.E071[], lock: boolean): Promise<void> {
-        await this._call("ZTRM_ADD_OBJS_TR", {
-            iv_lock: lock ? 'X' : ' ',
-            iv_trkorr: trkorr.trim().toUpperCase(),
-            it_e071: content.map(o => {
+        await this._call("/ATRM/ADD_OBJS_TR", {
+            lock: lock ? 'X' : ' ',
+            trkorr: trkorr.trim().toUpperCase(),
+            e071: content.map(o => {
                 return {
                     PGMID: o.pgmid,
                     OBJECT: o.object,
@@ -338,195 +338,195 @@ export class RFCClient implements IClient {
     }
 
     public async deleteTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._call("ZTRM_DELETE_TRANSPORT", {
-            iv_trkorr: trkorr.trim().toUpperCase()
+        await this._call("/ATRM/DELETE_TRANSPORT", {
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async releaseTrkorr(trkorr: components.TRKORR, lock: boolean, timeout?: number): Promise<void> {
-        await this._call("ZTRM_RELEASE_TR", {
-            iv_trkorr: trkorr.trim().toUpperCase(),
-            iv_lock: lock ? 'X' : ' '
+        await this._call("/ATRM/RELEASE_TR", {
+            trkorr: trkorr.trim().toUpperCase(),
+            lock: lock ? 'X' : ' '
         }, timeout);
     }
 
     public async addSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._call("ZTRM_ADD_SKIP_TRKORR", {
-            iv_trkorr: trkorr.trim().toUpperCase()
+        await this._call("/ATRM/ADD_SKIP_TRKORR", {
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._call("ZTRM_REMOVE_SKIP_TRKORR", {
-            iv_trkorr: trkorr.trim().toUpperCase()
+        await this._call("/ATRM/REMOVE_SKIP_TRKORR", {
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async addSrcTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._call("ZTRM_ADD_SRC_TRKORR", {
-            iv_trkorr: trkorr.trim().toUpperCase()
+        await this._call("/ATRM/ADD_SRC_TRKORR", {
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async readTmsQueue(target: components.TMSSYSNAM): Promise<struct.STMSIQREQ[]> {
-        const result = await this._call("ZTRM_READ_TMS_QUEUE", {
-            iv_target: target
+        const result = await this._call("/ATRM/READ_TMS_QUEUE", {
+            target: target
         });
-        return result['etRequests'];
+        return result['requests'];
     }
 
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
-        await this._call("ZTRM_CREATE_PACKAGE", {
-            is_data: scompkdtln
+        await this._call("/ATRM/CREATE_PACKAGE", {
+            data: scompkdtln
         });
     }
 
     public async tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void> {
-        await this._call("ZTRM_TDEVC_INTERFACE", {
-            iv_devclass: devclass.trim().toUpperCase(),
-            iv_parentcl: parentcl ? parentcl.trim().toUpperCase() : '',
-            iv_rm_parentcl: rmParentCl ? 'X' : ' ',
-            iv_devlayer: devlayer ? devlayer.trim().toUpperCase() : ''
+        await this._call("/ATRM/TDEVC_INTERFACE", {
+            devclass: devclass.trim().toUpperCase(),
+            parentcl: parentcl ? parentcl.trim().toUpperCase() : '',
+            rm_parentcl: rmParentCl ? 'X' : ' ',
+            devlayer: devlayer ? devlayer.trim().toUpperCase() : ''
         });
     }
 
     public async getDefaultTransportLayer(): Promise<components.DEVLAYER> {
-        const result = await this._call("ZTRM_GET_TRANSPORT_LAYER");
-        return result['evLayer'];
+        const result = await this._call("/ATRM/GET_TRANSPORT_LAYER");
+        return result['layer'];
     }
 
     public async tadirInterface(tadir: struct.TADIR): Promise<void> {
-        await this._call("ZTRM_TADIR_INTERFACE", {
-            iv_pgmid: tadir.pgmid,
-            iv_object: tadir.object,
-            iv_obj_name: tadir.objName,
-            iv_devclass: tadir.devclass,
-            iv_set_genflag: tadir.genflag ? 'X' : ' ',
-            iv_srcsystem: tadir.srcsystem
+        await this._call("/ATRM/TADIR_INTERFACE", {
+            pgmid: tadir.pgmid,
+            object: tadir.object,
+            obj_name: tadir.objName,
+            devclass: tadir.devclass,
+            set_genflag: tadir.genflag ? 'X' : ' ',
+            srcsystem: tadir.srcsystem
         });
     }
 
     public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        await this._call("ZTRM_DEQUEUE_TR", {
-            iv_trkorr: trkorr.trim().toUpperCase()
+        await this._call("/ATRM/DEQUEUE_TR", {
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean = true): Promise<void> {
-        await this._call("ZTRM_FORWARD_TR", {
-            iv_trkorr: trkorr.trim().toUpperCase(),
-            iv_target: target.trim().toUpperCase(),
-            iv_source: source.trim().toUpperCase(),
-            iv_import_again: importAgain ? 'X' : ' '
+        await this._call("/ATRM/FORWARD_TR", {
+            trkorr: trkorr.trim().toUpperCase(),
+            target: target.trim().toUpperCase(),
+            source: source.trim().toUpperCase(),
+            import_again: importAgain ? 'X' : ' '
         });
     }
 
     public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        await this._call("ZTRM_IMPORT_TR", {
-            iv_system: system.trim().toUpperCase(),
-            iv_trkorr: trkorr.trim().toUpperCase()
+        await this._call("/ATRM/IMPORT_TR", {
+            system: system.trim().toUpperCase(),
+            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
-        await this._call("ZTRM_SET_INSTALL_DEVC", {
-            it_installdevc: installDevc
+        await this._call("/ATRM/SET_INSTALL_DEVC", {
+            installdevc: installDevc
         });
     }
 
     public async getObjectsList(): Promise<struct.KO100[]> {
-        const result = await this._call("ZTRM_LIST_OBJECT_TYPES");
-        return result['etObjectText'];
+        const result = await this._call("/ATRM/LIST_OBJECT_TYPES");
+        return result['objectText'];
     }
 
     public async getTrmServerVersion(): Promise<string> {
-        const result = await this._call("ZTRM_VERSION");
-        return result['evVersion'];
+        const result = await this._call("/ATRM/VERSION");
+        return result['version'];
     }
 
     public async getTrmRestVersion(): Promise<string> {
-        const result = await this._call("ZTRM_VERSION");
-        return result['evRest'];
+        const result = await this._call("/ATRM/VERSION");
+        return result['rest'];
     }
 
     public async trmServerPing(): Promise<string> {
-        const result = await this._call("ZTRM_PING");
-        return result['evReturn'];
+        const result = await this._call("/ATRM/PING");
+        return result['return'];
     }
 
     public async renameTransportRequest(trkorr: components.TRKORR, as4text: components.AS4TEXT): Promise<void> {
-        await this._call("ZTRM_RENAME_TRANSPORT_REQUEST", {
-            iv_trkorr: trkorr.trim().toUpperCase(),
-            iv_as4text: as4text
+        await this._call("/ATRM/RENAME_TRANSPORT_REQUEST", {
+            trkorr: trkorr.trim().toUpperCase(),
+            as4text: as4text
         });
     }
 
     public async setPackageIntegrity(integrity: struct.ZTRM_INTEGRITY): Promise<void> {
-        await this._call("ZTRM_SET_INTEGRITY", {
-            is_integrity: integrity
+        await this._call("/ATRM/SET_INTEGRITY", {
+            integrity: integrity
         });
     }
 
     public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void> {
-        await this._call("ZTRM_ADD_LANG_TR", {
-            iv_trkorr: trkorr,
-            it_devclass: devclassFilter
+        await this._call("/ATRM/ADD_LANG_TR", {
+            trkorr: trkorr,
+            devclass: devclassFilter
         });
     }
 
     public async trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean = false): Promise<void> {
-        await this._call("ZTRM_TR_COPY", {
-            iv_from: from,
-            iv_to: to,
-            iv_doc: doc ? 'X' : ' '
+        await this._call("/ATRM/TR_COPY", {
+            from: from,
+            to: to,
+            doc: doc ? 'X' : ' '
         });
     }
 
     public async addNamespace(namespace: components.NAMESPACE, replicense: components.TRNLICENSE, texts: struct.TRNSPACETT[]): Promise<void> {
-        await this._call("ZTRM_ADD_NAMESPACE", {
-            iv_namespace: namespace,
-            iv_replicense: replicense,
-            it_texts: texts
+        await this._call("/ATRM/ADD_NAMESPACE", {
+            namespace: namespace,
+            replicense: replicense,
+            texts: texts
         });
     }
 
     public async getR3transInfo(): Promise<string> {
-        const result = await this._call("ZTRM_GET_R3TRANS_INFO");
-        return result['evLog'];
+        const result = await this._call("/ATRM/GET_R3TRANS_INFO");
+        return result['log'];
     }
 
     public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
-        const result = await this._call("ZTRM_MIGRATE_TRANSPORT", {
-            iv_trkorr: trkorr
+        const result = await this._call("/ATRM/MIGRATE_TRANSPORT", {
+            trkorr: trkorr
         });
-        return result['evTrmTrkorr'];
+        return result['trmTrkorr'];
     }
 
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        await this._call("ZTRM_DEL_TRANSPORT_TMS", {
-            iv_trkorr: trkorr,
-            iv_system: system
+        await this._call("/ATRM/DEL_TRANSPORT_TMS", {
+            trkorr: trkorr,
+            system: system
         });
     }
 
     public async refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
-        await this._call("ZTRM_REFRESH_TR_TMS_TXT", {
-            iv_trkorr: trkorr
+        await this._call("/ATRM/REFRESH_TR_TMS_TXT", {
+            trkorr: trkorr
         });
     }
 
     public async getDotAbapgit(devclass: components.DEVCLASS): Promise<Buffer> {
-        const result = await this._call("ZTRM_GET_DOT_ABAPGIT", {
-            iv_devclass: devclass
+        const result = await this._call("/ATRM/GET_DOT_ABAPGIT", {
+            devclass: devclass
         });
-        return result['evDotAbapgit'];
+        return result['dotAbapgit'];
     }
 
     public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.ZTY_SER_OBJ[] }> {
-        const result = await this._call("ZTRM_GET_ABAPGIT_SOURCE", {
-            iv_devclass: devclass
+        const result = await this._call("/ATRM/GET_ABAPGIT_SOURCE", {
+            devclass: devclass
         });
-        const sXml = result['evObjects'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
+        const sXml = result['objects'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
         const oAbapXml = xml.xml2js(sXml, { compact: true });
         const objects = oAbapXml['asx:abap']['asx:values']['OBJECTS'].item.map(o => {
             return {
@@ -537,25 +537,25 @@ export class RFCClient implements IClient {
             };
         });
         return {
-            zip: result['evZip'],
+            zip: result['zip'],
             objects
         }
     }
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
-        const result = await this._call("ZTRM_EXECUTE_POST_ACTIVITY", {
-            iv_data: data,
-            iv_pre: pre ? 'X' : ''
+        const result = await this._call("/ATRM/EXECUTE_POST_ACTIVITY", {
+            data: data,
+            pre: pre ? 'X' : ''
         });
         return {
-            messages: result['etMessages'],
-            execute: result['evExecute'] === 'X'
+            messages: result['messages'],
+            execute: result['execute'] === 'X'
         };
     }
 
     public async getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
-        const result = await this._call("ZTRM_GET_INSTALLED_PACKAGES");
-        const sXml = result['evPackages'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
+        const result = await this._call("/ATRM/GET_INSTALLED_PACKAGES");
+        const sXml = result['packages'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
         const oAbapXml = xml.xml2js(sXml, { compact: true });
         return oAbapXml['asx:abap']['asx:values']['PACKAGES'].item.map(o => {
             var flatTdevc = [];
@@ -590,72 +590,66 @@ export class RFCClient implements IClient {
 
     public async isServerApisAllowed(): Promise<true | RFCClientError> {
         try {
-            await this._call("ZTRM_CHECK_AUTH");
+            await this._call("/ATRM/CHECK_AUTH");
             return true;
         } catch (e) {
-            //perhaps installed version has yet to be updated?
-            //TODO: this check will become deprecated with later releases
-            if (e.exceptionType !== 'CALL_FUNCTION_NOT_REMOTE') {
-                return e;
-            } else {
-                return true;
-            }
+            return e;
         }
     }
 
 
     public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {
-        await this._call("ZTRM_CHANGE_TR_OWNER", {
-            iv_trkorr: trkorr,
-            iv_new_owner: owner
+        await this._call("/ATRM/CHANGE_TR_OWNER", {
+            trkorr: trkorr,
+            new_owner: owner
         });
     }
 
     public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {
-        const result = await this._call("ZTRM_GET_DEPENDENCIES", {
-            iv_devclass: devclass,
-            iv_incl_sub: includeSubPackages ? 'X' : ' ',
-            iv_log_id: logId
+        const result = await this._call("/ATRM/GET_DEPENDENCIES", {
+            devclass: devclass,
+            incl_sub: includeSubPackages ? 'X' : ' ',
+            log_id: logId
         });
-        return result['etDependencies'];
+        return result['dependencies'];
     }
 
     public async getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
-        const result = await this._call("ZTRM_GET_DEPENDENCIES_SINGLE", {
-            is_object: {
+        const result = await this._call("/ATRM/GET_DEPENDENCIES_SINGLE", {
+            object: {
                 object,
                 obj_name: objName
             }
         });
-        return result['etDependencies'];
+        return result['dependencies'];
     }
 
     public async createLogPolling(event: components.ZTRM_POLLING_EVENT): Promise<components.ZTRM_POLLING_ID> {
-        const result = await this._call("ZTRM_CREATE_LOG_POLLING", {
-            iv_event: event
+        const result = await this._call("/ATRM/CREATE_LOG_POLLING", {
+            event: event
         });
-        return result['evId'];
+        return result['id'];
     }
 
     public async deleteLogPolling(logID: components.ZTRM_POLLING_ID): Promise<void> {
-        await this._call("ZTRM_DELETE_LOG_POLLING", {
-            iv_id: logID
+        await this._call("/ATRM/DELETE_LOG_POLLING", {
+            id: logID
         });
     }
 
     public async readLogPolling(logID: components.ZTRM_POLLING_ID): Promise<components.ZTRM_POLLING_LAST_MSG> {
-        const result = await this._call("ZTRM_READ_LOG_POLLING", {
-            iv_id: logID
+        const result = await this._call("/ATRM/READ_LOG_POLLING", {
+            id: logID
         });
-        return result['evLog'];
+        return result['log'];
     }
 
     public async getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
-        const result = await this._call("ZTRM_GET_TR_IMPORT_STATUS", {
-            iv_trkorr: trkorr,
-            iv_system: system
+        const result = await this._call("/ATRM/GET_TR_IMPORT_STATUS", {
+            trkorr: trkorr,
+            system: system
         });
-        return result['esStatus'];
+        return result['status'];
     }
 
 }

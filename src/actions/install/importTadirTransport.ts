@@ -48,7 +48,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
         //3- import transport into system
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(${Transport.getTransportIcon()} Workbench) `;
+        const prefix = `(${Transport.getTransportIcon()}  Workbench) `;
         if (originalLPrefix) {
             Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
         } else {

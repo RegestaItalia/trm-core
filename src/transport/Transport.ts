@@ -12,7 +12,7 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import * as cliProgress from "cli-progress";
-import { CliLogFileLogger, CliLogger, Logger } from "trm-commons";
+import { Logger } from "trm-commons";
 import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
@@ -416,11 +416,8 @@ export class Transport {
         const systemR3transUnicode = await SystemConnector.getR3transUnicode();
         Logger.log(`System R3trans: ${systemR3transVersion}`, true);
         Logger.log(`System R3trans unicode: ${systemR3transUnicode}`, true);
-
-        if (Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger) {
-            Logger.logger.forceStop();
-        }
-
+        
+        Logger.forceStop();
         const multibar = new cliProgress.MultiBar({
             clearOnComplete: true,
             hideCursor: true,
@@ -548,11 +545,11 @@ export class Transport {
                 error = new Error(`Error occurred during transport ${this.trkorr} release.`);
             }
             if (whileResult === "SUCCESS") {
-                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr} released with success.`);
+                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr}  released with success.`);
                 rc = 0;
             }
             if (whileResult === "WARNING") {
-                Logger.warning(`${Transport.getTransportIcon()} ${this.trkorr} released with warning.`);
+                Logger.warning(`${Transport.getTransportIcon()} ${this.trkorr}  released with warning.`);
                 rc = 4;
             }
         }
@@ -577,7 +574,7 @@ export class Transport {
                 Logger.log(`Attempt ${inQueueAttempts}, reading in 3 seconds...`, true);
                 await setTimeout(3000);
                 if (!checkImpSing) {
-                    Logger.loading(`${Transport.getTransportIcon()} Releasing...`, skipLog);
+                    Logger.loading(`${Transport.getTransportIcon()}  Releasing...`, skipLog);
                 } else {
                     const lastCheck = new Date();
                     try {
@@ -619,7 +616,7 @@ export class Transport {
             if (!checkImpSing) {
                 //without check of import, we're releasing the transport (publish?)
                 //set rc to -1 as it is irrelevant
-                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr} released.`, skipLog);
+                Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released.`, skipLog);
                 rc = -1;
             } else {
                 //read final import message

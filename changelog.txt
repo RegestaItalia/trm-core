@@ -8,6 +8,12 @@ Legend
 + : added
 - : removed
 
+2026-03-25 v9.0.0
+-------------------
+! moved to namespace /ATRM/
+* polling progress bar
+* transport icon
+
 2026-03-11 v8.5.3
 -------------------
 + refresh transport text in cg3z
