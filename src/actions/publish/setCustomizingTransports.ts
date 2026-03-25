@@ -34,12 +34,18 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
             }else{
                 defaultTransports = context.rawInput.publishData.customizingTransports;
             }
-            const inq = await Inquirer.prompt({
+            const inq = await Inquirer.prompt([{
+                message: `Do you want to publish customizing transports?`,
+                name: 'continue',
+                type: 'confirm',
+                default: !!defaultTransports
+            }, {
                 message: `Add customizing transports (separated by comma)`,
                 name: 'transports',
                 type: 'input',
+                when: (hash) => hash.continue,
                 default: defaultTransports
-            });
+            }]);
             context.rawInput.publishData.customizingTransports = inq.transports;
         }
         if(typeof(context.rawInput.publishData.customizingTransports) === 'string'){
