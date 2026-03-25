@@ -82,7 +82,7 @@ export const readTadir: Step<InstallWorkflowContext> = {
                 if (context.rawInput.installData.checks.noExistingObjects) {
                     Logger.warning(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
                 } else {
-                    throw new Error(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}, install in update mode`);
+                    throw new Error(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}, install without object check (expert mode)`);
                 }
             }
         }
