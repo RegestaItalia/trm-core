@@ -30,7 +30,7 @@ export const setReadme: Step<PublishWorkflowContext> = {
         //1- set readme
         if(!context.rawInput.contextData.noInquirer){
             context.rawInput.publishData.readme = (await Inquirer.prompt([{
-                message: 'Write readme?',
+                message: `Do you want to write a ${context.runtime.trmPackage.latestReleaseManifest ? 'new' : ''} readme?`,
                 type: 'confirm',
                 name: 'editReadme',
                 default: false

@@ -14,13 +14,13 @@ import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { getPackageHierarchy } from "../commons";
 import { SystemConnector } from "./SystemConnector";
 import * as cliProgress from "cli-progress";
-import { ISystemConnector } from "./ISystemConnector";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
-export const TRM_SERVER_INTF: string = 'ZIF_TRM';
+export const TRM_SERVER_INTF: string = '/ATRM/IF_SERVER';
+export const TRM_REST_INTF: string = '/ATRM/IF_REST';
 export const TRM_REST_PACKAGE_NAME: string = 'trm-rest';
-export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';
-export const SKIP_TRKORR_TABL = 'ZTRM_SKIP_TRKORR';
+export const SRC_TRKORR_TABL = '/ATRM/SRC_TRKORR';
+export const SKIP_TRKORR_TABL = '/ATRM/SKIPTRKORR';
 
 export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
@@ -180,7 +180,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getTrmServerPackage(): Promise<TrmPackage> {
     var oPackage: TrmPackage;
     const oPublicRegistry = RegistryProvider.getRegistry();
-    const intf = await this.getObject('R3TR', 'INTF', 'ZIF_TRM');
+    const intf = await this.getObject('R3TR', 'INTF', TRM_SERVER_INTF);
     if (intf) {
       try {
         const trmServerVersion = await this.getTrmServerVersion();
@@ -202,7 +202,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getTrmRestPackage(): Promise<TrmPackage> {
     var oPackage: TrmPackage;
     const oPublicRegistry = RegistryProvider.getRegistry();
-    const intf = await this.getObject('R3TR', 'INTF', 'ZIF_TRM_REST');
+    const intf = await this.getObject('R3TR', 'INTF', TRM_REST_INTF);
     if (intf) {
       try {
         const trmRestVersion = await this.getTrmRestVersion();

@@ -83,6 +83,8 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
                 }
             }
             Logger.info(`${validatedTransports.length} customizing transports/tasks will be published.`);
+        }else{
+            context.rawInput.publishData.customizingTransports = [];
         }
     }
 }

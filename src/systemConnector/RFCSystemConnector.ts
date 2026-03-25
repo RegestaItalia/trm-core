@@ -295,4 +295,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getTransportImportStatus(trkorr, system);
     }
 
+    public async getPackageObjLocks(devclass: components.DEVCLASS): Promise<struct.ZTRM_OBJ_LOCK[]> {
+        return this._client.getPackageObjLocks(devclass);
+    }
+
 }

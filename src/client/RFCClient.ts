@@ -652,4 +652,11 @@ export class RFCClient implements IClient {
         return result['status'];
     }
 
+    public async getPackageObjLocks(devclass: components.DEVCLASS): Promise<struct.ZTRM_OBJ_LOCK[]> {
+        const result = await this._call("/ATRM/GET_PACKAGE_OBJ_LOCKS", {
+            devclass
+        });
+        return result['locks'];
+    }
+
 }

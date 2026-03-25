@@ -647,4 +647,13 @@ export class RESTClient implements IClient {
         return result.stat;
     }
 
+    public async getPackageObjLocks(devclass: components.DEVCLASS): Promise<struct.ZTRM_OBJ_LOCK[]> {
+        const result = (await this._axiosInstance.get('/get_package_obj_locks', {
+            data: {
+                devclass
+            }
+        })).data;
+        return result.locks;
+    }
+
 }

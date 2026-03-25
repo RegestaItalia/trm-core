@@ -324,5 +324,9 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     public async getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
         return this._client.getTransportImportStatus(trkorr, system);
     }
+    
+    public async getPackageObjLocks(devclass: components.DEVCLASS): Promise<struct.ZTRM_OBJ_LOCK[]> {
+        return this._client.getPackageObjLocks(devclass);
+    }
 
 }

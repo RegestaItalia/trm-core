@@ -461,4 +461,9 @@ export namespace SystemConnector {
         return systemConnector.getTimezone();
     }
 
+    export async function getPackageObjLocks(devclass: components.DEVCLASS): Promise<struct.ZTRM_OBJ_LOCK[]> {
+        await checkSystemConnector();
+        return systemConnector.getPackageObjLocks(devclass);
+    }
+
 }

@@ -28,3 +28,4 @@ export * from "./ZTRM_OBJECT_DEPENDENCY";
 export * from "./ZTRM_OBJECT_DEPENDENCIES";
 export * from "./DD03L";
 export * from "./TPSTAT";
+export * from "./ZTRM_OBJ_LOCK";

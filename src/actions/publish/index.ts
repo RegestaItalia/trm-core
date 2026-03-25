@@ -24,6 +24,7 @@ import { publishToRegistry } from "./publishToRegistry";
 import { getSourceCode } from "./getSourceCode";
 import { DotAbapGit } from "../../abapgit";
 import { ReleaseType } from "semver";
+import { checkAllObjectsReleased } from "./checkAllObjectsReleased";
 
 /**
  * Input data for publish package action.
@@ -228,6 +229,7 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         setReadme,
         setCustomizingTransports,
         getSourceCode,
+        checkAllObjectsReleased,
         generateDevcTransport,
         generateTadirTransport,
         generateLangTransport,

@@ -61,5 +61,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     createLogPolling: (event: components.ZTRM_POLLING_EVENT) => Promise<components.ZTRM_POLLING_ID>,
     deleteLogPolling: (logID: components.ZTRM_POLLING_ID) => Promise<void>,
     readLogPolling: (logID: components.ZTRM_POLLING_ID) => Promise<components.ZTRM_POLLING_LAST_MSG>,
-    getTransportImportStatus: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<struct.TPSTAT>
+    getTransportImportStatus: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<struct.TPSTAT>,
+    getPackageObjLocks: (devclass: components.DEVCLASS) => Promise<struct.ZTRM_OBJ_LOCK[]>
 }
