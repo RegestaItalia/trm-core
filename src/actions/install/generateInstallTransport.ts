@@ -1,30 +1,27 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Inquirer, Logger } from "trm-commons";
-import { getPackageNamespace, TrmServerUpgrade } from "../../commons";
+import { Logger } from "trm-commons";
+import { getPackageNamespace } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
-import { COMMENT_OBJ, Transport } from "../../transport";
-import { RegistryType } from "../../registry";
-import { TrmPackage } from "../../trmPackage";
+import { Transport, TrmTransportIdentifier } from "../../transport";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
+import { setTransportTarget } from "../commons/prompts";
 
 /**
  * Generate install transport
  * 
  * 1- check no temporary objects; it's sufficient to check that the namespace is not $
  * 
- * 2- check if a trm install transport already exists, create if it does not
+ * 2- add tadir objects and try to lock
  * 
- * 3- add comments, documentation and rename transport
+ * 3- include language transport 
  * 
- * 4- add tadir objects and try to lock
+ * 4- include customizing transports
  * 
- * 5- include language transport 
+ * 5- release/delete install transports
  * 
- * 6- include customizing transport 
- * 
- * 7- add namespace
+ * 6- add comments, documentation and rename transport
  * 
 */
 export const generateInstallTransport: Step<InstallWorkflowContext> = {
@@ -44,82 +41,36 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
         try {
             //1- check no temporary objects; it's sufficient to check that the namespace is not $
             if (getPackageNamespace(context.runtime.installData.namespace) === '$') {
-                Logger.warning(`Install transport was not generated because the install package is temporary ($).`, true);
                 return;
             }
 
-            Logger.loading(`Checking install transport...`);
-
-            //2- case 1: updating a trm package -> get the install transport (if not released already)
-            // - case 2: overwriting a local package with its registry package -> get all wb transports with registry local and look for name matches, show them as a list
-            // - case 3: overwriting a registry package with its local package -> get all wb transports with matching name, show them as a list
-            if (context.runtime.update) {
-                //case 1
-                context.runtime.installData.transport = await (new TrmPackage(
-                    context.rawInput.packageData.name,
-                    context.rawInput.packageData.registry
-                )).getWbTransport();
-            } else {
-                if (!context.rawInput.contextData.noInquirer) {
-                    //case 3
-                    var transports = await SystemConnector.getWbTransports(context.rawInput.packageData.name); //both locals and with registry filtered by name
-                    if (context.runtime.registry.getRegistryType() !== RegistryType.LOCAL) {
-                        //case 2
-                        for (var i = transports.length - 1; i >= 0; i--) {
-                            const linkedPackage = await transports[i].getLinkedPackage();
-                            if (linkedPackage.registry.getRegistryType() !== RegistryType.LOCAL) { //leaves out locals only
-                                transports.splice(i, 1);
-                            }
-                        }
-                    }
-                    if (transports.length > 0) {
-                        const trkorr = (await Inquirer.prompt({
-                            name: 'trkorr',
-                            message: `Found ${transports.length} install transport(s) that might be linked to ${context.rawInput.packageData.name}, do you want to use one of these?`,
-                            type: 'select',
-                            choices: transports.map(o => {
-                                return {
-                                    name: o.trkorr,
-                                    value: o.trkorr
-                                };
-                            }).concat([{
-                                name: 'Generate new',
-                                value: null
-                            }])
-                        })).trkorr;
-                        if(trkorr){
-                            context.runtime.installData.transport = transports.find(o => o.trkorr === trkorr);
-                        }
-                    }
-                }
-            }
-            if (context.runtime.installData.transport) {
-                //one of the cases was a match
-                Logger.log(`Install transport (${context.runtime.installData.transport.trkorr}) already exists, won't create a new one.`, true);
-                Logger.loading(`Updating install transport...`);
-                if (TrmServerUpgrade.getInstance().changeTrOwner()) {
-                    await context.runtime.installData.transport.changeOwner(SystemConnector.getLogonUser());
-                }
-                if (TrmServerUpgrade.getInstance().removeComments()) {
-                    await context.runtime.installData.transport.removeComments();
-                }
-            } else {
-                //no matches, generate
-                Logger.loading(`Generating install transport...`);
-                context.runtime.installData.transport = await Transport.createWb({
-                    text: `TRM generated transport`, //temporary name replaced in step 3
-                    target: context.rawInput.installData.installTransport.targetSystem || ''
+            Logger.loading(`Reading ${SystemConnector.getDest()} transport targets...`);
+            const transportTarget = await setTransportTarget(
+                context.rawInput.contextData.noInquirer,
+                await SystemConnector.getTransportTargets(),
+                context.rawInput.installData.installTransport.targetSystem,
+                "Install transport target"
+            );
+            Logger.loading(`Generating install transports...`);
+            context.runtime.installData.transports.push({
+                type: TrmTransportIdentifier.TADIR,
+                transport: await Transport.createWb({
+                    text: `TRM generated transport`, //temporary name, replaced in step 5
+                    target: transportTarget
+                })
+            });
+            const noCustomizing = context.rawInput.installData.import.noCust || context.runtime.packageTransports.cust.length === 0;
+            if (!noCustomizing) {
+                context.runtime.installData.transports.push({
+                    type: TrmTransportIdentifier.CUST,
+                    transport: await Transport.createCust({
+                        text: `TRM generated transport`, //temporary name, replaced in step 5
+                        target: transportTarget
+                    })
                 });
-                Logger.log(`Generated transport ${context.runtime.installData.transport.trkorr}`, true);
             }
 
-            //3- add comments, documentation and rename transport
-            await context.runtime.installData.transport.addComment(`name=${context.runtime.remotePackageData.manifest.name}`);
-            await context.runtime.installData.transport.addComment(`version=${context.runtime.remotePackageData.manifest.version}`);
-            await context.runtime.installData.transport.setDocumentation(new Manifest(context.runtime.remotePackageData.manifest).getAbapXml());
-            await context.runtime.installData.transport.rename(`@X1@TRM: ${context.runtime.remotePackageData.manifest.name} v${context.runtime.remotePackageData.manifest.version}`);
-
-            //4- add tadir objects and try to lock
+            //2- add tadir objects and try to lock
             var tadirObjects = context.runtime.packageTransportsData.tadir;
             if (context.rawInput.installData.installDevclass.keepOriginal) {
                 tadirObjects = tadirObjects.concat(context.runtime.packageTransportsData.tdevc.map(o => {
@@ -140,78 +91,103 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                     };
                 }));
             }
-            //remove trm comments
-            tadirObjects = tadirObjects.filter(o => !(o.pgmid === '*' && o.object === COMMENT_OBJ));
-            //remove objects that are already in transport or its tasks
-            var trObjs = await context.runtime.installData.transport.getE071();
-            const tasks = await context.runtime.installData.transport.getTasks();
-            for (const task of tasks) {
-                trObjs = trObjs.concat(await task.getE071());
-            }
-            trObjs.forEach(o => {
-                tadirObjects = tadirObjects.filter(k => !(k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName));
-            });
             //add workbench objects to transport
-            for (const tadir of tadirObjects) {
-                try {
+            try {
+                Logger.log(`Adding ${tadirObjects.length} workbench objects with lock in bulk`, true);
+                await (context.runtime.installData.transports.find(o => o.type == TrmTransportIdentifier.TADIR)).transport.addObjects(tadirObjects, true);
+            } catch {
+                Logger.log(`Failed adding in bulk, adding one by one`, true);
+                for (const tadir of tadirObjects) {
                     try {
-                        Logger.log(`Adding object ${tadir.pgmid} ${tadir.object} ${tadir.objName} with lock`, true);
-                        await context.runtime.installData.transport.addObjects([tadir], true);
+                        try {
+                            Logger.log(`Adding object ${tadir.pgmid} ${tadir.object} ${tadir.objName} with lock`, true);
+                            await (context.runtime.installData.transports.find(o => o.type == TrmTransportIdentifier.TADIR)).transport.addObjects([tadir], true);
+                        } catch (e) {
+                            Logger.log(`Failed ${e.toString()}, adding without lock`, true);
+                            await (context.runtime.installData.transports.find(o => o.type == TrmTransportIdentifier.TADIR)).transport.addObjects([tadir], false);
+                        }
                     } catch (e) {
-                        Logger.log(`Failed ${e.toString()}, adding without lock`, true);
-                        await context.runtime.installData.transport.addObjects([tadir], false);
+                        Logger.warning(`Failed adding ${tadir.pgmid}${tadir.object}${tadir.objName} to transport ${(context.runtime.installData.transports.find(o => o.type == TrmTransportIdentifier.TADIR)).transport.trkorr}`);
+                        Logger.error(e.toString(), true);
                     }
-                } catch (e) {
-                    //object might be in transport already
-                    Logger.warning(`Failed adding ${tadir.pgmid}${tadir.object}${tadir.objName} to transport ${context.runtime.installData.transport.trkorr}`);
-                    Logger.error(e.toString(), true);
                 }
             }
 
-            //5- include language transport
+            //3- include language transport
             if (context.runtime.packageTransports.lang.instance) {
                 try {
                     Logger.log(`Including language transport ${context.runtime.packageTransports.lang.instance.trkorr}`, true);
-                    await context.runtime.installData.transport.addObjectsFromTransport(context.runtime.packageTransports.lang.instance.trkorr);
+                    await (context.runtime.installData.transports.find(o => o.type == TrmTransportIdentifier.TADIR)).transport.addObjectsFromTransport(context.runtime.packageTransports.lang.instance.trkorr);
                 } catch (e) {
-                    Logger.warning(`Failed including language transport ${context.runtime.packageTransports.lang.instance.trkorr} to transport ${context.runtime.installData.transport.trkorr}`);
+                    Logger.warning(`Failed including language transport ${context.runtime.packageTransports.lang.instance.trkorr} in transport ${(context.runtime.installData.transports.find(o => o.type == TrmTransportIdentifier.TADIR)).transport.trkorr}`);
                     Logger.error(e.toString(), true);
                 }
             }
 
-            //6- include customizing transport
-            if (context.runtime.packageTransports.cust.instance) {
-                try {
-                    Logger.log(`Including customizing transport ${context.runtime.packageTransports.cust.instance.trkorr}`, true);
-                    await context.runtime.installData.transport.addObjectsFromTransport(context.runtime.packageTransports.cust.instance.trkorr);
-                } catch (e) {
-                    Logger.warning(`Failed including customizing transport ${context.runtime.packageTransports.cust.instance.trkorr} to transport ${context.runtime.installData.transport.trkorr}`);
-                    Logger.error(e.toString(), true);
-                }
-            }
-
-            //7- add namespace
-            if (context.runtime.installData.namespace[0] === '/') {
-                if (!trObjs.find(o => o.pgmid === 'R3TR' && o.object === 'NSPC' && o.objName === context.runtime.installData.namespace)) {
-                    Logger.log(`Adding namespace ${context.runtime.installData.namespace} without lock`, true);
+            //4- include customizing transports
+            if (!noCustomizing) {
+                for (const cust of context.runtime.packageTransports.cust) {
                     try {
-                        await context.runtime.installData.transport.addObjects([{
-                            pgmid: 'R3TR',
-                            object: 'NSPC',
-                            objName: context.runtime.installData.namespace
-                        }], false);
+                        Logger.log(`Including customizing transport ${cust.instance.trkorr}`, true);
+                        await (context.runtime.installData.transports.find(o => o.type == TrmTransportIdentifier.CUST)).transport.addObjectsFromTransport(cust.instance.trkorr);
                     } catch (e) {
-                        Logger.warning(`Failed adding namespace ${context.runtime.installData.namespace} to transport ${context.runtime.installData.transport.trkorr}`);
+                        Logger.warning(`Failed including customizing transport ${cust.instance.trkorr}`);
                         Logger.error(e.toString(), true);
                     }
-                } else {
-                    Logger.log(`Namespace ${context.runtime.installData.namespace} already in install transport`, true);
                 }
             }
 
-            Logger.success(`Use ${chalk.bold(context.runtime.installData.transport.trkorr)} for transports in ${SystemConnector.getDest()} landscape.`);
+            //5- release/delete install transports
+            var transportsStatus: {
+                type: TrmTransportIdentifier,
+                trkorr: string,
+                len: number,
+                success: boolean
+            }[] = [];
+            Logger.loading(`Releasing install transports...`);
+            for (const transport of context.runtime.installData.transports) {
+                var len;
+                const index = (transportsStatus.push({
+                    type: transport.type,
+                    trkorr: transport.transport.trkorr,
+                    len: 0,
+                    success: false
+                }) - 1);
+                try {
+                    await transport.transport.removeComments();
+                    len = (await transport.transport.getE071()).length;
+                    transportsStatus[index].len = len;
+                    if (len === 0) {
+                        await transport.transport.delete();
+                    } else {
+                        await transport.transport.addComment(`name=${context.runtime.remotePackageData.manifest.name}`);
+                        await transport.transport.addComment(`version=${context.runtime.remotePackageData.manifest.version}`);
+                        await transport.transport.setDocumentation(new Manifest(context.runtime.remotePackageData.manifest).getAbapXml());
+                        await transport.transport.rename(`@X1@TRM: ${context.runtime.remotePackageData.manifest.name} v${context.runtime.remotePackageData.manifest.version} ${transport.type === TrmTransportIdentifier.CUST ? '(C)' : ''}`.trim());
+                        await transport.transport.release(true, true);
+                    }
+                    transportsStatus[index].success = true;
+                } catch (e) {
+                    Logger.error(`Error on finalize step of transport ${transport.transport.trkorr}`, true);
+                    Logger.error(e.toString(), true);
+                    transportsStatus[index].success = false;
+                }
+            }
+            transportsStatus.forEach(o => {
+                if (o.success) {
+                    if (o.len > 0) {
+                        Logger.success(`Use ${o.type === TrmTransportIdentifier.TADIR ? 'workbench' : 'customizing'} transport ${chalk.bold(o.trkorr)} in ${SystemConnector.getDest()} landscape transports.`);
+                        context.runtime.installData.transports = context.runtime.installData.transports.filter(o => o.transport.trkorr !== o.transport.trkorr);
+                    }
+                } else {
+                    if (o.len > 0) {
+                        Logger.error(`Error on release of ${o.type === TrmTransportIdentifier.TADIR ? 'workbench' : 'customizing'} transport ${chalk.bold(o.trkorr)}.`);
+                    }
+                }
+            });
         } catch (e) {
-            Logger.error(`An error occurred during install transport generation/update.`);
+            Logger.error(`An error occurred during install transport generation.`);
+            Logger.error(`This error may be ignored.`);
             Logger.error(e.toString(), true);
         }
     }

@@ -102,7 +102,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getR3transInfo();
     }
 
-    protected getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
+    protected getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]> {
         return this._client.getInstalledPackagesBackend();
     }
 
@@ -170,6 +170,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.createWbTransport(text, target);
     }
 
+    public async createCustTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
+        return this._client.createCustTransport(text, target);
+    }
+
     public async setTransportDoc(trkorr: components.TRKORR, doc: struct.TLINE[]): Promise<void> {
         return this._client.setTransportDoc(trkorr, doc);
     }
@@ -192,18 +196,6 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async releaseTrkorr(trkorr: components.TRKORR, lock: boolean, timeout?: number): Promise<void> {
         return this._client.releaseTrkorr(trkorr, lock, timeout);
-    }
-
-    public async addSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        return this._client.addSkipTrkorr(trkorr);
-    }
-
-    public async removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        return this._client.removeSkipTrkorr(trkorr);
-    }
-
-    public async addSrcTrkorr(trkorr: components.TRKORR): Promise<void> {
-        return this._client.addSrcTrkorr(trkorr);
     }
 
     public async readTmsQueue(target: components.TMSSYSNAM): Promise<struct.STMSIQREQ[]> {
@@ -246,10 +238,6 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.renameTransportRequest(trkorr, as4text);
     }
 
-    public async setPackageIntegrity(integrity: struct.ZTRM_INTEGRITY): Promise<void> {
-        return this._client.setPackageIntegrity(integrity);
-    }
-
     public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void> {
         return this._client.addTranslationToTr(trkorr, devclassFilter);
     }
@@ -272,10 +260,6 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async getMessage(data: SapMessage): Promise<string> {
         return this._client.getMessage(data);
-    }
-
-    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
-        return this._client.migrateTransport(trkorr);
     }
 
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
@@ -323,6 +307,18 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
         return this._client.getTransportImportStatus(trkorr, system);
+    }
+    
+    public async getObjectsLocks(objects: struct.TADIR_KEY[]): Promise<struct.ZTRM_OBJ_LOCK[]> {
+        return this._client.getObjectsLocks(objects);
+    }
+    
+    public async updateTrmPackageData(data: any): Promise<void> {
+        return this._client.updateTrmPackageData(data);
+    }
+
+    public async getTransportTargets(): Promise<components.TARSYSTEM[]> {
+        return this._client.getTransportTargets();
     }
 
 }

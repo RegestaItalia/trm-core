@@ -258,7 +258,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         if (!context.rawInput.contextData.noInquirer) {
             const inqDefault1 = context.runtime.trmPackage.manifest.postActivities || [];
             const inq = await Inquirer.prompt([{
-                message: context.runtime.trmPackage.manifest.postActivities.length > 0 ? `Do you want to edit ${context.runtime.trmPackage.manifest.postActivities.length} post activities?` : `Do you want to add post activities?`,
+                message: inqDefault1.length > 0 ? `Do you want to edit ${inqDefault1.length} post activities?` : `Do you want to add post activities?`,
                 type: 'confirm',
                 name: 'editPostActivities',
                 default: false

@@ -12,8 +12,8 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import * as cliProgress from "cli-progress";
-import { CliLogFileLogger, CliLogger, Logger } from "trm-commons";
-import { TROBJTYPE, E070, E071, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
+import { Logger } from "trm-commons";
+import { TROBJTYPE, E070, E071, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 
@@ -23,6 +23,7 @@ export class Transport {
     private _fileNames: FileNames;
     private _e070: E070;
     private _e071: E071[];
+    private _e07t: E07T[];
     private _docs: Documentation[];
     private _trmPackageName: string;
     private _trmPackageVersion: string;
@@ -30,10 +31,8 @@ export class Transport {
     private _rootDevclass: DEVCLASS;
     public trmIdentifier?: TrmTransportIdentifier;
 
-    constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET, private _migration?: boolean) {
-        if (!this._migration) {
-            this._fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
-        }
+    constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET) {
+        this._fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
     }
 
     public setTrmIdentifier(identifier?: TrmTransportIdentifier): Transport {
@@ -61,15 +60,9 @@ export class Transport {
                 { fieldName: 'AS4TIME' }
             ];
             var e070: E070[];
-            if (!this._migration) {
-                e070 = await SystemConnector.readTable('E070', fields,
-                    `TRKORR EQ '${this.trkorr}'`
-                );
-            } else {
-                e070 = await SystemConnector.readTable('ZTRM_E070', fields,
-                    `TRM_TRKORR EQ '${this.trkorr}'`
-                );
-            }
+            e070 = await SystemConnector.readTable('E070', fields,
+                `TRKORR EQ '${this.trkorr}'`
+            );
             if (e070.length === 1) {
                 this._e070 = e070[0];
             }
@@ -84,21 +77,41 @@ export class Transport {
                 { fieldName: 'OBJECT' },
                 { fieldName: 'OBJ_NAME' }
             ];
-            if (!this._migration) {
-                this._e071 = await SystemConnector.readTable('E071', fields,
-                    `TRKORR EQ '${this.trkorr}'`
-                );
-            } else {
-                this._e071 = await SystemConnector.readTable('ZTRM_E071', fields,
-                    `TRM_TROKRR EQ '${this.trkorr}'`
-                );
-            }
+            this._e071 = await SystemConnector.readTable('E071', fields,
+                `TRKORR EQ '${this.trkorr}'`
+            );
         }
         return this._e071;
     }
 
+    public async getE07T(): Promise<E07T[]> {
+        if (!this._e07t) {
+            const fields: RFC_DB_FLD[] = [
+                { fieldName: 'TRKORR' },
+                { fieldName: 'LANGU' },
+                { fieldName: 'AS4TEXT' }
+            ];
+            this._e07t = await SystemConnector.readTable('E07T', fields,
+                `TRKORR EQ '${this.trkorr}'`
+            );
+        }
+        return this._e07t;
+    }
+
+    public async getDescription(): Promise<AS4TEXT> {
+        const e07t = await this.getE07T();
+        if (e07t.length > 0) {
+            var description = e07t.find(o => o.langu === SystemConnector.getLogonLanguage(true));
+            if (!description) {
+                description = e07t[0];
+            }
+            return description.as4Text;
+        } else {
+            return '';
+        }
+    }
+
     public async getTasks(): Promise<Transport[]> {
-        //there should be no need to handle migrated transports here
         var tasks = [];
         const sTrkorr: {
             trkorr: string
@@ -268,15 +281,9 @@ export class Transport {
                 line: string,
                 doktext: string
             }[];
-            if (!this._migration) {
-                doktl = await SystemConnector.readTable('DOKTL', fields,
-                    `ID EQ 'TA' AND OBJECT EQ '${this.trkorr}'`
-                );
-            } else {
-                doktl = await SystemConnector.readTable('ZTRM_DOKTL', fields,
-                    `TRM_TROKRR EQ '${this.trkorr}'`
-                );
-            }
+            doktl = await SystemConnector.readTable('DOKTL', fields,
+                `ID EQ 'TA' AND OBJECT EQ '${this.trkorr}'`
+            );
             this._docs = Transport.doktlToDoc(doktl);
             //sort by version descending
             this._docs = this._docs.sort((a, b) => b.version - a.version);
@@ -398,7 +405,7 @@ export class Transport {
     }
 
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
-        Logger.loading('Releasing transport...', skipLog);
+        Logger.loading(`${Transport.getTransportIcon()}  Releasing transport...`, skipLog);
         await SystemConnector.releaseTrkorr(this.trkorr, lock);
         await SystemConnector.dequeueTransport(this.trkorr);
         if (tmpFolder) {
@@ -417,10 +424,7 @@ export class Transport {
         Logger.log(`System R3trans: ${systemR3transVersion}`, true);
         Logger.log(`System R3trans unicode: ${systemR3transUnicode}`, true);
 
-        if (Logger.logger instanceof CliLogger || Logger.logger instanceof CliLogFileLogger) {
-            Logger.logger.forceStop();
-        }
-
+        Logger.forceStop();
         const multibar = new cliProgress.MultiBar({
             clearOnComplete: true,
             hideCursor: true,
@@ -548,11 +552,11 @@ export class Transport {
                 error = new Error(`Error occurred during transport ${this.trkorr} release.`);
             }
             if (whileResult === "SUCCESS") {
-                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr} released with success.`);
+                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr}  released with success.`);
                 rc = 0;
             }
             if (whileResult === "WARNING") {
-                Logger.warning(`${Transport.getTransportIcon()} ${this.trkorr} released with warning.`);
+                Logger.warning(`${Transport.getTransportIcon()} ${this.trkorr}  released with warning.`);
                 rc = 4;
             }
         }
@@ -569,6 +573,7 @@ export class Transport {
         var inQueue = false;
         var rc: number = 12;
         var message: string;
+        var lastCheck: Date;
         if (this._trTarget) {
             var inQueueAttempts = 0;
             Logger.loading(`Checking transport status...`, skipLog);
@@ -576,10 +581,10 @@ export class Transport {
                 inQueueAttempts++;
                 Logger.log(`Attempt ${inQueueAttempts}, reading in 3 seconds...`, true);
                 await setTimeout(3000);
+                lastCheck = new Date();
                 if (!checkImpSing) {
-                    Logger.loading(`${Transport.getTransportIcon()} Releasing...`, skipLog);
+                    Logger.loading(`${Transport.getTransportIcon()}  Releasing, last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}...`, skipLog);
                 } else {
-                    const lastCheck = new Date();
                     try {
                         const tpstat = await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget);
                         if (tpstat.message) {
@@ -594,7 +599,9 @@ export class Transport {
                         Logger.error(e.toString(), true);
                     }
                 }
-                //TODO: reading the queue is outdated now -> use getTransportImportStatus!
+                //reading the queue is outdated now and getTransportImportStatus should be used
+                //HOWEVER it doesn't work for VIRTUAL TARGETS!
+                //for now, keep it like this
                 var tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
@@ -619,7 +626,7 @@ export class Transport {
             if (!checkImpSing) {
                 //without check of import, we're releasing the transport (publish?)
                 //set rc to -1 as it is irrelevant
-                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr} released.`, skipLog);
+                Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released.`, skipLog);
                 rc = -1;
             } else {
                 //read final import message
@@ -699,6 +706,16 @@ export class Transport {
         const trkorr = await SystemConnector.createTocTransport(data.text, data.target);
         Logger.success(`Transport request ${trkorr} generated successfully.`, true);
         return new Transport(trkorr, data.target).setTrmIdentifier(data.trmIdentifier);
+    }
+
+    public static async createCust(data: {
+        text: AS4TEXT,
+        target: TR_TARGET
+    }): Promise<Transport> {
+        Logger.loading(`Creating transport request (CUST)...`, true);
+        const trkorr = await SystemConnector.createCustTransport(data.text, data.target);
+        Logger.success(`Transport request ${trkorr} generated successfully.`, true);
+        return new Transport(trkorr, data.target).setTrmIdentifier(TrmTransportIdentifier.CUST);
     }
 
     public static async createLang(data: {
@@ -850,23 +867,6 @@ export class Transport {
 
     public async addObjectsFromTransport(from: TRKORR): Promise<void> {
         await SystemConnector.trCopy(from, this.trkorr, false);
-    }
-
-    public async migrate(rollback?: boolean): Promise<Transport | void> {
-        if (!rollback) {
-            try {
-                const trmTrkorr = await SystemConnector.migrateTransport(this.trkorr);
-                return new Transport(trmTrkorr, null, true);
-            } catch (e) {
-                if (e.exceptionType === 'SNRO_INTERVAL_NOT_FOUND') {
-                    throw new Error(`trm-server has no migration interval defined: re-install or execute post activities to generate number range interval.`);
-                } else {
-                    throw e;
-                }
-            }
-        } else {
-
-        }
     }
 
     public async deleteFromTms(system: TMSSYSNAM): Promise<void> {

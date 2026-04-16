@@ -4,7 +4,6 @@ import { Logger } from "trm-commons";
 import { getPackageHierarchy } from "../../commons";
 import { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
-import { TrmServerUpgrade } from "../../commons/TrmServerUpgradeService";
 import { stopWarning } from "../stopWarning";
 
 /**
@@ -124,11 +123,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                 const installParentCl = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass;
                 if (installParentCl) {
                     if (!installRoot) {
-                        try {
-                            await SystemConnector.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
-                        } catch (e) {
-                            TrmServerUpgrade.getInstance().throwError(e);
-                        }
+                        await SystemConnector.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
                     }
                 }
             }

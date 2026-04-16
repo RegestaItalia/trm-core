@@ -1,7 +1,7 @@
 import { valid as semverValid } from "semver";
 import { inspect, Logger } from "trm-commons";
 import { Manifest } from "../manifest";
-import { TADIR, TDEVC, TMSCSYS } from "../client/struct";
+import { TADIR, TDEVC } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
@@ -11,21 +11,21 @@ import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { R3trans } from "node-r3trans";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
-import { getPackageHierarchy } from "../commons";
 import { SystemConnector } from "./SystemConnector";
 import * as cliProgress from "cli-progress";
-import { ISystemConnector } from "./ISystemConnector";
+import { fromAbapToDate } from "../commons";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
-export const TRM_SERVER_INTF: string = 'ZIF_TRM';
+export const TRM_SERVER_INTF: string = '/ATRM/IF_SERVER';
+export const TRM_REST_INTF: string = '/ATRM/IF_REST';
 export const TRM_REST_PACKAGE_NAME: string = 'trm-rest';
-export const SRC_TRKORR_TABL = 'ZTRM_SRC_TRKORR';
-export const SKIP_TRKORR_TABL = 'ZTRM_SKIP_TRKORR';
+export const SRC_TRKORR_TABL = '/ATRM/SRC_TRKORR';
+export const SKIP_TRKORR_TABL = '/ATRM/SKIPTRKORR';
+export const INSTALL_DEVCLASS_VIEW = '/ATRM/V_INSTDEVC';
 
 export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   private _installedPackages: TrmPackage[];
-  private _installedPackagesI: TrmPackage[];
   private _sourceTrkorr: string[];
   private _ignoredTrkorr: string[];
   private _r3transInfoLog: string;
@@ -41,7 +41,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
   protected abstract getR3transInfo(): Promise<string>
-  protected abstract getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]>
+  protected abstract getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]>
   protected abstract getPackageDependenciesInternal(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
   protected abstract getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]>
 
@@ -58,68 +58,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       throw new Error(`Transport not found.`);
     } else {
       return aTrkorrStatusCheck[0].trstatus;
-    }
-  }
-
-  public async getWbTransports(trmPackage?: string | TrmPackage): Promise<Transport[]> {
-    var sqlWhere = `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`;
-    if (trmPackage instanceof TrmPackage) {
-      sqlWhere += ` AND OBJ_NAME EQ 'name=${trmPackage.packageName}'`;
-    } else if (typeof trmPackage === 'string') {
-      sqlWhere += ` AND OBJ_NAME EQ 'name=${trmPackage}'`;
-    }
-    var aTrkorr: components.TRKORR[] = (await this.readTable('E071',
-      [{ fieldName: 'TRKORR' }],
-      sqlWhere
-    )).map(o => o.trkorr);
-    //because we're extracting from e071, there will be multiple records with the same trkorr
-    //unique array
-    aTrkorr = Array.from(new Set(aTrkorr))
-
-    //for each transport, check its status is D (can be released)
-    var aSkipTrkorr: string[] = [];
-    for (const sTrkorr of aTrkorr) {
-      var canBeReleased = false;
-      try {
-        canBeReleased = (await this.getTransportStatus(sTrkorr)) === 'D';
-      } catch (e) {
-        canBeReleased = false;
-      }
-      if (!canBeReleased) {
-        aSkipTrkorr.push(sTrkorr);
-      }
-    }
-
-    //filter transports
-    aTrkorr = aTrkorr.filter(trkorr => !aSkipTrkorr.includes(trkorr));
-
-
-    var packageTransports: Transport[] = [];
-    var transports: Transport[] = aTrkorr.map(trkorr => new Transport(trkorr));
-    for (let i = transports.length - 1; i >= 0; i--) {
-      if (!await transports[i].getLinkedPackage()) { //keep only transports with a valid linked package
-        transports.splice(i, 1);
-      }
-    }
-    if (trmPackage instanceof TrmPackage) {
-      for (const transport of transports) {
-        const transportPackage = await transport.getLinkedPackage();
-        if (transportPackage) {
-          if (TrmPackage.compare(transportPackage, trmPackage)) {
-            packageTransports.push(transport);
-          }
-        }
-      }
-      return [await Transport.getLatest(packageTransports)];
-    } else if (typeof trmPackage === 'string') {
-      for (const transport of transports) {
-        if ((await transport.getTrmPackageName()) === trmPackage) {
-          packageTransports.push(transport);
-        }
-      }
-      return packageTransports;
-    } else {
-      return transports;
     }
   }
 
@@ -180,7 +118,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getTrmServerPackage(): Promise<TrmPackage> {
     var oPackage: TrmPackage;
     const oPublicRegistry = RegistryProvider.getRegistry();
-    const intf = await this.getObject('R3TR', 'INTF', 'ZIF_TRM');
+    const intf = await this.getObject('R3TR', 'INTF', TRM_SERVER_INTF);
     if (intf) {
       try {
         const trmServerVersion = await this.getTrmServerVersion();
@@ -202,7 +140,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getTrmRestPackage(): Promise<TrmPackage> {
     var oPackage: TrmPackage;
     const oPublicRegistry = RegistryProvider.getRegistry();
-    const intf = await this.getObject('R3TR', 'INTF', 'ZIF_TRM_REST');
+    const intf = await this.getObject('R3TR', 'INTF', TRM_REST_INTF);
     if (intf) {
       try {
         const trmRestVersion = await this.getTrmRestVersion();
@@ -221,54 +159,33 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return oPackage;
   }
 
-  public async getInstalledPackages(includeSoruces: boolean = true, refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
+  public async getInstalledPackages(refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
     var trmPackages: TrmPackage[] = [];
     var fromBackend = false;
 
     if (!refresh) {
-      if (includeSoruces && this._installedPackagesI) {
-        Logger.log(`Cached version of installed packages with sources`, true);
-        return this._installedPackagesI;
-      } else if (!includeSoruces && this._installedPackages) {
-        Logger.log(`Cached version of installed packages without sources`, true);
-        return this._installedPackages;
-      }
+      Logger.log(`Reading cached version of installed packages`, true);
+      return this._installedPackages;
     }
-
-    Logger.log(`Include sources: ${includeSoruces}`, true);
-    const aSourceTrkorr = includeSoruces ? (await this.getSourceTrkorr(refresh)) : [];
 
     //if system has trm-server we can fetch with backend api
     const serverExists: any[] = await this.readTable('TADIR',
       [{ fieldName: 'OBJ_NAME' }],
       `PGMID EQ 'R3TR' AND OBJECT EQ 'INTF' AND OBJ_NAME EQ '${TRM_SERVER_INTF}'`);
     if (serverExists.length === 1) {
-      Logger.log(`INTF ${TRM_SERVER_INTF} exists`, true);
+      Logger.log(`INTF ${TRM_SERVER_INTF} exists, reading packages from backend API`, true);
       try {
         var installedPackagesBackend = await this.getInstalledPackagesBackend();
-        if (!includeSoruces) {
-          installedPackagesBackend = installedPackagesBackend.filter(o => !aSourceTrkorr.includes(o.transport.trkorr));
-        }
+        installedPackagesBackend = installedPackagesBackend.sort((a, b) => Number(`${b.as4Date}${b.as4Time}`) - Number(`${a.as4Date}${a.as4Time}`));
         if (!includeLocals) {
-          installedPackagesBackend = installedPackagesBackend.filter(o => o.registry !== LOCAL_RESERVED_KEYWORD);
+          installedPackagesBackend = installedPackagesBackend.filter(o => o.packageRegistry !== LOCAL_RESERVED_KEYWORD);
         }
         for (const o of installedPackagesBackend) {
-          const transport = o.transport.trkorr ? new Transport(o.transport.trkorr, null, o.transport.migration) : null;
           const manifest = Manifest.fromAbapXml(o.manifest);
-          if (transport) {
-            manifest.setLinkedTransport(transport);
+          if(o.trkorr){
+            manifest.setLinkedTransport(new Transport(o.trkorr, null));
           }
-          const trmPackage = new TrmPackage(o.name, RegistryProvider.getRegistry(o.registry), manifest);
-          if (transport) {
-            try {
-              trmPackage.setDevclass(await transport.getDevclass(o.tdevc));
-            } catch { }
-          } else {
-            try {
-              trmPackage.setDevclass(getPackageHierarchy(o.tdevc).devclass);
-            } catch { }
-          }
-          trmPackage.setWbTransport(o.trkorr ? new Transport(o.trkorr) : null);
+          const trmPackage = new TrmPackage(o.packageName, RegistryProvider.getRegistry(o.packageRegistry), manifest).setDevclass(o.devclass).setDirtyEntries(o.dirty);
           trmPackages.push(trmPackage);
         }
         fromBackend = true;
@@ -278,10 +195,10 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }
     }
     if (fromBackend) {
-      Logger.log(`Packages were fetched from backend`, true);
+      Logger.log(`Packages were fetched from backend API`, true);
       return trmPackages;
     } else {
-      Logger.log(`Packages weren't fetched from backend, continue`, true);
+      Logger.log(`Packages weren't fetched from backend API, continue`, true);
     }
 
 
@@ -290,80 +207,38 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       transports: Transport[]
     }[] = [];
     Logger.log(`Ready to read installed packages`, true);
-    Logger.log(`Source trkorr ${JSON.stringify(aSourceTrkorr)}`, true);
-    var aSkipTrkorr = await this.getIgnoredTrkorr();
-    Logger.log(`Ignored trkorr ${JSON.stringify(aSkipTrkorr)}`, true);
-    var aMigrationTrkorr: components.ZTRM_TRKORR[];
-    var aActualTrkorr: components.TRKORR[] = (await this.readTable('E071',
+    var allTransports: components.TRKORR[] = (await this.readTable('E071',
       [{ fieldName: 'TRKORR' }],
       `PGMID EQ '*' AND OBJECT EQ '${COMMENT_OBJ}'`
     )).map(o => o.trkorr);
     //because we're extracting from e071, there will be multiple records with the same trkorr
     //unique array
-    aActualTrkorr = Array.from(new Set(aActualTrkorr));
-    try {
-      aMigrationTrkorr = (await this.readTable('ZTRM_E070',
-        [{ fieldName: 'TRM_TROKRR' }]
-      )).map(o => o.trmTrokrr);
-    } catch (e) {
-      aMigrationTrkorr = [];
-    }
-    var aTrkorr: {
-      trkorr: string,
-      migration: boolean
-    }[] = aActualTrkorr.map(s => {
-      return {
-        trkorr: s,
-        migration: false
-      };
-    }).concat(aMigrationTrkorr.map(s => {
-      return {
-        trkorr: s,
-        migration: true
-      }
-    }));
+    allTransports = Array.from(new Set(allTransports));
 
-    //for each transport, check it was installed and not created on the system
     //read tms of current system and with maxrc > 0 and impsing != X
     //if there's no match, ignore
-    for (const sTrkorr of aTrkorr) {
-      //check tms
-      //don't check transports from source
-      if (!aSourceTrkorr.includes(sTrkorr.trkorr)) {
-        Logger.log(`${sTrkorr.trkorr} not from source`, true);
-        var aTrkorrStatusCheck: any[];
-        try {
-          Logger.log(`Checking ${sTrkorr.trkorr} TMS import result`, true);
-          if (!sTrkorr.migration) {
-            aTrkorrStatusCheck = (await this.readTable('TMSBUFFER',
-              [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
-              //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
-              `SYSNAM EQ '${this.getSysname()}' AND TRKORR EQ '${sTrkorr.trkorr}' AND IMPSING NE 'X'`
-            ));
-          } else {
-            aTrkorrStatusCheck = (await this.readTable('ZTRM_TMSBUFFER',
-              [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
-              //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
-              `SYSNAM EQ '${this.getSysname()}' AND TRM_TROKRR EQ '${sTrkorr.trkorr}' AND IMPSING NE 'X'`
-            ));
-          }
-          aTrkorrStatusCheck = aTrkorrStatusCheck.filter(o => parseInt(o.maxrc) >= 0);
-        } catch (e) {
-          aTrkorrStatusCheck = [];
-        }
-        //might be imported multiple times, so do not check if lenght is 1
-        if (aTrkorrStatusCheck.length === 0) {
-          Logger.log(`Adding ${sTrkorr.trkorr} to skipped filter`, true);
-          aSkipTrkorr.push(sTrkorr.trkorr);
-        }
+    for (const trkorr of allTransports) {
+      var aTrkorrStatusCheck: any[];
+      try {
+        Logger.log(`Checking ${trkorr} TMS import result`, true);
+        aTrkorrStatusCheck = (await this.readTable('TMSBUFFER',
+          [{ fieldName: 'TRKORR' }, { fieldName: 'MAXRC' }],
+          //is the condition (IMPFLG EQ 't' OR IMPFLG EQ 'k') necessary?
+          `SYSNAM EQ '${this.getSysname()}' AND TRKORR EQ '${trkorr}' AND IMPSING NE 'X'`
+        ));
+        aTrkorrStatusCheck = aTrkorrStatusCheck.filter(o => parseInt(o.maxrc) >= 0);
+      } catch (e) {
+        aTrkorrStatusCheck = [];
+      }
+      if (aTrkorrStatusCheck.length === 0) {
+        Logger.log(`${trkorr} is ignored: no status!`, true);
+        allTransports = allTransports.filter(s => s !== trkorr);
       }
     }
 
-    //filter transports (manually ignored transports and not imported transports)
-    aTrkorr = aTrkorr.filter(trkorr => !aSkipTrkorr.includes(trkorr.trkorr));
-    Logger.log(`Final transports ${JSON.stringify(aTrkorr)}`, true);
+    Logger.log(`All transports to check: ${JSON.stringify(allTransports)}`, true);
 
-    const transports: Transport[] = aTrkorr.map(trkorr => new Transport(trkorr.trkorr, null, trkorr.migration));
+    const transports: Transport[] = allTransports.map(trkorr => new Transport(trkorr, null));
     for (const transport of transports) {
       const trmPackage = await transport.getLinkedPackage();
       if (trmPackage) {
@@ -398,66 +273,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }
     }
     Logger.log(`Packages found: ${inspect(trmPackages, { breakLength: Infinity, compact: true })}`, true);
-    //exclude trm-server and trm-rest (if installed) and add manually
-    //this is to ensure the version is correct
-    //say it was installed via trm, then pulled from abapgit, the version would refer to the old trm version
-    Logger.log(`Excluding trm-server (adding it manually)`, true);
-    try {
-      const trmServerPackage = trmPackages.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry()));
-      var generatedTrmServerPackage = await this.getTrmServerPackage();
-      if (trmServerPackage && trmServerPackage.manifest) {
-        Logger.log(`trm-server was found (it was imported via transport)`, true);
-        if (trmServerPackage.manifest.get().version === generatedTrmServerPackage.manifest.get().version) {
-          Logger.log(`trm-server imported is the one currenlty in use`, true);
-          generatedTrmServerPackage.manifest = trmServerPackage.manifest;
-        }
-      } else {
-        Logger.log(`trm-server from abapgit is the one currenlty in use, setting manifest value from registry`, true);
-        try {
-          const registryPackage = await RegistryProvider.getRegistry().getPackage(TRM_SERVER_PACKAGE_NAME, generatedTrmServerPackage.manifest.get().version);
-          generatedTrmServerPackage.manifest = new Manifest(registryPackage.manifest);
-        } catch (e) {
-          Logger.error(`Error fetching trm-server manifest in registry`, true);
-          Logger.error(e.toString(), true);
-        }
-      }
-      trmPackages = trmPackages.filter(o => !(o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry())));
-      trmPackages.push(generatedTrmServerPackage);
-    } catch (e) {
-      //trm-server is not installed
-      Logger.warning(`${TRM_SERVER_PACKAGE_NAME} is not installed`, true);
-    }
-    Logger.log(`Excluding trm-rest (adding it manually)`, true);
-    try {
-      const trmRestPackage = trmPackages.find(o => o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry()));
-      var generatedTrmRestPackage = await this.getTrmRestPackage();
-      if (trmRestPackage && trmRestPackage.manifest) {
-        Logger.log(`trm-rest was found (it was imported via transport)`, true);
-        if (trmRestPackage.manifest.get().version === generatedTrmRestPackage.manifest.get().version) {
-          Logger.log(`trm-rest imported is the one currenlty in use`, true);
-          generatedTrmRestPackage.manifest = trmRestPackage.manifest;
-        }
-      } else {
-        Logger.log(`trm-rest from abapgit is the one currenlty in use, setting manifest value from registry`, true);
-        try {
-          const registryPackage = await RegistryProvider.getRegistry().getPackage(TRM_REST_PACKAGE_NAME, generatedTrmRestPackage.manifest.get().version);
-          generatedTrmRestPackage.manifest = new Manifest(registryPackage.manifest);
-        } catch (e) {
-          Logger.error(`Error fetching trm-rest manifest in registry`, true);
-          Logger.error(e.toString(), true);
-        }
-      }
-      trmPackages = trmPackages.filter(o => !(o.packageName === TRM_REST_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry())));
-      trmPackages.push(generatedTrmRestPackage);
-    } catch (e) {
-      //trm-server is not installed
-      Logger.warning(`${TRM_SERVER_PACKAGE_NAME} is not installed`, true);
-    }
-    if (includeSoruces) {
-      this._installedPackagesI = trmPackages;
-    } else {
-      this._installedPackages = trmPackages;
-    }
+    this._installedPackages = trmPackages;
     return trmPackages;
   }
 
@@ -468,19 +284,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     );
     if (tdevc.length === 1) {
       return tdevc[0];
-    }
-  }
-
-  public async getTransportTargets(): Promise<TMSCSYS[]> {
-    //systyp might not be available in some releases?
-    try {
-      return await this.readTable('TMSCSYS',
-        [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }, { fieldName: 'SYSTYP' }]
-      );
-    } catch (e) {
-      return await this.readTable('TMSCSYS',
-        [{ fieldName: 'SYSNAM' }, { fieldName: 'SYSTXT' }]
-      );
     }
   }
 
@@ -531,7 +334,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getInstallPackages(packageName: string, registry: AbstractRegistry): Promise<InstallPackage[]> {
     const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
-    return await this.readTable('ZTRMVINSTALLDEVC',
+    return await this.readTable(INSTALL_DEVCLASS_VIEW,
       [{ fieldName: 'ORIGINAL_DEVCLASS' }, { fieldName: 'INSTALL_DEVCLASS' }],
       `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
     );
@@ -652,7 +455,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
     if (log) {
-      //Logger.loading(`Finding dependencies (0.0%)...`);
+      Logger.forceStop();
       const logProgress = new cliProgress.SingleBar({
         clearOnComplete: true,
         hideCursor: true,
@@ -678,7 +481,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
               const match = status.match(/\(([\d.]+)%\)/);
               if (match) {
                 logProgress.update(parseFloat(match[1]));
-                //Logger.loading(`${status}...`);
               }
             }
           } catch { }
@@ -704,7 +506,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       } catch { }
       logProgress.stop();
       return (await new PackageDependencies(devclass).setDependencies(packageDependencies || [], log));
-
     } else {
       packageDependencies = await this.getPackageDependenciesInternal(devclass, includeSubPackages);
       return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));
@@ -871,7 +672,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         this._timezone = map[sapTimezone];
       } catch (e) {
         Logger.error(`Cannot read/parse system timezone!`, true);
-        Logger.error(e.toString());
+        Logger.error(e.toString(), true);
         this._timezone = 'UTC'; //default
       }
     }

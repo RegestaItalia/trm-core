@@ -41,15 +41,26 @@ export class PackageDependencies {
     public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[], log?: boolean): Promise<PackageDependencies> {
         var i = 0;
         var logProgress: cliProgress.SingleBar;
-        //Logger.loading(`Analyzing dependencies (0.0%)...`, !log);
-        Logger.loading(`Analyzing dependencies...`, !log);
+        if (log) {
+            i = 0;
+            logProgress = new cliProgress.SingleBar({
+                clearOnComplete: true,
+                hideCursor: true,
+                format: 'Analyzing dependencies [{bar}] {percentage}% ({value}/{total})',
+                barGlue: '>'
+            }, cliProgress.Presets.legacy);
+            Logger.forceStop();
+            logProgress.start(packageDependencies.length, 0);
+        }
         for (const d of packageDependencies) {
             this.allDependencies.push(await (new ObjectDependencies(d.object, d.objName).setDependencies(d.dependencies || [])));
             i++;
-            //Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%)...`, !log);
-            //Logger.loading(`Analyzing dependencies (${(((i + 1) / packageDependencies.length) * 100).toFixed(1)}%) > ${d.pgmid}${d.object}${d.objName}...`, true);
+            if (log) {
+                logProgress.update(i);
+            }
         }
         if (log) {
+            logProgress.stop();
             i = 0;
             logProgress = new cliProgress.SingleBar({
                 clearOnComplete: true,
@@ -57,9 +68,7 @@ export class PackageDependencies {
                 format: 'Building dependency tree [{bar}] {percentage}% ({value}/{total})',
                 barGlue: '>'
             }, cliProgress.Presets.legacy);
-            try{
-                (Logger.logger as any).forceStop();
-            }catch{}
+            Logger.forceStop();
             logProgress.start(this.allDependencies.length, 0);
         }
         //Logger.loading(`Building dependency tree...`, !log);

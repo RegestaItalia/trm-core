@@ -1,20 +1,17 @@
 import { AbstractRegistry } from "../registry";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
-import { Transport } from "../transport";
-import { TrmPackage } from "../trmPackage";
+import { TrmPackage, TrmPackageInstallTransport } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
-    getWbTransports:(trmPackage?: string | TrmPackage) => Promise<Transport[]>,
     getSourceTrkorr: () => Promise<components.TRKORR[]>,
     getIgnoredTrkorr: () => Promise<components.TRKORR[]>,
     getObject: (pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<struct.TADIR>,
     getInstalledPackages: (includeSoruces: boolean, refresh?: boolean, includeLocals?: boolean) => Promise<TrmPackage[]>,
     getDevclass: (devclass: components.DEVCLASS) => Promise<struct.TDEVC>,
-    getTransportTargets: () => Promise<struct.TMSCSYS[]>,
     getSubpackages: (devclass: components.DEVCLASS) => Promise<struct.TDEVC[]>,
     getDevclassObjects: (devclass: components.DEVCLASS, includeSubpackages: boolean) => Promise<struct.TADIR[]>,
     getInstallPackages: (packageName: string, registry: AbstractRegistry) => Promise<InstallPackage[]>,

@@ -3,7 +3,7 @@ import { R3trans, R3transOptions } from "node-r3trans";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
-import { TransportBinary, TrmArtifact, TrmPackage } from "../../trmPackage";
+import { TransportBinary, TrmArtifact, TrmPackage, TrmPackageInstallTransport } from "../../trmPackage";
 import { init } from "./init";
 import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { checkServerAuth, IActionContext, trmServerPa } from "..";
@@ -26,16 +26,15 @@ import { addNamespace } from "./addNamespace";
 import { importTadirTransport } from "./importTadirTransport";
 import { importLangTransport } from "./importLangTransport";
 import { importCustTransport } from "./importCustTransport";
-import { setPackageIntegrity } from "./setPackageIntegrity";
+import { updatePackageData } from "./updatePackageData";
 import { generateInstallTransport } from "./generateInstallTransport";
 import { refreshTmsTxt } from "./refreshTmsTxt";
-import { migrate } from "./migrate";
 import { AbstractRegistry } from "../../registry";
 import { executePostActivities } from "./executePostActivities";
-import { setTrmServerUpgradeService } from "./setTrmServerUpgradeService";
 import { commit } from "./commit";
 import { Package } from "trm-registry-types";
 import { Lockfile } from "../../lockfile/Lockfile";
+import { checkObjectsLock } from "./checkObjectsLock";
 
 /**
  * ABAP package replacement during install
@@ -236,7 +235,7 @@ type WorkflowRuntime = {
         devc: TransportRuntime,
         tadir: TransportRuntime,
         lang: TransportRuntime,
-        cust: TransportRuntime
+        cust: TransportRuntime[]
     },
     packageTransportsData: {
         tdevc: TDEVC[],
@@ -252,13 +251,12 @@ type WorkflowRuntime = {
     installData: {
         namespace: string,
         entries: E071[],
-        upgradingPackage?: TrmPackage,
-        transport?: Transport
+        transports: TrmPackageInstallTransport[],
+        upgradingPackage?: TrmPackage
     },
     generatedData: {
         devclass: DEVCLASS[],
         namespace: NAMESPACE,
-        migrations: Transport[],
         tmsTxtRefresh: Transport[]
     }
 }
@@ -266,7 +264,7 @@ type WorkflowRuntime = {
 export type InstallActionOutput = {
     manifest: TrmManifest,
     registry: AbstractRegistry,
-    installTransport?: Transport
+    installTransports?: TrmPackageInstallTransport[]
 }
 
 export interface InstallWorkflowContext extends IActionContext {
@@ -286,17 +284,16 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         init,
         setSystemPackages,
         trmServerPa,
-        setTrmServerUpgradeService,
         checkAlreadyInstalled,
         checkSapEntries,
         checkDependencies,
         setR3trans,
         installDependencies,
         checkTransports,
-        migrate,
+        checkObjectTypes,
+        checkObjectsLock,
         readDevc,
         readTadir,
-        checkObjectTypes,
         setInstallDevclass,
         addNamespace,
         generateDevclass,
@@ -305,8 +302,8 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         importLangTransport,
         importCustTransport,
         refreshTmsTxt,
-        setPackageIntegrity,
         generateInstallTransport,
+        updatePackageData,
         commit,
         executePostActivities
     ];
@@ -317,10 +314,10 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
     Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
     const manifest = result.runtime.remotePackageData.manifest;
     const registry = result.runtime.registry;
-    const installTransport = result.runtime.installData.transport;
+    const installTransports = result.runtime.installData.transports;
     return {
         manifest,
         registry,
-        installTransport
+        installTransports
     }
 }

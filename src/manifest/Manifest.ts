@@ -257,7 +257,7 @@ export class Manifest {
                 }
             }
         }
-        if (manifest.sapEntries) {
+        /*if (manifest.sapEntries) {
             var sapEntries = [];
             Object.keys(manifest.sapEntries).forEach(table => {
                 try {
@@ -286,7 +286,7 @@ export class Manifest {
                     "item": sapEntries
                 }
             }
-        }
+        }*/
         if (manifest.postActivities) {
             var postActivities = [];
             manifest.postActivities.forEach(pa => {
