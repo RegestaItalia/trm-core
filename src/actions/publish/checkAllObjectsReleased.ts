@@ -35,14 +35,20 @@ export const checkAllObjectsReleased: Step<PublishWorkflowContext> = {
         }
 
         //3- check all objects released
-        const locks = await SystemConnector.getPackageObjLocks(context.rawInput.packageData.devclass);
+        const locks = await SystemConnector.getObjectsLocks(aTadir.map(o => {
+            return {
+                PGMID: o.pgmid,
+                OBJECT: o.object,
+                OBJ_NAME: o.objName
+            };
+        }));
         if(locks.length > 0){
             locks.forEach(l => {
-                Logger.error(`${l.pgmid} ${l.object} ${l.objName} currently locked in ${l.trkorr}`);
+                Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`);
             });
             throw new Error(`To continue, all objects must be released`);
         }else{
-            Logger.log(`All objects released, continue`);
+            Logger.log(`All objects released, continue`, true);
         }
     }
 }

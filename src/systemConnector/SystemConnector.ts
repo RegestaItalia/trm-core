@@ -1,6 +1,5 @@
-import { TRKORR, DEVCLASS, TDEVC, TMSCSYS, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError } from "../client";
+import { TRKORR, DEVCLASS, TDEVC, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError } from "../client";
 import { AbstractRegistry } from "../registry";
-import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { ISystemConnector } from "./ISystemConnector";
 import { InstallPackage } from "./InstallPackage";
@@ -82,11 +81,6 @@ export namespace SystemConnector {
         return systemConnector.getTransportStatus(trkorr);
     }
 
-    export async function getWbTransports(trmPackage?: string | TrmPackage): Promise<Transport[]> {
-        await checkSystemConnector();
-        return systemConnector.getWbTransports(trmPackage);
-    }
-
     export async function getInstalledPackages(includeSources: boolean, refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
         await checkSystemConnector();
         return systemConnector.getInstalledPackages(includeSources, refresh, includeLocals);
@@ -97,7 +91,7 @@ export namespace SystemConnector {
         return systemConnector.getDevclass(devclass);
     }
 
-    export async function getTransportTargets(): Promise<TMSCSYS[]> {
+    export async function getTransportTargets(): Promise<components.TARSYSTEM[]> {
         await checkSystemConnector();
         return systemConnector.getTransportTargets();
     }
@@ -125,11 +119,6 @@ export namespace SystemConnector {
     export async function getSourceTrkorr(): Promise<TRKORR[]> {
         await checkSystemConnector();
         return systemConnector.getSourceTrkorr();
-    }
-
-    export async function addSrcTrkorr(trkorr: TRKORR): Promise<void> {
-        await checkSystemConnector();
-        return systemConnector.addSrcTrkorr(trkorr);
     }
 
     export async function readTmsQueue(target: components.TMSSYSNAM): Promise<struct.STMSIQREQ[]> {
@@ -218,6 +207,11 @@ export namespace SystemConnector {
         return systemConnector.createWbTransport(text, target);
     }
 
+    export async function createCustTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
+        await checkSystemConnector();
+        return systemConnector.createCustTransport(text, target);
+    }
+
     export async function setTransportDoc(trkorr: components.TRKORR, doc: struct.TLINE[]): Promise<void> {
         await checkSystemConnector();
         return systemConnector.setTransportDoc(trkorr, doc);
@@ -246,16 +240,6 @@ export namespace SystemConnector {
     export async function releaseTrkorr(trkorr: components.TRKORR, lock: boolean, timeout?: number): Promise<void> {
         await checkSystemConnector();
         return systemConnector.releaseTrkorr(trkorr, lock, timeout);
-    }
-
-    export async function addSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await checkSystemConnector();
-        return systemConnector.addSkipTrkorr(trkorr);
-    }
-
-    export async function removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await checkSystemConnector();
-        return systemConnector.removeSkipTrkorr(trkorr);
     }
 
     export async function trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean): Promise<void> {
@@ -301,11 +285,6 @@ export namespace SystemConnector {
     export async function renameTransportRequest(trkorr: components.TRKORR, as4text: components.AS4TEXT): Promise<void> {
         await checkSystemConnector();
         return systemConnector.renameTransportRequest(trkorr, as4text);
-    }
-
-    export async function setPackageIntegrity(integrity: struct.ZTRM_INTEGRITY): Promise<void> {
-        await checkSystemConnector();
-        return systemConnector.setPackageIntegrity(integrity);
     }
 
     export async function addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void> {
@@ -369,11 +348,6 @@ export namespace SystemConnector {
     export async function getTrmRestPackage(): Promise<TrmPackage> {
         await checkSystemConnector();
         return systemConnector.getTrmRestPackage();
-    }
-
-    export async function migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
-        await checkSystemConnector();
-        return systemConnector.migrateTransport(trkorr);
     }
 
     export async function deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
@@ -461,9 +435,14 @@ export namespace SystemConnector {
         return systemConnector.getTimezone();
     }
 
-    export async function getPackageObjLocks(devclass: components.DEVCLASS): Promise<struct.ZTRM_OBJ_LOCK[]> {
+    export async function getObjectsLocks(objects: struct.TADIR_KEY[]): Promise<struct.ZTRM_OBJ_LOCK[]> {
         await checkSystemConnector();
-        return systemConnector.getPackageObjLocks(devclass);
+        return systemConnector.getObjectsLocks(objects);
+    }
+
+    export async function updateTrmPackageData(data: any): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.updateTrmPackageData(data);
     }
 
 }

@@ -96,10 +96,7 @@ export const init: Step<InstallWorkflowContext> = {
                     binaries: undefined,
                     instance: undefined
                 },
-                cust: {
-                    binaries: undefined,
-                    instance: undefined
-                },
+                cust: [],
                 lang: {
                     binaries: undefined,
                     instance: undefined
@@ -112,9 +109,9 @@ export const init: Step<InstallWorkflowContext> = {
                 e071: []
             },
             installData: {
-                transport: undefined,
                 namespace: undefined,
-                entries: []
+                entries: [],
+                transports: []
             },
             originalData: {
                 hierarchy: undefined
@@ -122,7 +119,6 @@ export const init: Step<InstallWorkflowContext> = {
             generatedData: {
                 devclass: [],
                 namespace: undefined,
-                migrations: [],
                 tmsTxtRefresh: []
             }
         };

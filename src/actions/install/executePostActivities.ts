@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { PostActivity } from "../../manifest";
-import { TrmServerUpgrade } from "../../commons";
+import { TrmTransportIdentifier } from "../../transport";
 
 /**
  * Execute post activities
@@ -18,12 +18,7 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
             return false;
         } else {
             if (context.runtime.remotePackageData.manifest.postActivities && context.runtime.remotePackageData.manifest.postActivities.length > 0) {
-                if(TrmServerUpgrade.getInstance().executePostActivities()){
-                    return true;
-                }else{
-                    Logger.warning(`Coudln't execute post activities! After trm-server upgrade, run them manually!`, true);
-                    return false;
-                }
+                return true;
             } else {
                 Logger.log(`Skipping post activities (none defined)`, true);
                 return false;
@@ -42,11 +37,18 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
                 if(Array.isArray(data.parameters)){
                     data.parameters.forEach(param => {
                         switch(param.value){
-                            case '&INSTALL_TRANSPORT&':
+                            case '&INSTALL_WB_TRANSPORT&':
                                 try{
-                                    param.value = context.runtime.installData.transport.trkorr
+                                    param.value = context.runtime.installData.transports.find(o => o.type === TrmTransportIdentifier.TADIR).transport.trkorr
                                 }catch(x){
-                                    throw new Error(`Cannot find install transport number`);
+                                    throw new Error(`Cannot find install workbench transport number`);
+                                }
+                                break;
+                            case '&INSTALL_CUST_TRANSPORT&':
+                                try{
+                                    param.value = context.runtime.installData.transports.find(o => o.type === TrmTransportIdentifier.CUST).transport.trkorr
+                                }catch(x){
+                                    throw new Error(`Cannot find install customizing transport number`);
                                 }
                                 break;
                         }

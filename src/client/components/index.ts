@@ -65,3 +65,5 @@ export * from "./ZTRM_POLLING_LAST_MSG";
 export * from "./TRTPSTEP";
 export * from "./SYDATUM";
 export * from "./SYTIME";
+export * from "./DDLANGUAGE";
+export * from "./TARSYSTEM";

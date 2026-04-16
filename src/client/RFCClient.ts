@@ -7,6 +7,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { RFCClientError, SapMessage } from ".";
 import * as xml from "xml-js";
+import { Manifest } from "../manifest";
 
 const nodeRfcLib = 'node-rfc';
 
@@ -294,6 +295,14 @@ export class RFCClient implements IClient {
         return result['trkorr'];
     }
 
+    public async createCustTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
+        const result = await this._call("/ATRM/CREATE_CUST_TR", {
+            text: text,
+            target: target.trim().toUpperCase()
+        });
+        return result['trkorr'];
+    }
+
     public async setTransportDoc(trkorr: components.TRKORR, doc: struct.TLINE[]): Promise<void> {
         await this._call("/ATRM/SET_TRANSPORT_DOC", {
             trkorr: trkorr.trim().toUpperCase(),
@@ -348,24 +357,6 @@ export class RFCClient implements IClient {
             trkorr: trkorr.trim().toUpperCase(),
             lock: lock ? 'X' : ' '
         }, timeout);
-    }
-
-    public async addSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._call("/ATRM/ADD_SKIP_TRKORR", {
-            trkorr: trkorr.trim().toUpperCase()
-        });
-    }
-
-    public async removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._call("/ATRM/REMOVE_SKIP_TRKORR", {
-            trkorr: trkorr.trim().toUpperCase()
-        });
-    }
-
-    public async addSrcTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._call("/ATRM/ADD_SRC_TRKORR", {
-            trkorr: trkorr.trim().toUpperCase()
-        });
     }
 
     public async readTmsQueue(target: components.TMSSYSNAM): Promise<struct.STMSIQREQ[]> {
@@ -461,12 +452,6 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async setPackageIntegrity(integrity: struct.ZTRM_INTEGRITY): Promise<void> {
-        await this._call("/ATRM/SET_INTEGRITY", {
-            integrity: integrity
-        });
-    }
-
     public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void> {
         await this._call("/ATRM/ADD_LANG_TR", {
             trkorr: trkorr,
@@ -493,13 +478,6 @@ export class RFCClient implements IClient {
     public async getR3transInfo(): Promise<string> {
         const result = await this._call("/ATRM/GET_R3TRANS_INFO");
         return result['log'];
-    }
-
-    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
-        const result = await this._call("/ATRM/MIGRATE_TRANSPORT", {
-            trkorr: trkorr
-        });
-        return result['trmTrkorr'];
     }
 
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
@@ -553,37 +531,13 @@ export class RFCClient implements IClient {
         };
     }
 
-    public async getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
+    public async getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]> {
         const result = await this._call("/ATRM/GET_INSTALLED_PACKAGES");
-        const sXml = result['packages'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
-        const oAbapXml = xml.xml2js(sXml, { compact: true });
-        return oAbapXml['asx:abap']['asx:values']['PACKAGES'].item.map(o => {
-            var flatTdevc = [];
-            if (o['TDEVC'] && o['TDEVC']['TDEVC']) {
-                if (!Array.isArray(o['TDEVC']['TDEVC'])) {
-                    o['TDEVC']['TDEVC'] = [o['TDEVC']['TDEVC']];
-                }
-                flatTdevc = o['TDEVC']['TDEVC'].map((item) => {
-                    const flattened: Record<string, string> = {};
-                    for (const [key, value] of Object.entries(item)) {
-                        if (typeof value === 'object' && value !== null && '_text' in value) {
-                            flattened[key] = (value as any)._text;
-                        }
-                    }
-                    return flattened;
-                });
-            }
+        return result['packages'].map(o => {
             return {
-                name: o['NAME']['_text'],
-                version: o['VERSION']['_text'],
-                registry: o['REGISTRY']['_text'],
-                manifest: o['XMANIFEST']['_text'] ? Buffer.from(o['XMANIFEST']['_text'], 'base64').toString('utf8') : undefined,
-                transport: {
-                    trkorr: o['TRANSPORT']['TRKORR']['_text'],
-                    migration: o['TRANSPORT']['MIGRATION']['_text'] === 'X',
-                },
-                tdevc: normalize(flatTdevc),
-                trkorr: o['TRKORR']['_text']
+                ...o, ...{
+                    manifest: o.manifest.toString()
+                }
             };
         });
     }
@@ -652,11 +606,22 @@ export class RFCClient implements IClient {
         return result['status'];
     }
 
-    public async getPackageObjLocks(devclass: components.DEVCLASS): Promise<struct.ZTRM_OBJ_LOCK[]> {
-        const result = await this._call("/ATRM/GET_PACKAGE_OBJ_LOCKS", {
-            devclass
+    public async getObjectsLocks(objects: struct.TADIR_KEY[]): Promise<struct.ZTRM_OBJ_LOCK[]> {
+        const result = await this._call("/ATRM/GET_OBJS_LOCKS", {
+            objects
         });
         return result['locks'];
+    }
+
+    public async updateTrmPackageData(data: any): Promise<void> {
+        await this._call("/ATRM/UPDATE_TRM_PACKAGE_DATA", {
+            data
+        });
+    }
+
+    public async getTransportTargets(): Promise<components.TARSYSTEM[]> {
+        const result = await this._call("/ATRM/GET_TR_TARGETS");
+        return result['targets'];
     }
 
 }

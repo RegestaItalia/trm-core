@@ -4,7 +4,6 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import _ from 'lodash';
-import { TrmServerUpgrade } from "../../commons";
 import { stopWarning } from "../stopWarning";
 
 /**
@@ -17,8 +16,6 @@ import { stopWarning } from "../stopWarning";
  * 3- import transport into system
  * 
  * 4- run tadir interface (package replacement)
- * 
- * 5- remove from skipped transports (may be there because of previous failed install)
  * 
 */
 export const importTadirTransport: Step<InstallWorkflowContext> = {
@@ -40,10 +37,8 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             r3transOption: context.rawInput.contextData.r3transOptions
         });
 
-        if (TrmServerUpgrade.getInstance().deleteFromTms()) {
-            //2 - delete from tms buffer (if it exists)
-            await context.runtime.packageTransports.tadir.instance.deleteFromTms(SystemConnector.getDest());
-        }
+        //2 - delete from tms buffer (if it exists)
+        await context.runtime.packageTransports.tadir.instance.deleteFromTms(SystemConnector.getDest());
 
         //3- import transport into system
         const originalLPrefix = Logger.getPrefix();
@@ -82,24 +77,10 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${tadir.devclass} -> ${object.devclass}, src system ${tadir.srcsystem} -> ${object.srcsystem}`, true);
             await SystemConnector.tadirInterface(object);
         }
-
-        if (TrmServerUpgrade.getInstance().deleteFromTms()) {
-            //5- remove from skipped transports (may be there because of previous failed install)
-            await SystemConnector.removeSkipTrkorr(context.runtime.packageTransports.tadir.binaries.trkorr);
-        }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Rollback TADIR Transport step', true);
 
-        Logger.loading(`Rollback...`);
-        Logger.loading(`Rollback transport ${context.runtime.packageTransports.tadir.binaries.trkorr}...`, true);
-
-        try {
-            await SystemConnector.addSkipTrkorr(context.runtime.packageTransports.tadir.binaries.trkorr);
-            Logger.success(`Rollback transport ${context.runtime.packageTransports.tadir.binaries.trkorr} done`, true);
-        } catch (e) {
-            Logger.info(`Unable to rollback transport ${context.runtime.packageTransports.tadir.binaries.trkorr}`);
-            Logger.error(e.toString(), true);
-        }
+        //TODO: if at this point the import is done no revert is possible 
     }
 }

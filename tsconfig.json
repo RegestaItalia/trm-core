@@ -9,6 +9,7 @@
     "resolveJsonModule": true,
     "declaration": true,
     "removeComments": true,
+    "strict": false
   },
   "include": [
     "src/**/*"

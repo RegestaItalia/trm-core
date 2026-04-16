@@ -2,16 +2,35 @@ import { Logger } from "trm-commons";
 import { Manifest } from "../manifest";
 import { AbstractRegistry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
-import { DEVCLASS } from "../client";
-import { Transport } from "../transport";
+import { DEVCLASS, ZTRM_DIRTY } from "../client";
+import { Transport, TrmTransportIdentifier } from "../transport";
 import { SystemConnector } from "../systemConnector";
 import { Lockfile } from "../lockfile";
 
+export type TrmPackageInstallTransport = {
+    type: TrmTransportIdentifier,
+    transport: Transport
+}
+
 export class TrmPackage {
     private _devclass: DEVCLASS;
-    private _wbTransport: Transport | false;
+    private _dirtyEntries: ZTRM_DIRTY[] = [];
+    private _installTransports: TrmPackageInstallTransport[] | false;
 
     constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
+    }
+
+    public setDirtyEntries(entries: ZTRM_DIRTY[]): TrmPackage {
+        this._dirtyEntries = entries;
+        return this;
+    }
+
+    public isDirty(): boolean {
+        return this._dirtyEntries.length > 0;
+    }
+
+    public getDirtyEntries(): ZTRM_DIRTY[] {
+        return this._dirtyEntries;
     }
 
     public setDevclass(devclass: DEVCLASS): TrmPackage {
@@ -21,26 +40,6 @@ export class TrmPackage {
 
     public getDevclass(): DEVCLASS {
         return this._devclass;
-    }
-
-    public setWbTransport(transport: Transport): TrmPackage {
-        this._wbTransport = transport;
-        return this;
-    }
-
-    public async getWbTransport(): Promise<Transport> {
-        if(this._wbTransport === undefined){
-            const transports = await SystemConnector.getWbTransports(this);
-            if(transports.length === 1){
-                this._wbTransport = transports[0];
-            }else{
-                this._wbTransport = false;
-            }
-        }
-        if(this._wbTransport === false){
-            return undefined;
-        }
-        return this._wbTransport;
     }
 
     public async publish(data: {

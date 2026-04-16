@@ -87,8 +87,7 @@ export const init: Step<PublishWorkflowContext> = {
         }
         if (!context.rawInput.publishData) {
             context.rawInput.publishData = {
-                keepLatestReleaseManifestValues: true,
-                customizingTransports: []
+                keepLatestReleaseManifestValues: true
             };
         }
         if (context.rawInput.packageData.manifest === undefined) {
@@ -109,14 +108,11 @@ export const init: Step<PublishWorkflowContext> = {
         if (!context.rawInput.packageData.manifest.postActivities) {
             context.rawInput.packageData.manifest.postActivities = [];
         }
+        if(!context.rawInput.publishData.customizingTransports){
+            context.rawInput.publishData.customizingTransports = [];
+        }
         if (typeof (context.rawInput.publishData.customizingTransports) === 'string') {
-            context.rawInput.publishData.customizingTransports = context.rawInput.publishData.customizingTransports.split(',').map(o => {
-                try {
-                    return new Transport(o.trim());
-                } catch (e) {
-                    throw new Error(`Invalid customizing transport values: trkorr.`);
-                }
-            });
+            context.rawInput.publishData.customizingTransports = context.rawInput.publishData.customizingTransports.split(',').map(trkorr => new Transport(trkorr));
         }
         if (!context.rawInput.packageData.tags) {
             context.rawInput.packageData.tags = [];
@@ -250,7 +246,9 @@ export const init: Step<PublishWorkflowContext> = {
                 transportTargets: [],
                 devcTransport: undefined,
                 tadirTransport: undefined,
-                releasedTransports: []
+                releasedTransports: [],
+                originCustomizing: [],
+                custTransports: []
             },
             packageData: {
                 tadir: []
@@ -264,15 +262,7 @@ export const init: Step<PublishWorkflowContext> = {
             }
         };
         Logger.loading(`Reading ${SystemConnector.getDest()} transport targets...`);
-        context.runtime.systemData.transportTargets = (await SystemConnector.getTransportTargets()).sort((a, b) => {
-            if (a.systyp === 'V') {
-                return -1;
-            } else if (b.systyp === 'V') {
-                return 1;
-            } else {
-                return 0;
-            }
-        });
+        context.runtime.systemData.transportTargets = await SystemConnector.getTransportTargets();
         if (context.rawInput.publishData.skipCustomizingTransports) {
             context.rawInput.publishData.customizingTransports = [];
         }

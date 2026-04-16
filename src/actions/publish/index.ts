@@ -5,7 +5,7 @@ import { TrmArtifact, TrmPackage } from "../../trmPackage";
 import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa } from "..";
 import { AbstractRegistry } from "../../registry";
 import { init } from "./init";
-import { DEVCLASS, TADIR, TMSCSYS, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
+import { DEVCLASS, TADIR, TARSYSTEM, TMSCSYS, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
 import { setDevclass } from "./setDevclass";
 import { setTransportTarget } from "./setTransportTarget";
 import { findDependencies } from "./findDependencies";
@@ -19,7 +19,7 @@ import { generateTadirTransport } from "./generateTadirTransport";
 import { generateLangTransport } from "./generateLangTransport";
 import { generateCustTransport } from "./generateCustTransport";
 import { releaseTransports } from "./releaseTransports";
-import { finalizePublish } from "./finalizePublish";
+import { updatePackageData } from "./updatePackageData";
 import { publishToRegistry } from "./publishToRegistry";
 import { getSourceCode } from "./getSourceCode";
 import { DotAbapGit } from "../../abapgit";
@@ -177,11 +177,15 @@ type WorkflowRuntime = {
         artifact?: TrmArtifact
     },
     systemData: {
-        transportTargets: TMSCSYS[],
+        transportTargets: TARSYSTEM[],
+        originCustomizing: {
+            transports: Transport[],
+            description: string
+        }[],
         devcTransport: Transport,
         tadirTransport: Transport,
         langTransport?: Transport,
-        custTransport?: Transport,
+        custTransports: Transport[],
         releasedTransports: Transport[]
     },
     packageData: {
@@ -226,8 +230,8 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         setDevclass,
         findDependencies,
         setManifestValues,
-        setReadme,
         setCustomizingTransports,
+        setReadme,
         getSourceCode,
         checkAllObjectsReleased,
         generateDevcTransport,
@@ -236,7 +240,7 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         generateCustTransport,
         releaseTransports,
         publishToRegistry,
-        finalizePublish
+        updatePackageData
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {

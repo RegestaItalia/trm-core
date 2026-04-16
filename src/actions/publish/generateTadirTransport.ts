@@ -51,18 +51,6 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
         Logger.log('Rollback generate TADIR transport step', true);
-        if (context.runtime.systemData.tadirTransport) {
-            try {
-                if (await context.runtime.systemData.tadirTransport.canBeDeleted()) {
-                    await context.runtime.systemData.tadirTransport.delete();
-                    Logger.success(`Executed rollback on transport ${context.runtime.systemData.tadirTransport.trkorr}`, true);
-                } else {
-                    await SystemConnector.addSkipTrkorr(context.runtime.systemData.tadirTransport.trkorr);
-                }
-            } catch (e) {
-                Logger.error(`Unable to rollback transport ${context.runtime.systemData.tadirTransport.trkorr}!`);
-                Logger.error(e.toString(), true);
-            }
-        }
+        //TODO: to refactor
     }
 }

@@ -6,33 +6,31 @@ import { createHash } from "crypto";
 import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 
 /**
- * Finalize publish
+ * Update package data
  * 
- * 1- add to system source transports
+ * Creates/update record in TRM packages table
  * 
- * 2- save integrity on system
+ * 1- commit new values
  * 
 */
-export const finalizePublish: Step<PublishWorkflowContext> = {
-    name: 'finalize-publish',
+export const updatePackageData: Step<PublishWorkflowContext> = {
+    name: 'update-package-data',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Finalize publish step', true);
-        try{
-            Logger.loading(`Finalizing...`);
+        Logger.log('Update package data step', true);
+        try {
+            Logger.loading(`Finalizing publish...`);
 
-            //1- add to system source transports
-            await SystemConnector.addSrcTrkorr(context.runtime.systemData.tadirTransport.trkorr);
-            
-            //2- save integrity on system
-            Logger.log(`Generating SHA512`, true);
+            //1- commit new values
             const integrity = createHash("sha512").update(context.runtime.trmPackage.artifact.binary).digest("base64");
-            Logger.log(`SHA512: ${integrity}`, true);
-            await SystemConnector.setPackageIntegrity({
+            await SystemConnector.updateTrmPackageData({
                 package_name: context.rawInput.packageData.name,
                 package_registry: context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : context.rawInput.packageData.registry.endpoint,
-                integrity
+                manifest: Buffer.from(context.runtime.trmPackage.manifestXml, 'utf8'),
+                trkorr: context.runtime.systemData.tadirTransport.trkorr,
+                integrity: integrity,
+                devclass: context.rawInput.packageData.devclass
             });
-        }catch(e){
+        } catch (e) {
             Logger.error(`An error occurred during publish finalize. The package has been published, however TRM on ${SystemConnector.getDest()} migh be inconsistent.`);
             Logger.error(e.toString(), true);
         }

@@ -242,6 +242,14 @@ export class RESTClient implements IClient {
         return result.trkorr;
     }
 
+    public async createCustTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
+        const result = (await this._axiosInstance.post('/create_cust_tr', {
+            text: text,
+            target: target.trim().toUpperCase()
+        })).data;
+        return result.trkorr;
+    }
+
     public async setTransportDoc(trkorr: components.TRKORR, doc: struct.TLINE[]): Promise<void> {
         await this._axiosInstance.put('/set_transport_doc', {
             trkorr: trkorr.trim().toUpperCase(),
@@ -308,26 +316,6 @@ export class RESTClient implements IClient {
             lock: lock ? 'X' : ' '
         }, {
             timeout: timeout * 1000
-        });
-    }
-
-    public async addSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._axiosInstance.put('/add_skip_trkorr', {
-            trkorr: trkorr.trim().toUpperCase()
-        });
-    }
-
-    public async removeSkipTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._axiosInstance.delete('/remove_skip_trkorr', {
-            data: {
-                trkorr: trkorr.trim().toUpperCase()
-            }
-        });
-    }
-
-    public async addSrcTrkorr(trkorr: components.TRKORR): Promise<void> {
-        await this._axiosInstance.put('/add_src_trkorr', {
-            trkorr: trkorr.trim().toUpperCase()
         });
     }
 
@@ -424,12 +412,6 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async setPackageIntegrity(integrity: struct.ZTRM_INTEGRITY): Promise<void> {
-        await this._axiosInstance.put('/set_integrity', {
-            integrity: integrity
-        });
-    }
-
     public async addTranslationToTr(trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]): Promise<void> {
         await this._axiosInstance.put('/add_lang_tr', {
             trkorr: trkorr,
@@ -483,13 +465,6 @@ export class RESTClient implements IClient {
     public async getR3transInfo(): Promise<string> {
         const result = (await this._axiosInstance.get('/get_r3trans_info')).data;
         return result.log;
-    }
-
-    public async migrateTransport(trkorr: components.TRKORR): Promise<components.ZTRM_TRKORR> {
-        const result = (await this._axiosInstance.post('/migrate_transport', {
-            trkorr
-        })).data;
-        return result.trmTrkorr;
     }
 
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
@@ -555,22 +530,15 @@ export class RESTClient implements IClient {
         };
     }
 
-    public async getInstalledPackagesBackend(): Promise<struct.ZTY_TRM_PACKAGE[]> {
+    public async getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]> {
         const result = (await this._axiosInstance.get('/get_installed_packages')).data;
         return result.packages.map(o => {
-            o.xmanifest = o.xmanifest ? Buffer.from(o.xmanifest, 'base64').toString('utf8') : undefined;
             return {
-                name: o.name,
-                version: o.version,
-                registry: o.registry,
-                manifest: o.xmanifest,
-                tdevc: o.tdevc,
-                transport: {
-                    trkorr: o.transport ? o.transport.trkorr : undefined,
-                    migration: o.transport ? o.transport.migration === 'X' : undefined
-                },
-                trkorr: o.trkorr
-            }
+                ...o, ...{
+                    manifest: Buffer.from(o.manifest, 'base64').toString('utf8'),
+                    dirty: o.dirty === 'X'
+                }
+            };
         });
     }
 
@@ -647,13 +615,24 @@ export class RESTClient implements IClient {
         return result.stat;
     }
 
-    public async getPackageObjLocks(devclass: components.DEVCLASS): Promise<struct.ZTRM_OBJ_LOCK[]> {
-        const result = (await this._axiosInstance.get('/get_package_obj_locks', {
+    public async getObjectsLocks(objects: struct.TADIR_KEY[]): Promise<struct.ZTRM_OBJ_LOCK[]> {
+        const result = (await this._axiosInstance.get('/get_objects_lock', {
             data: {
-                devclass
+                objects
             }
         })).data;
         return result.locks;
+    }
+
+    public async updateTrmPackageData(data: any): Promise<void> {
+        await this._axiosInstance.post('/update_trm_package_data', {
+            data
+        });
+    }
+
+    public async getTransportTargets(): Promise<components.TARSYSTEM[]> {
+        const result = (await this._axiosInstance.get('/get_tr_targets')).data;
+        return result.targets;
     }
 
 }

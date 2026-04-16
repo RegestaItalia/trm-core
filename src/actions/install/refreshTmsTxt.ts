@@ -1,10 +1,9 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
-import { TrmServerUpgrade } from "../../commons";
 
 /**
- * Refresh TMS queue texts (only when transports are migrated)
+ * Refresh TMS queue texts
  * 
  * 1- refresh tms texts
  * 
@@ -13,13 +12,9 @@ export const refreshTmsTxt: Step<InstallWorkflowContext> = {
     name: 'refresh-tms-txt',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
         if(context.runtime.generatedData.tmsTxtRefresh.length > 0){
-            if(TrmServerUpgrade.getInstance().refreshTmsTxt()){
-                return true;
-            }else{
-                Logger.log(`Skipping TMS refresh (not supported by trm-server)`, true);
-            }
+            return true;
         }else{
-            Logger.log(`Skipping TMS refresh (no transports migrated)`, true);
+            Logger.log(`Skipping TMS refresh`, true);
             return false;
         }
     },
