@@ -13,6 +13,7 @@ import { stopWarning } from "../stopWarning";
  * 
  * 2- check if namespace already exists (only if customer namespace)
  * 
+ * 
  * 3- create namespace
  * 
 */
@@ -32,11 +33,6 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         if (context.runtime.installData.namespace[0] !== '/') {
             Logger.log(`Package install namespace is ${context.runtime.installData.namespace}`, true);
             return;
-        }else{
-            if(context.rawInput.installData.installDevclass.skipNamespace){
-                Logger.info(`Skipping install of namespace ${context.runtime.installData.namespace}`, false);
-                return;
-            }
         }
 
         //2- check if namespace already exists (only if customer namespace)
@@ -49,11 +45,16 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         if (namespace) {
             Logger.log(`Namespace ${context.runtime.installData.namespace} already defined`, true);
             return;
+        }else{
+            //if namespace doesn't exist but packages must be generated, it's mandatory to have the namespace
+            if(context.rawInput.installData.installDevclass.skipNamespace){
+                throw new Error(`Cannot generate packages without namespace ${context.runtime.installData.namespace}. Run install with namespace import or do not rename install packages.`);
+            }
         }
 
         //3- create namespace
         var replicense: TRNLICENSE;
-        var texts: TRNSPACETT;
+        var text: TRNSPACETT;
         var aTexts: TRNSPACETT[] = [];
         if (context.runtime.installData.namespace !== originalNamespace) {
             if (!context.rawInput.contextData.noInquirer) {
@@ -69,7 +70,7 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                         }
                     }
                 })).replicense;
-                texts = await Inquirer.prompt([{
+                text = await Inquirer.prompt([{
                     message: `dummy`,
                     name: 'namespace',
                     type: 'input',
@@ -82,57 +83,33 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                 }, {
                     message: `Namespace language`,
                     name: 'spras',
-                    type: 'input'
+                    type: 'input',
+                    default: SystemConnector.getLogonLanguage(true)
                 }, {
                     message: `Namespace description`,
                     name: 'descriptn',
                     type: 'input'
                 }]);
+                aTexts.push(text);
             }
         } else {
             if (context.runtime.remotePackageData.manifest.namespace) {
                 replicense = context.runtime.remotePackageData.manifest.namespace.replicense;
-                if (context.runtime.remotePackageData.manifest.namespace.texts && context.runtime.remotePackageData.manifest.namespace.texts.length > 0) {
-                    if (context.runtime.remotePackageData.manifest.namespace.texts.length === 1 || context.rawInput.contextData.noInquirer) {
-                        texts = {
-                            namespace: context.runtime.installData.namespace,
-                            descriptn: context.runtime.remotePackageData.manifest.namespace.texts[0].description,
-                            owner: context.runtime.remotePackageData.manifest.namespace.texts[0].owner,
-                            spras: context.runtime.remotePackageData.manifest.namespace.texts[0].language
-                        };
-                    } else {
-                        if (!context.rawInput.contextData.noInquirer) {
-                            texts = (await Inquirer.prompt({
-                                type: 'list',
-                                message: 'Choose namespace install text',
-                                name: 'choice',
-                                choices: context.runtime.remotePackageData.manifest.namespace.texts.map(o => {
-                                    return {
-                                        name: `${o.language} ${o.description} ${o.owner}`,
-                                        value: {
-                                            namespace: context.runtime.installData.namespace,
-                                            descriptn: o.description,
-                                            owner: o.owner,
-                                            spras: o.language
-                                        }
-                                    }
-                                })
-                            })).choice;
-                        }
-                    }
-                }
+                aTexts = context.runtime.remotePackageData.manifest.namespace.texts.map(o => {
+                    return {
+                        namespace: context.runtime.remotePackageData.manifest.namespace.ns || context.runtime.installData.namespace,
+                        spras: o.language,
+                        descriptn: o.description,
+                        owner: o.owner
+                    };
+                });
             }
         }
         if (!replicense) {
             throw new Error(`Cannot use namespace ${context.runtime.installData.namespace}: repair license missing.`);
         }
-        if (!texts) {
+        if (aTexts.length === 0) {
             throw new Error(`Cannot use namespace ${context.runtime.installData.namespace}: data missing.`);
-        } else {
-            aTexts.push(texts);
-            if (texts.spras != SystemConnector.getLogonLanguage(true)) {
-                aTexts.push({ ...texts, ...{ spras: SystemConnector.getLogonLanguage(true) } });
-            }
         }
         if(!context.runtime.stopWarningShown){
             context.runtime.stopWarningShown = true;

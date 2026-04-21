@@ -56,7 +56,7 @@ export const init: Step<InstallWorkflowContext> = {
         if (registry.getRegistryType() !== RegistryType.LOCAL) {
             Logger.loading(`Fetching package in registry ${registry.name}...`);
             packageData = await registry.getPackage(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
-            artifact = await registry.downloadArtifact(packageData.name, packageData.manifest.version);
+            artifact = await registry.downloadArtifact(packageData.name, packageData.manifest.version, true);
             const checksum = createHash("sha512").update(artifact.binary).digest("base64");
             if (checksum !== packageData.checksum) {
                 var ping: Ping;
@@ -83,7 +83,8 @@ export const init: Step<InstallWorkflowContext> = {
             remotePackageData: {
                 data: packageData,
                 artifact,
-                manifest
+                manifest,
+                contents: false
             },
             dependenciesToInstall: [],
             r3trans: undefined,

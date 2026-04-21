@@ -21,7 +21,9 @@ export const readDevc: Step<InstallWorkflowContext> = {
         Logger.loading(`Checking package transports...`);
 
         //1- read TDEVC
-        context.runtime.packageTransportsData.tdevc = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.devc.binaries.binaries.data, 'TDEVC'));
+        if (!context.runtime.remotePackageData.contents) {
+            context.runtime.packageTransportsData.tdevc = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.devc.binaries.binaries.data, 'TDEVC'));
+        }
         if (context.runtime.packageTransportsData.tdevc.length === 0) {
             throw new Error(`Package has no devclass.`);
         }
@@ -31,7 +33,9 @@ export const readDevc: Step<InstallWorkflowContext> = {
         context.runtime.originalData.hierarchy = getPackageHierarchy(context.runtime.packageTransportsData.tdevc);
 
         //3- read TDEVCT
-        context.runtime.packageTransportsData.tdevct = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.devc.binaries.binaries.data, 'TDEVCT'));
+        if (!context.runtime.remotePackageData.contents) {
+            context.runtime.packageTransportsData.tdevct = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.devc.binaries.binaries.data, 'TDEVCT'));
+        }
         Logger.log(`DEVC TDEVCT: ${JSON.stringify(context.runtime.packageTransportsData.tdevct)}`, true);
     }
 }

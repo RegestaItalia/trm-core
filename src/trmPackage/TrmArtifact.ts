@@ -19,7 +19,7 @@ export class TrmArtifact {
         this._zip = new AdmZip.default(binary);
     }
 
-    public setFilePath(filePath: string){
+    public setFilePath(filePath: string) {
         this._filePath = filePath;
     }
 
@@ -58,7 +58,7 @@ export class TrmArtifact {
         return this._distFolder;
     }
 
-    public async getTransportBinaries(r3transOption?: R3transOptions): Promise<TransportBinary[]> {
+    public async getTransportBinaries(r3transOption?: R3transOptions, noCheck?: boolean): Promise<TransportBinary[]> {
         if (!this._binaries) {
             const distFolder = this.getDistFolder();
             if (!distFolder) {
@@ -76,7 +76,13 @@ export class TrmArtifact {
                     const oHeader = aPackedTransportEntries.find(o => o.comment === 'header')?.getData();
                     const oData = aPackedTransportEntries.find(o => o.comment === 'data')?.getData();
                     if (oHeader && oData) {
-                        const trkorr = await r3trans.getTransportTrkorr(oData);
+                        var trkorr;
+                        if (noCheck) {
+                            const filename = aPackedTransportEntries.find(o => o.comment === 'header').entryName;
+                            trkorr = (filename.slice(-3) + filename.slice(0, -3)).slice(0, -1);
+                        } else {
+                            trkorr = await r3trans.getTransportTrkorr(oData);
+                        }
                         aResult.push({
                             trkorr,
                             type: type as TrmTransportIdentifier,
@@ -176,10 +182,10 @@ export class TrmArtifact {
 
         data.manifest.setDistFolder(data.distFolder);
 
-        if(data.sourceCode){
+        if (data.sourceCode) {
             Logger.log(`Adding source code`, true);
-            try{
-                if(data.srcFolder === data.distFolder){
+            try {
+                if (data.srcFolder === data.distFolder) {
                     throw new Error(`Source code folder and build folder are identical.`);
                 }
                 const sourceCode = new AdmZip.default(data.sourceCode);
@@ -187,12 +193,12 @@ export class TrmArtifact {
                     artifact.addFile(`${data.srcFolder}/${entry.rawEntryName}`, entry.getData(), `ABAPGIT`);
                 });
                 data.manifest.setSrcFolder(data.srcFolder);
-            }catch(e){
+            } catch (e) {
                 Logger.error(e.toString(), true);
                 Logger.error(`Couldn't add source code to TRM artifact!`);
             }
         }
-        
+
         const oSapEntries = data.manifest.get().sapEntries;
         const manifestBuffer = Buffer.from(data.manifest.getJSON(["sapEntries"]), 'utf8');
         Logger.log(`Adding manifest.json`, true);
