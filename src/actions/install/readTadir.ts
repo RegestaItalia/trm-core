@@ -21,7 +21,9 @@ export const readTadir: Step<InstallWorkflowContext> = {
         Logger.loading(`Checking package transports...`);
 
         //1- read TADIR
-        context.runtime.packageTransportsData.tadir = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.tadir.binaries.binaries.data, 'TADIR'));
+        if (!context.runtime.remotePackageData.contents) {
+            context.runtime.packageTransportsData.tadir = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.tadir.binaries.binaries.data, 'TADIR'));
+        }
         Logger.log(`TADIR TADIR: ${JSON.stringify(context.runtime.packageTransportsData.tadir)}`, true);
 
         //2- check objects existance

@@ -155,4 +155,8 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system can't remove dist tags!`);
     }
 
+    public async contents(fullName: string, version: string): Promise<any> {
+        throw new Error(`File system can't see contents!`);
+    }
+
 }

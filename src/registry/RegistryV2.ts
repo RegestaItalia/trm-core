@@ -13,6 +13,7 @@ import _ from 'lodash';
 import { getAxiosInstance, getNodePackage } from "../commons";
 import { AbstractRegistry } from "./AbstractRegistry";
 import NodeCache from "node-cache";
+import * as cliProgress from "cli-progress";
 
 const AXIOS_CTX = "RegistryV2";
 
@@ -341,23 +342,78 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
-        var buffer: Buffer;
+    public async downloadArtifact(fullName: string, version: string = 'latest', log?: boolean): Promise<TrmArtifact> {
         const packageData = await this.getPackage(fullName, version);
+        const chunks: Buffer[] = [];
+        let buffer: Buffer;
+        var logProgress: cliProgress.SingleBar;
+
+        if (log) {
+            logProgress = new cliProgress.SingleBar({
+                clearOnComplete: true,
+                hideCursor: true,
+                format: `${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`,
+                barGlue: '>'
+            }, cliProgress.Presets.legacy);
+        }
+
         try {
-            buffer = (await this._axiosInstance.get(packageData.download_link, {
+            const response = await this._axiosInstance.get(packageData.download_link, {
                 headers: {
-                    'Accept': 'application/octet-stream',
+                    Accept: 'application/octet-stream',
                 },
                 maxRedirects: 10,
-                responseType: 'arraybuffer',
+                responseType: 'stream',
                 validateStatus: s => s >= 200 && s < 400,
-            })).data;
+            });
+
+            const totalBytes = Number(response.headers['content-length'] ?? 0);
+            let downloadedBytes = 0;
+
+            if (log) {
+                if (totalBytes > 0) {
+                    Logger.forceStop();
+                    logProgress.start(totalBytes, 0);
+                } else {
+                    Logger.warning('content-length header missing, percentage progress is unavailable');
+                }
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                response.data.on('data', (chunk: Buffer) => {
+                    chunks.push(chunk);
+                    downloadedBytes += chunk.length;
+
+                    if (log) {
+                        if (totalBytes > 0) {
+                            logProgress.update(downloadedBytes);
+                        }
+                    }
+                });
+
+                response.data.on('end', () => resolve());
+                response.data.on('error', reject);
+            });
+
+            if (log) {
+                if (totalBytes > 0) {
+                    logProgress.stop();
+                }
+            }
+
+            buffer = Buffer.concat(chunks);
         } catch (e) {
-            Logger.error(e.toString(), true);
+            try {
+                logProgress.stop();
+            } catch {
+                // ignore stop errors
+            }
+
+            Logger.error((e as Error).toString(), true);
             Logger.error(`Failed to fetch package at ${packageData.download_link}: ${(e as AxiosError).message}`);
             throw e;
         }
+
         return new TrmArtifact(buffer);
     }
 
@@ -387,7 +443,7 @@ export class RegistryV2 implements AbstractRegistry {
             });
         }
         var params = { version, tags };
-        if(!tags){
+        if (!tags) {
             delete params.tags;
         }
         return (await this._axiosInstance.post(`/publish/${fullName}`, formData, {
@@ -427,6 +483,74 @@ export class RegistryV2 implements AbstractRegistry {
         })).status;
         if (status !== 204) {
             throw new Error(`Cannot remove tag "${distTag.tag.trim().toLowerCase()}"`);
+        }
+    }
+
+    public async contents(fullName: string, version: string = 'latest', log?: boolean): Promise<any> {
+        const chunks: Buffer[] = [];
+        var logProgress: cliProgress.SingleBar;
+
+        if (log) {
+            logProgress = new cliProgress.SingleBar({
+                clearOnComplete: true,
+                hideCursor: true,
+                format: `${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`,
+                barGlue: '>'
+            }, cliProgress.Presets.legacy);
+        }
+
+        try {
+            const response = await this._axiosInstance.get(`/package/contents/${fullName}`, {
+                params: {
+                    version: encodeURIComponent(version),
+                },
+                responseType: 'stream',
+            });
+
+            const totalBytes = Number(response.headers['content-length'] ?? 0);
+            let downloadedBytes = 0;
+
+            if (log) {
+                if (totalBytes > 0) {
+                    Logger.forceStop();
+                    logProgress.start(totalBytes, 0);
+                } else {
+                    Logger.warning('content-length header missing, percentage progress is unavailable');
+                }
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                response.data.on('data', (chunk: Buffer) => {
+                    chunks.push(chunk);
+                    downloadedBytes += chunk.length;
+
+                    if (log) {
+                        if (totalBytes > 0) {
+                            logProgress.update(downloadedBytes);
+                        }
+                    }
+                });
+
+                response.data.on('end', () => resolve());
+                response.data.on('error', reject);
+            });
+
+            if (log) {
+                if (totalBytes > 0) {
+                    logProgress.stop();
+                }
+            }
+
+            const buffer = Buffer.concat(chunks);
+            return JSON.parse(buffer.toString('utf-8'));
+        } catch (e) {
+            try {
+                logProgress.stop();
+            } catch { }
+
+            Logger.error((e as Error).toString(), true);
+            Logger.error(`Failed to fetch contents for ${fullName}: ${(e as AxiosError).message}`);
+            throw e;
         }
     }
 

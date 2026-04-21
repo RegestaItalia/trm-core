@@ -12,11 +12,12 @@ export abstract class AbstractRegistry {
     abstract ping: () => Promise<Ping>;
     abstract whoAmI: () => Promise<WhoAmI>;
     abstract getPackage: (fullName: string, version: string) => Promise<Package>;
-    abstract downloadArtifact: (fullName: string, version: string) => Promise<TrmArtifact>;
+    abstract downloadArtifact: (fullName: string, version: string, log?: boolean) => Promise<TrmArtifact>;
     abstract validatePublish: (fullName: string, version: string, isPrivate: boolean) => Promise<void>;
     abstract publish: (fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string) => Promise<Package>;
     abstract unpublish: (fullName: string, version: string) => Promise<void>;
     abstract deprecate: (fullName: string, version: string, deprecate: Deprecate) => Promise<void>;
     abstract addDistTag: (fullName: string, distTag: DistTagAdd) => Promise<void>;
     abstract rmDistTag: (fullName: string, distTag: DistTagRm) => Promise<void>;
+    abstract contents: (fullName: string, version: string, log?: boolean) => Promise<any>;
 }

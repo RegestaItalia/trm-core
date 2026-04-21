@@ -37,9 +37,16 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         Logger.log('Check transports step', true);
         var checkExistance: TRKORR[] = [];
 
+        try {
+            context.runtime.packageTransportsData = await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest', true);
+            context.runtime.remotePackageData.contents = true;
+        } catch {
+            context.runtime.remotePackageData.contents = false;
+        }
+
         //1- get transport binaries
         Logger.loading(`Checking package transports...`);
-        const aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries(context.rawInput.contextData.r3transOptions);
+        const aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries(context.rawInput.contextData.r3transOptions, context.runtime.remotePackageData.contents);
         Logger.log(`Package content: ${aTransports.map(o => {
             return {
                 trkorr: o.trkorr,
@@ -82,9 +89,11 @@ export const checkTransports: Step<InstallWorkflowContext> = {
             context.runtime.packageTransports.tadir.binaries = aTadirTransports[0];
             Logger.log(`TADIR transport is ${context.runtime.packageTransports.tadir.binaries.trkorr}.`, true);
             checkExistance.push(context.runtime.packageTransports.tadir.binaries.trkorr);
-            const tadirE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.tadir.binaries.binaries.data, 'E071'));
-            Logger.log(`TADIR E071: ${JSON.stringify(tadirE071)}`, true);
-            context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(tadirE071);
+            if (!context.runtime.remotePackageData.contents) {
+                const tadirE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.tadir.binaries.binaries.data, 'E071'));
+                Logger.log(`TADIR E071: ${JSON.stringify(tadirE071)}`, true);
+                context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(tadirE071);
+            }
         }
 
         //5- check LANG transport (zero or one transport)
@@ -107,9 +116,11 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                 context.runtime.packageTransports.lang.binaries = aLangTransports[0];
                 Logger.log(`LANG transport is ${context.runtime.packageTransports.lang.binaries.trkorr}.`, true);
                 checkExistance.push(context.runtime.packageTransports.lang.binaries.trkorr);
-                const langE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.lang.binaries.binaries.data, 'E071'));
-                Logger.log(`LANG E071: ${JSON.stringify(langE071)}`, true);
-                context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(langE071);
+                if (!context.runtime.remotePackageData.contents) {
+                    const langE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.lang.binaries.binaries.data, 'E071'));
+                    Logger.log(`LANG E071: ${JSON.stringify(langE071)}`, true);
+                    context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(langE071);
+                }
             }
         }
 
@@ -133,28 +144,34 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                 });
                 Logger.log(`CUST transport are ${context.runtime.packageTransports.cust.map(o => o.binaries.trkorr)}.`, true);
                 checkExistance = checkExistance.concat(context.runtime.packageTransports.cust.map(o => o.binaries.trkorr));
-                var custE071: E071[] = [];
-                for(const transport of context.runtime.packageTransports.cust){
-                    custE071 = custE071.concat(normalize(await context.runtime.r3trans.getTableEntries(transport.binaries.binaries.data, 'E071')));
+                if (!context.runtime.remotePackageData.contents) {
+                    var custE071: E071[] = [];
+                    for (const transport of context.runtime.packageTransports.cust) {
+                        custE071 = custE071.concat(normalize(await context.runtime.r3trans.getTableEntries(transport.binaries.binaries.data, 'E071')));
+                    }
+                    Logger.log(`CUST E071: ${JSON.stringify(custE071)}`, true);
+                    context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(custE071);
                 }
-                Logger.log(`CUST E071: ${JSON.stringify(custE071)}`, true);
-                context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(custE071);
             }
         }
 
         //7- assert no DEVC object in any other transport beside DEVC
-        if (context.runtime.packageTransportsData.e071.find(o => o.pgmid === 'R3TR' && o.object === 'DEVC')) {
-            throw new Error(`Package has undeclared devclass.`); //all devc object must be in devc transport only
+        if (!context.runtime.remotePackageData.contents) {
+            if (context.runtime.packageTransportsData.e071.find(o => o.pgmid === 'R3TR' && o.object === 'DEVC')) {
+                throw new Error(`Package has undeclared devclass.`); //all devc object must be in devc transport only
+            }
         }
 
         //8- assert DEVC transport contains atleast one DEVC object
-        var devcE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.devc.binaries.binaries.data, 'E071'));
-        Logger.log(`DEVC E071: ${JSON.stringify(devcE071)}`, true);
-        devcE071 = devcE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC'); //keep devc only
-        if (devcE071.length === 0) {
-            throw new Error(`Package has no devclass.`);
+        if (!context.runtime.remotePackageData.contents) {
+            var devcE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.devc.binaries.binaries.data, 'E071'));
+            Logger.log(`DEVC E071: ${JSON.stringify(devcE071)}`, true);
+            devcE071 = devcE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC'); //keep devc only
+            if (devcE071.length === 0) {
+                throw new Error(`Package has no devclass.`);
+            }
+            context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(devcE071);
         }
-        context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(devcE071);
         context.runtime.installData.entries = context.runtime.packageTransportsData.e071;
 
         //9- check existance of trkorr in target system

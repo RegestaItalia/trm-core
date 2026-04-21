@@ -229,7 +229,8 @@ type WorkflowRuntime = {
     remotePackageData: {
         data: Package,
         manifest: TrmManifest,
-        artifact: TrmArtifact
+        artifact: TrmArtifact,
+        contents: boolean
     },
     packageTransports: {
         devc: TransportRuntime,
