@@ -2,8 +2,7 @@ import { BinaryTransport } from "./BinaryTransport";
 import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
 import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
-import { R3trans, R3transLogParser, R3transOptions, ReleaseLogStep } from "node-r3trans";
-import { TransportContent } from "./TransportContent";
+import { R3transLogParser, ReleaseLogStep } from "node-r3trans";
 import { Documentation } from "./Documentation";
 import { TrmTransportIdentifier } from "./TrmTransportIdentifier";
 import { TrmPackage } from "../trmPackage";
@@ -738,29 +737,11 @@ export class Transport {
         return new Transport(trkorr, null);
     }
 
-    public static async getContent(data: Buffer, r3transOption?: R3transOptions): Promise<TransportContent> {
-        const r3trans = new R3trans(r3transOption);
-        const trkorr = await r3trans.getTransportTrkorr(data);
-        var transportContent: TransportContent = {
-            trkorr,
-            tdevc: [],
-            tdevct: [],
-            tadir: []
-        };
-        transportContent.tdevc = await r3trans.getTableEntries(data, 'TDEVC');
-        transportContent.tdevct = await r3trans.getTableEntries(data, 'TDEVCT');
-        transportContent.tadir = await r3trans.getTableEntries(data, 'TADIR');
-        return transportContent;
-    }
-
-    public static async upload(data: {
+    public static async upload(trkorr, data: {
         binary: BinaryTransport,
-        trTarget?: TR_TARGET,
-        r3transOption?: R3transOptions
+        trTarget?: TR_TARGET
     }): Promise<Transport> {
         Logger.loading(`Reading binary content...`, true);
-        const fileContent = await Transport.getContent(data.binary.data, data.r3transOption);
-        const trkorr = fileContent.trkorr;
         Logger.success(`Transport ${trkorr} read success.`, true);
         const fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
         const filePaths = await Transport._getFilePaths(fileNames);

@@ -21,11 +21,13 @@ function _validateDevclass(input: string, packagesNamespace: string): string | t
 /**
  * Set install devclass. These are the ABAP package names that will be used in the target system.
  * 
- * 1- set replacements from input/find already defined replacements in system
+ * 1- find already defined replacements in system
  * 
  * 2- get root devclass and find namespace
  * 
  * 3- update z table
+ * 
+ * 4- if all package names like origin, import devc transport
  * 
 */
 export const setInstallDevclass: Step<InstallWorkflowContext> = {
@@ -41,19 +43,10 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Set install devclass step', true);
 
-        //1- set replacements from input/find already defined replacements in system
-        if (context.rawInput.installData.installDevclass.keepOriginal) {
-            context.rawInput.installData.installDevclass.replacements = context.runtime.packageTransportsData.tdevc.map(o => {
-                return {
-                    originalDevclass: o.devclass,
-                    installDevclass: o.devclass
-                }
-            });
-        } else {
+        //1- find already defined replacements in system
+        if (context.rawInput.installData.installDevclass.replacements.length <= 0) {
             //no input replacements = get from the trm table devclass replacements the corresponding name
-            if (context.rawInput.installData.installDevclass.replacements.length <= 0) {
-                context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.rawInput.packageData.registry);
-            }
+            context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.rawInput.packageData.registry);
         }
 
         //2- get root devclass and find namespace
@@ -138,5 +131,13 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             });
         });
         await SystemConnector.setInstallDevc(installDevc);
+
+        //4- if all package names like origin, import devc transport
+        context.rawInput.installData.installDevclass.keepOriginal = true;
+        context.rawInput.installData.installDevclass.replacements.forEach(o => {
+            if (o.installDevclass !== o.originalDevclass) {
+                context.rawInput.installData.installDevclass.keepOriginal = false;
+            }
+        });
     }
 }

@@ -31,10 +31,10 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             context.runtime.stopWarningShown = true;
             stopWarning('install');
         }
-        context.runtime.packageTransports.tadir.instance = await Transport.upload({
-            binary: context.runtime.packageTransports.tadir.binaries.binaries,
-            trTarget: SystemConnector.getDest(),
-            r3transOption: context.rawInput.contextData.r3transOptions
+        context.runtime.packageTransports.tadir.instance = await Transport.upload(
+            context.runtime.packageTransports.tadir.binaries.trkorr, {
+                binary: context.runtime.packageTransports.tadir.binaries.binaries,
+                trTarget: SystemConnector.getDest()
         });
 
         //2 - delete from tms buffer (if it exists)

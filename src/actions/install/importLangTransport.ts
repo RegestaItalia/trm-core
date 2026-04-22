@@ -41,10 +41,10 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
             context.runtime.stopWarningShown = true;
             stopWarning('install');
         }
-        context.runtime.packageTransports.lang.instance = await Transport.upload({
-            binary: context.runtime.packageTransports.lang.binaries.binaries,
-            trTarget: SystemConnector.getDest(),
-            r3transOption: context.rawInput.contextData.r3transOptions
+        context.runtime.packageTransports.lang.instance = await Transport.upload(
+            context.runtime.packageTransports.lang.binaries.trkorr, {
+                binary: context.runtime.packageTransports.lang.binaries.binaries,
+                trTarget: SystemConnector.getDest()
         });
 
         //2 - delete from tms buffer (if it exists)

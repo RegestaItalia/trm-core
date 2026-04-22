@@ -45,10 +45,14 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         if (namespace) {
             Logger.log(`Namespace ${context.runtime.installData.namespace} already defined`, true);
             return;
-        }else{
-            //if namespace doesn't exist but packages must be generated, it's mandatory to have the namespace
-            if(context.rawInput.installData.installDevclass.skipNamespace){
-                throw new Error(`Cannot generate packages without namespace ${context.runtime.installData.namespace}. Run install with namespace import or do not rename install packages.`);
+        } else {
+            if(context.rawInput.installData.installDevclass.keepOriginal) {
+                Logger.warning(`Install will continue without importing namespace ${context.runtime.installData.namespace}. Run install with namespace import or manually add namespace in SE03.`, context.runtime.installData.namespace === '/ATRM/');
+                return;
+            }
+            if (context.rawInput.installData.installDevclass.skipNamespace) {
+                //namespace doesn't exist but packages must be generated, it's mandatory to have the namespace
+                throw new Error(`Cannot generate packages without namespace ${context.runtime.installData.namespace}. Run install with namespace import or avoid renaming packages.`);
             }
         }
 
@@ -111,7 +115,7 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         if (aTexts.length === 0) {
             throw new Error(`Cannot use namespace ${context.runtime.installData.namespace}: data missing.`);
         }
-        if(!context.runtime.stopWarningShown){
+        if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
             stopWarning('install');
         }

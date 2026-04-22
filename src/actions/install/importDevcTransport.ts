@@ -49,10 +49,10 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             stopWarning('install');
         }
         Logger.loading(`Uploading ${context.runtime.packageTransports.devc.binaries.trkorr}`, true);
-        context.runtime.packageTransports.devc.instance = await Transport.upload({
-            binary: context.runtime.packageTransports.devc.binaries.binaries,
-            trTarget: SystemConnector.getDest(),
-            r3transOption: context.rawInput.contextData.r3transOptions
+        context.runtime.packageTransports.devc.instance = await Transport.upload(
+            context.runtime.packageTransports.devc.binaries.trkorr, {
+                binary: context.runtime.packageTransports.devc.binaries.binaries,
+                trTarget: SystemConnector.getDest()
         });
 
         //3 - delete from tms buffer (if it exists)
