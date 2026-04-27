@@ -13,6 +13,7 @@ Legend
 * avoid useless transport unpack for reading transport number
 ! usage with devc transport import when replacements are like original
 * ignore namespace import error when doesnt exist
++ optional filter installed packages
 
 2026-04-21 v9.1.0
 -------------------

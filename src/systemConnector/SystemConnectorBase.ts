@@ -41,7 +41,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
   protected abstract getR3transInfo(): Promise<string>
-  protected abstract getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]>
+  protected abstract getInstalledPackagesBackend(filter?: { name: string, registry: string }): Promise<struct.ZTRM_PACKAGE[]>
   protected abstract getPackageDependenciesInternal(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
   protected abstract getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]>
 
@@ -159,7 +159,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return oPackage;
   }
 
-  public async getInstalledPackages(refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
+  public async getInstalledPackages(refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }): Promise<TrmPackage[]> {
     var trmPackages: TrmPackage[] = [];
     var fromBackend = false;
 
@@ -175,7 +175,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     if (serverExists.length === 1) {
       Logger.log(`INTF ${TRM_SERVER_INTF} exists, reading packages from backend API`, true);
       try {
-        var installedPackagesBackend = await this.getInstalledPackagesBackend();
+        var installedPackagesBackend = await this.getInstalledPackagesBackend(filter);
         installedPackagesBackend = installedPackagesBackend.sort((a, b) => Number(`${b.as4Date}${b.as4Time}`) - Number(`${a.as4Date}${a.as4Time}`));
         if (!includeLocals) {
           installedPackagesBackend = installedPackagesBackend.filter(o => o.packageRegistry !== LOCAL_RESERVED_KEYWORD);

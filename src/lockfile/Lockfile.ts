@@ -32,7 +32,7 @@ export class Lockfile {
             packages: []
         };
         if (!packages) {
-            packages = await SystemConnector.getInstalledPackages(true, true, true);
+            packages = await SystemConnector.getInstalledPackages(true, true);
         }
         const rootManifest = root.manifest.get();
         var dependencies = rootManifest.dependencies || [];
