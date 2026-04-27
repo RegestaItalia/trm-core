@@ -11,7 +11,7 @@ function _validateDevclass(input: string, packagesNamespace: string): string | t
     if (sInput.length > 30) {
         return `Package name must not exceede 30 characters limit.`;
     }
-    if (!sInput.startsWith(packagesNamespace)) {
+    if (!sInput.startsWith(packagesNamespace) && !sInput.startsWith('$')) {
         return `Package name must use namespace "${packagesNamespace}".`;
     } else {
         return true;
