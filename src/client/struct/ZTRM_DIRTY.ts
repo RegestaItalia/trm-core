@@ -5,5 +5,5 @@ export type ZTRM_DIRTY = {
     pgmid: PGMID,
     object: TROBJTYPE,
     objName: TROBJ_NAME,
-    as4text: AS4TEXT
+    as4Text: AS4TEXT
 }

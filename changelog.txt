@@ -15,6 +15,7 @@ Legend
 * ignore namespace import error when doesnt exist
 + optional filter installed packages
 - optional log parameter
+* install transport update in table
 
 2026-04-21 v9.1.0
 -------------------

@@ -177,11 +177,11 @@ export const generateInstallTransport: Step<InstallWorkflowContext> = {
                 if (o.success) {
                     if (o.len > 0) {
                         Logger.success(`Use ${o.type === TrmTransportIdentifier.TADIR ? 'workbench' : 'customizing'} transport ${chalk.bold(o.trkorr)} in ${SystemConnector.getDest()} landscape transports.`);
-                        context.runtime.installData.transports = context.runtime.installData.transports.filter(o => o.transport.trkorr !== o.transport.trkorr);
                     }
                 } else {
                     if (o.len > 0) {
                         Logger.error(`Error on release of ${o.type === TrmTransportIdentifier.TADIR ? 'workbench' : 'customizing'} transport ${chalk.bold(o.trkorr)}.`);
+                        context.runtime.installData.transports = context.runtime.installData.transports.filter(o => o.transport.trkorr !== o.transport.trkorr);
                     }
                 }
             });
