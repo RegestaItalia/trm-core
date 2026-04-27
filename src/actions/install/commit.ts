@@ -4,7 +4,7 @@ import { Logger } from "trm-commons";
 import { RFCSystemConnector, SystemConnector } from "../../systemConnector";
 
 /**
- * This step is only used with RFC connections: commit
+ * This step is only used with connections that are not stateless
  * 
  * 1- Close and re open connection
  * 
@@ -12,20 +12,20 @@ import { RFCSystemConnector, SystemConnector } from "../../systemConnector";
 export const commit: Step<InstallWorkflowContext> = {
     name: 'commit',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(SystemConnector.systemConnector instanceof RFCSystemConnector){
+        if(SystemConnector.isStateless()){
             return true;
         }else{
             return false;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Commit (RFC Connection) step', true);
+        Logger.log('Commit (connection not stateless) step', true);
 
         //1- Close and re open connection
-        Logger.loading(`Closing rfc connection...`, true);
-        await (SystemConnector.systemConnector as RFCSystemConnector).closeConnection();
-        Logger.loading(`Opening rfc connection...`, true);
-        await (SystemConnector.systemConnector as RFCSystemConnector).connect(true);
-        Logger.success(`Commit OK`, true);
+        Logger.loading(`Closing connection...`, true);
+        await SystemConnector.closeConnection();
+        Logger.loading(`Opening connection...`, true);
+        await SystemConnector.connect(true);
+        Logger.success(`OK, continue`, true);
     }
 }
