@@ -13,7 +13,6 @@ import _ from 'lodash';
 import { getAxiosInstance, getNodePackage } from "../commons";
 import { AbstractRegistry } from "./AbstractRegistry";
 import NodeCache from "node-cache";
-import * as cliProgress from "cli-progress";
 
 const AXIOS_CTX = "RegistryV2";
 
@@ -346,12 +345,7 @@ export class RegistryV2 implements AbstractRegistry {
         const packageData = await this.getPackage(fullName, version);
         const chunks: Buffer[] = [];
         let buffer: Buffer;
-        const logProgress = new cliProgress.SingleBar({
-            clearOnComplete: true,
-            hideCursor: true,
-            format: `${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`,
-            barGlue: '>'
-        }, cliProgress.Presets.legacy);
+        const logProgress = Logger.progressbar(`${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
 
         try {
             const response = await this._axiosInstance.get(packageData.download_link, {
@@ -367,7 +361,6 @@ export class RegistryV2 implements AbstractRegistry {
             let downloadedBytes = 0;
 
             if (totalBytes > 0) {
-                Logger.forceStop();
                 logProgress.start(totalBytes, 0);
             }
 
@@ -476,12 +469,7 @@ export class RegistryV2 implements AbstractRegistry {
 
     public async contents(fullName: string, version: string = 'latest'): Promise<any> {
         const chunks: Buffer[] = [];
-        const logProgress = new cliProgress.SingleBar({
-            clearOnComplete: true,
-            hideCursor: true,
-            format: `${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`,
-            barGlue: '>'
-        }, cliProgress.Presets.legacy);
+        const logProgress = Logger.progressbar(`${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`, '>');
 
         try {
             const response = await this._axiosInstance.get(`/package/contents/${fullName}`, {
@@ -495,7 +483,6 @@ export class RegistryV2 implements AbstractRegistry {
             let downloadedBytes = 0;
 
             if (totalBytes > 0) {
-                Logger.forceStop();
                 logProgress.start(totalBytes, 0);
             }
 

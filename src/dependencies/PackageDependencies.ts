@@ -4,7 +4,6 @@ import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 import { ObjectDependencies } from "./ObjectDependencies";
 import * as _ from "lodash";
-import * as cliProgress from "cli-progress";
 
 export type TrmPackageDependency = {
     trmPackage: TrmPackage,
@@ -40,13 +39,7 @@ export class PackageDependencies {
 
     public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[]): Promise<PackageDependencies> {
         var i = 0;
-        var logProgress = new cliProgress.SingleBar({
-            clearOnComplete: true,
-            hideCursor: true,
-            format: 'Analyzing dependencies [{bar}] {percentage}% ({value}/{total})',
-            barGlue: '>'
-        }, cliProgress.Presets.legacy);
-        Logger.forceStop();
+        var logProgress = Logger.progressbar('Analyzing dependencies [{bar}] {percentage}% ({value}/{total})', '>');
         logProgress.start(packageDependencies.length, 0);
 
         for (const d of packageDependencies) {
@@ -54,15 +47,10 @@ export class PackageDependencies {
             i++;
             logProgress.update(i);
         }
+        
         logProgress.stop();
         i = 0;
-        logProgress = new cliProgress.SingleBar({
-            clearOnComplete: true,
-            hideCursor: true,
-            format: 'Building dependency tree [{bar}] {percentage}% ({value}/{total})',
-            barGlue: '>'
-        }, cliProgress.Presets.legacy);
-        Logger.forceStop();
+        logProgress = Logger.progressbar('Building dependency tree [{bar}] {percentage}% ({value}/{total})', '>');
         logProgress.start(this.allDependencies.length, 0);
 
         //Logger.loading(`Building dependency tree...`, !log);

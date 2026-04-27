@@ -17,6 +17,9 @@ Legend
 - optional log parameter
 * install transport update in table
 + confirm overwrite on dirty package
+! trm-server ^6.1.0
+! trm-commons ^4.0.0
+! node-r3trans ^2.0.2
 
 2026-04-21 v9.1.0
 -------------------

@@ -12,8 +12,6 @@ import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, Regi
 import { R3trans } from "node-r3trans";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
-import * as cliProgress from "cli-progress";
-import { fromAbapToDate } from "../commons";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = '/ATRM/IF_SERVER';
@@ -454,13 +452,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
-    Logger.forceStop();
-    const logProgress = new cliProgress.SingleBar({
-      clearOnComplete: true,
-      hideCursor: true,
-      format: 'Finding dependencies [{bar}] {percentage}%',
-      barGlue: '>'
-    }, cliProgress.Presets.legacy);
+    const logProgress = Logger.progressbar('Finding dependencies [{bar}] {percentage}%', '>');
     logProgress.start(100, 0);
     // create logging poll
     const isStateless = SystemConnector.isStateless();

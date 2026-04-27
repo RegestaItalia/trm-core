@@ -10,7 +10,6 @@ import { Manifest } from "../manifest";
 import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
-import * as cliProgress from "cli-progress";
 import { Logger } from "trm-commons";
 import { TROBJTYPE, E070, E071, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
 import { SystemConnector } from "../systemConnector";
@@ -423,13 +422,7 @@ export class Transport {
         Logger.log(`System R3trans: ${systemR3transVersion}`, true);
         Logger.log(`System R3trans unicode: ${systemR3transUnicode}`, true);
 
-        Logger.forceStop();
-        const multibar = new cliProgress.MultiBar({
-            clearOnComplete: true,
-            hideCursor: true,
-            format: '{stage} [{bar}] {exitCode} {result}',
-            barGlue: Transport.getTransportIcon()
-        }, cliProgress.Presets.legacy);
+        const multibar = Logger.multibar('{stage} [{bar}] {exitCode} {result}', Transport.getTransportIcon());
         var iEtp182 = 0;
         var iEtp183 = 0;
         var iEtp150 = 0;
