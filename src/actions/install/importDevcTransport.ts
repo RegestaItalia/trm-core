@@ -97,7 +97,15 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
                 srcsystem: 'TRM'
             };
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${object.devclass} -> src system ${object.srcsystem}`, true);
-            await SystemConnector.tadirInterface(object);
+            try{
+                await SystemConnector.tadirInterface(object);
+            }catch(e){
+                if(e.sapMessage && e.sapMessage.class === 'TO' && e.sapMessage.no === '123'){
+                    Logger.log(e.toString(), true);
+                }else{
+                    throw e;
+                }
+            }
         }
 
         //7- set transport layer
