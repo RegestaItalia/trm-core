@@ -14,6 +14,7 @@ Legend
 ! usage with devc transport import when replacements are like original
 * ignore namespace import error when doesnt exist
 + optional filter installed packages
+- optional log parameter
 
 2026-04-21 v9.1.0
 -------------------

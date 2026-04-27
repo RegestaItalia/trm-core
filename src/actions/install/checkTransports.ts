@@ -38,7 +38,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         var checkExistance: TRKORR[] = [];
 
         try {
-            context.runtime.packageTransportsData = await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest', true);
+            context.runtime.packageTransportsData = await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
             context.runtime.remotePackageData.contents = true;
         } catch {
             context.runtime.remotePackageData.contents = false;

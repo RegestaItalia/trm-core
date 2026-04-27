@@ -38,39 +38,33 @@ export class PackageDependencies {
 
     constructor(public readonly devclass: DEVCLASS) { }
 
-    public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[], log?: boolean): Promise<PackageDependencies> {
+    public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[]): Promise<PackageDependencies> {
         var i = 0;
-        var logProgress: cliProgress.SingleBar;
-        if (log) {
-            i = 0;
-            logProgress = new cliProgress.SingleBar({
-                clearOnComplete: true,
-                hideCursor: true,
-                format: 'Analyzing dependencies [{bar}] {percentage}% ({value}/{total})',
-                barGlue: '>'
-            }, cliProgress.Presets.legacy);
-            Logger.forceStop();
-            logProgress.start(packageDependencies.length, 0);
-        }
+        var logProgress = new cliProgress.SingleBar({
+            clearOnComplete: true,
+            hideCursor: true,
+            format: 'Analyzing dependencies [{bar}] {percentage}% ({value}/{total})',
+            barGlue: '>'
+        }, cliProgress.Presets.legacy);
+        Logger.forceStop();
+        logProgress.start(packageDependencies.length, 0);
+
         for (const d of packageDependencies) {
             this.allDependencies.push(await (new ObjectDependencies(d.object, d.objName).setDependencies(d.dependencies || [])));
             i++;
-            if (log) {
-                logProgress.update(i);
-            }
+            logProgress.update(i);
         }
-        if (log) {
-            logProgress.stop();
-            i = 0;
-            logProgress = new cliProgress.SingleBar({
-                clearOnComplete: true,
-                hideCursor: true,
-                format: 'Building dependency tree [{bar}] {percentage}% ({value}/{total})',
-                barGlue: '>'
-            }, cliProgress.Presets.legacy);
-            Logger.forceStop();
-            logProgress.start(this.allDependencies.length, 0);
-        }
+        logProgress.stop();
+        i = 0;
+        logProgress = new cliProgress.SingleBar({
+            clearOnComplete: true,
+            hideCursor: true,
+            format: 'Building dependency tree [{bar}] {percentage}% ({value}/{total})',
+            barGlue: '>'
+        }, cliProgress.Presets.legacy);
+        Logger.forceStop();
+        logProgress.start(this.allDependencies.length, 0);
+
         //Logger.loading(`Building dependency tree...`, !log);
         for (const o of this.allDependencies) {
             for (const trmPackage of o.trmPackages) {
@@ -131,13 +125,11 @@ export class PackageDependencies {
                 }
             }
             i++;
-            if (log) {
-                logProgress.update(i);
-            }
+            logProgress.update(i);
+
         }
-        if (log) {
-            logProgress.stop();
-        }
+        logProgress.stop();
+
         return this;
     }
 

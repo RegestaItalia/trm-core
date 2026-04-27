@@ -62,8 +62,8 @@ export class RegistryV2 implements AbstractRegistry {
         }, AXIOS_CTX);
     }
 
-    private getDefaultAxiosHeaders(): AxiosHeaders {
-        var axiosHeaders: AxiosHeaders = new AxiosHeaders();
+    private getDefaultAxiosHeaders(): any {
+        var axiosHeaders = new AxiosHeaders();
         if (!this._userAgent) {
             try {
                 this._userAgent = `trm-core v${this._coreVersion || getNodePackage().version}`;
@@ -107,7 +107,7 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     private async _basicAuth(defaultData: any = {}) {
-        var axiosHeaders: AxiosHeaders = this.getDefaultAxiosHeaders();
+        var axiosHeaders = this.getDefaultAxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
             headers: axiosHeaders
@@ -144,7 +144,7 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     private async _tokenAuth(defaultData: any = {}) {
-        var axiosHeaders: AxiosHeaders = this.getDefaultAxiosHeaders();
+        var axiosHeaders = this.getDefaultAxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
             headers: axiosHeaders
@@ -263,7 +263,7 @@ export class RegistryV2 implements AbstractRegistry {
             }
         }
         this._authData = authData;
-        var axiosHeaders: AxiosHeaders = this.getDefaultAxiosHeaders();
+        var axiosHeaders = this.getDefaultAxiosHeaders();
         var axiosDefaults: CreateAxiosDefaults = {
             baseURL: this.endpoint,
             headers: axiosHeaders
@@ -342,20 +342,16 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async downloadArtifact(fullName: string, version: string = 'latest', log?: boolean): Promise<TrmArtifact> {
+    public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
         const packageData = await this.getPackage(fullName, version);
         const chunks: Buffer[] = [];
         let buffer: Buffer;
-        var logProgress: cliProgress.SingleBar;
-
-        if (log) {
-            logProgress = new cliProgress.SingleBar({
-                clearOnComplete: true,
-                hideCursor: true,
-                format: `${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`,
-                barGlue: '>'
-            }, cliProgress.Presets.legacy);
-        }
+        const logProgress = new cliProgress.SingleBar({
+            clearOnComplete: true,
+            hideCursor: true,
+            format: `${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`,
+            barGlue: '>'
+        }, cliProgress.Presets.legacy);
 
         try {
             const response = await this._axiosInstance.get(packageData.download_link, {
@@ -370,13 +366,9 @@ export class RegistryV2 implements AbstractRegistry {
             const totalBytes = Number(response.headers['content-length'] ?? 0);
             let downloadedBytes = 0;
 
-            if (log) {
-                if (totalBytes > 0) {
-                    Logger.forceStop();
-                    logProgress.start(totalBytes, 0);
-                } else {
-                    Logger.warning('content-length header missing, percentage progress is unavailable');
-                }
+            if (totalBytes > 0) {
+                Logger.forceStop();
+                logProgress.start(totalBytes, 0);
             }
 
             await new Promise<void>((resolve, reject) => {
@@ -384,10 +376,8 @@ export class RegistryV2 implements AbstractRegistry {
                     chunks.push(chunk);
                     downloadedBytes += chunk.length;
 
-                    if (log) {
-                        if (totalBytes > 0) {
-                            logProgress.update(downloadedBytes);
-                        }
+                    if (totalBytes > 0) {
+                        logProgress.update(downloadedBytes);
                     }
                 });
 
@@ -395,10 +385,8 @@ export class RegistryV2 implements AbstractRegistry {
                 response.data.on('error', reject);
             });
 
-            if (log) {
-                if (totalBytes > 0) {
-                    logProgress.stop();
-                }
+            if (totalBytes > 0) {
+                logProgress.stop();
             }
 
             buffer = Buffer.concat(chunks);
@@ -486,18 +474,14 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async contents(fullName: string, version: string = 'latest', log?: boolean): Promise<any> {
+    public async contents(fullName: string, version: string = 'latest'): Promise<any> {
         const chunks: Buffer[] = [];
-        var logProgress: cliProgress.SingleBar;
-
-        if (log) {
-            logProgress = new cliProgress.SingleBar({
-                clearOnComplete: true,
-                hideCursor: true,
-                format: `${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`,
-                barGlue: '>'
-            }, cliProgress.Presets.legacy);
-        }
+        const logProgress = new cliProgress.SingleBar({
+            clearOnComplete: true,
+            hideCursor: true,
+            format: `${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`,
+            barGlue: '>'
+        }, cliProgress.Presets.legacy);
 
         try {
             const response = await this._axiosInstance.get(`/package/contents/${fullName}`, {
@@ -510,13 +494,9 @@ export class RegistryV2 implements AbstractRegistry {
             const totalBytes = Number(response.headers['content-length'] ?? 0);
             let downloadedBytes = 0;
 
-            if (log) {
-                if (totalBytes > 0) {
-                    Logger.forceStop();
-                    logProgress.start(totalBytes, 0);
-                } else {
-                    Logger.warning('content-length header missing, percentage progress is unavailable');
-                }
+            if (totalBytes > 0) {
+                Logger.forceStop();
+                logProgress.start(totalBytes, 0);
             }
 
             await new Promise<void>((resolve, reject) => {
@@ -524,10 +504,8 @@ export class RegistryV2 implements AbstractRegistry {
                     chunks.push(chunk);
                     downloadedBytes += chunk.length;
 
-                    if (log) {
-                        if (totalBytes > 0) {
-                            logProgress.update(downloadedBytes);
-                        }
+                    if (totalBytes > 0) {
+                        logProgress.update(downloadedBytes);
                     }
                 });
 
@@ -535,10 +513,8 @@ export class RegistryV2 implements AbstractRegistry {
                 response.data.on('error', reject);
             });
 
-            if (log) {
-                if (totalBytes > 0) {
-                    logProgress.stop();
-                }
+            if (totalBytes > 0) {
+                logProgress.stop();
             }
 
             const buffer = Buffer.concat(chunks);

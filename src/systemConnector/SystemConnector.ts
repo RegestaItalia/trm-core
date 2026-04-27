@@ -390,9 +390,9 @@ export namespace SystemConnector {
         return systemConnector.changeTrOwner(trkorr, owner);
     }
 
-    export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
+    export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
         await checkSystemConnector();
-        return systemConnector.getPackageDependencies(devclass, includeSubPackages, log);
+        return systemConnector.getPackageDependencies(devclass, includeSubPackages);
     }
 
     export async function getObjectDependencies(object: TROBJTYPE, objName: SOBJ_NAME): Promise<ObjectDependencies> {

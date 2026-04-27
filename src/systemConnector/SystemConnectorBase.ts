@@ -182,7 +182,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         }
         for (const o of installedPackagesBackend) {
           const manifest = Manifest.fromAbapXml(o.manifest);
-          if(o.trkorr){
+          if (o.trkorr) {
             manifest.setLinkedTransport(new Transport(o.trkorr, null));
           }
           const trmPackage = new TrmPackage(o.packageName, RegistryProvider.getRegistry(o.packageRegistry), manifest).setDevclass(o.devclass).setDirtyEntries(o.dirty);
@@ -452,23 +452,21 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     );
   }
 
-  public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
+  public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
-    if (log) {
-      Logger.forceStop();
-      const logProgress = new cliProgress.SingleBar({
-        clearOnComplete: true,
-        hideCursor: true,
-        format: 'Finding dependencies [{bar}] {percentage}%',
-        barGlue: '>'
-      }, cliProgress.Presets.legacy);
-      logProgress.start(100, 0);
-      // create logging poll
-      const isStateless = SystemConnector.isStateless();
-      const newConnection = isStateless ? SystemConnector.systemConnector : SystemConnector.getNewConnection();
-      if (!isStateless) {
-        await newConnection.connect(true);
-      }
+    Logger.forceStop();
+    const logProgress = new cliProgress.SingleBar({
+      clearOnComplete: true,
+      hideCursor: true,
+      format: 'Finding dependencies [{bar}] {percentage}%',
+      barGlue: '>'
+    }, cliProgress.Presets.legacy);
+    logProgress.start(100, 0);
+    // create logging poll
+    const isStateless = SystemConnector.isStateless();
+    const newConnection = isStateless ? SystemConnector.systemConnector : SystemConnector.getNewConnection();
+    if (!isStateless) {
+      await newConnection.connect(true);
       const logId = await newConnection.createLogPolling('DEVCLASS_D');
       const job = this.getPackageDependenciesInternal(devclass, includeSubPackages, logId);
       var stopped = false;
@@ -505,7 +503,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         }
       } catch { }
       logProgress.stop();
-      return (await new PackageDependencies(devclass).setDependencies(packageDependencies || [], log));
+      return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));
     } else {
       packageDependencies = await this.getPackageDependenciesInternal(devclass, includeSubPackages);
       return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));
