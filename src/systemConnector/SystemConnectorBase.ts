@@ -161,7 +161,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     var trmPackages: TrmPackage[] = [];
     var fromBackend = false;
 
-    if (!refresh) {
+    if (!refresh && Array.isArray(this._installedPackages)) {
       Logger.log(`Reading cached version of installed packages`, true);
       return this._installedPackages;
     }
