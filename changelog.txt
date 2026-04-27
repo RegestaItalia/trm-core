@@ -8,7 +8,7 @@ Legend
 + : added
 - : removed
 
-2026-04-21 v9.2.0
+2026-04-21 v9.3.0
 -------------------
 * avoid useless transport unpack for reading transport number
 ! usage with devc transport import when replacements are like original
