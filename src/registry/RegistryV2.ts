@@ -525,7 +525,7 @@ export class RegistryV2 implements AbstractRegistry {
             } catch { }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to fetch contents for ${fullName}: ${(e as AxiosError).message}`);
+            Logger.error(`Failed to fetch contents for ${fullName}: ${(e as AxiosError).message}`, true);
             throw e;
         }
     }
