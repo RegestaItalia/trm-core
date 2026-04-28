@@ -32,7 +32,7 @@ export class Lockfile {
             packages: []
         };
         if (!packages) {
-            packages = await SystemConnector.getInstalledPackages(true, true, true);
+            packages = await SystemConnector.getInstalledPackages(true, true);
         }
         const rootManifest = root.manifest.get();
         var dependencies = rootManifest.dependencies || [];
@@ -96,7 +96,7 @@ export class Lockfile {
         const registry = RegistryProvider.getRegistry(lock.registry);
         const ping = await registry.ping();
         const release = await registry.getPackage(lock.name, lock.version);
-        const artifact = await registry.downloadArtifact(lock.name, lock.version, true);
+        const artifact = await registry.downloadArtifact(lock.name, lock.version);
         const checksum = createHash("sha512").update(artifact.binary).digest("base64");
         if (release.checksum !== lock.integrity || checksum !== lock.integrity) {
             Logger.error(`SECURITY ISSUE! Release "${lock.name}", registry "${lock.registry}", integrity in lockfile does NOT match!`);

@@ -531,8 +531,11 @@ export class RFCClient implements IClient {
         };
     }
 
-    public async getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]> {
-        const result = await this._call("/ATRM/GET_INSTALLED_PACKAGES");
+    public async getInstalledPackagesBackend(filter?: { name: string, registry: string }): Promise<struct.ZTRM_PACKAGE[]> {
+        const result = await this._call("/ATRM/GET_INSTALLED_PACKAGES", filter ? {
+            package_name: filter.name,
+            package_registry: filter.registry
+        } : undefined);
         return result['packages'].map(o => {
             return {
                 ...o, ...{

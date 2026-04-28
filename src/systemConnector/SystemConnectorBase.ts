@@ -12,8 +12,6 @@ import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, Regi
 import { R3trans } from "node-r3trans";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
-import * as cliProgress from "cli-progress";
-import { fromAbapToDate } from "../commons";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = '/ATRM/IF_SERVER';
@@ -41,7 +39,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
   protected abstract getR3transInfo(): Promise<string>
-  protected abstract getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]>
+  protected abstract getInstalledPackagesBackend(filter?: { name: string, registry: string }): Promise<struct.ZTRM_PACKAGE[]>
   protected abstract getPackageDependenciesInternal(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
   protected abstract getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]>
 
@@ -159,11 +157,11 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return oPackage;
   }
 
-  public async getInstalledPackages(refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
+  public async getInstalledPackages(refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }): Promise<TrmPackage[]> {
     var trmPackages: TrmPackage[] = [];
     var fromBackend = false;
 
-    if (!refresh) {
+    if (!refresh && Array.isArray(this._installedPackages)) {
       Logger.log(`Reading cached version of installed packages`, true);
       return this._installedPackages;
     }
@@ -175,14 +173,14 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     if (serverExists.length === 1) {
       Logger.log(`INTF ${TRM_SERVER_INTF} exists, reading packages from backend API`, true);
       try {
-        var installedPackagesBackend = await this.getInstalledPackagesBackend();
+        var installedPackagesBackend = await this.getInstalledPackagesBackend(filter);
         installedPackagesBackend = installedPackagesBackend.sort((a, b) => Number(`${b.as4Date}${b.as4Time}`) - Number(`${a.as4Date}${a.as4Time}`));
         if (!includeLocals) {
           installedPackagesBackend = installedPackagesBackend.filter(o => o.packageRegistry !== LOCAL_RESERVED_KEYWORD);
         }
         for (const o of installedPackagesBackend) {
           const manifest = Manifest.fromAbapXml(o.manifest);
-          if(o.trkorr){
+          if (o.trkorr) {
             manifest.setLinkedTransport(new Transport(o.trkorr, null));
           }
           const trmPackage = new TrmPackage(o.packageName, RegistryProvider.getRegistry(o.packageRegistry), manifest).setDevclass(o.devclass).setDirtyEntries(o.dirty);
@@ -452,23 +450,15 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     );
   }
 
-  public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
+  public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
-    if (log) {
-      Logger.forceStop();
-      const logProgress = new cliProgress.SingleBar({
-        clearOnComplete: true,
-        hideCursor: true,
-        format: 'Finding dependencies [{bar}] {percentage}%',
-        barGlue: '>'
-      }, cliProgress.Presets.legacy);
-      logProgress.start(100, 0);
-      // create logging poll
-      const isStateless = SystemConnector.isStateless();
-      const newConnection = isStateless ? SystemConnector.systemConnector : SystemConnector.getNewConnection();
-      if (!isStateless) {
-        await newConnection.connect(true);
-      }
+    const logProgress = Logger.progressbar('Finding dependencies [{bar}] {percentage}%', '>');
+    logProgress.start(100, 0);
+    // create logging poll
+    const isStateless = SystemConnector.isStateless();
+    const newConnection = isStateless ? SystemConnector.systemConnector : SystemConnector.getNewConnection();
+    if (!isStateless) {
+      await newConnection.connect(true);
       const logId = await newConnection.createLogPolling('DEVCLASS_D');
       const job = this.getPackageDependenciesInternal(devclass, includeSubPackages, logId);
       var stopped = false;
@@ -505,7 +495,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         }
       } catch { }
       logProgress.stop();
-      return (await new PackageDependencies(devclass).setDependencies(packageDependencies || [], log));
+      return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));
     } else {
       packageDependencies = await this.getPackageDependenciesInternal(devclass, includeSubPackages);
       return (await new PackageDependencies(devclass).setDependencies(packageDependencies || []));

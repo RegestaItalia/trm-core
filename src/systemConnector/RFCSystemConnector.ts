@@ -81,8 +81,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getR3transInfo();
     }
 
-    protected getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]> {
-        return this._client.getInstalledPackagesBackend();
+    protected getInstalledPackagesBackend(filter?: { name: string, registry: string }): Promise<struct.ZTRM_PACKAGE[]> {
+        return this._client.getInstalledPackagesBackend(filter);
     }
 
     protected getPackageDependenciesInternal(devclass: DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]> {

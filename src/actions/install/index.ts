@@ -304,8 +304,8 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         importCustTransport,
         refreshTmsTxt,
         generateInstallTransport,
-        updatePackageData,
         commit,
+        updatePackageData,
         executePostActivities
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);

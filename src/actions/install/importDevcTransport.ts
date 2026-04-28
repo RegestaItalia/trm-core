@@ -49,10 +49,10 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             stopWarning('install');
         }
         Logger.loading(`Uploading ${context.runtime.packageTransports.devc.binaries.trkorr}`, true);
-        context.runtime.packageTransports.devc.instance = await Transport.upload({
-            binary: context.runtime.packageTransports.devc.binaries.binaries,
-            trTarget: SystemConnector.getDest(),
-            r3transOption: context.rawInput.contextData.r3transOptions
+        context.runtime.packageTransports.devc.instance = await Transport.upload(
+            context.runtime.packageTransports.devc.binaries.trkorr, {
+                binary: context.runtime.packageTransports.devc.binaries.binaries,
+                trTarget: SystemConnector.getDest()
         });
 
         //3 - delete from tms buffer (if it exists)
@@ -97,7 +97,15 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
                 srcsystem: 'TRM'
             };
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${object.devclass} -> src system ${object.srcsystem}`, true);
-            await SystemConnector.tadirInterface(object);
+            try{
+                await SystemConnector.tadirInterface(object);
+            }catch(e){
+                if(e.sapMessage && e.sapMessage.class === 'TO' && e.sapMessage.no === '123'){
+                    Logger.log(e.toString(), true);
+                }else{
+                    throw e;
+                }
+            }
         }
 
         //7- set transport layer

@@ -32,7 +32,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         Logger.log('Find dependencies step', true);
 
         //1- execute find dependencies on ABAP package
-        const dependencies = await SystemConnector.getPackageDependencies(context.rawInput.packageData.devclass, true, true);
+        const dependencies = await SystemConnector.getPackageDependencies(context.rawInput.packageData.devclass, true);
         const trmDependencies = dependencies.trmPackageDependencies;
         const trmLocalDependencies = trmDependencies.filter(o => o.trmPackage.registry.getRegistryType() === RegistryType.LOCAL);
         const sapDependencies = dependencies.abapPackageDependencies.filter(o => !o.isCustomerPackage);

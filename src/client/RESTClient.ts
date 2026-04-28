@@ -506,7 +506,7 @@ export class RESTClient implements IClient {
             }
         });
         try {
-            const boundary = headers['content-type'].match(/boundary=([-0-9A-Za-z]+)/i)[1];
+            const boundary = (headers['content-type']).toString().match(/boundary=([-0-9A-Za-z]+)/i)[1];
             const parsedData = parseMultipart(data, boundary);
             return {
                 zip: parsedData.find(o => o.name === 'zip').data,
@@ -530,8 +530,13 @@ export class RESTClient implements IClient {
         };
     }
 
-    public async getInstalledPackagesBackend(): Promise<struct.ZTRM_PACKAGE[]> {
-        const result = (await this._axiosInstance.get('/get_installed_packages')).data;
+    public async getInstalledPackagesBackend(filter?: { name: string, registry: string }): Promise<struct.ZTRM_PACKAGE[]> {
+        const result = (await this._axiosInstance.get('/get_installed_packages', filter ? {
+            data: {
+                package_name: filter.name,
+                package_registry: filter.registry
+            }
+        } : undefined)).data;
         return result.packages.map(o => {
             return {
                 ...o, ...{

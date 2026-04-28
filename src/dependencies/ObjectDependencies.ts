@@ -27,7 +27,7 @@ export class ObjectDependencies {
         for (const d of dependencies) {
             const tabkey = await this.addTableKey(d.tabname, d.tabkey);
             if (d.trmPackageName) {
-                var trmPackage = (await SystemConnector.getInstalledPackages(true, false, true)).find(o => o.compareName(d.trmPackageName) && o.compareRegistry(RegistryProvider.getRegistry(d.trmPackageRegistry)));
+                var trmPackage = (await SystemConnector.getInstalledPackages(false, true)).find(o => o.compareName(d.trmPackageName) && o.compareRegistry(RegistryProvider.getRegistry(d.trmPackageRegistry)));
                 if (trmPackage) {
                     var iTrmPackage = this.trmPackages.findIndex(o => o.trmPackage.compareName(trmPackage.packageName) && o.trmPackage.compareRegistry(trmPackage.registry));
                     if (iTrmPackage < 0) {

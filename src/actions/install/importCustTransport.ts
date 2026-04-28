@@ -42,10 +42,10 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
                 context.runtime.stopWarningShown = true;
                 stopWarning('install');
             }
-            transport.instance = await Transport.upload({
-                binary: transport.binaries.binaries,
-                trTarget: SystemConnector.getDest(),
-                r3transOption: context.rawInput.contextData.r3transOptions
+            transport.instance = await Transport.upload(
+                transport.binaries.trkorr, {
+                    binary: transport.binaries.binaries,
+                    trTarget: SystemConnector.getDest()
             });
 
             //2 - delete from tms buffer (if it exists)

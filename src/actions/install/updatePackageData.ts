@@ -24,7 +24,9 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
         //1- commit new values
         const originalTransport = context.runtime.packageTransports.tadir.binaries.trkorr;
         const installTransport = context.runtime.installData.transports.find(o => o.type === TrmTransportIdentifier.TADIR);
-        const devclass = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass = context.runtime.originalData.hierarchy.devclass).installDevclass;
+        const devclass = context.rawInput.installData.installDevclass.keepOriginal ? 
+            context.runtime.originalData.hierarchy.devclass : 
+            context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass = context.runtime.originalData.hierarchy.devclass).installDevclass;
         await SystemConnector.updateTrmPackageData({
             package_name: context.rawInput.packageData.name,
             package_registry: context.runtime.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : context.runtime.registry.endpoint,

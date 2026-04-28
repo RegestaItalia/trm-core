@@ -2,8 +2,7 @@ import { BinaryTransport } from "./BinaryTransport";
 import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
 import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
-import { R3trans, R3transLogParser, R3transOptions, ReleaseLogStep } from "node-r3trans";
-import { TransportContent } from "./TransportContent";
+import { R3transLogParser, ReleaseLogStep } from "node-r3trans";
 import { Documentation } from "./Documentation";
 import { TrmTransportIdentifier } from "./TrmTransportIdentifier";
 import { TrmPackage } from "../trmPackage";
@@ -11,7 +10,6 @@ import { Manifest } from "../manifest";
 import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
-import * as cliProgress from "cli-progress";
 import { Logger } from "trm-commons";
 import { TROBJTYPE, E070, E071, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
 import { SystemConnector } from "../systemConnector";
@@ -424,13 +422,7 @@ export class Transport {
         Logger.log(`System R3trans: ${systemR3transVersion}`, true);
         Logger.log(`System R3trans unicode: ${systemR3transUnicode}`, true);
 
-        Logger.forceStop();
-        const multibar = new cliProgress.MultiBar({
-            clearOnComplete: true,
-            hideCursor: true,
-            format: '{stage} [{bar}] {exitCode} {result}',
-            barGlue: Transport.getTransportIcon()
-        }, cliProgress.Presets.legacy);
+        const multibar = Logger.multibar('{stage} [{bar}] {exitCode} {result}', Transport.getTransportIcon());
         var iEtp182 = 0;
         var iEtp183 = 0;
         var iEtp150 = 0;
@@ -738,29 +730,11 @@ export class Transport {
         return new Transport(trkorr, null);
     }
 
-    public static async getContent(data: Buffer, r3transOption?: R3transOptions): Promise<TransportContent> {
-        const r3trans = new R3trans(r3transOption);
-        const trkorr = await r3trans.getTransportTrkorr(data);
-        var transportContent: TransportContent = {
-            trkorr,
-            tdevc: [],
-            tdevct: [],
-            tadir: []
-        };
-        transportContent.tdevc = await r3trans.getTableEntries(data, 'TDEVC');
-        transportContent.tdevct = await r3trans.getTableEntries(data, 'TDEVCT');
-        transportContent.tadir = await r3trans.getTableEntries(data, 'TADIR');
-        return transportContent;
-    }
-
-    public static async upload(data: {
+    public static async upload(trkorr, data: {
         binary: BinaryTransport,
-        trTarget?: TR_TARGET,
-        r3transOption?: R3transOptions
+        trTarget?: TR_TARGET
     }): Promise<Transport> {
         Logger.loading(`Reading binary content...`, true);
-        const fileContent = await Transport.getContent(data.binary.data, data.r3transOption);
-        const trkorr = fileContent.trkorr;
         Logger.success(`Transport ${trkorr} read success.`, true);
         const fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
         const filePaths = await Transport._getFilePaths(fileNames);

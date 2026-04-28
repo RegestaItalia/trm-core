@@ -49,13 +49,13 @@ export const upload: Step<Cg3zWorkflowContext> = {
 
         //2- upload
         Logger.loading(`Uploading transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
-        await Transport.upload({
-            binary: {
-                header: aHeader[0].getData(),
-                data: aData[0].getData()
-            },
-            trTarget: SystemConnector.getDest(),
-            r3transOption: context.rawInput.r3transOptions
+        await Transport.upload(
+            context.output.trkorr, {
+                binary: {
+                    header: aHeader[0].getData(),
+                    data: aData[0].getData()
+                },
+                trTarget: SystemConnector.getDest()
         });
 
         //3- forward

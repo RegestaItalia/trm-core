@@ -81,9 +81,9 @@ export namespace SystemConnector {
         return systemConnector.getTransportStatus(trkorr);
     }
 
-    export async function getInstalledPackages(includeSources: boolean, refresh?: boolean, includeLocals?: boolean): Promise<TrmPackage[]> {
+    export async function getInstalledPackages(refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }): Promise<TrmPackage[]> {
         await checkSystemConnector();
-        return systemConnector.getInstalledPackages(includeSources, refresh, includeLocals);
+        return systemConnector.getInstalledPackages(refresh, includeLocals, filter);
     }
 
     export async function getDevclass(devclass: DEVCLASS): Promise<TDEVC> {
@@ -390,9 +390,9 @@ export namespace SystemConnector {
         return systemConnector.changeTrOwner(trkorr, owner);
     }
 
-    export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean, log?: boolean): Promise<PackageDependencies> {
+    export async function getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
         await checkSystemConnector();
-        return systemConnector.getPackageDependencies(devclass, includeSubPackages, log);
+        return systemConnector.getPackageDependencies(devclass, includeSubPackages);
     }
 
     export async function getObjectDependencies(object: TROBJTYPE, objName: SOBJ_NAME): Promise<ObjectDependencies> {
