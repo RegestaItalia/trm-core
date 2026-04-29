@@ -13,6 +13,7 @@ Legend
 ! trm-commons ^4.1.0
 * upgrade of trm-server/trm-rest post /ATRM/ package replacements
 ! usage of temporary packages instead of namespace
+! avoid usage of r3trans when entries are provided by registry
 
 2026-04-21 v9.3.0
 -------------------
