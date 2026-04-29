@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "9.3.0",
+  "version": "9.4.0",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -68,7 +68,7 @@
     "xml-js": "^1.6.11"
   },
   "peerDependencies": {
-    "trm-commons": "^4.0.0"
+    "trm-commons": "^4.1.0"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.0",
@@ -84,7 +84,7 @@
     "@types/stack-trace": "^0.0.33",
     "@types/uuid": "^9.0.8",
     "rimraf": "^6.0.1",
-    "trm-commons": "^4.0.0",
+    "trm-commons": "^4.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
   },

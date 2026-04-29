@@ -4,6 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { Manifest } from "../../manifest";
 import { eq, gt } from "semver";
 import { SystemConnector } from "../../systemConnector";
+import chalk from "chalk";
 
 /**
  * Check if already installed
@@ -37,9 +38,9 @@ export const checkAlreadyInstalled: Step<InstallWorkflowContext> = {
                 }
             }else{
                 if(gt(installVersion, installedVersion)){
-                    Logger.info(`Upgrading ${installedVersion} -> ${installVersion}`);
+                    Logger.info(`${chalk.bold('Upgrading')} ${installedVersion} -> ${installVersion}`);
                 }else{
-                    Logger.warning(`Downgrading ${installedVersion} -> ${installVersion}`);
+                    Logger.warning(`${chalk.bold('Downgrading')} ${installedVersion} -> ${installVersion}`);
                 }
             }
             if(context.runtime.installData.upgradingPackage.isDirty()){

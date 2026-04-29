@@ -345,7 +345,7 @@ export class RegistryV2 implements AbstractRegistry {
         const packageData = await this.getPackage(fullName, version);
         const chunks: Buffer[] = [];
         let buffer: Buffer;
-        const logProgress = Logger.progressbar(`${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
+        const logProgress = Logger.progressbar(`↓ ${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
 
         try {
             const response = await this._axiosInstance.get(packageData.download_link, {
@@ -469,7 +469,7 @@ export class RegistryV2 implements AbstractRegistry {
 
     public async contents(fullName: string, version: string = 'latest'): Promise<any> {
         const chunks: Buffer[] = [];
-        const logProgress = Logger.progressbar(`${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`, '>');
+        const logProgress = Logger.progressbar(`↓ ${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`, '>');
 
         try {
             const response = await this._axiosInstance.get(`/package/contents/${fullName}`, {

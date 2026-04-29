@@ -12,7 +12,7 @@ import { RFCSystemConnector, SystemConnector } from "../../systemConnector";
 export const commit: Step<InstallWorkflowContext> = {
     name: 'commit',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(SystemConnector.isStateless()){
+        if(!SystemConnector.isStateless()){
             return true;
         }else{
             return false;
