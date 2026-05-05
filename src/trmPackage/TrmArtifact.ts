@@ -67,7 +67,10 @@ export class TrmArtifact {
             const zipEntries = this._zip.getEntries();
             const aTransportEntries = zipEntries.filter(o => (new RegExp(`^${distFolder}(/|\\\\)`)).test(o.entryName.trim().toLowerCase()));
             var aResult: TransportBinary[] = [];
-            const r3trans = new R3trans(r3transOption);
+            var r3trans: R3trans;
+            if(!noCheck){
+                r3trans = new R3trans(r3transOption);
+            }
             for (const entry of aTransportEntries) {
                 try {
                     const type = entry.comment;
