@@ -12,7 +12,6 @@ import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
 import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
-import { setR3trans } from "./setR3trans";
 import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT } from "../../client";
 import { checkTransports } from "./checkTransports";
 import { readDevc } from "./readDevc";
@@ -288,7 +287,6 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         checkAlreadyInstalled,
         checkSapEntries,
         checkDependencies,
-        setR3trans,
         installDependencies,
         checkTransports,
         checkObjectTypes,

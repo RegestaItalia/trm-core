@@ -6,11 +6,14 @@ import { normalize } from "../../commons";
 import { E071, TRKORR } from "../../client";
 import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
+import { R3trans } from "node-r3trans";
 
 /**
  * Check TRM Package transports. A TRM Package must have one DEVC (ABAP Package) and TADIR (Workbench objects) transports.
  * 
  * Optionally, one LANG (Translation) and one CUST (Customizing) transport.
+ * 
+ * If registry doesn't provide transport contents, R3Trans will be used.
  * 
  * 1- get transport binaries
  * 
@@ -37,11 +40,24 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         Logger.log('Check transports step', true);
         var checkExistance: TRKORR[] = [];
 
+        Logger.loading(`Reading transports contents...`);
         try {
             context.runtime.packageTransportsData = await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
             context.runtime.remotePackageData.contents = true;
-        } catch {
+        } catch (e) {
             context.runtime.remotePackageData.contents = false;
+
+            //create instance
+            const options = context.rawInput.contextData.r3transOptions;
+            Logger.log(`Loading R3Trans with options ${JSON.stringify(options)}`, true);
+            Logger.log(`R3TRANS_HOME ${process.env.R3TRANS_HOME}`, true);
+            context.runtime.r3trans = new R3trans(options);
+
+            //print info (if requested)
+            const r3transVersion = await context.runtime.r3trans.getVersion();
+            const unicode = await context.runtime.r3trans.isUnicode();
+            Logger.info(r3transVersion, context.rawInput.contextData.noR3transInfo);
+            Logger.log(`R3Trans unicode?: ${unicode}`, true);
         }
 
         //1- get transport binaries
@@ -55,13 +71,15 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         })}`, true);
 
         //2- check validity of binaries with R3trans
-        for (const transport of aTransports) {
-            const valid = await context.runtime.r3trans.isTransportValid(transport.binaries.data);
-            if (valid) {
-                Logger.log(`Transport ${transport.trkorr} is valid.`, true);
-            } else {
-                Logger.error(`Transport ${transport.trkorr} is invalid.`, true);
-                throw new Error(`Package contains invalid transports`);
+        if (!context.runtime.remotePackageData.contents) {
+            for (const transport of aTransports) {
+                const valid = await context.runtime.r3trans.isTransportValid(transport.binaries.data);
+                if (valid) {
+                    Logger.log(`Transport ${transport.trkorr} is valid.`, true);
+                } else {
+                    Logger.error(`Transport ${transport.trkorr} is invalid.`, true);
+                    throw new Error(`Package contains invalid transports`);
+                }
             }
         }
         const aDevcTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.DEVC);
