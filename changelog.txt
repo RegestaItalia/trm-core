@@ -12,6 +12,7 @@ Legend
 -------------------
 * avoid usage of r3trans when entries are provided by registry
 ! registry return type on publish
+! usage of namespace
 
 2026-04-29 v9.4.0
 -------------------

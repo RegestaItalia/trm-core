@@ -31,89 +31,60 @@ export const addNamespace: Step<InstallWorkflowContext> = {
             context.runtime.installData.namespace = originalNamespace
         }
         if (context.runtime.installData.namespace[0] !== '/') {
-            Logger.log(`Package install namespace is ${context.runtime.installData.namespace}`, true);
+            Logger.log(`Package install namespace is ${context.runtime.installData.namespace}, continue`, true);
             return;
         }
 
         //2- check if namespace already exists (only if customer namespace)
-        Logger.loading(`Checking namespace ${context.runtime.installData.namespace}...`);
-        var namespace: TRNSPACET;
+        Logger.loading(`Checking namespace ${context.runtime.installData.namespace} status in system...`);
         const namespaceCheck = await SystemConnector.getNamespace(context.runtime.installData.namespace);
-        if (namespaceCheck) {
-            namespace = namespaceCheck.trnspacet;
-        }
-        if (namespace) {
-            Logger.log(`Namespace ${context.runtime.installData.namespace} already defined`, true);
+        if (namespaceCheck && namespaceCheck.trnspacet) {
+            Logger.log(`Namespace ${context.runtime.installData.namespace} exists in system, continue`, true);
             return;
         } else {
-            if(context.rawInput.installData.installDevclass.keepOriginal) {
-                Logger.warning(`Install will continue without importing namespace ${context.runtime.installData.namespace}. Run install with namespace import or manually add namespace in SE03.`, context.runtime.installData.namespace === '/ATRM/');
-                return;
-            }
-            if (context.rawInput.installData.installDevclass.skipNamespace) {
-                //namespace doesn't exist but packages must be generated, it's mandatory to have the namespace
-                throw new Error(`Cannot generate packages without namespace ${context.runtime.installData.namespace}. Run install with namespace import or avoid renaming packages.`);
+            if (context.runtime.installData.namespace === originalNamespace) {
+                //trying to install with the same namespace provided by package
+                if (context.rawInput.installData.installDevclass.keepOriginal) {
+                    Logger.warning(`Install will continue without importing namespace ${context.runtime.installData.namespace}. Run install with namespace import or manually add namespace in SE03.`, context.runtime.installData.namespace === '/ATRM/');
+                    return;
+                }
+                if (context.rawInput.installData.installDevclass.skipNamespace === undefined && !context.rawInput.contextData.noInquirer) {
+                    context.rawInput.installData.installDevclass.skipNamespace = !(await Inquirer.prompt({
+                        message: `Package uses namespace ${context.runtime.installData.namespace}, do you want to import it (repair license)?`,
+                        name: 'skipNamespace',
+                        type: 'confirm',
+                        default: true
+                    })).skipNamespace;
+                }
+                if (context.rawInput.installData.installDevclass.skipNamespace) {
+                    //namespace doesn't exist but packages must be generated, it's mandatory to have the namespace
+                    throw new Error(`Cannot generate packages without namespace ${context.runtime.installData.namespace}. Run install with namespace import or avoid renaming packages.`);
+                }
+            } else {
+                //namespace doesn't exist, force user to create it manually
+                throw new Error(`Namespace ${context.runtime.installData.namespace} doesn't exist in ${SystemConnector.getDest()}. Manually add namespace in SE03.`);
             }
         }
 
         //3- create namespace
         var replicense: TRNLICENSE;
-        var text: TRNSPACETT;
         var aTexts: TRNSPACETT[] = [];
-        if (context.runtime.installData.namespace !== originalNamespace) {
-            if (!context.rawInput.contextData.noInquirer) {
-                replicense = (await Inquirer.prompt({
-                    message: `Input repair license for namespace ${context.runtime.installData.namespace}`,
-                    name: 'replicense',
-                    type: 'input',
-                    validate: (input) => {
-                        if (/^\d+$/.test(input)) {
-                            return true;
-                        } else {
-                            return 'Invalid characters';
-                        }
-                    }
-                })).replicense;
-                text = await Inquirer.prompt([{
-                    message: `dummy`,
-                    name: 'namespace',
-                    type: 'input',
-                    when: false,
-                    default: context.runtime.installData.namespace
-                }, {
-                    message: `Namespace owner`,
-                    name: 'owner',
-                    type: 'input'
-                }, {
-                    message: `Namespace language`,
-                    name: 'spras',
-                    type: 'input',
-                    default: SystemConnector.getLogonLanguage(true)
-                }, {
-                    message: `Namespace description`,
-                    name: 'descriptn',
-                    type: 'input'
-                }]);
-                aTexts.push(text);
-            }
-        } else {
-            if (context.runtime.remotePackageData.manifest.namespace) {
-                replicense = context.runtime.remotePackageData.manifest.namespace.replicense;
-                aTexts = context.runtime.remotePackageData.manifest.namespace.texts.map(o => {
-                    return {
-                        namespace: context.runtime.remotePackageData.manifest.namespace.ns || context.runtime.installData.namespace,
-                        spras: o.language,
-                        descriptn: o.description,
-                        owner: o.owner
-                    };
-                });
-            }
+        if (context.runtime.remotePackageData.manifest.namespace) {
+            replicense = context.runtime.remotePackageData.manifest.namespace.replicense;
+            aTexts = context.runtime.remotePackageData.manifest.namespace.texts.map(o => {
+                return {
+                    namespace: context.runtime.remotePackageData.manifest.namespace.ns || context.runtime.installData.namespace,
+                    spras: o.language,
+                    descriptn: o.description,
+                    owner: o.owner
+                };
+            });
         }
         if (!replicense) {
-            throw new Error(`Cannot use namespace ${context.runtime.installData.namespace}: repair license missing.`);
+            throw new Error(`Cannot use namespace ${context.runtime.installData.namespace}: unknown repair license.`);
         }
         if (aTexts.length === 0) {
-            throw new Error(`Cannot use namespace ${context.runtime.installData.namespace}: data missing.`);
+            throw new Error(`Cannot use namespace ${context.runtime.installData.namespace}: unknown description.`);
         }
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
