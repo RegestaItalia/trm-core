@@ -30,7 +30,6 @@ import { generateInstallTransport } from "./generateInstallTransport";
 import { refreshTmsTxt } from "./refreshTmsTxt";
 import { AbstractRegistry } from "../../registry";
 import { executePostActivities } from "./executePostActivities";
-import { commit } from "./commit";
 import { Package } from "trm-registry-types";
 import { Lockfile } from "../../lockfile/Lockfile";
 import { checkObjectsLock } from "./checkObjectsLock";
@@ -302,7 +301,6 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         importCustTransport,
         refreshTmsTxt,
         generateInstallTransport,
-        commit,
         updatePackageData,
         executePostActivities
     ];

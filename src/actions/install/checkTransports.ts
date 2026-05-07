@@ -61,7 +61,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         }
 
         //1- get transport binaries
-        Logger.loading(`Checking package transports...`);
+        Logger.loading(`Validating package transports...`);
         const aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries(context.rawInput.contextData.r3transOptions, context.runtime.remotePackageData.contents);
         Logger.log(`Package content: ${aTransports.map(o => {
             return {
@@ -193,8 +193,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         context.runtime.installData.entries = context.runtime.packageTransportsData.e071;
 
         //9- check existance of trkorr in target system
-        Logger.loading(`Checking package transports...`);
-        Logger.loading(`Checking if ${checkExistance.length} transports exist before importing them`, true);
+        Logger.loading(`Checking package transports in system...`);
         for (const trkorr of checkExistance) {
             const oTransport = new Transport(trkorr);
             const e070 = await oTransport.getE070();
