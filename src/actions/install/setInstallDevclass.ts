@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { getPackageNamespace } from "../../commons";
-import { SystemConnector } from "../../systemConnector";
+import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
 import { Logger, Inquirer, Question } from "trm-commons";
 import { ZTRM_INSTALLDEVC } from "../../client";
 import { LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
@@ -68,7 +68,7 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             const replacement = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === t.devclass);
             if (updateNamespace) {
                 //only for trm-server and trm-rest with /ATRM/: if no replacement and updating from namespace $, adapt naming convention
-                if (!replacement && updateNamespace === '$' && (context.runtime.remotePackageData.data.name === 'trm-server' || context.runtime.remotePackageData.data.name === 'trm-rest') && context.runtime.registry.getRegistryType() === RegistryType.PUBLIC) {
+                if (!replacement && updateNamespace === '$' && (context.runtime.remotePackageData.data.name === TRM_SERVER_PACKAGE_NAME || context.runtime.remotePackageData.data.name === TRM_REST_PACKAGE_NAME) && context.runtime.registry.getRegistryType() === RegistryType.PUBLIC) {
                     adaptDevclassName = adaptDevclassName.replace(new RegExp(`^/ATRM/SERVER`, 'gmi'), '$TRM');
                     adaptDevclassName = adaptDevclassName.replace(new RegExp(`^/ATRM/REST`, 'gmi'), '$TRM_REST');
                 } else {

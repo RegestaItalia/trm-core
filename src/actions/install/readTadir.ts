@@ -18,7 +18,7 @@ export const readTadir: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Read tadir step', true);
 
-        Logger.loading(`Checking package transports...`);
+        Logger.loading(`Reading objects transport...`);
 
         //1- read TADIR
         if (!context.runtime.remotePackageData.contents) {

@@ -18,7 +18,7 @@ export const readDevc: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Read DEVC step', true);
 
-        Logger.loading(`Checking package transports...`);
+        Logger.loading(`Reading SAP package transport...`);
 
         //1- read TDEVC
         if (!context.runtime.remotePackageData.contents) {

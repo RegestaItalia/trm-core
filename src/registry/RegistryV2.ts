@@ -410,7 +410,7 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string): Promise<Package> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string): Promise<void> {
         const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, {
@@ -427,10 +427,10 @@ export class RegistryV2 implements AbstractRegistry {
         if (!tags) {
             delete params.tags;
         }
-        return (await this._axiosInstance.post(`/publish/${fullName}`, formData, {
+        await this._axiosInstance.post(`/publish/${fullName}`, formData, {
             params,
             headers: formData.getHeaders()
-        })).data;
+        });
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {

@@ -15,7 +15,9 @@ import { stopWarning } from "../stopWarning";
  * 
  * 3- import transport into system
  * 
- * 4- run tadir interface (package replacement)
+ * 4- reconnect when system is not stateless
+ * 
+ * 5- run tadir interface (package replacement)
  * 
 */
 export const importTadirTransport: Step<InstallWorkflowContext> = {
@@ -33,8 +35,8 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
         }
         context.runtime.packageTransports.tadir.instance = await Transport.upload(
             context.runtime.packageTransports.tadir.binaries.trkorr, {
-                binary: context.runtime.packageTransports.tadir.binaries.binaries,
-                trTarget: SystemConnector.getDest()
+            binary: context.runtime.packageTransports.tadir.binaries.binaries,
+            trTarget: SystemConnector.getDest()
         });
 
         //2 - delete from tms buffer (if it exists)
@@ -62,7 +64,17 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
 
         Logger.loading(`Finalizing import...`);
 
-        //4- run tadir interface (package replacement)
+        //4- reconnect when system is not stateless
+        if (!SystemConnector.isStateless()) {
+            Logger.loading(`Closing connection for reconnect...`, true);
+            await SystemConnector.closeConnection();
+            Logger.loading(`Reopening connection...`, true);
+            await SystemConnector.connect(true);
+            Logger.success(`OK, continue`, true);
+        }
+
+        //5- run tadir interface (package replacement)
+        //if namespace doesnt exist packages cant be changed!
         for (const tadir of context.runtime.packageTransportsData.tadir) {
             var object = _.cloneDeep(tadir);
             if (!context.rawInput.installData.installDevclass.keepOriginal) {

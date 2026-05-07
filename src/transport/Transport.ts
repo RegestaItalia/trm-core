@@ -403,7 +403,6 @@ export class Transport {
     }
 
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
-        Logger.loading(`${Transport.getTransportIcon()}  Releasing transport...`, skipLog);
         await SystemConnector.releaseTrkorr(this.trkorr, lock);
         await SystemConnector.dequeueTransport(this.trkorr);
         if (tmpFolder) {

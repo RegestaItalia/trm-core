@@ -17,11 +17,13 @@ import { stopWarning } from "../stopWarning";
  * 
  * 4- import transport into system
  * 
- * 5- replace root devclass parent devclass
+ * 5- reconnect when system is not stateless
  * 
- * 6- set TRM as source
+ * 6- replace root devclass parent devclass
  * 
- * 7- set transport layer
+ * 7- set TRM as source
+ * 
+ * 8- set transport layer
  * 
 */
 export const importDevcTransport: Step<InstallWorkflowContext> = {
@@ -80,14 +82,23 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
 
         Logger.loading(`Finalizing import...`);
 
-        //5- replace root devclass parent devclass
+        //5- reconnect when system is not stateless
+        if (!SystemConnector.isStateless()) {
+            Logger.loading(`Closing connection for reconnect...`, true);
+            await SystemConnector.closeConnection();
+            Logger.loading(`Reopening connection...`, true);
+            await SystemConnector.connect(true);
+            Logger.success(`OK, continue`, true);
+        }
+
+        //6- replace root devclass parent devclass
         if (rootDevclass && rootDevclass.parentcl) {
             await SystemConnector.setPackageSuperpackage(context.runtime.originalData.hierarchy.devclass, rootDevclass.parentcl)
         } else {
             await SystemConnector.clearPackageSuperpackage(context.runtime.originalData.hierarchy.devclass);
         }
 
-        //6- set TRM as source
+        //7- set TRM as source
         for (const tdevc of context.runtime.packageTransportsData.tdevc) {
             const object: TADIR = {
                 pgmid: 'R3TR',
@@ -97,18 +108,10 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
                 srcsystem: 'TRM'
             };
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${object.devclass} -> src system ${object.srcsystem}`, true);
-            try{
-                await SystemConnector.tadirInterface(object);
-            }catch(e){
-                if(e.sapMessage && e.sapMessage.class === 'TO' && e.sapMessage.no === '123'){
-                    Logger.log(e.toString(), true);
-                }else{
-                    throw e;
-                }
-            }
+            await SystemConnector.tadirInterface(object);
         }
 
-        //7- set transport layer
+        //8- set transport layer
         for (const tdevc of context.runtime.packageTransportsData.tdevc) {
             Logger.log(`Running TDEVC interface for devclass ${tdevc.devclass} -> transport layer ${context.rawInput.installData.installDevclass.transportLayer}`, true);
             await SystemConnector.setPackageTransportLayer(tdevc.devclass, context.rawInput.installData.installDevclass.transportLayer);

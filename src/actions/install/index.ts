@@ -12,7 +12,6 @@ import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
 import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
-import { setR3trans } from "./setR3trans";
 import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT } from "../../client";
 import { checkTransports } from "./checkTransports";
 import { readDevc } from "./readDevc";
@@ -31,7 +30,6 @@ import { generateInstallTransport } from "./generateInstallTransport";
 import { refreshTmsTxt } from "./refreshTmsTxt";
 import { AbstractRegistry } from "../../registry";
 import { executePostActivities } from "./executePostActivities";
-import { commit } from "./commit";
 import { Package } from "trm-registry-types";
 import { Lockfile } from "../../lockfile/Lockfile";
 import { checkObjectsLock } from "./checkObjectsLock";
@@ -288,7 +286,6 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         checkAlreadyInstalled,
         checkSapEntries,
         checkDependencies,
-        setR3trans,
         installDependencies,
         checkTransports,
         checkObjectTypes,
@@ -304,7 +301,6 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         importCustTransport,
         refreshTmsTxt,
         generateInstallTransport,
-        commit,
         updatePackageData,
         executePostActivities
     ];
