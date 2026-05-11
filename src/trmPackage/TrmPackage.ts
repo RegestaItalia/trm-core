@@ -4,7 +4,6 @@ import { AbstractRegistry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { DEVCLASS, ZTRM_DIRTY } from "../client";
 import { Transport, TrmTransportIdentifier } from "../transport";
-import { SystemConnector } from "../systemConnector";
 import { Lockfile } from "../lockfile";
 
 export type TrmPackageInstallTransport = {

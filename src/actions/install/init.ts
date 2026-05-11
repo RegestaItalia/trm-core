@@ -3,7 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { TrmArtifact } from "../../trmPackage";
 import { createHash } from "crypto";
-import { SystemConnector } from "../../systemConnector";
+import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
 import { AbstractRegistry, RegistryType } from "../../registry";
 import { valid } from "semver";
 import { TrmManifest } from "../../manifest";
@@ -78,6 +78,7 @@ export const init: Step<InstallWorkflowContext> = {
         }
         context.runtime = {
             stopWarningShown: context.rawInput.contextData.noStopWarning ? true : false,
+            isTrmServerRest: false,
             registry: actualRegistry || registry,
             update: undefined,
             remotePackageData: {
@@ -123,6 +124,7 @@ export const init: Step<InstallWorkflowContext> = {
                 tmsTxtRefresh: []
             }
         };
+        context.runtime.isTrmServerRest = (context.runtime.remotePackageData.data.name === TRM_SERVER_PACKAGE_NAME || context.runtime.remotePackageData.data.name === TRM_REST_PACKAGE_NAME) && context.runtime.registry.getRegistryType() === RegistryType.PUBLIC;
 
         //4- fill missing input data
         if (context.rawInput.packageData.overwrite === undefined) {
@@ -150,6 +152,10 @@ export const init: Step<InstallWorkflowContext> = {
         }
         if (!context.rawInput.installData.skipPostActivities) {
             context.rawInput.installData.skipPostActivities = false;
+        }
+        //guard
+        if(context.runtime.isTrmServerRest){
+            context.rawInput.installData.installDevclass.keepOriginal = false;
         }
         if (context.rawInput.installData.installDevclass.keepOriginal === undefined) {
             if (!context.rawInput.contextData.noInquirer) {
