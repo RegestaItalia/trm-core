@@ -14,3 +14,4 @@ export * from "./getNodePackage";
 export * from "./getCoreTrmDependencies";
 export * from "./checkCoreTrmDependencies";
 export * from "./jsonStringifyWithKeyOrder";
+export * from "./adjustTrmServerRestDevclass";
