@@ -1,6 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { getPackageNamespace } from "../../commons";
+import { adjustTrmServerRestDevclass, getPackageNamespace } from "../../commons";
 import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
 import { Logger, Inquirer, Question } from "trm-commons";
 import { ZTRM_INSTALLDEVC } from "../../client";
@@ -69,8 +69,7 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             if (updateNamespace) {
                 //only for trm-server and trm-rest with /ATRM/: if no replacement and updating from namespace $, adapt naming convention
                 if (!replacement && updateNamespace === '$' && context.runtime.isTrmServerRest) {
-                    adaptDevclassName = adaptDevclassName.replace(new RegExp(`^/ATRM/SERVER`, 'gmi'), '$TRM');
-                    adaptDevclassName = adaptDevclassName.replace(new RegExp(`^/ATRM/REST`, 'gmi'), '$TRM_REST');
+                    adaptDevclassName = adjustTrmServerRestDevclass(adaptDevclassName);
                 } else {
                     adaptDevclassName = adaptDevclassName.replace(new RegExp(`^${originalNamespace}`, 'gmi'), updateNamespace);
                 }

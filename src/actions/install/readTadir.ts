@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
-import { normalize } from "../../commons";
+import { adjustTrmServerRestDevclass, normalize } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { TADIR } from "../../client";
 
@@ -29,10 +29,17 @@ export const readTadir: Step<InstallWorkflowContext> = {
         //2- check objects existance
         var existingObjects: TADIR[] = [];
         //check support for bulk operations
+        const checkTadir = context.runtime.packageTransportsData.tadir.map(o => {
+            return {
+                ...o, ...{
+                    devclass: context.runtime.isTrmServerRest ? adjustTrmServerRestDevclass(o.devclass) : o.devclass
+                }
+            }
+        });
         if (!SystemConnector.getSupportedBulk().getTransportObjects) {
-            existingObjects = await SystemConnector.getExistingObjects(context.runtime.packageTransportsData.tadir);
+            existingObjects = await SystemConnector.getExistingObjects(checkTadir);
         } else {
-            existingObjects = await SystemConnector.getExistingObjectsBulk(context.runtime.packageTransportsData.tadir);
+            existingObjects = await SystemConnector.getExistingObjectsBulk(checkTadir);
         }
         Logger.log(`TADIR object that already exist in system: ${JSON.stringify(existingObjects)}`, true);
         //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
@@ -45,7 +52,7 @@ export const readTadir: Step<InstallWorkflowContext> = {
                     const rootDevclass = rootPackage.getDevclass();
                     if (rootDevclass) {
                         const subpackages = (await SystemConnector.getSubpackages(rootDevclass)).map(o => o.devclass);
-                        existingObjects.find(o => {
+                        existingObjects.forEach(o => {
                             if (subpackages.includes(o.devclass) || rootDevclass === o.devclass) {
                                 Logger.log(`${o.pgmid} ${o.object} ${o.objName} already in system but devclass ${o.devclass} is part of the same trm package in update`, true);
                             } else {
