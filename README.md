@@ -29,6 +29,20 @@ TRM introduces **package-based software delivery** to the SAP ecosystem, bringin
 
 Full documentation can be seen at [https://docs.trmregistry.com/](https://docs.trmregistry.com).
 
+# Usage
+
+`trm-core` is a low-level library and is **not intended to be used directly** by end users.
+
+In order to interact with SAP systems, `trm-core` must be consumed by a compatible client implementation.
+
+## CLI Client
+
+Install the official CLI client via npm:
+
+```bash
+npm install trm-client -g
+```
+
 # Contributing
 Like every other TRM open-source projects, contributions are always welcomed ❤️.
 
