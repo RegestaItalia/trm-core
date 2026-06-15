@@ -23,6 +23,10 @@ export const readTadir: Step<InstallWorkflowContext> = {
         //1- read TADIR
         if (!context.runtime.remotePackageData.contents) {
             context.runtime.packageTransportsData.tadir = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.tadir.binaries.binaries.data, 'TADIR'));
+        }else{
+            //sanitize contents
+            //this is not 100% right but registry will mix all transports entries, so it's necessary to filter atleast R3TR and no DEVC
+            context.runtime.packageTransportsData.tadir = context.runtime.packageTransportsData.tadir.filter(o => o.pgmid === 'R3TR' && !(o.pgmid === 'R3TR' && o.object === 'DEVC'))
         }
         Logger.log(`TADIR TADIR: ${JSON.stringify(context.runtime.packageTransportsData.tadir)}`, true);
 

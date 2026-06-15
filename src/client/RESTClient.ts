@@ -173,8 +173,8 @@ export class RESTClient implements IClient {
             data.forEach(tab512 => {
                 var sqlLine: any = {};
                 const waSplit = tab512.wa.split(delimiter);
-                fields.forEach((field, index) => {
-                    sqlLine[field.fieldName] = waSplit[index].trim();
+                result.data.fields.forEach((field, index) => {
+                    sqlLine[field.fieldname] = waSplit[index].trim();
                 });
                 sqlOutput.push(sqlLine);
             })
