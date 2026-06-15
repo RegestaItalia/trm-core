@@ -7,7 +7,6 @@ import { existsSync } from "fs";
 import path from "path";
 import { RFCClientError, SapMessage } from ".";
 import * as xml from "xml-js";
-import { Manifest } from "../manifest";
 
 const nodeRfcLib = 'node-rfc';
 
@@ -200,6 +199,7 @@ export class RFCClient implements IClient {
         var sqlOutput = [];
         const delimiter = '|';
         var aOptions: struct.RFC_DB_OPT[] = [];
+        tableName = tableName.toUpperCase();
         if (options) {
             //line must not exceede 72 chars length
             //it must not break on an operator
@@ -227,17 +227,17 @@ export class RFCClient implements IClient {
         }
         try {
             const result = await this._call("RFC_READ_TABLE", {
-                query_table: tableName.toUpperCase(),
+                query_table: tableName,
                 delimiter,
                 options: aOptions,
-                fields: fields
+                fields
             }, undefined, noErrorParsing);
             const data: struct.TAB512[] = result['data'];
             data.forEach(tab512 => {
                 var sqlLine: any = {};
                 const waSplit = tab512.wa.split(delimiter);
-                fields.forEach((field, index) => {
-                    sqlLine[field['FIELDNAME']] = waSplit[index].trim();
+                result.fields.forEach((field, index) => {
+                    sqlLine[field.fieldname] = waSplit[index].trim();
                 });
                 sqlOutput.push(sqlLine);
             })

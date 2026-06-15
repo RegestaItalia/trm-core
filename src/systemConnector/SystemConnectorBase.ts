@@ -194,6 +194,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
     if (fromBackend) {
       Logger.log(`Packages were fetched from backend API`, true);
+      this._installedPackages = trmPackages;
       return trmPackages;
     } else {
       Logger.log(`Packages weren't fetched from backend API, continue`, true);

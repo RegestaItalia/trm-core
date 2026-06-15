@@ -19,11 +19,11 @@ import { stopWarning } from "../stopWarning";
  * 
  * 5- reconnect when system is not stateless
  * 
- * 6- replace root devclass parent devclass
+ * 6- set transport layer
  * 
- * 7- set TRM as source
+ * 7- replace root devclass parent devclass
  * 
- * 8- set transport layer
+ * 8- set TRM as source
  * 
 */
 export const importDevcTransport: Step<InstallWorkflowContext> = {
@@ -91,14 +91,20 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             Logger.success(`OK, continue`, true);
         }
 
-        //6- replace root devclass parent devclass
+        //6- set transport layer
+        for (const tdevc of context.runtime.packageTransportsData.tdevc) {
+            Logger.log(`Running TDEVC interface for devclass ${tdevc.devclass} -> transport layer ${context.rawInput.installData.installDevclass.transportLayer}`, true);
+            await SystemConnector.setPackageTransportLayer(tdevc.devclass, context.rawInput.installData.installDevclass.transportLayer);
+        }
+
+        //7- replace root devclass parent devclass
         if (rootDevclass && rootDevclass.parentcl) {
             await SystemConnector.setPackageSuperpackage(context.runtime.originalData.hierarchy.devclass, rootDevclass.parentcl)
         } else {
             await SystemConnector.clearPackageSuperpackage(context.runtime.originalData.hierarchy.devclass);
         }
 
-        //7- set TRM as source
+        //8- set TRM as source
         for (const tdevc of context.runtime.packageTransportsData.tdevc) {
             const object: TADIR = {
                 pgmid: 'R3TR',
@@ -109,12 +115,6 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             };
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${object.devclass} -> src system ${object.srcsystem}`, true);
             await SystemConnector.tadirInterface(object);
-        }
-
-        //8- set transport layer
-        for (const tdevc of context.runtime.packageTransportsData.tdevc) {
-            Logger.log(`Running TDEVC interface for devclass ${tdevc.devclass} -> transport layer ${context.rawInput.installData.installDevclass.transportLayer}`, true);
-            await SystemConnector.setPackageTransportLayer(tdevc.devclass, context.rawInput.installData.installDevclass.transportLayer);
         }
     }
 }
