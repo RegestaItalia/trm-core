@@ -2,7 +2,7 @@ import axios, { AxiosInstance, AxiosResponse, CreateAxiosDefaults } from "axios"
 import { inspect } from "util";
 import { CliLogFileLogger, Logger } from "trm-commons";
 import { parse as htmlParser } from 'node-html-parser';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from "crypto";
 
 export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';
 export const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
@@ -20,7 +20,7 @@ function _getInternalId(response: AxiosResponse<any, any>) {
 export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCtx, inj?: AxiosInstance) {
     var instance: AxiosInstance = inj || axios.create(config);
     instance.interceptors.request.use((request) => {
-        const internalId = uuidv4();
+        const internalId = randomUUID();
         request.headers.set(AXIOS_INTERNAL_HEADER, internalId);
         if (Logger.logger instanceof CliLogFileLogger) {
             request.headers.set(AXIOS_SESSION_HEADER, Logger.logger.getSessionId());

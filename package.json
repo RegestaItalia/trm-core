@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "9.8.0",
+  "version": "9.8.1",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -54,7 +54,7 @@
     "minimatch": "^10.0.1",
     "node-cache": "^5.1.2",
     "node-html-parser": "^7.0.1",
-    "node-r3trans": "^2.0.2",
+    "node-r3trans": "^2.0.3",
     "object-keys-normalizer": "^1.0.1",
     "opener": "^1.5.2",
     "parse-multipart-data": "^1.5.0",
@@ -63,12 +63,11 @@
     "semver-sort": "^1.0.0",
     "spdx-license-ids": "^3.0.13",
     "trm-registry-types": "^2.1.0",
-    "uuid": "^14.0.0",
     "xml-beautify": "^1.2.3",
     "xml-js": "^1.6.11"
   },
   "peerDependencies": {
-    "trm-commons": "^5.0.0"
+    "trm-commons": "^5.0.1"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.0",
@@ -82,7 +81,6 @@
     "@types/semver": "^7.5.0",
     "@types/semver-sort": "^0.0.1",
     "@types/stack-trace": "^0.0.33",
-    "@types/uuid": "^9.0.8",
     "rimraf": "^6.0.1",
     "trm-commons": "^5.0.0",
     "ts-node": "^10.9.2",

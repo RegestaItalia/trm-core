@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-07-05 v9.8.1
+-------------------
+- uuid dependency
+
 2026-06-15 v9.8.0
 -------------------
 ! guard table read result fields order
