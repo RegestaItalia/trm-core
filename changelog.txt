@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-07-05 v9.8.2
+-------------------
+* rest client response parsing
+
 2026-07-05 v9.8.1
 -------------------
 - uuid dependency
