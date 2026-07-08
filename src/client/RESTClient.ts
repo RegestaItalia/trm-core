@@ -169,8 +169,7 @@ export class RESTClient implements IClient {
                     fields: fields
                 }
             });
-            const data: struct.TAB512[] = result.data;
-            data.forEach(tab512 => {
+            result.data.data.forEach(tab512 => {
                 var sqlLine: any = {};
                 const waSplit = tab512.wa.split(delimiter);
                 result.data.fields.forEach((field, index) => {
