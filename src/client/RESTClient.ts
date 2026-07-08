@@ -539,8 +539,7 @@ export class RESTClient implements IClient {
         return result.packages.map(o => {
             return {
                 ...o, ...{
-                    manifest: Buffer.from(o.manifest, 'base64').toString('utf8'),
-                    dirty: o.dirty === 'X'
+                    manifest: Buffer.from(o.manifest, 'base64').toString('utf8')
                 }
             };
         });
