@@ -78,7 +78,8 @@ export const init: Step<InstallWorkflowContext> = {
         }
         context.runtime = {
             stopWarningShown: context.rawInput.contextData.noStopWarning ? true : false,
-            isTrmServerRest: false,
+            isTrmServer: false,
+            isTrmRest: false,
             registry: actualRegistry || registry,
             update: undefined,
             remotePackageData: {
@@ -124,7 +125,8 @@ export const init: Step<InstallWorkflowContext> = {
                 tmsTxtRefresh: []
             }
         };
-        context.runtime.isTrmServerRest = (context.runtime.remotePackageData.data.name === TRM_SERVER_PACKAGE_NAME || context.runtime.remotePackageData.data.name === TRM_REST_PACKAGE_NAME) && context.runtime.registry.getRegistryType() === RegistryType.PUBLIC;
+        context.runtime.isTrmServer = context.runtime.remotePackageData.data.name === TRM_SERVER_PACKAGE_NAME && context.runtime.registry.getRegistryType() === RegistryType.PUBLIC;
+        context.runtime.isTrmRest = context.runtime.remotePackageData.data.name === TRM_REST_PACKAGE_NAME && context.runtime.registry.getRegistryType() === RegistryType.PUBLIC;
 
         //4- fill missing input data
         if (context.rawInput.packageData.overwrite === undefined) {
@@ -154,7 +156,7 @@ export const init: Step<InstallWorkflowContext> = {
             context.rawInput.installData.skipPostActivities = false;
         }
         //guard
-        if(context.runtime.isTrmServerRest){
+        if(context.runtime.isTrmServer || context.runtime.isTrmRest){
             context.rawInput.installData.installDevclass.keepOriginal = false;
         }
         if (context.rawInput.installData.installDevclass.keepOriginal === undefined) {

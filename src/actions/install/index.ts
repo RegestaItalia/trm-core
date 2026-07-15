@@ -224,7 +224,8 @@ type WorkflowRuntime = {
     stopWarningShown: boolean
     registry: AbstractRegistry,
     update: boolean,
-    isTrmServerRest: boolean,
+    isTrmServer: boolean,
+    isTrmRest: boolean,
     remotePackageData: {
         data: Package,
         manifest: TrmManifest,

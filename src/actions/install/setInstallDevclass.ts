@@ -68,15 +68,18 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             const replacement = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === t.devclass);
             if (updateNamespace) {
                 //only for trm-server and trm-rest with /ATRM/: if no replacement and updating from namespace $, adapt naming convention
-                if (!replacement && updateNamespace === '$' && context.runtime.isTrmServerRest) {
+                if (!replacement && updateNamespace === '$' && (context.runtime.isTrmServer || context.runtime.isTrmRest)) {
                     adaptDevclassName = adjustTrmServerRestDevclass(adaptDevclassName);
                 } else {
                     adaptDevclassName = adaptDevclassName.replace(new RegExp(`^${originalNamespace}`, 'gmi'), updateNamespace);
                 }
+            }else if(context.runtime.isTrmRest){
+                //extra guard for trm-rest first install: move /ATRM/ to $
+                adaptDevclassName = adjustTrmServerRestDevclass(adaptDevclassName);
             }
             const packageExists = await SystemConnector.getDevclass(adaptDevclassName);
             if (!replacement) {
-                if (context.rawInput.contextData.noInquirer || context.runtime.isTrmServerRest) {
+                if (context.rawInput.contextData.noInquirer || (context.runtime.isTrmServer || context.runtime.isTrmRest)) {
                     const automaticValue = _validateDevclass(adaptDevclassName, [updateNamespace || originalNamespace, '$', originalNamespace]);
                     if (automaticValue === true) {
                         context.rawInput.installData.installDevclass.replacements.push({
