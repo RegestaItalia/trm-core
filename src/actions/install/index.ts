@@ -26,13 +26,14 @@ import { importTadirTransport } from "./importTadirTransport";
 import { importLangTransport } from "./importLangTransport";
 import { importCustTransport } from "./importCustTransport";
 import { updatePackageData } from "./updatePackageData";
-import { generateInstallTransport } from "./generateInstallTransport";
+import { generateInstallTransports } from "./generateInstallTransports";
 import { refreshTmsTxt } from "./refreshTmsTxt";
 import { AbstractRegistry } from "../../registry";
 import { executePostActivities } from "./executePostActivities";
 import { Package } from "trm-registry-types";
 import { Lockfile } from "../../lockfile/Lockfile";
 import { checkObjectsLock } from "./checkObjectsLock";
+import { releaseInstallTransports } from "./releaseInstallTransport";
 
 /**
  * ABAP package replacement during install
@@ -224,7 +225,8 @@ type WorkflowRuntime = {
     stopWarningShown: boolean
     registry: AbstractRegistry,
     update: boolean,
-    isTrmServerRest: boolean,
+    isTrmServer: boolean,
+    isTrmRest: boolean,
     remotePackageData: {
         data: Package,
         manifest: TrmManifest,
@@ -301,9 +303,10 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         importLangTransport,
         importCustTransport,
         refreshTmsTxt,
-        generateInstallTransport,
+        generateInstallTransports,
         updatePackageData,
-        executePostActivities
+        executePostActivities,
+        releaseInstallTransports
     ];
     Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {

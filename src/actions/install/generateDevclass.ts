@@ -19,7 +19,7 @@ import { stopWarning } from "../stopWarning";
 export const generateDevclass: Step<InstallWorkflowContext> = {
     name: 'generate-devclass',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.installData.installDevclass.keepOriginal || context.runtime.isTrmServerRest) {
+        if (context.rawInput.installData.installDevclass.keepOriginal || context.runtime.isTrmServer) {
             Logger.log(`Skipping generate devclass devclass (user input)`, true);
             return false;
         } else {

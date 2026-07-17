@@ -36,7 +36,7 @@ export const readTadir: Step<InstallWorkflowContext> = {
         const checkTadir = context.runtime.packageTransportsData.tadir.map(o => {
             return {
                 ...o, ...{
-                    devclass: context.runtime.isTrmServerRest ? adjustTrmServerRestDevclass(o.devclass) : o.devclass
+                    devclass: context.runtime.isTrmServer || context.runtime.isTrmRest ? adjustTrmServerRestDevclass(o.devclass) : o.devclass
                 }
             }
         });

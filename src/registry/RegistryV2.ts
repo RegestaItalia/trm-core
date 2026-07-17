@@ -1,7 +1,7 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, Ping, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
@@ -467,7 +467,11 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async contents(fullName: string, version: string = 'latest'): Promise<any> {
+    public async batchCompare(packages: BatchCompareRequest): Promise<BatchCompareResponse> {
+        return (await this._axiosInstance.post('/batchCompare', packages)).data;
+    }
+
+    public async contents(fullName: string, version: string = 'latest'): Promise<PackageContents> {
         const chunks: Buffer[] = [];
         const logProgress = Logger.progressbar(`↓ ${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`, '>');
 
