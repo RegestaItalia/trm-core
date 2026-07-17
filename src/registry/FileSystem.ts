@@ -1,4 +1,4 @@
-import { AuthenticationType, Deprecate, DistTagAdd, DistTagRm, MessageType, Package, Ping, WhoAmI } from "trm-registry-types";
+import { AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, MessageType, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
 import { AbstractRegistry } from "./AbstractRegistry";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
@@ -155,7 +155,11 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system can't remove dist tags!`);
     }
 
-    public async contents(fullName: string, version: string): Promise<any> {
+    public async batchCompare(packages: BatchCompareRequest): Promise<BatchCompareResponse> {
+        throw new Error(`File system cannot compare package versions in registry!`);
+    }
+
+    public async contents(fullName: string, version: string): Promise<PackageContents> {
         throw new Error(`File system can't see contents!`);
     }
 

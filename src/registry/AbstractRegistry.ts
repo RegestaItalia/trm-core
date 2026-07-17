@@ -1,4 +1,4 @@
-import { Deprecate, DistTagAdd, DistTagRm, Package, Ping, WhoAmI } from "trm-registry-types";
+import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
 
@@ -19,5 +19,6 @@ export abstract class AbstractRegistry {
     abstract deprecate: (fullName: string, version: string, deprecate: Deprecate) => Promise<void>;
     abstract addDistTag: (fullName: string, distTag: DistTagAdd) => Promise<void>;
     abstract rmDistTag: (fullName: string, distTag: DistTagRm) => Promise<void>;
-    abstract contents: (fullName: string, version: string) => Promise<any>;
+    abstract batchCompare: (packages: BatchCompareRequest) => Promise<BatchCompareResponse>;
+    abstract contents: (fullName: string, version: string) => Promise<PackageContents>;
 }

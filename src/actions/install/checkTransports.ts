@@ -42,7 +42,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
 
         Logger.loading(`Reading transports contents...`);
         try {
-            context.runtime.packageTransportsData = await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
+            context.runtime.packageTransportsData = await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest') as any;
             context.runtime.remotePackageData.contents = true;
         } catch (e) {
             context.runtime.remotePackageData.contents = false;
