@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-07-05 v9.8.3
+-------------------
+* rest client get installed packages
+
 2026-07-05 v9.8.2
 -------------------
 * rest client response parsing
