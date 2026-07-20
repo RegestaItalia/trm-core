@@ -75,7 +75,12 @@ export const init: Step<PublishWorkflowContext> = {
 
         if (registry.getRegistryType() === RegistryType.PUBLIC) {
             Logger.log(`Public registry, checking if logged in`, true);
-            await registry.whoAmI();
+            try{
+                await registry.whoAmI();
+            }catch(e){
+                Logger.error(`Cannot publish to public registry without being logged in!`);
+                throw e;
+            }
         }
 
         //2- fill missing context/input data

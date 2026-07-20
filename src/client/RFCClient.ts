@@ -7,6 +7,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { RFCClientError, SapMessage } from ".";
 import * as xml from "xml-js";
+import { TrmPackageUpdateData } from "../systemConnector";
 
 const nodeRfcLib = 'node-rfc';
 
@@ -616,7 +617,7 @@ export class RFCClient implements IClient {
         return result['locks'];
     }
 
-    public async updateTrmPackageData(data: any): Promise<void> {
+    public async updateTrmPackageData(data: TrmPackageUpdateData): Promise<void> {
         await this._call("/ATRM/UPDATE_TRM_PACKAGE_DATA", {
             data
         });

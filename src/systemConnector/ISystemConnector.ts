@@ -6,6 +6,15 @@ import { RESTConnection } from "./RESTConnection";
 import { RFCConnection } from "./RFCConnection";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
+export interface TrmPackageUpdateData {
+    package_name: string,
+    package_registry: string,
+    manifest: Buffer,
+    trkorr: string,
+    integrity: string,
+    devclass: string
+}
+
 export interface ISystemConnector extends ISystemConnectorBase {
     supportedBulk: SystemConnectorSupportedBulk, //indicates bulk operations allowed
     isStateless: boolean,
@@ -59,6 +68,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     readLogPolling: (logID: components.ZTRM_POLLING_ID) => Promise<components.ZTRM_POLLING_LAST_MSG>,
     getTransportImportStatus: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<struct.TPSTAT>,
     getObjectsLocks: (objects: struct.TADIR_KEY[]) => Promise<struct.ZTRM_OBJ_LOCK[]>,
-    updateTrmPackageData: (data: any) => Promise<void>,
+    updateTrmPackageData: (data: TrmPackageUpdateData) => Promise<void>,
     getTransportTargets:() => Promise<components.TARSYSTEM[]>
 }
