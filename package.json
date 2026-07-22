@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "9.9.0",
+  "version": "9.10.0",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -62,7 +62,7 @@
     "semver": "^7.5.4",
     "semver-sort": "^1.0.0",
     "spdx-license-ids": "^3.0.13",
-    "trm-registry-types": "^2.1.0",
+    "trm-registry-types": "^2.4.0",
     "xml-beautify": "^1.2.3",
     "xml-js": "^1.6.11"
   },

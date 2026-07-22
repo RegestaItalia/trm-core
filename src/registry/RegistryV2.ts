@@ -1,7 +1,7 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, PackageContents, Ping, Publish, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
@@ -410,7 +410,7 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string): Promise<void> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string, changelog?: string): Promise<void> {
         const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, {
@@ -423,14 +423,47 @@ export class RegistryV2 implements AbstractRegistry {
                 contentType: 'text/markdown'
             });
         }
+        if (changelog) {
+            formData.append('changelog', Buffer.from(changelog), {
+                filename: 'changelog.md',
+                contentType: 'text/markdown'
+            });
+        }
         var params = { version, tags };
         if (!tags) {
             delete params.tags;
         }
-        await this._axiosInstance.post(`/publish/${fullName}`, formData, {
+        const response = await this._axiosInstance.post<Publish>(`/publish/${fullName}`, formData, {
             params,
             headers: formData.getHeaders()
         });
+
+        if (response.status === 202) { //publish is async
+            let publishStatus = response.data;
+            const progressPoolUrl = publishStatus.progress_pool_url;
+            const logProgress = Logger.progressbar(`↑ ${fullName} ${version} [{bar}] {value}/{total} {message} | Last refresh: {lastRefresh}`, '>');
+
+            logProgress.start(publishStatus.steps, publishStatus.current_step, {
+                message: publishStatus.current_step_message || '',
+                lastRefresh: new Date().toLocaleTimeString()
+            });
+
+            try {
+                while (publishStatus.current_step < publishStatus.steps) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    publishStatus = (await this._axiosInstance.get<Publish>(progressPoolUrl)).data;
+                    logProgress.update(publishStatus.current_step, {
+                        message: publishStatus.current_step_message || '',
+                        lastCheck: new Date().toLocaleTimeString()
+                    });
+                }
+            } catch (e) {
+                Logger.error(e.toString());
+                Logger.warning(`Unable to check status on registry, check manually`);
+            } finally {
+                logProgress.stop();
+            }
+        }
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {
