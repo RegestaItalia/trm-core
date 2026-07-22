@@ -2,7 +2,7 @@ import { Logger } from "trm-commons";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
 import { Login } from "../client/Login";
-import { ISystemConnector } from "./ISystemConnector";
+import { ISystemConnector, TrmPackageUpdateData } from "./ISystemConnector";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
@@ -313,7 +313,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getObjectsLocks(objects);
     }
     
-    public async updateTrmPackageData(data: any): Promise<void> {
+    public async updateTrmPackageData(data: TrmPackageUpdateData): Promise<void> {
         return this._client.updateTrmPackageData(data);
     }
 

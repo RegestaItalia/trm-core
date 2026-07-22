@@ -7,6 +7,7 @@ import * as FormData from "form-data";
 import { Logger } from "trm-commons";
 import { Login, RESTClientError, SapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
+import { TrmPackageUpdateData } from "../systemConnector";
 
 const AXIOS_CTX = "RestServer";
 
@@ -627,9 +628,12 @@ export class RESTClient implements IClient {
         return result.locks;
     }
 
-    public async updateTrmPackageData(data: any): Promise<void> {
-        await this._axiosInstance.post('/update_trm_package_data', {
-            data
+    public async updateTrmPackageData(data: TrmPackageUpdateData): Promise<void> {
+        const formData = new FormData.default();
+        formData.append('manifest', data.manifest, 'manifest.json');
+        formData.append('data', JSON.stringify({...data, ...{ manifest: undefined }}));
+        await this._axiosInstance.post('/update_trm_package_data', formData, {
+            headers: formData.getHeaders()
         });
     }
 

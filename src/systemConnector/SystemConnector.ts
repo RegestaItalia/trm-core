@@ -1,7 +1,7 @@
 import { TRKORR, DEVCLASS, TDEVC, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError } from "../client";
 import { AbstractRegistry } from "../registry";
 import { TrmPackage } from "../trmPackage";
-import { ISystemConnector } from "./ISystemConnector";
+import { ISystemConnector, TrmPackageUpdateData } from "./ISystemConnector";
 import { InstallPackage } from "./InstallPackage";
 import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
@@ -440,7 +440,7 @@ export namespace SystemConnector {
         return systemConnector.getObjectsLocks(objects);
     }
 
-    export async function updateTrmPackageData(data: any): Promise<void> {
+    export async function updateTrmPackageData(data: TrmPackageUpdateData): Promise<void> {
         await checkSystemConnector();
         return systemConnector.updateTrmPackageData(data);
     }

@@ -4,7 +4,7 @@ import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
 import { RFCConnection } from "./RFCConnection";
 import { Login } from "../client/Login";
-import { ISystemConnector } from "./ISystemConnector";
+import { ISystemConnector, TrmPackageUpdateData } from "./ISystemConnector";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
@@ -283,7 +283,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getObjectsLocks(objects);
     }
 
-    public async updateTrmPackageData(data: any): Promise<void> {
+    public async updateTrmPackageData(data: TrmPackageUpdateData): Promise<void> {
         return this._client.updateTrmPackageData(data);
     }
 
