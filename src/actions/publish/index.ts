@@ -25,6 +25,7 @@ import { getSourceCode } from "./getSourceCode";
 import { DotAbapGit } from "../../abapgit";
 import { ReleaseType } from "semver";
 import { checkAllObjectsReleased } from "./checkAllObjectsReleased";
+import { setChangelog } from "./setChangelog";
 
 /**
  * Input data for publish package action.
@@ -149,6 +150,11 @@ export interface PublishActionInput {
         readme?: string,
 
         /**
+         * Release changelog.
+         */
+        changelog?: string,
+
+        /**
          * Skip customizing transports publish.
          */
         skipCustomizingTransports?: boolean,
@@ -232,6 +238,7 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         setManifestValues,
         setCustomizingTransports,
         setReadme,
+        setChangelog,
         getSourceCode,
         checkAllObjectsReleased,
         generateDevcTransport,

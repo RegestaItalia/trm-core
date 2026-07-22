@@ -8,6 +8,11 @@ Legend
 + : added
 - : removed
 
+2026-07-22 v9.10.0
+-------------------
++ changelog publish support
+! trm-registry-types ^2.3.0
+
 2026-07-20 v9.9.0
 -------------------
 * rest package update

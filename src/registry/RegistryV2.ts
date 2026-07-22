@@ -410,7 +410,7 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string): Promise<void> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string, changelog?: string): Promise<void> {
         const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, {
@@ -420,6 +420,12 @@ export class RegistryV2 implements AbstractRegistry {
         if (readme) {
             formData.append('readme', Buffer.from(readme), {
                 filename: 'readme.md',
+                contentType: 'text/markdown'
+            });
+        }
+        if (changelog) {
+            formData.append('changelog', Buffer.from(changelog), {
+                filename: 'changelog.md',
                 contentType: 'text/markdown'
             });
         }

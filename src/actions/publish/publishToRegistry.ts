@@ -33,7 +33,8 @@ export const publishToRegistry: Step<PublishWorkflowContext> = {
         await context.runtime.trmPackage.package.publish({
             artifact: context.runtime.trmPackage.artifact,
             readme: context.rawInput.publishData.readme,
-            tags: context.rawInput.packageData.tags
+            tags: context.rawInput.packageData.tags,
+            changelog: context.rawInput.publishData.changelog
         });
     }
 }
