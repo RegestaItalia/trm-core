@@ -12,6 +12,7 @@ Legend
 -------------------
 + changelog publish support
 ! trm-registry-types ^2.4.0
++ async publish
 
 2026-07-20 v9.9.0
 -------------------
