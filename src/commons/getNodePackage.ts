@@ -3,6 +3,18 @@ import { join, resolve, sep } from 'node:path';
 import { getGlobalNodeModules } from 'trm-commons';
 
 export function getNodePackage(globalPath?: string, packageName?: string) {
+    if (process.env.TRM_PREFER_BUNDLED_PACKAGES === '1') {
+        const parts = __dirname.split(sep);
+        const index = parts.lastIndexOf('node_modules');
+        const requestedPackage = packageName || 'trm-core';
+
+        if (index !== -1) {
+            try {
+                return JSON.parse(readFileSync(join(parts.slice(0, index + 1).join(sep), requestedPackage, 'package.json'), 'utf8'));
+            } catch { }
+        }
+    }
+
     if(!globalPath){
         globalPath = getGlobalNodeModules();
     }
