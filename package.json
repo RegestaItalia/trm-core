@@ -1,6 +1,6 @@
 {
   "name": "trm-core",
-  "version": "9.10.3",
+  "version": "9.10.4",
   "description": "TRM (Transport Request Manager) Core",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +17,7 @@
     "cleanBuild": "rimraf dist/",
     "build": "npm run cleanBuild && tsc --sourceMap false",
     "prepublishOnly": "npm run build",
-    "postinstall": "node dist/scripts/checkEngine.js"
+    "postinstall": "node -e \"if (require('fs').existsSync('dist/scripts/checkEngine.js')) require('child_process').execFileSync(process.execPath, ['dist/scripts/checkEngine.js'], { stdio: 'inherit' })\""
   },
   "keywords": [
     "trm",
@@ -51,14 +51,14 @@
     "get-stack-trace": "^3.1.1",
     "lodash": "^4.17.21",
     "luxon": "^3.7.2",
-    "minimatch": "^10.0.1",
+    "minimatch": "^10.2.6",
     "node-cache": "^5.1.2",
     "node-html-parser": "^7.0.1",
     "node-r3trans": "^2.0.3",
     "object-keys-normalizer": "^1.0.1",
     "opener": "^1.5.2",
     "parse-multipart-data": "^1.5.0",
-    "protocol-registry": "^1.0.1",
+    "protocol-registry": "^2.0.0",
     "semver": "^7.5.4",
     "semver-sort": "^1.0.0",
     "spdx-license-ids": "^3.0.13",

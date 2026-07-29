@@ -8,6 +8,11 @@ Legend
 + : added
 - : removed
 
+2026-07-29 v9.10.4
+-------------------
+! postinstall script execution
+! registry protocol update
+
 2026-07-29 v9.10.3
 -------------------
 * rest refresh transport desc in tms
