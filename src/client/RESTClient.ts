@@ -477,8 +477,10 @@ export class RESTClient implements IClient {
     }
 
     public async refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
-        await this._axiosInstance.post('/refresh_tms_transport_txt', {
-            trkorr
+        await this._axiosInstance.delete('/refresh_tms_transport_txt', {
+            data: {
+                trkorr
+            }
         });
     }
 
