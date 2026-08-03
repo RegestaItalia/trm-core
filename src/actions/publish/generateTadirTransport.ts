@@ -45,7 +45,7 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
         context.runtime.systemData.tadirTransport = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.TADIR,
             target: context.rawInput.systemData.transportTarget,
-            text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`
+            text: `@X1@TRM ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
         });
         await context.runtime.systemData.tadirTransport.addObjects(aTadir, false);
     },

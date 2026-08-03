@@ -29,7 +29,7 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
             const transport = await Transport.createToc({
                 trmIdentifier: TrmTransportIdentifier.CUST,
                 target: context.rawInput.systemData.transportTarget,
-                text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (C) ${origin.description}`.trim()
+                text: `@X1@TRM (C) ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} ${origin.description}`.trim().slice(0, 60),
             });
             for (const originTransport of origin.transports) {
                 await transport.addObjectsFromTransport(originTransport.trkorr);

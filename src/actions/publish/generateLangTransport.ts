@@ -34,7 +34,7 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
         context.runtime.systemData.langTransport = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.LANG,
             target: context.rawInput.systemData.transportTarget,
-            text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (L)`
+            text: `@X1@TRM (L) ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
         });
         var iLanguageObjects: number = 0;
         try {

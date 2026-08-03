@@ -100,7 +100,8 @@ export class FileSystem implements AbstractRegistry {
                 deprecated: false,
                 manifest: null,
                 checksum: null,
-                download_link: this._filePath
+                download_link: this._filePath,
+                transports: []
             }
         }
         throw new Error(`File system can't view packages!`);

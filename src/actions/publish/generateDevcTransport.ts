@@ -26,7 +26,7 @@ export const generateDevcTransport: Step<PublishWorkflowContext> = {
         context.runtime.systemData.devcTransport = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.DEVC,
             target: context.rawInput.systemData.transportTarget,
-            text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (D)`
+            text: `@X1@TRM (D) ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
         });
         await context.runtime.systemData.devcTransport.addObjects(aDevc, false);
     },
