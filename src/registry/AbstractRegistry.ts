@@ -1,6 +1,7 @@
 import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
+import { BinaryTransport } from "../transport";
 
 export abstract class AbstractRegistry {
     endpoint: string;
@@ -21,4 +22,5 @@ export abstract class AbstractRegistry {
     abstract rmDistTag: (fullName: string, distTag: DistTagRm) => Promise<void>;
     abstract batchCompare: (packages: BatchCompareRequest) => Promise<BatchCompareResponse>;
     abstract contents: (fullName: string, version: string) => Promise<PackageContents>;
+    abstract transport: (trkorr: string, target?: string) => Promise<BinaryTransport>
 }

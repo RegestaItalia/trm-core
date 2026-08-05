@@ -33,6 +33,7 @@ export const releaseInstallTransports: Step<InstallWorkflowContext> = {
             success: boolean
         }[] = [];
         Logger.loading(`Releasing install transports...`);
+        //TODO: merge into a single transport? why multiple?
         for (const transport of context.runtime.installData.transports) {
             var len;
             const index = (transportsStatus.push({
@@ -51,7 +52,7 @@ export const releaseInstallTransports: Step<InstallWorkflowContext> = {
                     await transport.transport.addComment(`name=${context.runtime.remotePackageData.manifest.name}`);
                     await transport.transport.addComment(`version=${context.runtime.remotePackageData.manifest.version}`);
                     await transport.transport.setDocumentation(new Manifest(context.runtime.remotePackageData.manifest).getAbapXml());
-                    await transport.transport.rename(`@X1@TRM: ${context.runtime.remotePackageData.manifest.name} v${context.runtime.remotePackageData.manifest.version} ${transport.type === TrmTransportIdentifier.CUST ? '(C)' : ''}`.trim());
+                    await transport.transport.rename(`@X1@TRM ${transport.type === TrmTransportIdentifier.CUST ? '(C)' : ''}${context.runtime.remotePackageData.manifest.name} v${context.runtime.remotePackageData.manifest.version}`.trim());
                     await transport.transport.release(true, true);
                 }
                 transportsStatus[index].success = true;

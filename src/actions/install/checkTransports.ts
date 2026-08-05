@@ -7,13 +7,13 @@ import { E071, TRKORR } from "../../client";
 import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { R3trans } from "node-r3trans";
+import { RegistryType } from "../../registry";
+import { TransportBinary } from "../../trmPackage";
 
 /**
  * Check TRM Package transports. A TRM Package must have one DEVC (ABAP Package) and TADIR (Workbench objects) transports.
  * 
- * Optionally, one LANG (Translation) and one CUST (Customizing) transport.
- * 
- * If registry doesn't provide transport contents, R3Trans will be used.
+ * Optionally, one LANG (Translation) and one (or more) CUST (Customizing) transport.
  * 
  * 1- get transport binaries
  * 
@@ -38,11 +38,12 @@ export const checkTransports: Step<InstallWorkflowContext> = {
     name: 'check-transports',
     run: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.log('Check transports step', true);
+        var dummyTransports: Transport[] = [];
         var checkExistance: TRKORR[] = [];
 
         Logger.loading(`Reading transports contents...`);
         try {
-            context.runtime.packageTransportsData = await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest') as any;
+            context.runtime.packageTransportsData = normalize(await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest')) as any;
             context.runtime.remotePackageData.contents = true;
         } catch (e) {
             context.runtime.remotePackageData.contents = false;
@@ -61,8 +62,72 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         }
 
         //1- get transport binaries
-        Logger.loading(`Validating package transports...`);
-        const aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries(context.rawInput.contextData.r3transOptions, context.runtime.remotePackageData.contents);
+        //if registry is not local, package is not trm-server/trm-rest, try generating and getting single transports
+        var aTransports: TransportBinary[] = [];
+        if (context.runtime.registry.getRegistryType() === RegistryType.LOCAL || context.runtime.isTrmServer || context.runtime.isTrmRest) {
+            Logger.loading(`Reading package transports...`);
+            aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries(context.rawInput.contextData.r3transOptions, context.runtime.remotePackageData.contents);
+        } else {
+            try {
+                for (const packageTransport of context.runtime.remotePackageData.data.transports) {
+                    var isRequested = false;
+                    var transportIdentifier: TrmTransportIdentifier | undefined = undefined;
+                    switch (packageTransport.type) {
+                        case "TADIR":
+                            isRequested = true;
+                            transportIdentifier = TrmTransportIdentifier.TADIR;
+                            break;
+                        case "DEVC":
+                            isRequested = true; //default, as keepOriginal may be overwritter later if replacements = original
+                            transportIdentifier = TrmTransportIdentifier.DEVC;
+                            break;
+                        case "LANG":
+                            isRequested = !context.rawInput.installData.import.noLang;
+                            transportIdentifier = TrmTransportIdentifier.LANG;
+                            break;
+                        case "CUST":
+                            isRequested = !context.rawInput.installData.import.noCust
+                            transportIdentifier = TrmTransportIdentifier.CUST;
+                            break;
+                        default:
+                            break;
+                    }
+                    if (isRequested) {
+                        Logger.loading(`Requesting transport ${packageTransport.trkorr} to registry...`);
+                        const dummy = await Transport.createToc({
+                            text: packageTransport.description,
+                            target: SystemConnector.getDest(),
+                            trmIdentifier: transportIdentifier
+                        });
+                        dummyTransports.push(dummy);
+                        await dummy.release(false, true);
+                        const targetTransport = await context.runtime.registry.transport(packageTransport.trkorr, dummy.trkorr);
+                        aTransports.push({
+                            trkorr: dummy.trkorr,
+                            type: transportIdentifier,
+                            binaries: targetTransport
+                        });
+                    }
+                }
+            } catch (e) {
+                Logger.error(e.toString(), true);
+                Logger.info(`Falling back to unpacking artifact`, true);
+                for (const dummyTransport of dummyTransports) {
+                    try {
+                        try {
+                            await dummyTransport.delete();
+                        } catch (x) {
+                            await dummyTransport.deleteFromTms(SystemConnector.getDest());
+                        }
+                    } catch (y) {
+                        Logger.error(y.toString(), true);
+                        Logger.warning(`Couldn't cleanup dummy transport ${dummyTransport.trkorr}! Manual cleanup required.`);
+                    }
+                }
+                Logger.loading(`Reading package transports...`);
+                aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries(context.rawInput.contextData.r3transOptions, context.runtime.remotePackageData.contents);
+            }
+        }
         Logger.log(`Package content: ${aTransports.map(o => {
             return {
                 trkorr: o.trkorr,
@@ -71,6 +136,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         })}`, true);
 
         //2- check validity of binaries with R3trans
+        Logger.loading(`Validating package transports...`);
         if (!context.runtime.remotePackageData.contents) {
             for (const transport of aTransports) {
                 const valid = await context.runtime.r3trans.isTransportValid(transport.binaries.data);
@@ -195,6 +261,9 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         //9- check existance of trkorr in target system
         Logger.loading(`Checking package transports in system...`);
         for (const trkorr of checkExistance) {
+            if(dummyTransports.find(o => o.trkorr === trkorr)){
+                continue;
+            }
             const oTransport = new Transport(trkorr);
             const e070 = await oTransport.getE070();
             if (e070) {

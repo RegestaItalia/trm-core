@@ -101,7 +101,6 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
             }
 
             //3- validate transports (check existance, get tasks, rename)
-            const maxDescLength = 60 - `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (C) `.length;
             for (const transport of customizingTransports) {
                 try {
                     const e070 = await transport.getE070();
@@ -118,8 +117,8 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
                             name: 'desc',
                             default: desc,
                             validate: (input) => {
-                                if(input.length > maxDescLength){
-                                    return `Description cannot exceede ${maxDescLength} characters`;
+                                if(input.length > 60){
+                                    return `Description cannot exceede 60 characters`;
                                 }else{
                                     return true;
                                 }

@@ -1,11 +1,11 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, PackageContents, Ping, Publish, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, PackageContents, Ping, Publish, TransportDownload, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
@@ -13,6 +13,8 @@ import _ from 'lodash';
 import { getAxiosInstance, getNodePackage } from "../commons";
 import { AbstractRegistry } from "./AbstractRegistry";
 import NodeCache from "node-cache";
+import { BinaryTransport } from "../transport";
+import * as AdmZip from "adm-zip";
 
 const AXIOS_CTX = "RegistryV2";
 
@@ -552,6 +554,90 @@ export class RegistryV2 implements AbstractRegistry {
             Logger.error(`Failed to fetch contents for ${fullName}: ${(e as AxiosError).message}`, true);
             throw e;
         }
+    }
+
+    public async transport(trkorr: string, target?: string): Promise<BinaryTransport> {
+        const chunks: Buffer[] = [];
+        let buffer: Buffer;
+        //from cache if it exists, else ignore
+        const ping: Ping | undefined = this._cache.get('ping') && !(this._cache.get('ping') instanceof Error) ? this._cache.get('ping') : undefined;
+
+        const transportDownload: TransportDownload = (await this._axiosInstance.get(`/transport/${trkorr}`, {
+            params: {
+                target: target ? encodeURIComponent(target) : undefined
+            }
+        })).data;
+
+        const logProgress = Logger.progressbar(`↓ ${trkorr} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
+
+        try {
+            const response = await this._axiosInstance.get(transportDownload.download_link, {
+                headers: {
+                    Accept: 'application/octet-stream',
+                },
+                maxRedirects: 10,
+                responseType: 'stream',
+                validateStatus: s => s >= 200 && s < 400,
+            });
+
+            const totalBytes = Number(response.headers['content-length'] ?? 0);
+            let downloadedBytes = 0;
+
+            if (totalBytes > 0) {
+                logProgress.start(totalBytes, 0);
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                response.data.on('data', (chunk: Buffer) => {
+                    chunks.push(chunk);
+                    downloadedBytes += chunk.length;
+
+                    if (totalBytes > 0) {
+                        logProgress.update(downloadedBytes);
+                    }
+                });
+
+                response.data.on('end', () => resolve());
+                response.data.on('error', reject);
+            });
+
+            if (totalBytes > 0) {
+                logProgress.stop();
+            }
+            buffer = Buffer.concat(chunks);
+        } catch (e) {
+            try {
+                logProgress.stop();
+            } catch {
+                // ignore stop errors
+            }
+
+            Logger.error((e as Error).toString(), true);
+            Logger.error(`Failed to download transport at ${transportDownload.download_link}: ${(e as AxiosError).message}`);
+            throw e;
+        }
+        const checksum = createHash("sha512").update(buffer).digest("base64");
+        if (checksum !== transportDownload.checksum) {
+            Logger.error(`SECURITY ISSUE! Transport ${trkorr} integrity does NOT match!`);
+            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`);
+            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`);
+            throw new Error(`Cannot continue due to security issues.`);
+        }
+        const zip = new AdmZip.default(buffer);
+        //we can't assume custom registries will mark K and R file with comment in zip
+        //keeping it simple here with name starts with
+        const kFile = zip.getEntries().find(o => o.name.startsWith('K'));
+        const rFile = zip.getEntries().find(o => o.name.startsWith('R'));
+        if (!kFile) {
+            throw new Error(`Missing header in transport!`);
+        }
+        if (!rFile) {
+            throw new Error(`Missing data in transport!`);
+        }
+        return {
+            header: kFile.getData(),
+            data: rFile.getData()
+        };
     }
 
 }

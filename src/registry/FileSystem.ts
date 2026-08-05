@@ -1,4 +1,4 @@
-import { AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, MessageType, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
+import { AuthenticationType, BatchCompareResponse, MessageType, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
 import { AbstractRegistry } from "./AbstractRegistry";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
@@ -6,6 +6,7 @@ import { userInfo } from "os";
 import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync } from "fs";
 import { parse as parsePath } from "path";
 import { writeFile } from "fs/promises";
+import { BinaryTransport } from "../transport";
 
 export const LOCAL_RESERVED_KEYWORD = 'local';
 
@@ -58,7 +59,7 @@ export class FileSystem implements AbstractRegistry {
         return RegistryType.LOCAL;
     }
 
-    public async authenticate(defaultData: any): Promise<AbstractRegistry> {
+    public async authenticate(): Promise<AbstractRegistry> {
         return this;
     }
 
@@ -107,11 +108,11 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system can't view packages!`);
     }
 
-    public async downloadArtifact(fullName: string, version: string): Promise<TrmArtifact> {
+    public async downloadArtifact(): Promise<TrmArtifact> {
         return new TrmArtifact(readFileSync(this._filePath));
     }
 
-    public async getArtifact(name: string, version: string = 'latest'): Promise<TrmArtifact> {
+    public async getArtifact(): Promise<TrmArtifact> {
         if (this._filePath) {
             try {
                 if (!this._artifact) {
@@ -126,11 +127,11 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`Missing file path!`);
     }
 
-    public async validatePublish(fullName: string, version: string): Promise<void> {
+    public async validatePublish(): Promise<void> {
         //always valid, already checked in contructor
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<Package> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact): Promise<Package> {
         if (this._filePath) {
             await writeFile(this._filePath, artifact.binary, {
                 flag: 'w'
@@ -140,28 +141,32 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`Missing file path!`);
     }
 
-    public async unpublish(fullName: string, version: string): Promise<void> {
+    public async unpublish(): Promise<void> {
         throw new Error(`File system can't delete packages!`);
     }
 
-    public async deprecate(fullName: string, version: string, deprecate: Deprecate): Promise<void> {
+    public async deprecate(): Promise<void> {
         throw new Error(`File system can't deprecate packages!`);
     }
 
-    public async addDistTag(fullName: string, distTag: DistTagAdd): Promise<void> {
+    public async addDistTag(): Promise<void> {
         throw new Error(`File system can't add dist tags!`);
     }
 
-    public async rmDistTag(fullName: string, distTag: DistTagRm): Promise<void> {
+    public async rmDistTag(): Promise<void> {
         throw new Error(`File system can't remove dist tags!`);
     }
 
-    public async batchCompare(packages: BatchCompareRequest): Promise<BatchCompareResponse> {
+    public async batchCompare(): Promise<BatchCompareResponse> {
         throw new Error(`File system cannot compare package versions in registry!`);
     }
 
-    public async contents(fullName: string, version: string): Promise<PackageContents> {
+    public async contents(): Promise<PackageContents> {
         throw new Error(`File system can't see contents!`);
+    }
+
+    public async transport(): Promise<BinaryTransport>{
+        throw new Error(`File system can't fetch transports!`);
     }
 
 }

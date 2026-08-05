@@ -64,8 +64,8 @@ export const init: Step<InstallWorkflowContext> = {
                     ping = await registry.ping();
                 }catch { }
                 Logger.error(`SECURITY ISSUE! Release integrity does NOT match!`);
-                Logger.error(`SECURITY ISSUE! Expected SHA is ${packageData.checksum}, current SHA is ${checksum}`);
-                Logger.error(`SECURITY ISSUE! Please, report the issue to ${ping && ping.alert_email ? ping.alert_email : 'registry moderation team'}`);
+                Logger.error(`SECURITY ISSUE! Expected SHA is ${packageData.checksum}, received SHA is ${checksum}`);
+                Logger.error(`SECURITY ISSUE! Please, report the issue to ${ping && ping.alert_email ? ping.alert_email : 'registry support team'}`);
                 throw new Error(`Cannot continue due to security issues.`);
             }
             manifest = artifact.getManifest().get();
