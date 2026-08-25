@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-07-29 v9.10.5
+-------------------
++ allow self signed certificates in rest client
+
 2026-07-29 v9.10.4
 -------------------
 ! postinstall script execution
