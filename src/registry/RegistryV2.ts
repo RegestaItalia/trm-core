@@ -1,7 +1,7 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, PackageContents, Ping, Publish, TransportDownload, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, Ping, Publish, TransportDownload, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
@@ -504,56 +504,6 @@ export class RegistryV2 implements AbstractRegistry {
 
     public async batchCompare(packages: BatchCompareRequest): Promise<BatchCompareResponse> {
         return (await this._axiosInstance.post('/batchCompare', packages)).data;
-    }
-
-    public async contents(fullName: string, version: string = 'latest'): Promise<PackageContents> {
-        const chunks: Buffer[] = [];
-        const logProgress = Logger.progressbar(`↓ ${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`, '>');
-
-        try {
-            const response = await this._axiosInstance.get(`/package/contents/${fullName}`, {
-                params: {
-                    version: encodeURIComponent(version),
-                },
-                responseType: 'stream',
-            });
-
-            const totalBytes = Number(response.headers['content-length'] ?? 0);
-            let downloadedBytes = 0;
-
-            if (totalBytes > 0) {
-                logProgress.start(totalBytes, 0);
-            }
-
-            await new Promise<void>((resolve, reject) => {
-                response.data.on('data', (chunk: Buffer) => {
-                    chunks.push(chunk);
-                    downloadedBytes += chunk.length;
-
-                    if (totalBytes > 0) {
-                        logProgress.update(downloadedBytes);
-                    }
-                });
-
-                response.data.on('end', () => resolve());
-                response.data.on('error', reject);
-            });
-
-            if (totalBytes > 0) {
-                logProgress.stop();
-            }
-
-            const buffer = Buffer.concat(chunks);
-            return JSON.parse(buffer.toString('utf-8'));
-        } catch (e) {
-            try {
-                logProgress.stop();
-            } catch { }
-
-            Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to fetch contents for ${fullName}: ${(e as AxiosError).message}`, true);
-            throw e;
-        }
     }
 
     public async transport(trkorr: string, target?: string): Promise<BinaryTransport> {

@@ -126,7 +126,7 @@ export const init: Step<PublishWorkflowContext> = {
         //3- validate version
         Logger.loading(`Validating version...`);
         var automaticVersion: boolean = false;
-        var releasesInRegistry: string[];
+        var releasesInRegistry: string[] = [];
         var latestReleaseManifest: TrmManifest;
         context.rawInput.packageData.version = clean(context.rawInput.packageData.version || '');
         try {

@@ -3,19 +3,18 @@ import { Logger } from "trm-commons";
 import { Manifest } from "../manifest";
 import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from "../transport";
 import * as AdmZip from "adm-zip";
-import { R3trans, R3transOptions } from "node-r3trans";
 import { TransportBinary } from "./TransportBinary";
+import { normalize } from "../commons";
 
 const DIST_FOLDER = 'dist';
 const SRC_FOLDER = 'src';
 
 export class TrmArtifact {
     private _zip: AdmZip;
-    private _binaries: TransportBinary[];
-    private _content: any;
     private _filePath: string;
+    private _transportBinaries: TransportBinary[];
 
-    constructor(public binary: Buffer, private _distFolder?: string, private _srcFolder?: string, private _manifest?: Manifest) {
+    constructor(public binary: Buffer, private _distFolder?: string, private _manifest?: Manifest) {
         this._zip = new AdmZip.default(binary);
     }
 
@@ -26,8 +25,8 @@ export class TrmArtifact {
     public getManifest(): Manifest | null {
         if (this._manifest === undefined) {
             const zipEntries = this._zip.getEntries();
-            const manifestEntry = zipEntries.find(o => o.entryName.trim().toLowerCase() === 'manifest.json');
-            const sapEntriesEntry = zipEntries.find(o => o.entryName.trim().toLowerCase() === 'sap_entries.json');
+            const manifestEntry = zipEntries.find(o => o.comment?.trim().toLowerCase() === 'manifest');
+            const sapEntriesEntry = zipEntries.find(o => o.comment?.trim().toLowerCase() === 'sap_entries');
             if (!manifestEntry) {
                 this._manifest = null;
             } else {
@@ -58,77 +57,42 @@ export class TrmArtifact {
         return this._distFolder;
     }
 
-    public async getTransportBinaries(r3transOption?: R3transOptions, noCheck?: boolean): Promise<TransportBinary[]> {
-        if (!this._binaries) {
+    public async getTransportBinaries(): Promise<TransportBinary[]> {
+        if (this._transportBinaries === undefined) {
             const distFolder = this.getDistFolder();
             if (!distFolder) {
-                throw new Error(`Couldn't locate dist folder.`);
+                throw new Error(`Unable to locate dist folder.`);
             }
             const zipEntries = this._zip.getEntries();
-            const aTransportEntries = zipEntries.filter(o => (new RegExp(`^${distFolder}(/|\\\\)`)).test(o.entryName.trim().toLowerCase()));
-            var aResult: TransportBinary[] = [];
-            var r3trans: R3trans;
-            if(!noCheck){
-                r3trans = new R3trans(r3transOption);
-            }
-            for (const entry of aTransportEntries) {
+            this._transportBinaries = [];
+            for (const entry of zipEntries.filter(o => o.entryName.startsWith(distFolder))) {
+                //entry that start with dist are only be zipped header, data and entries file
                 try {
-                    const type = entry.comment;
-                    const oPackedTransport = new AdmZip.default(entry.getData());
-                    const aPackedTransportEntries = oPackedTransport.getEntries();
-                    const oHeader = aPackedTransportEntries.find(o => o.comment === 'header')?.getData();
-                    const oData = aPackedTransportEntries.find(o => o.comment === 'data')?.getData();
-                    if (oHeader && oData) {
-                        var trkorr;
-                        if (noCheck) {
-                            const filename = aPackedTransportEntries.find(o => o.comment === 'header').entryName;
-                            trkorr = (filename.slice(-3) + filename.slice(0, -3)).slice(0, -1);
-                        } else {
-                            trkorr = await r3trans.getTransportTrkorr(oData);
+                    const zippedTransport = new AdmZip.default(entry.getData());
+                    const header = zippedTransport.getEntries().find(o => o.comment === 'header');
+                    const data = zippedTransport.getEntries().find(o => o.comment === 'data');
+                    const entries = zippedTransport.getEntries().find(o => o.comment === 'entries');
+                    this._transportBinaries.push({
+                        trkorr: entry.name,
+                        type: entry.comment as TrmTransportIdentifier,
+                        entries: normalize(JSON.parse(entries.getData().toString())),
+                        binaries: {
+                            header: header.getData(),
+                            data: data.getData()
                         }
-                        aResult.push({
-                            trkorr,
-                            type: type as TrmTransportIdentifier,
-                            binaries: {
-                                header: oHeader,
-                                data: oData
-                            }
-                        });
-                    }
-                } catch (e) { }
-            };
-            this._binaries = aResult;
+                    });
+                } catch (e) {
+                    Logger.error(`Malformed artifact!`, true);
+                    Logger.error(e.toString(), true);
+                }
+            }
         }
-        return this._binaries || [];
+        return this._transportBinaries;
     }
 
-    public async getContent(r3transConfig?: R3transOptions): Promise<any> {
-        if (!this._content) {
-            this._content = {};
-            try {
-                const transportBinaries = await this.getTransportBinaries(r3transConfig);
-                const r3trans = new R3trans(r3transConfig);
-                for (const transportBinary of transportBinaries) {
-                    const tableEntries = await r3trans.getTableEntries(transportBinary.binaries.data);
-                    if (!this._content[transportBinary.type]) {
-                        this._content[transportBinary.type] = {
-                            trkorr: transportBinary.trkorr,
-                            content: {}
-                        };
-                    }
-                    Object.keys(tableEntries).forEach(table => {
-                        if (!this._content[transportBinary.type].content[table]) {
-                            this._content[transportBinary.type].content[table] = [];
-                        }
-                        this._content[transportBinary.type].content[table] = this._content[transportBinary.type].content[table].concat(tableEntries[table]);
-                    });
-                }
-            } catch (e) {
-                delete this._content;
-                throw e;
-            }
-        }
-        return this._content || {};
+    public async getContent(r3transConfig?: any): Promise<any> {
+        //TODO: DELETE
+        return null;
     }
 
     public static async create(data: {
@@ -148,7 +112,8 @@ export class TrmArtifact {
             trkorr: TRKORR,
             type?: TrmTransportIdentifier,
             binaries: BinaryTransport,
-            filenames: FileNames
+            filenames: FileNames,
+            entries: any
         }[] = [];
         var packedTransports: {
             filename: string,
@@ -158,11 +123,13 @@ export class TrmArtifact {
         for (const transport of data.transports) {
             Logger.log(`Downloading transport ${transport.trmIdentifier}`, true);
             const trBinary = await transport.download();
+            const trEntries = await transport.getEntries();
             binaries.push({
                 trkorr: transport.trkorr,
                 type: transport.trmIdentifier,
                 binaries: trBinary.binaries,
-                filenames: trBinary.filenames
+                filenames: trBinary.filenames,
+                entries: trEntries
             });
         }
         for (const bin of binaries) {
@@ -171,6 +138,7 @@ export class TrmArtifact {
             packedTransport.addZipComment(`Transport request: ${bin.trkorr}\nContent type: ${bin.type || 'Unknown'}`);
             packedTransport.addFile(bin.filenames.header, bin.binaries.header, "header");
             packedTransport.addFile(bin.filenames.data, bin.binaries.data, "data");
+            packedTransport.addFile(`${bin.trkorr}.JSON`, Buffer.from(JSON.stringify(bin.entries, null, 2), 'utf8'), "entries");
             packedTransports.push({
                 filename: bin.trkorr,
                 binary: packedTransport.toBuffer(),
@@ -215,7 +183,6 @@ export class TrmArtifact {
         return new TrmArtifact(
             artifact.toBuffer(),
             data.distFolder,
-            data.srcFolder,
             data.manifest
         );
     }

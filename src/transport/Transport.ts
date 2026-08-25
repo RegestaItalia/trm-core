@@ -858,4 +858,9 @@ export class Transport {
         return '⛟';
     }
 
+    public async getEntries(): Promise<any> {
+        //TODO: read entries on system via r3trans and parse result
+        return {};
+    }
+
 }

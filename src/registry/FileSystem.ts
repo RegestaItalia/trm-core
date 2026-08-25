@@ -1,4 +1,4 @@
-import { AuthenticationType, BatchCompareResponse, MessageType, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
+import { AuthenticationType, BatchCompareResponse, MessageType, Package, Ping, WhoAmI } from "trm-registry-types";
 import { AbstractRegistry } from "./AbstractRegistry";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
@@ -91,6 +91,8 @@ export class FileSystem implements AbstractRegistry {
 
     public async getPackage(fullName: string, version: string): Promise<Package> {
         if (this._filePath) {
+            const artifact = await this.getArtifact();
+            const manifest = artifact.getManifest();
             return {
                 name: fullName,
                 dist_tags: {
@@ -99,8 +101,8 @@ export class FileSystem implements AbstractRegistry {
                 versions: [],
                 yanked_versions: [],
                 deprecated: false,
-                manifest: null,
-                checksum: null,
+                manifest: manifest ? manifest.get() : undefined,
+                checksum: undefined,
                 download_link: this._filePath,
                 transports: []
             }
@@ -161,12 +163,20 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system cannot compare package versions in registry!`);
     }
 
-    public async contents(): Promise<PackageContents> {
-        throw new Error(`File system can't see contents!`);
-    }
-
     public async transport(): Promise<BinaryTransport>{
         throw new Error(`File system can't fetch transports!`);
+    }
+
+    public async getRealRegistry(): Promise<AbstractRegistry> {
+        if (this._filePath) {
+            try {
+                const artifact = await this.getArtifact();
+                return artifact.getManifest().getPackage().registry;
+            } catch (e) {
+                throw new Error(`File system couldn't read package`);
+            }
+        }
+        throw new Error(`Missing file path!`);
     }
 
 }
