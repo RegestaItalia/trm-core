@@ -22,4 +22,6 @@ export abstract class AbstractRegistry {
     abstract rmDistTag: (fullName: string, distTag: DistTagRm) => Promise<void>;
     abstract batchCompare: (packages: BatchCompareRequest) => Promise<BatchCompareResponse>;
     abstract transport: (trkorr: string, target?: string) => Promise<BinaryTransport>;
+    abstract transportEntries: (fullName: string, version: string, trkorr: string) => Promise<any>;
+    abstract delete: (transport: BinaryTransport) => Promise<BinaryTransport>;
 }

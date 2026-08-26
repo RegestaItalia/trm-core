@@ -167,6 +167,14 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system can't fetch transports!`);
     }
 
+    public async transportEntries(_fullName: string, _version: string, _trkorr: string): Promise<any> {
+        throw new Error(`File system can't fetch transport entries!`);
+    }
+
+    public async delete(_transport: BinaryTransport): Promise<BinaryTransport> {
+        throw new Error(`File system can't generate deletion transports!`);
+    }
+
     public async getRealRegistry(): Promise<AbstractRegistry> {
         if (this._filePath) {
             try {

@@ -52,13 +52,22 @@ export class Manifest {
         return this;
     }
 
-    public setLinkedTransport(transport: Transport): Manifest {
-        this._manifest.linkedTransport = transport;
+    public setTransport(transport: Transport): Manifest {
+        this._manifest.transport = transport;
         return this;
     }
 
-    public getLinkedTransport(): Transport | null {
-        return this._manifest.linkedTransport;
+    public getTransport(): Transport | null {
+        return this._manifest.transport;
+    }
+
+    public setLinkedTransports(transports: Transport[]): Manifest{
+        this._manifest.linkedTransports = transports;
+        return this;
+    }
+
+    public getLinkedTransports(): Transport[]{
+        return this._manifest.linkedTransports || [];
     }
 
     public setRegistryEndpoint(endpoint: string): void {
@@ -333,7 +342,7 @@ export class Manifest {
         //always check if property has value
         var manifestClone = _.cloneDeep(manifest);
         if (!keepRuntimeValues) {
-            delete manifestClone.linkedTransport;
+            delete manifestClone.transport;
         }
         if (!manifestClone.name) {
             throw new Error('Package name missing.')

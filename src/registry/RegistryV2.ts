@@ -10,7 +10,7 @@ import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
 import _ from 'lodash';
-import { getAxiosInstance, getNodePackage } from "../commons";
+import { getAxiosInstance, getNodePackage, normalize } from "../commons";
 import { AbstractRegistry } from "./AbstractRegistry";
 import NodeCache from "node-cache";
 import { BinaryTransport } from "../transport";
@@ -317,7 +317,8 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async getPackage(fullName: string, version: string = 'latest'): Promise<Package> {
-        var data: Package | Error = this._cache.get(`package-${fullName}-${version}`);
+        const cacheKey = this.getPackageCacheKey(fullName, version);
+        var data: Package | Error = this._cache.get(cacheKey);
         if (!data) {
             var ttl: number;
             try {
@@ -334,13 +335,47 @@ export class RegistryV2 implements AbstractRegistry {
             } catch (e) {
                 data = e;
             }
-            this._cache.set(`package-${fullName}-${version}`, data, ttl);
+            this._cache.set(cacheKey, data, ttl);
         }
         if (data instanceof Error) {
             throw data;
         } else {
             return data;
         }
+    }
+
+    private getPackageCacheKey(fullName: string, version: string): string {
+        return `package-${fullName}-${version}`;
+    }
+
+    public async transportEntries(fullName: string, version: string, trkorr: string): Promise<any> {
+        const download = async (refreshPackage: boolean = false): Promise<any> => {
+            if (refreshPackage) {
+                this._cache.del(this.getPackageCacheKey(fullName, version));
+            }
+
+            const packageData = await this.getPackage(fullName, version);
+            const transport = packageData.transports.find(o => o.trkorr === trkorr);
+            if (!transport) {
+                throw new Error(`Transport ${trkorr} was not found in package ${fullName} ${version}.`);
+            }
+
+            if (!refreshPackage && transport.contents.download_link_expiry && transport.contents.download_link_expiry <= Date.now()) {
+                return download(true);
+            }
+
+            try {
+                return normalize((await this._axiosInstance.get(transport.contents.download_link)).data || {});
+            } catch (e) {
+                const status = (e as AxiosError).response?.status;
+                if (!refreshPackage && (status === 401 || status === 403)) {
+                    return download(true);
+                }
+                throw e;
+            }
+        };
+
+        return download();
     }
 
     public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
@@ -506,19 +541,113 @@ export class RegistryV2 implements AbstractRegistry {
         return (await this._axiosInstance.post('/batchCompare', packages)).data;
     }
 
-    public async transport(trkorr: string, target?: string): Promise<BinaryTransport> {
+    public async delete(transport: BinaryTransport): Promise<BinaryTransport> {
+        const formData = new FormData.default();
+        formData.append('header', transport.header, {
+            filename: 'header',
+            contentType: 'application/octet-stream'
+        });
+        formData.append('data', transport.data, {
+            filename: 'data',
+            contentType: 'application/octet-stream'
+        });
+
+        const transportDownload = (await this._axiosInstance.post<TransportDownload>('/delete', formData, {
+            headers: formData.getHeaders()
+        })).data;
+
         const chunks: Buffer[] = [];
         let buffer: Buffer;
-        //from cache if it exists, else ignore
         const ping: Ping | undefined = this._cache.get('ping') && !(this._cache.get('ping') instanceof Error) ? this._cache.get('ping') : undefined;
+        const logProgress = Logger.progressbar(`↓ deletion transport [{bar}] {percentage}% | {value}/{total} bytes`, '>');
 
+        try {
+            const response = await this._axiosInstance.get(transportDownload.download_link, {
+                headers: {
+                    Accept: 'application/octet-stream'
+                },
+                maxRedirects: 10,
+                responseType: 'stream',
+                validateStatus: s => s >= 200 && s < 400
+            });
+
+            const totalBytes = Number(response.headers['content-length'] ?? 0);
+            let downloadedBytes = 0;
+
+            if (totalBytes > 0) {
+                logProgress.start(totalBytes, 0);
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                response.data.on('data', (chunk: Buffer) => {
+                    chunks.push(chunk);
+                    downloadedBytes += chunk.length;
+
+                    if (totalBytes > 0) {
+                        logProgress.update(downloadedBytes);
+                    }
+                });
+                response.data.on('end', resolve);
+                response.data.on('error', reject);
+            });
+
+            if (totalBytes > 0) {
+                logProgress.stop();
+            }
+            buffer = Buffer.concat(chunks);
+        } catch (e) {
+            try {
+                logProgress.stop();
+            } catch {
+                // ignore stop errors
+            }
+
+            Logger.error((e as Error).toString(), true);
+            Logger.error(`Failed to download deletion transport at ${transportDownload.download_link}: ${(e as AxiosError).message}`);
+            throw e;
+        }
+
+        const checksum = createHash('sha512').update(buffer).digest('base64');
+        if (checksum !== transportDownload.checksum) {
+            Logger.error(`SECURITY ISSUE! Deletion transport integrity does NOT match!`);
+            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`);
+            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`);
+            throw new Error(`Cannot continue due to security issues.`);
+        }
+
+        const zip = new AdmZip.default(buffer);
+        const kFile = zip.getEntries().find(o => o.name.startsWith('K'));
+        const rFile = zip.getEntries().find(o => o.name.startsWith('R'));
+        if (!kFile) {
+            throw new Error(`Missing header in deletion transport!`);
+        }
+        if (!rFile) {
+            throw new Error(`Missing data in deletion transport!`);
+        }
+
+        return {
+            header: kFile.getData(),
+            data: rFile.getData()
+        };
+    }
+
+    public async transport(trkorr: string, target?: string): Promise<BinaryTransport> {
         const transportDownload: TransportDownload = (await this._axiosInstance.get(`/transport/${trkorr}`, {
             params: {
                 target: target ? encodeURIComponent(target) : undefined
             }
         })).data;
 
-        const logProgress = Logger.progressbar(`↓ ${trkorr} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
+        return this.downloadTransport(transportDownload, trkorr);
+    }
+
+    private async downloadTransport(transportDownload: TransportDownload, label: string): Promise<BinaryTransport> {
+        const chunks: Buffer[] = [];
+        let buffer: Buffer;
+        //from cache if it exists, else ignore
+        const ping: Ping | undefined = this._cache.get('ping') && !(this._cache.get('ping') instanceof Error) ? this._cache.get('ping') : undefined;
+
+        const logProgress = Logger.progressbar(`↓ ${label} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
 
         try {
             const response = await this._axiosInstance.get(transportDownload.download_link, {
@@ -568,7 +697,7 @@ export class RegistryV2 implements AbstractRegistry {
         }
         const checksum = createHash("sha512").update(buffer).digest("base64");
         if (checksum !== transportDownload.checksum) {
-            Logger.error(`SECURITY ISSUE! Transport ${trkorr} integrity does NOT match!`);
+            Logger.error(`SECURITY ISSUE! Transport ${label} integrity does NOT match!`);
             Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`);
             Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`);
             throw new Error(`Cannot continue due to security issues.`);

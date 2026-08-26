@@ -383,7 +383,7 @@ export class Transport {
                 }
             }
             try {
-                oTrmPackage = Manifest.fromAbapXml(docVal).setLinkedTransport(this).getPackage();
+                oTrmPackage = Manifest.fromAbapXml(docVal).setTransport(this).getPackage();
             } catch (e) {
                 //invalid manifest
             }
@@ -543,11 +543,11 @@ export class Transport {
                 error = new Error(`Error occurred during transport ${this.trkorr} release.`);
             }
             if (whileResult === "SUCCESS") {
-                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr}  released with success.`);
+                Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released with success.`);
                 rc = 0;
             }
             if (whileResult === "WARNING") {
-                Logger.warning(`${Transport.getTransportIcon()} ${this.trkorr}  released with warning.`);
+                Logger.warning(`${Transport.getTransportIcon()}  ${this.trkorr} released with warning.`);
                 rc = 4;
             }
         }
