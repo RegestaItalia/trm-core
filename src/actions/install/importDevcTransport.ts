@@ -143,5 +143,10 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${object.devclass} -> src system ${object.srcsystem}`, true);
             await SystemConnector.tadirInterface(object);
         }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if(context.revert.transports.devc){
+            //TODO: upload original binaries back to the transport and import
+        }
     }
 }

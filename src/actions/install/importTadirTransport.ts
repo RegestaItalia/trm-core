@@ -117,5 +117,10 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${tadir.devclass} -> ${object.devclass}, src system ${tadir.srcsystem} -> ${object.srcsystem}`, true);
             await SystemConnector.tadirInterface(object);
         }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if(context.revert.transports.tadir){
+            //TODO: upload original binaries back to the transport and import
+        }
     }
 }

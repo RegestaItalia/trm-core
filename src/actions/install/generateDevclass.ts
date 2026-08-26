@@ -35,6 +35,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
             const oDevclass = await SystemConnector.getDevclass(replacement.installDevclass);
             if (oDevclass) {
                 Logger.log(`Devclass ${replacement.installDevclass} exists, skipping generation`, true);
+                //TODO: check it's not locked
             } else {
                 Logger.log(`Devclass ${replacement.installDevclass} doesn't exist, will be generated`, true);
                 generate.push(replacement.installDevclass);
@@ -116,6 +117,12 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                     }
                 }
             }
+        }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        for(const devclass of context.revert.sapPackages){
+            //TODO: sap package was generated, it needs to be removed
+            //deletion transport necessary? or function call?
         }
     }
 }

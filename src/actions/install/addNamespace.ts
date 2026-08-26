@@ -92,5 +92,11 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         Logger.loading(`Installing namespace ${context.runtime.namespace}...`);
         await SystemConnector.addNamespace(context.runtime.namespace, replicense, aTexts);
         context.revert.namespace = context.runtime.namespace;
-    }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if(context.revert.namespace){
+            //TODO: namespace was installed, it needs to be removed
+            //deletion transport necessary? or function call?
+        }
+    }  
 }

@@ -14,7 +14,7 @@ import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { addNamespace } from "./addNamespace";
-import { TDEVCT } from "../../client";
+import { DEVCLASS, TDEVCT } from "../../client";
 import { generateDevclass } from "./generateDevclass";
 import { importDevcTransport } from "./importDevcTransport";
 import { importTadirTransport } from "./importTadirTransport";
@@ -217,6 +217,7 @@ type WorkflowRevert = {
         lang?: TransportBinary,
         cust?: TransportBinary[]
     },
+    sapPackages: DEVCLASS[],
     dele?: TransportBinary,
     namespace?: string
 }

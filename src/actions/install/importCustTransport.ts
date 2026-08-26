@@ -98,5 +98,10 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
             //replace context instance with current instance
             context.runtime.transports.cust[index-1] = cust;
         }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        for(const cust of context.revert.transports.cust){
+            //TODO: upload original binaries back to the transport and import
+        }
     }
 }

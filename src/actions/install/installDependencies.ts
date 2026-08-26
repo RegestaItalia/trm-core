@@ -80,7 +80,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 installData: _.cloneDeep(context.rawInput.installData)
             };
             delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
-            const result = await InstallDependencyWkf(inputData);
+            await InstallDependencyWkf(inputData);
             Logger.setPrefix(originalLPrefix)
             Inquirer.setPrefix(originalIPrefix);
         }

@@ -82,5 +82,10 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
         Logger.success(`Transport ${dummy.trkorr} imported`, true);
         Logger.setPrefix(originalLPrefix);
         Inquirer.setPrefix(originalIPrefix);
-    }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if(context.revert.dele){
+            //TODO: upload original binaries back to the transport and import
+        }
+    } 
 }

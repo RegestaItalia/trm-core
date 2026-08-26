@@ -164,5 +164,8 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
 
         //TODO: if a package is being updated and one (or more) of its previous devclasses are changed and don't contain any objects
         //they should be added to the deletion trasport for cleanup
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        Logger.warning(`Dirty records left in install table, but has no real impact.`, true);
     }
 }

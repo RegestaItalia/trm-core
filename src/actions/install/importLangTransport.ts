@@ -90,5 +90,10 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         Logger.success(`Transport ${context.runtime.transports.lang.binaries.trkorr} imported`, true);
         Logger.setPrefix(originalLPrefix);
         Inquirer.setPrefix(originalIPrefix);
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if(context.revert.transports.lang){
+            //TODO: upload original binaries back to the transport and import
+        }
     }
 }

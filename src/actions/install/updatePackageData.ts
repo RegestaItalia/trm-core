@@ -4,7 +4,6 @@ import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { FileSystem, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 import { Manifest } from "../../manifest";
-import { TrmTransportIdentifier } from "../../transport";
 
 /**
  * Update package data

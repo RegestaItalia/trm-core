@@ -62,6 +62,7 @@ export const init: Step<InstallWorkflowContext> = {
                 lang: undefined,
                 cust: []
             },
+            sapPackages: [],
             dele: undefined,
             namespace: undefined
         };
