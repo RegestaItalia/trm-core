@@ -2,7 +2,7 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
-import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa } from "..";
+import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa, workflowCallbacks } from "..";
 import { AbstractRegistry } from "../../registry";
 import { init } from "./init";
 import { DEVCLASS, TADIR, TARSYSTEM, TMSCSYS, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
@@ -249,11 +249,9 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         publishToRegistry,
         updatePackageData
     ];
-    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
-    });
-    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
+    }, workflowCallbacks);
     const trmPackage = result.runtime.trmPackage.package;
     const trmArtifact = result.runtime.trmPackage.artifact;
     return {

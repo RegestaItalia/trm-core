@@ -63,7 +63,6 @@ function getHighestPrerelease(versions: string[], baseVersion: string, identifie
 export const init: Step<PublishWorkflowContext> = {
     name: 'init',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Init step', true);
         const registry = context.rawInput.packageData.registry;
 
         //1- check package name is compliant

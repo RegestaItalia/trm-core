@@ -19,8 +19,6 @@ import { stopWarning } from "../stopWarning";
 export const generateTadirTransport: Step<PublishWorkflowContext> = {
     name: 'generate-tadir-transport',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Generate TADIR transport step', true);
-
         //1- remove gitignore objects
         var aTadir = context.runtime.packageData.tadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
         context.runtime.abapGitData.sourceCode.ignoredObjects.forEach(o => {
@@ -48,9 +46,5 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
             text: `@X1@TRM ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
         });
         await context.runtime.systemData.tadirTransport.addObjects(aTadir, false);
-    },
-    revert: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Rollback generate TADIR transport step', true);
-        //TODO: to refactor
     }
 }

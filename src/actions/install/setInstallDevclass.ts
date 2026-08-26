@@ -49,8 +49,6 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Set install devclass step', true);
-
         //1- find already defined replacements in system
         if (context.rawInput.installData.installDevclass.replacements.length <= 0) {
             //no input replacements = get from the trm table devclass replacements the corresponding name

@@ -17,8 +17,6 @@ import { TrmTransportIdentifier } from "../../transport";
 export const updatePackageData: Step<InstallWorkflowContext> = {
     name: 'update-package-data',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Update package data step', true);
-
         Logger.loading(`Finalizing install...`);
 
         //1- commit new values

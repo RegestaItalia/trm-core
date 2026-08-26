@@ -31,8 +31,6 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Import LANG Transport step', true);
-
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
             stopWarning('install');

@@ -18,7 +18,6 @@ import { SystemConnector } from "../../systemConnector";
 export const download: Step<Cg3yWorkflowContext> = {
     name: 'download',
     run: async (context: Cg3yWorkflowContext): Promise<void> => {
-        Logger.log('Download step', true);
         const transport = new Transport(context.rawInput.trkorr);
         Logger.loading(`Checking "${transport.trkorr}"...`);
         const exists = !!(await transport.getE070());

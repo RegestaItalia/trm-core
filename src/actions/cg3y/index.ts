@@ -1,7 +1,7 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
-import { checkServerAuth } from "..";
+import { checkServerAuth, workflowCallbacks } from "..";
 import { TRKORR } from "../../client";
 import { download } from "./download";
 
@@ -40,11 +40,9 @@ export async function cg3y(inputData: Cg3yActionInput): Promise<Cg3yActionOutput
         checkServerAuth,
         download
     ];
-    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<Cg3yWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
-    });
-    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
+    }, workflowCallbacks);
     return {
         binaries: result.output.binaries
     }

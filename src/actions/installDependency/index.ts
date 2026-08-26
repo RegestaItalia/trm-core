@@ -2,7 +2,7 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
 import { AbstractRegistry } from "../../registry";
-import { IActionContext, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages } from "..";
+import { IActionContext, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages, workflowCallbacks } from "..";
 import { init } from "./init";
 import { findInstallRelease } from "./findInstallRelease";
 import { installRelease } from "./installRelease";
@@ -66,11 +66,9 @@ export async function installDependency(inputData: InstallDependencyActionInput)
         findInstallRelease,
         installRelease
     ];
-    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
-    });
-    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
+    }, workflowCallbacks);
     const installOutput = result.runtime.installOutput;
     return {
         installOutput

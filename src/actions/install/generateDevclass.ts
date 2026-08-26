@@ -27,8 +27,6 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Generate devclass step', true);
-
         //1- find packages to generated
         Logger.loading(`Checking ABAP packages...`);
         var generate: DEVCLASS[] = [];

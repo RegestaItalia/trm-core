@@ -25,7 +25,6 @@ import { setTransportTarget } from "../commons/prompts";
 export const init: Step<InstallWorkflowContext> = {
     name: 'init',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Init step', true);
         const registry = context.rawInput.packageData.registry;
 
         //1- fill context data

@@ -23,8 +23,6 @@ import { TrmPackage } from "../../trmPackage";
 export const init: Step<InstallDependencyWorkflowContext> = {
     name: 'init',
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
-        Logger.log('Init step', true);
-
         //1- check package name is compliant
         context.rawInput.dependencyDataPackage.name = parsePackageName({
             fullName: context.rawInput.dependencyDataPackage.name

@@ -16,7 +16,6 @@ import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 export const updatePackageData: Step<PublishWorkflowContext> = {
     name: 'update-package-data',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Update package data step', true);
         try {
             Logger.loading(`Finalizing publish...`);
 

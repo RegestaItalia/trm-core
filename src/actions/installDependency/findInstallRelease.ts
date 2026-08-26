@@ -15,8 +15,6 @@ import { Lockfile } from "../../lockfile";
 export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
     name: 'find-install-release',
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
-        Logger.log('Find install release step', true);
-
         //1- find version
         const lock = context.rawInput.installData.checks.lockfile ? context.rawInput.installData.checks.lockfile.getLock(context.runtime.trmPackage, context.rawInput.dependencyDataPackage.versionRange) : null;
         if (lock) {

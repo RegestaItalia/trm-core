@@ -25,8 +25,6 @@ export const setChangelog: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Set changelog step', true);
-
         //1- set changelog
         if(!context.rawInput.contextData.noInquirer){
             context.rawInput.publishData.changelog = (await Inquirer.prompt([{

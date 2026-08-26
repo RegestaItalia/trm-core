@@ -16,8 +16,6 @@ import { PostActivity } from "../../manifest";
 export const trmServerPa: Step<IActionContext> = {
     name: 'trm-server-pa',
     run: async (context: IActionContext): Promise<void> => {
-        Logger.log('Run trm-server pa step', true);
-
         //1- get trm-server
         const trmServerPackage = context.rawInput.contextData?.systemPackages?.find(o => o.packageName === TRM_SERVER_PACKAGE_NAME && o.compareRegistry(RegistryProvider.getRegistry()));
 

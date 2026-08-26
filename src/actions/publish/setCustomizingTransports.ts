@@ -24,8 +24,6 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Set customizing transports step', true);
-
         //1- format input customizing transports
         var customizingTransports: Transport[] = (context.rawInput.publishData.customizingTransports as Transport[]);
         customizingTransports = Object.values(customizingTransports.reduce((acc, t) => {

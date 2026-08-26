@@ -24,8 +24,6 @@ import { validateDevclass } from "../../validators";
 export const setDevclass: Step<PublishWorkflowContext> = {
     name: 'set-devclass',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Set devclass step', true);
-
         var needsValidation: boolean;
 
         //1- set input devclass

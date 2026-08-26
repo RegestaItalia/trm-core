@@ -15,8 +15,6 @@ import { Manifest } from "../../manifest";
 export const publishToRegistry: Step<PublishWorkflowContext> = {
     name: 'publish-to-registry',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Publish to registry step', true);
-
         //1- generate TRM artifact
         Logger.loading(`Creating TRM package...`);
         context.runtime.trmPackage.artifact = await TrmArtifact.create({

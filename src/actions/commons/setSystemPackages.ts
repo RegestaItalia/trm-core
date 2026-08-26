@@ -12,8 +12,6 @@ import { IActionContext } from "..";
 export const setSystemPackages: Step<IActionContext> = {
     name: 'set-system-packages',
     run: async (context: IActionContext): Promise<void> => {
-        Logger.log('Set system packages step', true);
-        
         //1- set system packages
         if(context.rawInput.contextData.systemPackages === undefined){
             Logger.loading(`Reading system data...`);

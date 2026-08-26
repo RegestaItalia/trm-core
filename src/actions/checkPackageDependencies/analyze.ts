@@ -28,8 +28,6 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
         }
     },
     run: async (context: CheckPackageDependenciesWorkflowContext): Promise<void> => {
-        Logger.log('Analyze step', true);
-
         Logger.info(`Package ${context.rawInput.packageData.manifest.name} has ${context.output.dependencies.length} TRM package dependencies`, !context.rawInput.printOptions.information);
         
         //1- build required tables fields

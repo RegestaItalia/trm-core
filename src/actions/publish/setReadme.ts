@@ -25,8 +25,6 @@ export const setReadme: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Set readme step', true);
-
         //1- set readme
         if(!context.rawInput.contextData.noInquirer){
             context.rawInput.publishData.readme = (await Inquirer.prompt([{

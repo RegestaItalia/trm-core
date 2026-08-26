@@ -32,7 +32,6 @@ import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons"
 export const checkTransports: Step<InstallWorkflowContext> = {
     name: 'check-transports',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Check transports step', true);
         var mergedE071: E071[] = [];
         var mergedTDEVC: TDEVC[] = [];
         var mergedTADIR: TADIR[] = [];

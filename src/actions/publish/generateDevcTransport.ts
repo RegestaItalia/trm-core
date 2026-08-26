@@ -13,8 +13,6 @@ import { stopWarning } from "../stopWarning";
 export const generateDevcTransport: Step<PublishWorkflowContext> = {
     name: 'generate-devc-transport',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Generate DEVC transport step', true);
-
         //1- generate transport
         Logger.loading(`Generating transports...`);
         Logger.loading(`Generating DEVC transport...`, true);
@@ -31,7 +29,6 @@ export const generateDevcTransport: Step<PublishWorkflowContext> = {
         await context.runtime.systemData.devcTransport.addObjects(aDevc, false);
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Rollback generate DEVC transport step', true);
         if (context.runtime.systemData.devcTransport) {
             try {
                 if (await context.runtime.systemData.devcTransport.canBeDeleted()) {

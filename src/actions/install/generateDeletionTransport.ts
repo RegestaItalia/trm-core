@@ -27,8 +27,6 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Generate deletion transport step', true);
-        
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
             stopWarning('install');

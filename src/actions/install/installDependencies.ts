@@ -28,8 +28,6 @@ export const installDependencies: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Install dependencies step', true);
-
         //1- list dependencies to install
         if(context.runtime.dependencies.length === 1){
             Logger.info(`There is ${context.runtime.dependencies.length} missing dependency to install:`);
@@ -81,13 +79,8 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 contextData: _.cloneDeep(context.rawInput.contextData),
                 installData: _.cloneDeep(context.rawInput.installData)
             };
-            if(inputData.contextData){
-                inputData.contextData.noR3transInfo = true;
-            }
             delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
-            Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
             const result = await InstallDependencyWkf(inputData);
-            Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
             Logger.setPrefix(originalLPrefix)
             Inquirer.setPrefix(originalIPrefix);
         }

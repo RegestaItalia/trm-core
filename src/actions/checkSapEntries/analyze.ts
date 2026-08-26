@@ -26,8 +26,6 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
         }
     },
     run: async (context: CheckSapEntriesWorkflowContext): Promise<void> => {
-        Logger.log('Analyze step', true);
-
         var logTable: {
             header: any,
             data: any

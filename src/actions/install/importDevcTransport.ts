@@ -37,8 +37,6 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Import DEVC Transport step', true);
-
         //1- read if root already exists in system
         //this is needed later to understand if keeping the superpackage or not
         Logger.loading(`Getting ready to import SAP Packages...`);

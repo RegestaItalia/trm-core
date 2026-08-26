@@ -29,8 +29,6 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Find dependencies step', true);
-
         //1- execute find dependencies on ABAP package
         const dependencies = await SystemConnector.getPackageDependencies(context.rawInput.packageData.devclass, true);
         const trmDependencies = dependencies.trmPackageDependencies;

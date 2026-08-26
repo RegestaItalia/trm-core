@@ -24,8 +24,6 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Check dependencies step', true);
-
         //1- execute check dependencies workflow
         const inputData: CheckPackageDependenciesActionInput = {
             packageData: {
@@ -40,9 +38,7 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
             }
         };
         Logger.loading(`Checking package dependencies...`);
-        Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
         const result = await CheckPackageDependenciesWkf(inputData);
-        Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
         if(result.dependencies.length > 0){
             if(result.dependencies.length === 1){
                 Logger.info(`"${context.rawInput.packageData.name}" has ${result.dependencies.length} dependency: ${result.dependencyStatus.filter(o => o.match).length} installed, ${result.dependencyStatus.filter(o => !o.match).length} missing.`);

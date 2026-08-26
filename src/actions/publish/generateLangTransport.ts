@@ -21,8 +21,6 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Generate LANG transport step', true);
-
         //1- generate transport
         Logger.loading(`Generating transports...`);
         Logger.loading(`Generating LANG transport...`, true);
@@ -52,7 +50,6 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
         }
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Rollback generate LANG transport step', true);
         if (context.runtime.systemData.langTransport) {
             try {
                 if (await context.runtime.systemData.langTransport.canBeDeleted()) {

@@ -18,8 +18,6 @@ import { SystemConnector } from "../../systemConnector";
 export const checkAllObjectsReleased: Step<PublishWorkflowContext> = {
     name: 'check-all-objects-released',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Check all objects released step', true);
-
         //1- remove gitignore objects
         var aTadir = context.runtime.packageData.tadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
         context.runtime.abapGitData.sourceCode.ignoredObjects.forEach(o => {

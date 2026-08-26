@@ -24,8 +24,6 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Check sap entries step', true);
-
         //1- execute check sap entries workflow
         const inputData: CheckSapEntriesActionInput = {
             packageData: {
@@ -37,10 +35,8 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
             }
         };
         Logger.loading(`Checking system requirements...`);
-        Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
         const result = await CheckSapEntriesWkf(inputData);
-        Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-        
+
         //2- check result
         const sapEntriesOutput = result.sapEntriesStatus;
         var missingEntries: any[] = [];

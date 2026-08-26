@@ -16,8 +16,6 @@ import { SystemConnector } from "../../systemConnector";
 export const upload: Step<Cg3zWorkflowContext> = {
     name: 'upload',
     run: async (context: Cg3zWorkflowContext): Promise<void> => {
-        Logger.log('Upload step', true);
-
         //1- identifying transport
         Logger.loading(`Reading data...`);
         const zip = new AdmZip.default(context.rawInput.binaries);

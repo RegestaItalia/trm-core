@@ -10,8 +10,6 @@ import { setTransportTarget as prompt } from "../commons/prompts";
 export const setTransportTarget: Step<PublishWorkflowContext> = {
     name: 'set-transport-target',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Set transport target step', true);
-
         context.rawInput.systemData.transportTarget = await prompt(
             context.rawInput.contextData.noInquirer,
             context.runtime.systemData.transportTargets,

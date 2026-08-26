@@ -31,8 +31,6 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Generate landscape transport step', true);
-
         //1- generate landscape transport
         Logger.loading(`Generating landscape transport...`);
         context.output.transport = await Transport.createWb({

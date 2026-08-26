@@ -25,8 +25,6 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Execute post activities step', true);
-        
         //1- execute post activities
         var counter: number = 0;
         for(var data of context.runtime.package.data.manifest.postActivities){

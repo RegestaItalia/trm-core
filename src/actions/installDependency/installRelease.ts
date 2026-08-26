@@ -14,8 +14,6 @@ const SUBWORKFLOW_NAME = 'install-sub-install-dependency';
 export const installRelease: Step<InstallDependencyWorkflowContext> = {
     name: 'install-release',
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
-        Logger.log('Install release step', true);
-
         if (!context.runtime.installVersion) {
             throw new Error(`Couldn't find dependency "${context.rawInput.dependencyDataPackage.name}" on registry.`);
         }
@@ -31,9 +29,7 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
             contextData: {...context.rawInput.contextData, ...{ noStopWarning: true }},
             installData: context.rawInput.installData
         };
-        Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
         const result = await InstallWkf(inputData);
-        Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true)
         context.runtime.installOutput = result;
     }
 }

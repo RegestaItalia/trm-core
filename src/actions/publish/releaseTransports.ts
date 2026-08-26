@@ -12,8 +12,6 @@ import { Transport } from "../../transport";
 export const releaseTransports: Step<PublishWorkflowContext> = {
     name: 'release-transport',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Release transports step', true);
-
         //1- release
         const tmpFolder = context.rawInput.contextData.logTemporaryFolder;
         context.runtime.systemData.releasedTransports.push(context.runtime.systemData.tadirTransport);

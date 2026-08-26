@@ -11,8 +11,6 @@ import { Logger } from "trm-commons";
 export const init: Step<CheckPackageDependenciesWorkflowContext> = {
     name: 'init',
     run: async (context: CheckPackageDependenciesWorkflowContext): Promise<void> => {
-        Logger.log('Init step', true);
-
         context.output = {
             dependencies: [],
             dependencyStatus: []

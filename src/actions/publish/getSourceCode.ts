@@ -16,8 +16,6 @@ import { minimatch } from "minimatch";
 export const getSourceCode: Step<PublishWorkflowContext> = {
     name: 'get-source-code',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Get source code step', true);
-
         try{
             Logger.loading(`Reading ${context.rawInput.packageData.devclass} source code...`);
 

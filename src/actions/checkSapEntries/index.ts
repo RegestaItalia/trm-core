@@ -4,6 +4,7 @@ import { Logger } from "trm-commons";
 import { init } from "./init";
 import { analyze } from "./analyze";
 import { TrmManifest } from "../../manifest";
+import { workflowCallbacks } from "../commons";
 
 /**
  * Input data for check SAP Entries action.
@@ -77,10 +78,8 @@ export async function checkSapEntries(inputData: CheckSapEntriesActionInput): Pr
         init,
         analyze
     ];
-    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<CheckSapEntriesWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
-    });
-    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
+    }, workflowCallbacks);
     return result.output;
 }

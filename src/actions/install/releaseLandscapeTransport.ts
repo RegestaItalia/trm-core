@@ -23,8 +23,6 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Release landscape transport step', true);
-
         //1- release
         await context.output.transport.release(true, false, context.rawInput.contextData.logTemporaryFolder);
     }

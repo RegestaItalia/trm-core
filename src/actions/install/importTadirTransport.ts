@@ -24,8 +24,6 @@ import { TADIR } from "../../client";
 export const importTadirTransport: Step<InstallWorkflowContext> = {
     name: 'import-tadir-transport',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Import TADIR Transport step', true);
-
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
             stopWarning('install');

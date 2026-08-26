@@ -5,7 +5,7 @@ import { Transport } from "../../transport";
 import { TransportBinary, TrmPackage } from "../../trmPackage";
 import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { PackageHierarchy } from "../../commons";
-import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa } from "../commons";
+import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa, workflowCallbacks } from "../commons";
 import { inspect, Logger } from "trm-commons";
 import execute from "@simonegaffurini/sammarksworkflow";
 import { init } from "./init";
@@ -259,10 +259,8 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         executePostActivities,
         releaseLandscapeTransport
     ];
-    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
     const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
-    });
-    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
+    }, workflowCallbacks);
     return result.output;
 }

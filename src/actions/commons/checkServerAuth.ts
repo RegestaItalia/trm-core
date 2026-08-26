@@ -12,8 +12,6 @@ import { ClientError } from "../../client";
 export const checkServerAuth: Step<any> = {
     name: 'check-server-auth',
     run: async (): Promise<void> => {
-        Logger.log('Check server auth step', true);
-
         //1- check auth
         const auth = await SystemConnector.isServerApisAllowed();
         if (auth instanceof ClientError) {

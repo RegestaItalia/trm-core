@@ -20,8 +20,6 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Generate CUST transport step', true);
-
         //1- generate transport
         Logger.loading(`Generating transports...`);
         for (const origin of context.runtime.systemData.originCustomizing) {
@@ -45,7 +43,6 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
         }
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Rollback generate CUST transport step', true);
         for (const transport of context.runtime.systemData.custTransports) {
             try {
                 if (await transport.canBeDeleted()) {

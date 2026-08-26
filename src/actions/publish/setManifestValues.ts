@@ -29,8 +29,6 @@ import _ from 'lodash';
 export const setManifestValues: Step<PublishWorkflowContext> = {
     name: 'set-manifest-values',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Set manifest values step', true);
-
         //1- check if previous release manifest values should be copied
         if (context.rawInput.publishData.keepLatestReleaseManifestValues) {
             if (context.runtime.trmPackage.latestReleaseManifest) {
