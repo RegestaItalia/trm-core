@@ -6,7 +6,6 @@ import { TransportBinary, TrmPackage } from "../../trmPackage";
 import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { PackageHierarchy } from "../../commons";
 import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa, workflowCallbacks } from "../commons";
-import { inspect, Logger } from "trm-commons";
 import execute from "@simonegaffurini/sammarksworkflow";
 import { init } from "./init";
 import { checkSapEntries } from "./checkSapEntries";
