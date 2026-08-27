@@ -1,16 +1,17 @@
 import { inspect, Logger } from "trm-commons";
 import { Step, WorkflowCallbacks } from "@simonegaffurini/sammarksworkflow";
+import { summarizeForLog } from "../../commons";
 
 /**
  * Default callbacks used by TRM actions to log workflow, step, and rollback lifecycle events.
- * Sensitive callers should note that workflow inputs and outputs are included in verbose logs.
+ * Inputs and outputs are summarized with secrets redacted and binary/class instances collapsed.
  */
 export const workflowCallbacks: WorkflowCallbacks<any> = {
     onWorkflowStart: (name: string, context: any) => {
-        Logger.log(`Starting workflow "${name}", input data: ${inspect(context.rawInput || context, { breakLength: Infinity, compact: true })}`, true);
+        Logger.log(`Starting workflow "${name}", input data: ${inspect(summarizeForLog(context.rawInput || context), { breakLength: Infinity, compact: true })}`, true);
     },
     onWorkflowFinish(name: string, context: any) {
-        Logger.log(`Workflow ${name} result: ${inspect(context.output || context, { breakLength: Infinity, compact: true })}`, true);
+        Logger.log(`Workflow ${name} result: ${inspect(summarizeForLog(context.output || context), { breakLength: Infinity, compact: true })}`, true);
     },
     onStepStart(step: Step<any>) {
         Logger.log(`Starting "${step.name}" step`, true);

@@ -1,7 +1,7 @@
 import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
-import { normalize } from "../commons";
+import { normalize, summarizeForLog } from "../commons";
 import { getGlobalNodeModules, Logger } from "trm-commons";
 import { existsSync } from "fs";
 import path from "path";
@@ -70,28 +70,6 @@ export class RFCClient implements IClient {
         return (await this.getRfcClient()).alive;
     }
 
-    private sanitizeDebugResponse(obj) {
-        if (Buffer.isBuffer(obj)) {
-            try {
-                return `<file of ${obj.byteLength} bytes>`;
-            } catch {
-                return "<file of unknown bytes>";
-            }
-        }
-
-        if (Array.isArray(obj)) {
-            return obj.map(v => this.sanitizeDebugResponse(v));
-        }
-
-        if (obj && typeof obj === "object") {
-            return Object.fromEntries(
-                Object.entries(obj).map(([k, v]) => [k, this.sanitizeDebugResponse(v)])
-            );
-        }
-
-        return obj;
-    }
-
     private async _call(fm: any, arg?: any, timeout?: number, noErrorParsing?: boolean, retryCount: number = 0): Promise<any> {
         var argNormalized;
         if (arg) {
@@ -115,10 +93,10 @@ export class RFCClient implements IClient {
             };
         }
         try {
-            Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(argNormalized)}, opts ${JSON.stringify(callOptions)}`, true);
+            Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(summarizeForLog(argNormalized))}, opts ${JSON.stringify(summarizeForLog(callOptions))}`, true);
             const response = await (await this.getRfcClient()).call(fm, argNormalized, callOptions);
             const responseNormalized = normalize(response);
-            Logger.success(`RFC resonse: ${JSON.stringify(this.sanitizeDebugResponse(responseNormalized))}`, true);
+            Logger.success(`RFC resonse: ${JSON.stringify(summarizeForLog(responseNormalized))}`, true);
             return responseNormalized;
         } catch (e) {
             if (e.message === 'device or resource busy: device or resource busy' && retryCount <= 10) {

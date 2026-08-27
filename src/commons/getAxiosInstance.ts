@@ -3,6 +3,7 @@ import { inspect } from "util";
 import { CliLogFileLogger, Logger } from "trm-commons";
 import { parse as htmlParser } from 'node-html-parser';
 import { randomUUID } from "crypto";
+import { summarizeForLog } from "./summarizeForLog";
 
 export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';
 export const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
@@ -27,13 +28,13 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         }
         var sRequest = `${request.method} ${request.baseURL}${request.url}`;
         if (request.params) {
-            sRequest += `, parameters: ${inspect(request.params, { breakLength: Infinity, compact: true })}`;
+            sRequest += `, parameters: ${inspect(summarizeForLog(request.params), { breakLength: Infinity, compact: true })}`;
         }
         if (request.headers.getAuthorization()) {
             sRequest += `, authorization: HIDDEN`;
         }
         if (request.data) {
-            sRequest += `, data: ${inspect(request.data, { breakLength: Infinity, compact: true })}`;
+            sRequest += `, data: ${inspect(summarizeForLog(request.data), { breakLength: Infinity, compact: true })}`;
         }
         Logger.log(`${sCtx} AXIOS request ${internalId}: ${sRequest}`, true);
         return request;
@@ -45,15 +46,7 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         const internalId = _getInternalId(response);
         var sResponse = `status: ${response.status}, status text: ${response.statusText}`;
         if (response.data) {
-            if (Buffer.isBuffer(response.data)) {
-                try {
-                    sResponse += `, data: <file of ${response.data.byteLength} bytes>`;
-                } catch {
-                    sResponse += `, data: <file of unknown bytes>`;
-                }
-            } else {
-                sResponse += `, data: ${inspect(response.data, { breakLength: Infinity, compact: true })}`;
-            }
+            sResponse += `, data: ${inspect(summarizeForLog(response.data), { breakLength: Infinity, compact: true })}`;
         }
         Logger.log(`Ending ${sCtx} AXIOS request ${internalId}: ${sResponse}`, true);
         return response;

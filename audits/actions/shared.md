@@ -6,17 +6,6 @@ This report covers reusable steps and callbacks used by more than one action wor
 
 ## Findings
 
-### SHARED-01 — High — Verbose lifecycle logging serializes complete inputs and outputs
-
-`onWorkflowStart` and `onWorkflowFinish` inspect the complete raw input/output
-([source](../../src/actions/commons/workflowCallbacks.ts#L8)). Inputs include registry instances,
-manifests, lockfiles, and CG3Z transport binaries; outputs include CG3Y archives and release
-artifacts. This can expose secrets held on registry objects and can generate very large logs or
-block the event loop while formatting buffers.
-
-Recommendation: log a redacted summary, never connector/registry internals, and replace buffers
-with byte counts and hashes.
-
 ### SHARED-02 — Medium — `trm-server` initialization failures are swallowed
 
 Every post-activity exception is logged and ignored
@@ -45,4 +34,25 @@ Recommendation: reject immediately when `systemTargets.length === 0`.
 | `trm-server-pa` | SHARED-02. |
 | `setTransportTarget` | SHARED-03. Explicit targets are otherwise validated. |
 | `stopWarning` | No issue found. It only emits the standard interruption warning and has no state-changing behavior. |
-| `workflowCallbacks` | SHARED-01. Failure callbacks also assume an `Error` object, so non-`Error` throws lose diagnostic detail, but do not change workflow control flow. |
+| `workflowCallbacks` | No open data-exposure issue. Failure callbacks still assume an `Error` object, so non-`Error` throws lose diagnostic detail, but do not change workflow control flow. |
+
+## Resolved findings
+
+### SHARED-01 — Resolved — Lifecycle logs use bounded, redacted summaries
+
+Workflow start/finish callbacks no longer inspect complete inputs and outputs. The redaction policy
+now lives in the shared `summarizeForLog` utility and is also used by `RFCClient` argument/response
+logging and the Axios request/response layer that serves `RESTClient`. The summarizer:
+
+- redacts authentication, cookie, credential, password, secret, token, API-key, and private-key fields;
+- replaces buffers, typed arrays, and array buffers with type and byte-count labels;
+- replaces registry, connector, manifest, lockfile, and other class instances with class-name labels;
+- detects circular references; and
+- limits string length, recursion depth, array items, and object keys.
+
+This preserves useful structural diagnostics without serializing release artifacts or object
+internals. All three consumers now converge on the same implementation
+([utility](../../src/commons/summarizeForLog.ts#L1),
+[workflow callbacks](../../src/actions/commons/workflowCallbacks.ts#L1),
+[RFC client](../../src/client/RFCClient.ts#L4),
+[REST/Axios layer](../../src/commons/getAxiosInstance.ts#L1)).
