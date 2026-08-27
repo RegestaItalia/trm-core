@@ -193,9 +193,11 @@ export class RegistryV2 implements AbstractRegistry {
                             grant_type: "refresh_token",
                             refresh_token: refreshToken
                         };
-                        oAuth2Response = (await (getAxiosInstance({
+                        const tokenResponse = await (getAxiosInstance({
                             baseURL: this.endpoint
-                        }, AXIOS_CTX)).post('/auth', oAuth2Request)).data;
+                        }, AXIOS_CTX)).post<AuthOAuth2>('/auth', oAuth2Request);
+                        this.assertStatus(tokenResponse.status, [200], 'OAuth token refresh');
+                        oAuth2Response = tokenResponse.data;
                         runAuthFlow = false;
                         authData = {
                             access_token: oAuth2Response.access_token,
@@ -247,9 +249,11 @@ export class RegistryV2 implements AbstractRegistry {
                     grant_type: "authorization_code",
                     redirect_uri: sRedirectUri
                 };
-                oAuth2Response = (await (getAxiosInstance({
+                const tokenResponse = await (getAxiosInstance({
                     baseURL: this.endpoint
-                }, AXIOS_CTX)).post('/auth', oAuth2Request)).data;
+                }, AXIOS_CTX)).post<AuthOAuth2>('/auth', oAuth2Request);
+                this.assertStatus(tokenResponse.status, [200], 'OAuth token exchange');
+                oAuth2Response = tokenResponse.data;
                 if (oAuth2Response.token_type !== "Bearer") {
                     throw new Error('Unknown token type.');
                 }
@@ -277,13 +281,32 @@ export class RegistryV2 implements AbstractRegistry {
         return this._authData;
     }
 
+    private assertStatus(status: number, expected: number[], operation: string): void {
+        if (!expected.includes(status)) {
+            throw new Error(`${operation} returned unexpected HTTP status ${status}; expected ${expected.join(' or ')}.`);
+        }
+    }
+
+    private getErrorStatus(error: unknown): number | undefined {
+        const registryError = error as {
+            status?: number;
+            response?: { status?: number };
+            axiosError?: AxiosError;
+        };
+        return registryError.status
+            ?? registryError.response?.status
+            ?? registryError.axiosError?.response?.status;
+    }
+
     public async ping(): Promise<Ping> {
         var data: Ping | Error = this._cache.get('ping');
         if (!data) {
             try {
-                data = (await this._axiosInstance.get('/', {
+                const response = await this._axiosInstance.get('/', {
                     headers: {}
-                })).data;
+                });
+                this.assertStatus(response.status, [200], 'Registry metadata request');
+                data = response.data;
             } catch (e) {
                 if (e.errors) {
                     e.errors.forEach(err => Logger.error(err.message));
@@ -303,7 +326,9 @@ export class RegistryV2 implements AbstractRegistry {
         var data: WhoAmI | Error = this._cache.get('whoami');
         if (!data) {
             try {
-                data = (await this._axiosInstance.get('/whoami')).data;
+                const response = await this._axiosInstance.get('/whoami');
+                this.assertStatus(response.status, [200], 'Registry identity request');
+                data = response.data;
             } catch (e) {
                 data = e;
             }
@@ -322,11 +347,13 @@ export class RegistryV2 implements AbstractRegistry {
         if (!data) {
             var ttl: number;
             try {
-                data = (await this._axiosInstance.get(`/package/${fullName}`, {
+                const response = await this._axiosInstance.get(`/package/${fullName}`, {
                     params: {
-                        version: encodeURIComponent(version)
+                        version
                     }
-                })).data;
+                });
+                this.assertStatus(response.status, [200], 'Package metadata request');
+                data = response.data;
                 if ((data as Package).download_link_expiry) {
                     try {
                         ttl = Math.max(0, Math.floor(((data as Package).download_link_expiry - Date.now()) / 1000));
@@ -367,7 +394,7 @@ export class RegistryV2 implements AbstractRegistry {
             try {
                 return normalize((await this._axiosInstance.get(transport.contents.download_link)).data || {});
             } catch (e) {
-                const status = (e as AxiosError).response?.status;
+                const status = this.getErrorStatus(e);
                 if (!refreshPackage && (status === 401 || status === 403)) {
                     return download(true);
                 }
@@ -438,7 +465,7 @@ export class RegistryV2 implements AbstractRegistry {
     public async validatePublish(fullName: string, version: string = 'latest', isPrivate: boolean): Promise<void> {
         const status = (await this._axiosInstance.get(`/publish/check/${fullName}`, {
             params: {
-                version: encodeURIComponent(version),
+                version,
                 private: isPrivate ? 'X' : 'N'
             }
         })).status;
@@ -478,6 +505,8 @@ export class RegistryV2 implements AbstractRegistry {
             headers: formData.getHeaders()
         });
 
+        this.assertStatus(response.status, [201, 202], 'Publish request');
+
         if (response.status === 202) { //publish is async
             let publishStatus = response.data;
             const progressPoolUrl = publishStatus.progress_pool_url;
@@ -507,21 +536,23 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {
-        await this._axiosInstance.post(`/unpublish/${fullName}`, null, {
+        const response = await this._axiosInstance.post(`/unpublish/${fullName}`, null, {
             params: {
-                version: encodeURIComponent(version)
+                version
             }
         });
+        this.assertStatus(response.status, [204], 'Unpublish request');
     }
 
     public async deprecate(fullName: string, version: string, deprecate: Deprecate): Promise<void> {
-        await this._axiosInstance.post(`/deprecate/${fullName}`, {
+        const response = await this._axiosInstance.post(`/deprecate/${fullName}`, {
             deprecate_note: deprecate.deprecate_note
         }, {
             params: {
-                version: encodeURIComponent(version)
+                version
             }
         });
+        this.assertStatus(response.status, [204], 'Deprecate request');
     }
 
     public async addDistTag(fullName: string, distTag: DistTagAdd): Promise<void> {
@@ -541,7 +572,9 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async batchCompare(packages: BatchCompareRequest): Promise<BatchCompareResponse> {
-        return (await this._axiosInstance.post('/batchCompare', packages)).data;
+        const response = await this._axiosInstance.post('/batchCompare', packages);
+        this.assertStatus(response.status, [200], 'Batch comparison request');
+        return response.data;
     }
 
     public async delete(transport: BinaryTransport): Promise<BinaryTransport> {
@@ -555,9 +588,11 @@ export class RegistryV2 implements AbstractRegistry {
             contentType: 'application/octet-stream'
         });
 
-        const transportDownload = (await this._axiosInstance.post<TransportDownload>('/delete', formData, {
+        const deleteResponse = await this._axiosInstance.post<TransportDownload>('/delete', formData, {
             headers: formData.getHeaders()
-        })).data;
+        });
+        this.assertStatus(deleteResponse.status, [200], 'Deletion transport request');
+        const transportDownload = deleteResponse.data;
 
         const chunks: Buffer[] = [];
         let buffer: Buffer;
@@ -635,11 +670,13 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async transport(trkorr: string, target?: string): Promise<BinaryTransport> {
-        const transportDownload: TransportDownload = (await this._axiosInstance.get(`/transport/${trkorr}`, {
+        const response = await this._axiosInstance.get<TransportDownload>(`/transport/${trkorr}`, {
             params: {
-                target: target ? encodeURIComponent(target) : undefined
+                target: target || undefined
             }
-        })).data;
+        });
+        this.assertStatus(response.status, [200], 'Transport request');
+        const transportDownload = response.data;
 
         return this.downloadTransport(transportDownload, trkorr);
     }
