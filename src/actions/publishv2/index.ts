@@ -1,12 +1,25 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
 import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa, workflowCallbacks } from "..";
-import { AbstractRegistry } from "../../registry";
-import { DEVCLASS, TADIR, TARSYSTEM, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
-import { TrmManifest, TrmManifestBase } from "../../manifest";
-import { Transport } from "../../transport";
-import { DotAbapGit } from "../../abapgit";
 import { ReleaseType } from "semver";
+import { DEVCLASS, TADIR, TR_TARGET, TRKORR, TRNSPACET, TRNSPACETT, ZTY_SER_OBJ } from "../../client";
+import { TrmManifest, TrmManifestBase } from "../../manifest";
+import { AbstractRegistry } from "../../registry";
+import { Package } from "trm-registry-types";
+import { DotAbapGit } from "../../abapgit";
+import { init } from "./init";
+import { findDependencies } from "./findDependencies";
+import { setCustomizingTransports } from "./setCustomizingTransports";
+import { setManifestValues } from "./setManifestValues";
+import { setOptionalReleaseData } from "./setOptionalPublishData";
+import { Transport } from "../../transport";
+import { generateDevcTransport } from "./generateDevcTransport";
+import { generateTadirTransport } from "./generateTadirTransport";
+import { generateLangTransport } from "./generateLangTransport";
+import { generateCustTransport } from "./generateCustTransport";
+import { releaseTransports } from "./releaseTransports";
+import { publishToRegistry } from "./publishToRegistry";
+import { updatePackageData } from "./updatePackageData";
 
 /**
  * Input data for publish package action.
@@ -19,7 +32,7 @@ export interface PublishActionInput {
         /**
          * Manually set installed packages on the system.
          */
-        systemPackages?: TrmPackage[]; 
+        systemPackages?: TrmPackage[];
 
         /**
          * Use inquirer? (will force some decisions).
@@ -27,7 +40,7 @@ export interface PublishActionInput {
         noInquirer?: boolean;
 
         /**
-         * Log temporary folder (for parsing R3Trans logs).
+         * Log temporary folder.
          */
         logTemporaryFolder?: string;
 
@@ -87,7 +100,7 @@ export interface PublishActionInput {
          */
         devclass?: DEVCLASS;
 
-        
+
         /**
          * TRM package manifest data.
          */
@@ -95,10 +108,10 @@ export interface PublishActionInput {
     };
 
     /**
-     * Data related to the origin system.
-     */
+         * Data related to the origin system.
+         */
     systemData?: {
-        
+
         /**
          * Publish transport target.
          */
@@ -138,21 +151,56 @@ export interface PublishActionInput {
         /**
          * Skip customizing transports publish.
          */
-        skipCustomizingTransports?: boolean,
+        noCustomizingTransports?: boolean,
 
         /**
          * Customizing transports. Has no effect if skipCustomizingTransports is set to true.
          */
-        customizingTransports?: string | Transport[],
+        customizingTransports?: string[],
 
         /**
-         * Skip language (translations) transport publish.
+         * Skip translations transport publish.
          */
         noLanguageTransport?: boolean
     }
 }
 
+type EnrichedTransport = {
+    trkorr: TRKORR,
+    description: string
+}
+
 type WorkflowRuntime = {
+    latest: {
+        data: Package
+    },
+    sapPackage: {
+        objects: TADIR[],
+        namespace: {
+            trnspacet: TRNSPACET,
+            trnspacett: TRNSPACETT[]
+        }
+    },
+    abapGit: {
+        dotAbapGit: DotAbapGit,
+        sourceCode: Buffer,
+        object: ZTY_SER_OBJ[],
+        excludedObjects: TADIR[]
+    },
+    manifest: TrmManifest,
+    manifestXml: string,
+    customizing: {
+        retained: EnrichedTransport[],
+        new: EnrichedTransport[]
+    },
+    transports: {
+        devc: Transport,
+        tadir: Transport,
+        lang?: Transport,
+        cust?: Transport[]
+    },
+    aggregatedTransports: Transport[],
+    stopWarningShown: boolean
 }
 
 export type PublishActionOutput = {
@@ -163,8 +211,7 @@ export type PublishActionOutput = {
 export interface PublishWorkflowContext extends IActionContext {
     rawInput: PublishActionInput,
     runtime?: WorkflowRuntime,
-    output?: PublishActionOutput,
-    revert?: any
+    output?: PublishActionOutput
 };
 
 const WORKFLOW_NAME = 'publish';
@@ -173,17 +220,41 @@ const WORKFLOW_NAME = 'publish';
  * Publish ABAP package to TRM registry
 */
 export async function publish(inputData: PublishActionInput): Promise<PublishActionOutput> {
+    inputData.contextData ??= {};
+    inputData.systemData ??= {};
+    inputData.publishData ??= { keepLatestReleaseManifestValues: true };
+    inputData.publishData.keepLatestReleaseManifestValues ??= true;
+    inputData.publishData.customizingTransports ??= [];
+    inputData.packageData.manifest ??= {};
+    inputData.packageData.manifest.authors ??= [];
+    inputData.packageData.manifest.dependencies ??= [];
+    inputData.packageData.manifest.keywords ??= [];
+    inputData.packageData.manifest.postActivities ??= [];
+    inputData.packageData.manifest.sapEntries ??= {};
+    inputData.packageData.tags ??= [];
+
     const workflow = [
-        checkServerAuth
+        checkServerAuth,
+        setSystemPackages,
+        trmServerPa,
+        init,
+        findDependencies,
+        setCustomizingTransports,
+        setManifestValues,
+        setOptionalReleaseData,
+        generateDevcTransport,
+        generateTadirTransport,
+        generateLangTransport,
+        generateCustTransport,
+        releaseTransports,
+        publishToRegistry,
+        updatePackageData
     ];
     const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
     }, workflowCallbacks);
-    return null;
-    /*const trmPackage = result.runtime.trmPackage.package;
-    const trmArtifact = result.runtime.trmPackage.artifact;
     return {
-        trmPackage,
-        trmArtifact
-    }*/
+        trmPackage: result.output.trmPackage,
+        trmArtifact: result.output.trmArtifact
+    }
 }

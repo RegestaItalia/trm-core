@@ -13,6 +13,9 @@ export const setSystemPackages: Step<IActionContext> = {
     name: 'set-system-packages',
     run: async (context: IActionContext): Promise<void> => {
         //1- set system packages
+        if(!context.rawInput.contextData){ //guard
+            context.rawInput.contextData = {};
+        }
         if(context.rawInput.contextData.systemPackages === undefined){
             Logger.loading(`Reading system data...`);
             context.rawInput.contextData.systemPackages = await SystemConnector.getInstalledPackages(true);

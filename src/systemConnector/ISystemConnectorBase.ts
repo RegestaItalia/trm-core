@@ -1,7 +1,7 @@
 import { AbstractRegistry } from "../registry";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
-import { TrmPackage, TrmPackageInstallTransport } from "../trmPackage";
+import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 

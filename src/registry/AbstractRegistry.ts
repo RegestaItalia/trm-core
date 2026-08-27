@@ -3,6 +3,13 @@ import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
 import { BinaryTransport } from "../transport";
 
+export interface PublishAdditionalData {
+    readme?: string,
+    tags?: string,
+    changelog?: string,
+    retainedCustomizing?: string[]
+}
+
 export abstract class AbstractRegistry {
     endpoint: string;
     name: string;
@@ -15,7 +22,7 @@ export abstract class AbstractRegistry {
     abstract getPackage: (fullName: string, version: string) => Promise<Package>;
     abstract downloadArtifact: (fullName: string, version: string) => Promise<TrmArtifact>;
     abstract validatePublish: (fullName: string, version: string, isPrivate: boolean) => Promise<void>;
-    abstract publish: (fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string, changelog?: string) => Promise<Package | void>;
+    abstract publish: (fullName: string, version: string, artifact: TrmArtifact, additionalData?: PublishAdditionalData) => Promise<Package | void>;
     abstract unpublish: (fullName: string, version: string) => Promise<void>;
     abstract deprecate: (fullName: string, version: string, deprecate: Deprecate) => Promise<void>;
     abstract addDistTag: (fullName: string, distTag: DistTagAdd) => Promise<void>;

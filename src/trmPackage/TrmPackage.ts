@@ -3,18 +3,11 @@ import { Manifest } from "../manifest";
 import { AbstractRegistry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { DEVCLASS, ZTRM_DIRTY } from "../client";
-import { Transport, TrmTransportIdentifier } from "../transport";
 import { Lockfile } from "../lockfile";
-
-export type TrmPackageInstallTransport = {
-    type: TrmTransportIdentifier,
-    transport: Transport
-}
 
 export class TrmPackage {
     private _devclass: DEVCLASS;
     private _dirtyEntries: ZTRM_DIRTY[] = [];
-    private _installTransports: TrmPackageInstallTransport[] | false;
 
     constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
     }
@@ -45,7 +38,8 @@ export class TrmPackage {
         artifact: TrmArtifact
         readme?: string,
         tags?: string[],
-        changelog?: string
+        changelog?: string,
+        retainedCustomizing?: string[]
     }): Promise<TrmPackage> {
         const artifact = data.artifact;
         const trmManifest = artifact.getManifest().get();
@@ -59,7 +53,12 @@ export class TrmPackage {
             tags = data.tags.join(',');
         }
         Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
-        await this.registry.publish(packageName, packageVersion, artifact, data.readme, tags, data.changelog);
+        await this.registry.publish(packageName, packageVersion, artifact, {
+            readme: data.readme,
+            retainedCustomizing: data.retainedCustomizing,
+            changelog: data.changelog,
+            tags
+        });
 
         //set
         this.manifest = new Manifest(trmManifest);

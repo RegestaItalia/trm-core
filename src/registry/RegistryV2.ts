@@ -9,9 +9,9 @@ import { createHash, randomUUID } from "crypto";
 import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
-import _ from 'lodash';
+import _, { add } from 'lodash';
 import { getAxiosInstance, getNodePackage, normalize } from "../commons";
-import { AbstractRegistry } from "./AbstractRegistry";
+import { AbstractRegistry, PublishAdditionalData } from "./AbstractRegistry";
 import NodeCache from "node-cache";
 import { BinaryTransport } from "../transport";
 import * as AdmZip from "adm-zip";
@@ -447,27 +447,30 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string, changelog?: string): Promise<void> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, additionalData?: PublishAdditionalData): Promise<void> {
         const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, {
             filename: fileName,
             contentType: 'application/octet-stream'
         });
-        if (readme) {
-            formData.append('readme', Buffer.from(readme), {
+        if (additionalData && additionalData.readme) {
+            formData.append('readme', Buffer.from(additionalData.readme), {
                 filename: 'readme.md',
                 contentType: 'text/markdown'
             });
         }
-        if (changelog) {
-            formData.append('changelog', Buffer.from(changelog), {
+        if (additionalData && additionalData.changelog) {
+            formData.append('changelog', Buffer.from(additionalData.changelog), {
                 filename: 'changelog.md',
                 contentType: 'text/markdown'
             });
         }
-        var params = { version, tags };
-        if (!tags) {
+        if(additionalData && additionalData.retainedCustomizing){
+            formData.append('retainedCustomizing', JSON.stringify(additionalData.retainedCustomizing));
+        }
+        var params = { version, tags: additionalData && additionalData.tags ? additionalData.tags : undefined };
+        if (!params.tags) {
             delete params.tags;
         }
         const response = await this._axiosInstance.post<Publish>(`/publish/${fullName}`, formData, {
