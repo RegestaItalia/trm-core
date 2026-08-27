@@ -14,8 +14,6 @@ import { satisfies } from "semver";
  * 
  * 3- print tables
  * 
- * 4- build output data
- * 
 */
 export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
     name: 'analyze',
@@ -48,43 +46,31 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
                 if(satisfies(installedVersion, dependency.version)){
                     tableData.push('OK');
                     context.runtime.dependenciesStatus.goodVersion.push(dependency);
+                    context.output.dependencyStatus.push({
+                        dependency,
+                        match: true
+                    });
                 }else{
                     tableData.push('ERR!');
                     context.runtime.dependenciesStatus.badVersion.push(dependency);
+                    context.output.dependencyStatus.push({
+                        dependency,
+                        match: false
+                    });
                 }
             }else{
                 tableData.push('Not found');
                 tableData.push('ERR!');
                 context.runtime.dependenciesStatus.badVersion.push(dependency);
+                context.output.dependencyStatus.push({
+                    dependency,
+                    match: false
+                });
             }
             table.data.push(tableData);
         }
 
         //3- print tables
         Logger.table(table.header, table.data, !context.rawInput.printOptions.dependencyStatus);
-
-        //4- build output data
-        context.runtime.dependenciesStatus.goodVersion.forEach(o => {
-            const i = context.output.dependencyStatus.findIndex(k => k.dependency.name === o.name && k.dependency.registry === o.registry);
-            if (i >= 0) {
-                context.output.dependencyStatus[i].match = true;
-            } else {
-                context.output.dependencyStatus.push({
-                    dependency: o,
-                    match: true
-                });
-            }
-        });
-        context.runtime.dependenciesStatus.badVersion.forEach(o => {
-            const i = context.output.dependencyStatus.findIndex(k => k.dependency.name === o.name && k.dependency.registry === o.registry);
-            if (i >= 0) {
-                context.output.dependencyStatus[i].match = false;
-            } else {
-                context.output.dependencyStatus.push({
-                    dependency: o,
-                    match: false
-                });
-            }
-        });
     }
 }

@@ -24,7 +24,7 @@ connector, registry, filesystem, and prompt failures may still propagate as expe
 |---|---:|---:|---:|---:|---:|---|
 | `cg3y` | 2 | 0 | 0 | 0 | 0 | [CG3Y](cg3y.md) |
 | `cg3z` | 2 | 0 | 1 | 1 | 0 | [CG3Z](cg3z.md) |
-| `check-dependencies` | 3 | 0 | 0 | 1 | 0 | [Package dependency check](check-package-dependencies.md) |
+| `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-sap-entries` | 2 | 1 | 0 | 1 | 0 | [SAP-entry check](check-sap-entries.md) |
 | `install-dependency` | 4 | 1 | 0 | 1 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 18 scheduled + 2 omitted | 3 | 6 | 4 | 1 | [Package install](install.md) |
@@ -41,4 +41,3 @@ connector, registry, filesystem, and prompt failures may still propagate as expe
 4. Initialize `installData.checks` in the dependency-install workflow.
 5. Implement or explicitly remove the install rollback promises currently represented by empty
    `revert` handlers.
-
