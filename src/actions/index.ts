@@ -9,6 +9,6 @@ export {
     PublishActionInput as PublishV2ActionInput,
     PublishActionOutput as PublishV2ActionOutput,
     PublishWorkflowContext as PublishV2WorkflowContext
-} from "./publishv2";
+} from "./publish";
 export * from "./cg3y";
 export * from "./cg3z";
