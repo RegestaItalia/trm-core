@@ -15,9 +15,14 @@ import { validateTransportTarget } from "../../../validators";
  * @param userInput Explicit target to validate and use.
  * @param inquirerMessage Prompt label used when interactive selection is required.
  * @returns The selected, valid transport target.
- * @throws When the explicit target is invalid or no target can be selected non-interactively.
+ * @throws When no targets are available, the explicit target is invalid, or a required target was
+ * not supplied in non-interactive mode.
  */
 export async function setTransportTarget(noInquirer: boolean, systemTargets: TARSYSTEM[], userInput?: TARSYSTEM, inquirerMessage?: string): Promise<TARSYSTEM> {
+    if (systemTargets.length === 0) {
+        throw new Error(`No transport targets are available in the connected SAP system.`);
+    }
+
     var needsValidation: boolean;
 
     var transportTarget: TARSYSTEM = userInput;

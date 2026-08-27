@@ -16,15 +16,6 @@ a `finally`, so a throw from logging itself or from manifest access can leak glo
 Recommendation: distinguish optional activities from required initialization; aggregate and throw
 required failures, and restore prefixes in `finally`.
 
-### SHARED-03 — Medium — Interactive target selection does not handle zero targets explicitly
-
-With zero available targets and prompts enabled, `setTransportTarget` opens a list with no choices
-instead of raising the clear error used by non-interactive mode
-([source](../../src/actions/commons/prompts/setTransportTarget.ts#L25)). Depending on the prompt
-adapter this can reject indirectly or leave the user without a selectable answer.
-
-Recommendation: reject immediately when `systemTargets.length === 0`.
-
 ## Step review
 
 | Step/helper | Result |
@@ -32,11 +23,17 @@ Recommendation: reject immediately when `systemTargets.length === 0`.
 | `check-server-auth` | No issue found. The connector contract is `true | ClientError`, and denial is propagated. |
 | `set-system-packages` | No issue found. It preserves a supplied snapshot and propagates query failures. |
 | `trm-server-pa` | SHARED-02. |
-| `setTransportTarget` | SHARED-03. Explicit targets are otherwise validated. |
+| `setTransportTarget` | No issue found. Zero targets reject immediately, a sole target is selected automatically, and explicit targets are validated. |
 | `stopWarning` | No issue found. It only emits the standard interruption warning and has no state-changing behavior. |
 | `workflowCallbacks` | No open data-exposure issue. Failure callbacks still assume an `Error` object, so non-`Error` throws lose diagnostic detail, but do not change workflow control flow. |
 
 ## Resolved findings
+
+### SHARED-03 — Resolved — Zero transport targets reject before prompting
+
+`setTransportTarget` now checks the available-target collection before automatic, interactive, or
+explicit selection. An empty collection throws a clear error immediately, so interactive callers
+cannot receive an empty list prompt ([source](../../src/actions/commons/prompts/setTransportTarget.ts#L20)).
 
 ### SHARED-01 — Resolved — Lifecycle logs use bounded, redacted summaries
 
