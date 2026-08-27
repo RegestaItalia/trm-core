@@ -59,5 +59,8 @@ export const init: Step<InstallDependencyWorkflowContext> = {
         if(!context.rawInput.installData.installDevclass){
             context.rawInput.installData.installDevclass = {};
         }
+        if(!context.rawInput.installData.checks){
+            context.rawInput.installData.checks = {};
+        }
     }
 }

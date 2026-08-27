@@ -23,7 +23,7 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
                 version: context.runtime.installVersion,
                 overwrite: false
             },
-            contextData: {...context.rawInput.contextData, ...{ noStopWarning: true }},
+            contextData: context.rawInput.contextData,
             installData: context.rawInput.installData
         };
         const result = await InstallWkf(inputData);

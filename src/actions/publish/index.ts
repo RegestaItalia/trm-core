@@ -41,11 +41,6 @@ export interface PublishActionInput {
          * Directory in which transport-release logs and temporary files are written.
          */
         logTemporaryFolder?: string;
-
-        /**
-         * Suppress the warning normally shown before state-changing work starts.
-         */
-        noStopWarning?: boolean;
     };
 
     /**

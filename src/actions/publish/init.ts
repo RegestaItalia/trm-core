@@ -120,7 +120,7 @@ export const init: Step<PublishWorkflowContext> = {
                 cust: []
             },
             aggregatedTransports: [],
-            stopWarningShown: context.rawInput.contextData.noStopWarning === true
+            stopWarningShown: false
         }
         context.output = {
             trmArtifact: undefined,

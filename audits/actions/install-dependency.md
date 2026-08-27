@@ -3,33 +3,30 @@
 Audit date: 2026-08-27
 Entry point: [`installDependency`](../../src/actions/installDependency/index.ts#L75)
 
-## Findings
+## Result
 
-### DEPINS-01 — Critical — Optional input causes a deterministic `TypeError`
+No open workflow-specific problems were found.
 
-`installData` is optional. The `init` step creates `installData`, `import`, and `installDevclass`,
-but not `installData.checks` ([source](../../src/actions/installDependency/init.ts#L49)). The next
-resolution step unconditionally evaluates `context.rawInput.installData.checks.lockfile`
-([source](../../src/actions/installDependency/findInstallRelease.ts#L20)). A normal call without a
-`checks` object crashes before registry resolution.
+## Resolved findings
 
-Recommendation: initialize `installData.checks ??= {}` or use optional chaining.
+### DEPINS-01 — Resolved — Optional input initializes `installData.checks`
 
-### DEPINS-02 — Medium — Attempted stop-warning suppression is not part of install context and is ignored
+The `init` step now creates an empty `checks` object when callers omit `installData` or
+`installData.checks` ([source](../../src/actions/installDependency/init.ts#L49)). The following
+lockfile lookup can therefore safely read `checks.lockfile` for the documented optional-input path.
 
-The nested install input adds `contextData.noStopWarning: true`
-([source](../../src/actions/installDependency/installRelease.ts#L19)), but
-`InstallActionInputContextData` does not declare or consume this field. Install runtime always
-initializes `stopWarningShown` to `false` ([source](../../src/actions/install/init.ts#L29)). Recursive
-dependency installs therefore show warnings despite the apparent suppression intent.
+### DEPINS-02 — Resolved — Unsupported `noStopWarning` injection was removed
 
-Recommendation: add and honor the field consistently, or remove the dead assignment.
+The nested install now forwards the supported `contextData` unchanged
+([source](../../src/actions/installDependency/installRelease.ts#L19)). It no longer adds an
+undeclared `noStopWarning` property that the install workflow ignored. Dependency installs follow
+the same warning behavior as direct installs.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `init` | DEPINS-01 and DEPINS-02. Package-name, registry-type, and semantic-range validation otherwise propagate correctly. |
+| 1 | `init` | No issue found. It initializes every optional group required by later steps and validates package name, registry type, and semantic range. |
 | 2 | `set-system-packages` | No workflow-specific issue found. |
-| 3 | `find-install-release` | DEPINS-01. Once initialized, lockfile range/integrity checks and newest-compatible-release selection are coherent. |
-| 4 | `install-release` | DEPINS-02. Nested install failures propagate. |
+| 3 | `find-install-release` | No issue found. Lockfile range/integrity checks and newest-compatible-release selection are coherent. |
+| 4 | `install-release` | No issue found. It forwards supported context/install options and nested install failures propagate. |
