@@ -68,10 +68,17 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
                     obj_name: table
                 });
             } catch (e) {
-                tableExists = false;
+                const reason = e instanceof Error ? e.message : String(e);
+                throw new Error(`Unable to check whether required SAP table "${table}" exists: ${reason}`);
             }
             if (!tableExists) {
                 context.runtime.missingTables.push(table);
+                context.output.sapEntries[table].forEach(tableEntry => {
+                    context.runtime.entriesStatus.bad.push({
+                        table,
+                        tableEntry
+                    });
+                });
                 Logger.error(`Required ${context.output.sapEntries[table].length} entries in ${table}, but table was not found`, !context.rawInput.printOptions.information);
             } else {
                 var printTableHead: string[] = ['Table name'];

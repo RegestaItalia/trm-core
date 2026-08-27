@@ -28,13 +28,6 @@ then continues through package registration and returns success after a failed o
 Recommendation: make non-success return codes reject (decide explicitly whether RC 4 is accepted),
 return a typed import result, and gate every later step on it.
 
-### INST-03 — Critical — Missing required SAP tables can pass installation
-
-The scheduled `checkSapEntries` wrapper only counts failed rows returned by the SAP-entry
-subworkflow ([source](../../src/actions/install/checkSapEntries.ts#L40)). As documented in
-[SAPCHK-01](check-sap-entries.md), missing tables produce no failed rows. Installation can proceed
-despite unmet system requirements.
-
 ### INST-04 — High — Rollback handlers for imported state are empty
 
 The DEVC, TADIR, LANG, CUST, deletion-transport, namespace, and generated-package rollback paths
@@ -131,7 +124,7 @@ This is deterministic but easy for API consumers to mistake for default inclusio
 | 2 | `set-system-packages` | No install-specific issue. |
 | 3 | `trm-server-pa` | SHARED-02. |
 | 4 | `init` | No additional issue found; registry and validation failures propagate. |
-| 5 | `check-sap-entries` | INST-03. |
+| 5 | `check-sap-entries` | No issue found. The subworkflow now reports every row from a missing table as failed and propagates table-probe errors. |
 | 6 | `check-dependencies` | No additional issue found. |
 | 7 | `install-dependencies` | INST-08 and INST-10. |
 | 8 | `set-install-devclass` | INST-01 and INST-11. |
@@ -150,5 +143,12 @@ This is deterministic but easy for API consumers to mistake for default inclusio
 
 | Step | Result |
 |---|---|
-| `check-transports` | INST-01, INST-03, and INST-14. This is required setup, not optional dead code. |
+| `check-transports` | INST-01 and INST-14. This is required setup, not optional dead code. |
 | `generate-deletion-transport` | INST-09 and INST-04. |
+
+## Resolved findings
+
+### INST-03 — Resolved — Missing required SAP tables now block installation
+
+The SAP-entry subworkflow now emits a failed status for every required row belonging to a missing
+table. The install wrapper's existing failed-row check therefore rejects installation as intended.

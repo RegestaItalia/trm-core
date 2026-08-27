@@ -25,9 +25,9 @@ connector, registry, filesystem, and prompt failures may still propagate as expe
 | `cg3y` | 2 | 0 | 0 | 0 | 0 | [CG3Y](cg3y.md) |
 | `cg3z` | 2 | 0 | 1 | 1 | 0 | [CG3Z](cg3z.md) |
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
-| `check-sap-entries` | 2 | 1 | 0 | 1 | 0 | [SAP-entry check](check-sap-entries.md) |
+| `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
 | `install-dependency` | 4 | 1 | 0 | 1 | 0 | [Dependency install](install-dependency.md) |
-| `install` | 18 scheduled + 2 omitted | 3 | 6 | 4 | 1 | [Package install](install.md) |
+| `install` | 18 scheduled + 2 omitted | 2 | 6 | 4 | 1 | [Package install](install.md) |
 | `publish` | 15 | 0 | 4 | 6 | 1 | [Package publish](publish.md) |
 | Shared steps/callbacks | 5 | 0 | 1 | 2 | 0 | [Shared infrastructure](shared.md) |
 
@@ -37,7 +37,6 @@ connector, registry, filesystem, and prompt failures may still propagate as expe
    or transport state.
 2. Make transport import return codes 8, 12, 16, unknown, and missing return codes reject the
    install instead of continuing to package registration.
-3. Represent every entry from a missing SAP table as failed in `sapEntriesStatus`.
-4. Initialize `installData.checks` in the dependency-install workflow.
-5. Implement or explicitly remove the install rollback promises currently represented by empty
+3. Initialize `installData.checks` in the dependency-install workflow.
+4. Implement or explicitly remove the install rollback promises currently represented by empty
    `revert` handlers.

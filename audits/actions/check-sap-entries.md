@@ -3,33 +3,29 @@
 Audit date: 2026-08-27
 Entry point: [`checkSapEntries`](../../src/actions/checkSapEntries/index.ts#L90)
 
-## Findings
+## Result
 
-### SAPCHK-01 — Critical — Missing tables produce no failed entry statuses
+No open workflow-specific problems were found.
 
-When a required table is absent, the table name is pushed into `runtime.missingTables`, but none of
-its required rows are pushed into `runtime.entriesStatus.bad`
-([missing-table branch](../../src/actions/checkSapEntries/analyze.ts#L73)). Output construction only
-uses the `good` and `bad` arrays ([source](../../src/actions/checkSapEntries/analyze.ts#L128));
-`missingTables` is never consumed. The standalone action can therefore return an empty status map,
-and the install wrapper interprets that as all requirements being satisfied.
+## Resolved findings
 
-Recommendation: append every required row from a missing table as `status: false`, or add an
-explicit missing-table result that the install workflow must reject.
+### SAPCHK-01 — Resolved — Missing tables produce failed statuses for every required row
 
-### SAPCHK-02 — Medium — Any table-probe error is misclassified as “table not found”
+When a required table is absent, every declared row is now added to the failed-entry collection.
+Output construction therefore emits `status: false` results under the missing table name, and the
+install wrapper reliably rejects the unmet requirements
+([source](../../src/actions/checkSapEntries/analyze.ts#L74)).
 
-The TADIR table-existence probe catches every exception and sets `tableExists = false`
-([source](../../src/actions/checkSapEntries/analyze.ts#L63)). Authorization failures, connection
-loss, invalid responses, and genuine absence become indistinguishable. Combined with SAPCHK-01,
-infrastructure failure can become a false-success result.
+### SAPCHK-02 — Resolved — Table-probe failures propagate with table context
 
-Recommendation: only translate a connector-specific not-found result; rethrow operational errors
-with the table name as context.
+The TADIR existence probe now treats only a `false` result as table absence. Exceptions are
+re-thrown with the affected table name and original message, preserving the distinction between a
+missing table and an authorization, connection, or response failure
+([source](../../src/actions/checkSapEntries/analyze.ts#L63)).
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. It safely normalizes absent `sapEntries` and `printOptions`. |
-| 2 | `analyze` | SAPCHK-01 and SAPCHK-02. Per-row query errors are at least represented as failed rows and logged. |
+| 2 | `analyze` | No issue found. Missing tables and rows produce failed statuses; table-probe failures reject the workflow; per-row query failures are logged and represented as failed rows. |
