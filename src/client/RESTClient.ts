@@ -8,6 +8,7 @@ import { Logger } from "trm-commons";
 import { Login, RESTClientError, SapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
 import { TrmPackageUpdateData } from "../systemConnector";
+import { Agent as HttpsAgent } from "https";
 
 const AXIOS_CTX = "RestServer";
 
@@ -27,6 +28,9 @@ export class RESTClient implements IClient {
                 password: this._login.passwd
             },
             timeout: 30000, //default timeout
+            httpsAgent: new HttpsAgent({
+                rejectUnauthorized: false
+            })
         }, AXIOS_CTX);
     }
 
