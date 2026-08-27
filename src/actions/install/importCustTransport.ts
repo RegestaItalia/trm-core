@@ -6,7 +6,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Import CUST Transport. For each customizing:
+ * Workflow step that imports each customizing transport and records rollback data.
  * 
  * 1- generate dummy transport (if registry is not local)
  * 

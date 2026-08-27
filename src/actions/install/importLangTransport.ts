@@ -6,7 +6,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Import LANG Transport.
+ * Workflow step that imports the optional language transport and records rollback data.
  * 
  * 1- generate dummy transport (if registry is not local)
  * 

@@ -6,7 +6,7 @@ import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../../registry";
 import { satisfies } from "semver";
 
 /**
- * Analyze
+ * Workflow step that compares manifest dependency ranges with installed package versions.
  * 
  * 1- build required tables fields
  * 

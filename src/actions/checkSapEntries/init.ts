@@ -3,7 +3,7 @@ import { CheckSapEntriesWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 
 /**
- * Init
+ * Workflow step that initializes SAP-entry-check state from the supplied manifest.
  * 
  * 1- set sap entries  (read manifest)
  * 

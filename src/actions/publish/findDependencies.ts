@@ -6,7 +6,7 @@ import { SystemConnector } from "../../systemConnector";
 import * as _ from "lodash";
 
 /**
- * Run find dependencies workflow
+ * Workflow step that detects TRM dependencies from the source package hierarchy.
  * 
  * 1- execute find dependencies on ABAP package
  * 

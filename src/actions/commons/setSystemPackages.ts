@@ -4,11 +4,11 @@ import { SystemConnector } from "../../systemConnector";
 import { IActionContext } from "..";
 
 /**
- * Set system packages: if not defined by input, search in target system
- * 
- * 1- set system packages
- * 
-*/
+ * Workflow step that populates `contextData.systemPackages` from the target system.
+ *
+ * A caller-supplied package list is preserved, allowing workflows to reuse a cached
+ * snapshot and avoid an additional system query.
+ */
 export const setSystemPackages: Step<IActionContext> = {
     name: 'set-system-packages',
     run: async (context: IActionContext): Promise<void> => {

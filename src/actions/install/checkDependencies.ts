@@ -6,7 +6,7 @@ import { CheckPackageDependenciesActionInput, checkPackageDependencies as CheckP
 const SUBWORKFLOW_NAME = 'check-package-dependencies-sub-install';
 
 /**
- * Check which dependencies are yet to be installed into the target system.
+ * Workflow step that identifies missing or incompatible dependencies on the target system.
  * 
  * 1- execute check dependencies workflow
  * 

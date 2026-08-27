@@ -7,7 +7,7 @@ import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Check ABAP package existance and generate if needed.
+ * Workflow step that validates target ABAP packages and creates any that are missing.
  * 
  * 1- find packages to generate
  * 

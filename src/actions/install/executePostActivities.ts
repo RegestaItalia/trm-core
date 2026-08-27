@@ -4,7 +4,7 @@ import { Logger } from "trm-commons";
 import { PostActivity } from "../../manifest";
 
 /**
- * Execute post activities
+ * Workflow step that executes post-install activities declared by the package manifest.
  * 
  * 1- execute post activities
  * 

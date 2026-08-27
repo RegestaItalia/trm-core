@@ -4,7 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { RegistryType } from "../../registry";
 
 /**
- * Set optional release data.
+ * Workflow step that collects optional readme and changelog Markdown for remote registries.
  * 
  * 1- set readme
  * 

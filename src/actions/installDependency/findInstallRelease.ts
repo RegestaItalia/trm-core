@@ -6,8 +6,9 @@ import { satisfies } from "semver";
 import { Lockfile } from "../../lockfile";
 
 /**
- * Find release to install.
- * If lockfile is provided, checksum is tested and lockfile version is extracted, else the latest release in range is taken
+ * Workflow step that selects the dependency release to install.
+ * If a lockfile entry exists, its integrity is verified and its version is used; otherwise
+ * the newest registry release satisfying the requested semantic-version range is selected.
  * 
  * 1- find version
  * 

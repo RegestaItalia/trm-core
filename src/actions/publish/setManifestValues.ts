@@ -8,7 +8,7 @@ import _ from 'lodash';
 import { TrmPackage } from "../../trmPackage";
 
 /**
- * Set manifest values
+ * Workflow step that merges, collects, normalizes, and serializes release manifest values.
  * 
  * 1- check if previous release manifest values should be copied
  * 

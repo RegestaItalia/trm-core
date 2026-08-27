@@ -6,7 +6,7 @@ import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
 
 /**
- * Generate deletion transport. A deletion transport is a transport that deletes entries in system at import.
+ * Workflow step that creates a transport for objects removed by an upgrade.
  * It's necessary when:
  *   - upgrading/downgrading a package: to ensure old entries are cleaned up
  *   - sap packages were changes after upgrade/downgrade: to ensure empty packages are cleaned up

@@ -6,7 +6,7 @@ import { createHash } from "crypto";
 import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 
 /**
- * Update package data
+ * Workflow step that records the published release in the origin system's TRM package table.
  * 
  * Creates/update record in TRM packages table
  * 

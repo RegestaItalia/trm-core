@@ -8,7 +8,7 @@ import { stopWarning } from "../stopWarning";
 import { TADIR } from "../../client";
 
 /**
- * Import TADIR Transport.
+ * Workflow step that imports repository objects and records rollback data.
  * 
  * 1- generate dummy transport (if registry is not local)
  * 

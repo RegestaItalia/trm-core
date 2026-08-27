@@ -5,7 +5,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Generate DEVC transport
+ * Workflow step that creates the transport containing ABAP package definitions.
  * 
  * 1- generate transport
  * 

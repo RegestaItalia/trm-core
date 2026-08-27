@@ -6,7 +6,7 @@ import * as AdmZip from "adm-zip";
 import { SystemConnector } from "../../systemConnector";
 
 /**
- * Upload
+ * Workflow step that validates, uploads, forwards, and refreshes a transport archive.
  * 
  * 1- identifying transport
  * 

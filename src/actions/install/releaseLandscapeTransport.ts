@@ -7,7 +7,7 @@ import { Manifest } from "../../manifest";
 import chalk from "chalk";
 
 /**
- * Release landscape transport (if created)
+ * Workflow step that releases the generated landscape transport, when present.
  * 
  * 1- release
  * 

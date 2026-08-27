@@ -4,7 +4,7 @@ import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 
 /**
- * Analyze
+ * Workflow step that queries required SAP tables and builds a per-entry status report.
  * 
  * 1- build required tables fields
  * 

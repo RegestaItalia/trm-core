@@ -6,13 +6,11 @@ import { RegistryProvider } from "../../registry";
 import { PostActivity } from "../../manifest";
 
 /**
- * This action should be run AFTER system packages are set, and everytime trm-server is used to ensure post activities are executed
- * 
- * 1- get trm-server
- * 
- * 2- execute pa
- * 
-*/
+ * Workflow step that runs post-install activities declared by the installed `trm-server` package.
+ *
+ * Run it after {@link setSystemPackages}. Individual post-activity failures are logged
+ * and do not abort the containing workflow.
+ */
 export const trmServerPa: Step<IActionContext> = {
     name: 'trm-server-pa',
     run: async (context: IActionContext): Promise<void> => {

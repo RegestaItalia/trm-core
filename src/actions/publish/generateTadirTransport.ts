@@ -5,7 +5,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Generate TADIR transport
+ * Workflow step that creates the transport containing repository objects.
  * 
  * 1- generate transport
  * 

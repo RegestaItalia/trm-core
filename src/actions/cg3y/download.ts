@@ -6,7 +6,7 @@ import * as AdmZip from "adm-zip";
 import { SystemConnector } from "../../systemConnector";
 
 /**
- * Download
+ * Workflow step that verifies and exports a released transport into a ZIP archive.
  * 
  * 1- check is released
  * 

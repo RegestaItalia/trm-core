@@ -7,7 +7,7 @@ import { TADIR } from "../../client";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Import DEVC Transport.
+ * Workflow step that imports ABAP package definitions and records rollback data.
  * 
  * 1- read if root already exists in system
  * 

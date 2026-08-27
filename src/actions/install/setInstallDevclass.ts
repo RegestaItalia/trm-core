@@ -27,7 +27,7 @@ function flattenDevclasses(pkg: PackageHierarchy): string[] {
 }
 
 /**
- * Set install devclass. These are the ABAP package names that will be used in the target system.
+ * Workflow step that resolves publisher ABAP packages to target-system package names.
  * 
  * 1- find already defined replacements in system
  * 

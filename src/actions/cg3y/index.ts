@@ -5,36 +5,46 @@ import { checkServerAuth, workflowCallbacks } from "..";
 import { TRKORR } from "../../client";
 import { download } from "./download";
 
-/**
- * Input data for cg3y action.
- */
+/** Input required to export a transport from the connected SAP system. */
 export interface Cg3yActionInput {
     /**
-    * Transport number to download.
+    * Released SAP transport request number to export, for example `DEVK900123`.
     */
     trkorr: TRKORR
 }
 
 type WorkflowRuntime = {}
 
+/** Result of a successful {@link cg3y} export. */
 export type Cg3yActionOutput = {
     /**
-    * Zip file containing header and data files.
+    * ZIP archive containing the transport's `K` header file and `R` data file.
     */
     binaries: Buffer
 }
 
+/** Internal workflow state used by the CG3Y action steps. */
 export interface Cg3yWorkflowContext {
+    /** Original action input. */
     rawInput: Cg3yActionInput,
+    /** Reserved runtime state for workflow steps. */
     runtime?: WorkflowRuntime,
+    /** Export result, populated by the download step. */
     output?: Cg3yActionOutput
 };
 
 const WORKFLOW_NAME = 'cg3y';
 
 /**
- * Download a released transport (as a zip file)
-*/
+ * Exports a released SAP transport as an in-memory ZIP archive.
+ *
+ * The connected user is authorized first, then the action verifies that the transport
+ * exists and is released before downloading its header and data files.
+ *
+ * @param inputData Transport export request.
+ * @returns A ZIP archive containing one matching transport header/data pair.
+ * @throws When authorization fails, the transport does not exist, is not released, or cannot be downloaded.
+ */
 export async function cg3y(inputData: Cg3yActionInput): Promise<Cg3yActionOutput> {
     const workflow = [
         checkServerAuth,

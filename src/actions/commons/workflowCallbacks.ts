@@ -1,6 +1,10 @@
 import { inspect, Logger } from "trm-commons";
 import { Step, WorkflowCallbacks } from "@simonegaffurini/sammarksworkflow";
 
+/**
+ * Default callbacks used by TRM actions to log workflow, step, and rollback lifecycle events.
+ * Sensitive callers should note that workflow inputs and outputs are included in verbose logs.
+ */
 export const workflowCallbacks: WorkflowCallbacks<any> = {
     onWorkflowStart: (name: string, context: any) => {
         Logger.log(`Starting workflow "${name}", input data: ${inspect(context.rawInput || context, { breakLength: Infinity, compact: true })}`, true);

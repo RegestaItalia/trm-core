@@ -8,7 +8,8 @@ import { E071, TADIR, TDEVC } from "../../client";
 import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons";
 
 /**
- * Get transport entries and check. A TRM Package must have one DEVC (ABAP Package) and TADIR (Workbench objects) transports.
+ * Workflow step that validates artifact transports and classifies them by TRM identifier.
+ * A package must contain exactly one DEVC transport and one TADIR transport.
  * 
  * Optionally, one LANG (Translation) and one (or more) CUST (Customizing) transport.
  * 

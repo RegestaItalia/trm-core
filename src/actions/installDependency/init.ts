@@ -7,7 +7,7 @@ import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 
 /**
- * Init
+ * Workflow step that validates dependency identity/range and initializes resolution state.
  * 
  * 1- check package name is compliant
  * 

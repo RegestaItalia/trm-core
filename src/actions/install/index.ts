@@ -24,56 +24,50 @@ import { updatePackageData } from "./updatePackageData";
 import { executePostActivities } from "./executePostActivities";
 import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
 
-/**
- * ABAP package replacement during install
- */
+/** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
     /**
-     * Original publisher ABAP package name
+     * Original ABAP package name stored in the published artifact.
      */
     originalDevclass: string,
 
     /**
-     * Install ABAP package name
+     * Target ABAP package name to use on the receiving system.
      */
     installDevclass: string
 }
 
-/**
- * Optional context data.
- */
+/** Shared execution settings for package and dependency installation actions. */
 export type InstallActionInputContextData = {
     /**
-     * Manually set installed packages on the system.
+     * Snapshot of packages installed on the target system. When omitted, the action queries SAP.
      */
     systemPackages?: TrmPackage[];
 
     /**
-     * Use inquirer? (will force some decisions)
+     * Disable interactive prompts. Any required choice without an explicit value then causes an error.
      */
     noInquirer?: boolean;
 
     /**
-     * Log temporary folder.
+     * Directory in which transport-release logs and temporary files are written.
      */
     logTemporaryFolder?: string;
 }
 
-/**
- * Optional install-specific data.
- */
+/** Options controlling package validation, transport import, and target package mapping. */
 export type InstallActionInputInstallData = {
     /**
      * Import-related data.
      */
     import?: {
         /**
-         * Whether to skip importing language transports.
+         * Skip the optional language transport. Defaults to `false`.
          */
         noLang?: boolean;
 
         /**
-         * Whether to skip importing customizing transports.
+         * Skip all customizing transports. Defaults to `false`.
          */
         noCust?: boolean;
     };
@@ -83,22 +77,22 @@ export type InstallActionInputInstallData = {
      */
     checks?: {
         /**
-         * Lockfile (for dependencies install matching integrity/version).
+         * Lockfile used to pin dependency versions and verify release integrity.
          */
         lockfile?: Lockfile;
 
         /**
-         * Whether to skip checking for all SAP entries.
+         * Skip validation of required SAP table entries. Defaults to `false`.
          */
         noSapEntries?: boolean;
 
         /**
-         * Whether to skip checking for package dependencies.
+         * Skip package dependency validation and installation. Defaults to `false`.
          */
         noDependencies?: boolean;
 
         /**
-         * Whether to skip checking for existing objects (potential overwrites).
+         * Skip the safety check for repository objects that would be overwritten. Defaults to `false`.
          */
         noExistingObjects?: boolean;
     };
@@ -108,22 +102,22 @@ export type InstallActionInputInstallData = {
      */
     installDevclass?: {
         /**
-         * Whether to keep the original package names from the publisher.
+         * Preserve publisher package names instead of mapping objects into an install package.
          */
         keepOriginal?: boolean;
 
         /**
-         * The transport layer of the package.
+         * Transport layer assigned to generated target packages. The system default is used when omitted.
          */
         transportLayer?: string;
 
         /**
-         * List of package replacements to apply during installation. Ignored if used with keep original.
+         * Explicit publisher-to-target package mappings. Ignored when `keepOriginal` is `true`.
          */
         replacements?: InstallPackageReplacements[];
 
         /**
-         * Skip install of namespace (if package has customer namespace).
+         * Do not register the package namespace on the target system.
          */
         skipNamespace?: boolean
     };
@@ -133,22 +127,21 @@ export type InstallActionInputInstallData = {
      */
     landscapeTransport?: {
         /**
-         * The target system for the landscape transport.
+         * TMS target for the generated landscape transport. It is selected interactively when omitted.
          */
         targetSystem?: string;
     };
 
     /**
-     * Skip install post activities
+     * Skip every post-install activity declared in the manifest. Defaults to `false`.
      */
     skipPostActivities?: boolean
 }
 
-/**
- * Input data for install package action.
- */
+/** Input required to install a TRM package release into the connected SAP system. */
 export interface InstallActionInput {
 
+    /** Optional shared execution settings. */
     contextData?: InstallActionInputContextData,
 
     /**
@@ -156,26 +149,28 @@ export interface InstallActionInput {
      */
     packageData: {
         /**
-         * The name of the package.
+         * Registry package name. For local registries, the manifest name becomes authoritative.
          */
         name: string;
 
         /**
-         * The version of the package (defaults to the latest version if not provided).
+         * Release version or registry selector. Defaults to `latest`.
          */
         version?: string;
 
         /**
-         * The registry where the package is stored.
+         * Registry from which metadata and the release artifact are fetched.
          */
         registry: AbstractRegistry;
 
         /**
-         * Overwrite package if same version is already installed?
+         * Allow reinstalling the same version. Defaults to `false`; dirty local changes still
+         * require interactive confirmation and therefore abort when prompts are disabled.
          */
         overwrite?: boolean;
     };
 
+    /** Optional validation, import, package-mapping, and post-activity settings. */
     installData?: InstallActionInputInstallData
 }
 
@@ -221,23 +216,44 @@ type WorkflowRevert = {
     namespace?: string
 }
 
+/** Result of a successful {@link install} action. */
 export type InstallActionOutput = {
+    /** Normalized manifest of the installed release. */
     manifest: TrmManifest,
+    /** Generated landscape transport, when the installation produced one. */
     transport?: Transport
 }
 
+/** Internal state shared by package-install workflow steps and rollback handlers. */
 export interface InstallWorkflowContext extends IActionContext {
+    /** Original action input; optional groups are normalized during initialization. */
     rawInput: InstallActionInput,
+    /** Resolved release, package hierarchy, transports, dependencies, and system metadata. */
     runtime?: WorkflowRuntime,
+    /** Data retained so completed steps can be rolled back after a later failure. */
     revert?: WorkflowRevert,
+    /** Installation result assembled by the workflow. */
     output?: InstallActionOutput
 };
 
 const WORKFLOW_NAME = 'install';
 
 /**
- * Install TRM Package
-*/
+ * Installs a TRM package release into the currently connected SAP system.
+ *
+ * The workflow authorizes the user, fetches and validates the release, checks dependencies
+ * and required SAP entries, maps ABAP packages, imports the artifact transports, executes
+ * post-install activities, and records the installed package. Completed reversible steps are
+ * rolled back when a later step fails.
+ *
+ * This operation changes the target SAP system. Do not interrupt it while transports are being
+ * generated, imported, or released.
+ *
+ * @param inputData Package identity, registry, and installation options.
+ * @returns The installed release manifest and, when generated, its landscape transport.
+ * @throws When authorization, release validation, safety checks, dependency installation,
+ * transport processing, or post-install work fails.
+ */
 export async function install(inputData: InstallActionInput): Promise<InstallActionOutput> {
     const workflow = [
         checkServerAuth,

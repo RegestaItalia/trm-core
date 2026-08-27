@@ -8,7 +8,7 @@ import * as _ from "lodash";
 const SUBWORKFLOW_NAME = 'install-dependency-sub-install';
 
 /**
- * Installs missing package dependencies.
+ * Workflow step that installs each dependency missing from the target system.
  * 
  * 1- list dependencies to install
  * 

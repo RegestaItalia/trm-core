@@ -5,7 +5,7 @@ import { Transport } from "../../transport";
 import { Manifest } from "../../manifest";
 
 /**
- * Generate install transports
+ * Workflow step that creates the landscape transport used to carry installed changes onward.
  * 
  * 1- generate landscape transport
  * 

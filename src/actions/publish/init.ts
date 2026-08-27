@@ -49,7 +49,7 @@ function getHighestPrerelease(versions: string[], baseVersion: string, identifie
 }
 
 /**
- * Init
+ * Workflow step that validates release metadata and reads the source ABAP package.
  * 
  * 1- fill context data
  * 

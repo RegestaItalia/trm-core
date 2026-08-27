@@ -5,7 +5,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Generate CUST transport
+ * Workflow step that packages each selected customizing request for publication.
  * 
  * 1- generate transport
  * 

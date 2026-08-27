@@ -6,7 +6,7 @@ import { FileSystem, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registr
 import { Manifest } from "../../manifest";
 
 /**
- * Update package data
+ * Workflow step that records the installed release in the target system's TRM package table.
  * 
  * Creates/update record in TRM packages table
  * 

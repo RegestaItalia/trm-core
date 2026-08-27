@@ -3,7 +3,7 @@ import { CheckPackageDependenciesWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 
 /**
- * Init
+ * Workflow step that initializes dependency-check output and normalizes optional input.
  * 
  * 1- set dependencies (read manifest)
  * 

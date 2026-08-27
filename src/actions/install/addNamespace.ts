@@ -7,7 +7,7 @@ import { TRNLICENSE, TRNSPACETT } from "../../client";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Add package namespace for repair.
+ * Workflow step that registers the package namespace for repair when required.
  * 
  * 1- set namespace
  * 

@@ -4,7 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { Transport } from "../../transport";
 
 /**
- * Release transports
+ * Workflow step that annotates and releases every generated publish transport.
  * 
  * 1- release
  * 

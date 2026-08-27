@@ -5,7 +5,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Generate LANG transport
+ * Workflow step that creates the optional transport containing language data.
  * 
  * 1- generate transport
  * 

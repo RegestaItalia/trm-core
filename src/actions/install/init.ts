@@ -9,7 +9,7 @@ import chalk from "chalk";
 import { setTransportTarget } from "../commons/prompts";
 
 /**
- * Init
+ * Workflow step that fetches the release, validates install settings, and initializes rollback state.
  * 
  * 1- fill context data
  * 

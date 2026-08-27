@@ -5,7 +5,7 @@ import { TrmArtifact } from "../../trmPackage";
 import { Manifest } from "../../manifest";
 
 /**
- * Publish to registry
+ * Workflow step that builds the binary TRM artifact and uploads the release to its registry.
  * 
  * 1- generate TRM artifact
  * 

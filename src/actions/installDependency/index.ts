@@ -8,11 +8,9 @@ import { findInstallRelease } from "./findInstallRelease";
 import { installRelease } from "./installRelease";
 import { TrmPackage } from "../../trmPackage";
 
-/**
- * Input data for install dependency action.
- */
+/** Input used to resolve and install one TRM package dependency. */
 export interface InstallDependencyActionInput {
-    
+    /** Shared install context, including optional package snapshot and prompt behavior. */
     contextData?: InstallActionInputContextData,
 
     /**
@@ -20,21 +18,22 @@ export interface InstallDependencyActionInput {
      */
     dependencyDataPackage: {
         /**
-         * The name of the package.
+         * Dependency package name.
          */
         name: string;
 
         /**
-         * Dependency release install version range.
+         * Semantic-version range the installed release must satisfy.
          */
         versionRange: string;
 
         /**
-         * The registry where the package is stored.
+         * Registry from which releases and artifacts are fetched.
          */
         registry: AbstractRegistry;
     };
 
+    /** Options forwarded to the underlying {@link install} action. */
     installData?: InstallActionInputInstallData
 }
 
@@ -44,21 +43,35 @@ type WorkflowRuntime = {
     installOutput: InstallActionOutput
 }
 
+/** Result returned after a dependency release has been selected and installed. */
 export type InstallDependencyActionOutput = {
+    /** Full result produced by the underlying package installation. */
     installOutput: InstallActionOutput
 }
 
+/** Internal state shared by the dependency-install workflow steps. */
 export interface InstallDependencyWorkflowContext extends IActionContext {
+    /** Original action input. */
     rawInput: InstallDependencyActionInput,
+    /** Resolved package, selected version, and nested installation result. */
     runtime?: WorkflowRuntime,
+    /** Dependency-install result. */
     output?: InstallDependencyActionOutput
 };
 
 const WORKFLOW_NAME = 'install-dependency';
 
 /**
- * Install TRM Package dependency from registry to target system
-*/
+ * Resolves the highest suitable dependency release and installs it on the target SAP system.
+ *
+ * A lockfile entry takes precedence when present and its integrity is verified. Otherwise,
+ * the newest registry release satisfying `versionRange` is selected. Installation is then
+ * delegated to {@link install} with the supplied options.
+ *
+ * @param inputData Dependency identity, version range, registry, and install options.
+ * @returns The nested installation result.
+ * @throws When no compatible release can be found or the nested install fails.
+ */
 export async function installDependency(inputData: InstallDependencyActionInput): Promise<InstallDependencyActionOutput> {
     const workflow = [
         init,

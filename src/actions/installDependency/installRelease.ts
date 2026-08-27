@@ -3,7 +3,7 @@ import { InstallDependencyWorkflowContext } from ".";
 import { InstallActionInput, install as InstallWkf } from "..";
 
 /**
- * Find release in range to install
+ * Workflow step that delegates the selected dependency release to the package install action.
  * 
  * 1- run install workflow
  * 

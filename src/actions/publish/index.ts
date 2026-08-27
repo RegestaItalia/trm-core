@@ -21,31 +21,29 @@ import { releaseTransports } from "./releaseTransports";
 import { publishToRegistry } from "./publishToRegistry";
 import { updatePackageData } from "./updatePackageData";
 
-/**
- * Input data for publish package action.
- */
+/** Input required to build and publish a TRM package release from the connected SAP system. */
 export interface PublishActionInput {
     /**
      * Optional context data.
      */
     contextData?: {
         /**
-         * Manually set installed packages on the system.
+         * Snapshot of packages installed on the origin system. When omitted, the action queries SAP.
          */
         systemPackages?: TrmPackage[];
 
         /**
-         * Use inquirer? (will force some decisions).
+         * Disable interactive prompts. Missing required values then cause an error.
          */
         noInquirer?: boolean;
 
         /**
-         * Log temporary folder.
+         * Directory in which transport-release logs and temporary files are written.
          */
         logTemporaryFolder?: string;
 
         /**
-         * Don't show a stop warning when process starts.
+         * Suppress the warning normally shown before state-changing work starts.
          */
         noStopWarning?: boolean;
     };
@@ -55,12 +53,12 @@ export interface PublishActionInput {
      */
     packageData: {
         /**
-         * The name of the package.
+         * TRM package name to publish.
          */
         name: string;
 
         /**
-         * The version of the package.
+         * Exact semantic version or `latest`/omitted for automatic version calculation.
          * 
          * If blank/latest the latest version is retrieved from the registry:
          * 
@@ -71,38 +69,39 @@ export interface PublishActionInput {
         version?: string;
 
         /**
-         * Increment type for releases without specific version.
+         * Semantic-version increment used when `version` is omitted or `latest`.
          */
         inc?: ReleaseType;
 
         /**
-         * Indicates a pre release.
+         * Publish a prerelease instead of a stable release.
          */
         preRelease?: boolean;
 
         /**
-         * Pre release identifier.
+         * Prerelease identifier such as `alpha` or `beta`.
          */
         preReleaseIdentifier?: string;
 
         /**
-         * Tags for the release.
+         * Registry distribution tags assigned to the release. Defaults to an empty array.
          */
         tags?: string[];
 
         /**
-         * The registry where the package has to be stored.
+         * Destination registry used for validation, version lookup, and publication.
          */
         registry: AbstractRegistry;
 
         /**
-         * ABAP package name.
+         * Source ABAP package. When omitted, the action derives or prompts for it.
          */
         devclass?: DEVCLASS;
 
 
         /**
-         * TRM package manifest data.
+         * Manifest values supplied by the caller. Missing values may be copied from the latest
+         * release or collected interactively, depending on `publishData`.
          */
         manifest?: TrmManifestBase;
     };
@@ -113,7 +112,7 @@ export interface PublishActionInput {
     systemData?: {
 
         /**
-         * Publish transport target.
+         * TMS target assigned to generated publish transports. It is selected interactively when omitted.
          */
         transportTarget?: TR_TARGET;
     }
@@ -124,42 +123,43 @@ export interface PublishActionInput {
     publishData?: {
 
         /**
-         * Skip automatic dependencies detection.
+         * Do not infer TRM dependencies from the source package hierarchy.
          */
         noDependenciesDetection?: boolean,
 
         /**
-         * Keep manifest values from latest release.
+         * Merge unspecified manifest metadata from the latest release. Defaults to `true`.
          */
         keepLatestReleaseManifestValues?: boolean,
 
         /**
-         * Publish release as private.
+         * Set release visibility to private where supported by the registry.
          */
         private?: boolean,
 
         /**
-         * Release readme.
+         * Markdown readme stored with the release. Remote registries may prompt when omitted.
          */
         readme?: string,
 
         /**
-         * Release changelog.
+         * Markdown changelog stored with the release. Remote registries may prompt when omitted.
          */
         changelog?: string,
 
         /**
-         * Skip customizing transports publish.
+         * Exclude all customizing transports from this release.
          */
         noCustomizingTransports?: boolean,
 
         /**
-         * Customizing transports. Has no effect if skipCustomizingTransports is set to true.
+         * Existing customizing request numbers to include. Retained transports from the latest
+         * release are merged into this list. Ignored when `noCustomizingTransports` is `true`.
          */
         customizingTransports?: string[],
 
         /**
-         * Skip translations transport publish.
+         * Do not generate a language transport for translatable package content.
          */
         noLanguageTransport?: boolean
     }
@@ -203,22 +203,42 @@ type WorkflowRuntime = {
     stopWarningShown: boolean
 }
 
+/** Artifacts produced by a successful {@link publish} action. */
 export type PublishActionOutput = {
+    /** Published package model, including its normalized manifest and registry identity. */
     trmPackage: TrmPackage,
+    /** Generated release artifact containing transports, manifest, and optional source archive. */
     trmArtifact: TrmArtifact
 }
 
+/** Internal state shared by package-publish workflow steps. */
 export interface PublishWorkflowContext extends IActionContext {
+    /** Original action input; optional groups and collections are normalized before execution. */
     rawInput: PublishActionInput,
+    /** Latest release, SAP objects, generated transports, manifest, and source data. */
     runtime?: WorkflowRuntime,
+    /** Package and artifact assembled by the workflow. */
     output?: PublishActionOutput
 };
 
 const WORKFLOW_NAME = 'publish';
 
 /**
- * Publish ABAP package to TRM registry
-*/
+ * Builds an ABAP package release from the connected SAP system and publishes it to a TRM registry.
+ *
+ * The workflow validates authorization and release metadata, detects dependencies, serializes
+ * the source package, creates and releases DEVC/TADIR plus optional language/customizing
+ * transports, uploads the artifact, and records the published package on the origin system.
+ *
+ * This operation creates and releases SAP transports. Do not interrupt it after processing begins.
+ * The function normalizes missing optional input groups and arrays in place.
+ *
+ * @param inputData Source package, destination registry, release metadata, and publish options.
+ * @returns The published package model and generated binary artifact.
+ * @throws When validation, authorization, source serialization, transport generation/release,
+ * or registry publication fails. A final local package-record update failure is logged but does
+ * not reject an otherwise successful publication.
+ */
 export async function publish(inputData: PublishActionInput): Promise<PublishActionOutput> {
     inputData.contextData ??= {};
     inputData.systemData ??= {};

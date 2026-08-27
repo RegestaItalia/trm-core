@@ -6,7 +6,7 @@ import { checkSapEntries as CheckSapEntriesWkf, CheckSapEntriesActionInput } fro
 const SUBWORKFLOW_NAME = 'check-sap-entries-sub-install';
 
 /**
- * Check if package SAP entries are supported in target system
+ * Workflow step that blocks installation when required SAP table entries are missing.
  * 
  * 1- execute check sap entries workflow
  * 
