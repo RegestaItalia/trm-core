@@ -235,6 +235,9 @@ export const init: Step<PublishWorkflowContext> = {
         } else {
             isPrivate = context.rawInput.publishData.private === undefined ? (context.runtime.latest.data ? context.runtime.latest.data.manifest.private : undefined) : context.rawInput.publishData.private;
             if (isPrivate === undefined) {
+                if (context.rawInput.contextData.noInquirer) {
+                    throw new Error(`publishData.private is required for the first remote publication when interactive prompts are disabled.`);
+                }
                 isPrivate = (await Inquirer.prompt({
                     type: "list",
                     message: "Package visibility",

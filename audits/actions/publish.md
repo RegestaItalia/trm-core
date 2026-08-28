@@ -25,14 +25,6 @@ decisions before a later, less clear failure.
 
 Recommendation: catch only a typed package-not-found error.
 
-### PUBL-06 — Medium — Non-interactive mode can still prompt for package visibility
-
-For the first remote publication with no explicit `publishData.private`, `init` always invokes
-`Inquirer.prompt`; it does not check `contextData.noInquirer`
-([source](../../src/actions/publish/init.ts#L231)). Headless callers can hang or fail unexpectedly.
-
-Recommendation: require `private` when prompts are disabled, or define and document a default.
-
 ### PUBL-07 — Medium — Retained-dependency prompt can include only one dependency
 
 The prompt asking which missing dependencies to include uses `type: "select"`, even though the
@@ -58,7 +50,7 @@ Recommendation: register the transport immediately after creation or clean it in
 | 1 | `check-server-auth` | No publish-specific issue; see [shared audit](shared.md). |
 | 2 | `set-system-packages` | No publish-specific issue. |
 | 3 | `trm-server-pa` | SHARED-02. |
-| 4 | `init` | PUBL-05 and PUBL-06. Version/name/lock validation otherwise rejects failures. Publishing without abapGit source or `.abapgit.xml` is intentionally allowed. |
+| 4 | `init` | PUBL-05. Version/name/lock validation otherwise rejects failures. First remote non-interactive publication requires explicit visibility. Publishing without abapGit source or `.abapgit.xml` is intentionally allowed. |
 | 5 | `find-dependencies` | No issue found. Customer/local packages and TRM dependencies without manifests correctly block publication. |
 | 6 | `set-customizing-transports` | No confirmed logic defect found. Invalid new requests reject; retained requests deliberately reuse prior metadata. Connector errors propagate, although a missing E070 currently surfaces as a generic `TypeError` before being wrapped. |
 | 7 | `set-manifest-values` | PUBL-07. Final manifest normalization provides a last validation boundary. |
@@ -91,3 +83,9 @@ blocking diagnostic reports the correct total independently of non-TRM custom de
 The release step saves the existing logger and prompt prefixes and restores both in `finally`, so
 annotation or release failures cannot leak per-transport prefix state into rollback or later work
 ([source](../../src/actions/publish/releaseTransports.ts#L22)).
+
+### PUBL-06 — Resolved — Non-interactive first publication requires visibility
+
+When a first remote publication has no `publishData.private` value and interactive prompts are
+disabled, initialization now rejects with a clear error instead of prompting. No visibility default
+is assumed ([source](../../src/actions/publish/init.ts#L237)).

@@ -129,6 +129,7 @@ export interface PublishActionInput {
 
         /**
          * Set release visibility to private where supported by the registry.
+         * Required for the first remote publication when interactive prompts are disabled.
          */
         private?: boolean,
 
