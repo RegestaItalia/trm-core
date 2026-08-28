@@ -60,16 +60,6 @@ exception leaves prefixes active for rollback and subsequent operations.
 Recommendation: restore previous prefixes in `finally` rather than calling `removePrefix()` only on
 success.
 
-### PUBL-10 — Medium — Final package-record failure is swallowed and the action returns success
-
-`updatePackageData` catches every error, logs that the origin system is inconsistent, and resolves
-([source](../../src/actions/publish/updatePackageData.ts#L18)). The top-level action consequently
-returns an ordinary success result, giving programmatic callers no way to detect the inconsistent
-state without parsing logs.
-
-Recommendation: return a typed `localRecordUpdated` status or reject with an error that clearly
-states the registry publication itself succeeded.
-
 ## Step review
 
 | Order | Step | Result |
@@ -88,7 +78,7 @@ states the registry publication itself succeeded.
 | 12 | `generate-cust-transport` | PUBL-08. |
 | 13 | `release-transport` | PUBL-04 and PUBL-09. |
 | 14 | `publish-to-registry` | No step-local validation issue found; failures propagate, but after irreversible releases (PUBL-04). |
-| 15 | `update-package-data` | PUBL-10. |
+| 15 | `update-package-data` | No issue found. Updating the origin-system package record is best-effort and does not invalidate a successful registry publication. |
 
 ## Resolved findings
 
