@@ -5,16 +5,6 @@ Entry point: [`publish`](../../src/actions/publish/index.ts#L242)
 
 ## Findings
 
-### PUBL-01 — High — Source-code export failures are silently treated as “no source”
-
-`init` catches every error from `getAbapgitSource`, logs only a verbose message, and continues
-([source](../../src/actions/publish/init.ts#L312)). Authentication loss, server errors, and corrupt
-responses therefore produce a successful release without source code. The `.abapgit.xml` read uses
-the same broad catch and can silently skip exclusion rules.
-
-Recommendation: only tolerate a typed “abapGit not installed/file absent” result; propagate all
-operational failures.
-
 ### PUBL-02 — High — Dependencies with unreadable manifests are omitted and publication continues
 
 Automatic discovery logs an error when a TRM dependency has no manifest, but does not throw or add
@@ -112,7 +102,7 @@ print incorrect pluralization and `(n/0)` counters while reporting the real bloc
 | 1 | `check-server-auth` | No publish-specific issue; see [shared audit](shared.md). |
 | 2 | `set-system-packages` | No publish-specific issue. |
 | 3 | `trm-server-pa` | SHARED-02. |
-| 4 | `init` | PUBL-01, PUBL-05, and PUBL-06. Version/name/lock validation otherwise rejects failures. |
+| 4 | `init` | PUBL-05 and PUBL-06. Version/name/lock validation otherwise rejects failures. Publishing without abapGit source or `.abapgit.xml` is intentionally allowed. |
 | 5 | `find-dependencies` | PUBL-02 and PUBL-11. Customer/local package dependencies correctly block publication. |
 | 6 | `set-customizing-transports` | No confirmed logic defect found. Invalid new requests reject; retained requests deliberately reuse prior metadata. Connector errors propagate, although a missing E070 currently surfaces as a generic `TypeError` before being wrapped. |
 | 7 | `set-manifest-values` | PUBL-07. Final manifest normalization provides a last validation boundary. |

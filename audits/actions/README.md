@@ -28,7 +28,7 @@ connector, registry, filesystem, and prompt failures may still propagate as expe
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
 | `install-dependency` | 4 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 18 scheduled + 2 omitted | 2 | 6 | 4 | 1 | [Package install](install.md) |
-| `publish` | 15 | 0 | 4 | 6 | 1 | [Package publish](publish.md) |
+| `publish` | 15 | 0 | 3 | 6 | 1 | [Package publish](publish.md) |
 | Shared steps/callbacks | 5 | 0 | 0 | 0 | 0 | [Shared infrastructure](shared.md) |
 
 ## Highest-priority remediation order
