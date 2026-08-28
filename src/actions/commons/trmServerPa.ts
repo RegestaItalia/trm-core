@@ -8,8 +8,7 @@ import { PostActivity } from "../../manifest";
 /**
  * Workflow step that runs post-install activities declared by the installed `trm-server` package.
  *
- * Run it after {@link setSystemPackages}. Individual post-activity failures are logged
- * and do not abort the containing workflow.
+ * Run it after {@link setSystemPackages}. A post-activity failure aborts the containing workflow.
  */
 export const trmServerPa: Step<IActionContext> = {
     name: 'trm-server-pa',
@@ -21,16 +20,17 @@ export const trmServerPa: Step<IActionContext> = {
         if (trmServerPackage) {
             const pa = trmServerPackage.manifest?.get().postActivities;
             if (pa) {
+                const originalPrefix = Logger.getPrefix();
                 Logger.setPrefix(`Initialize trm-server v${trmServerPackage.manifest?.get().version} -> `);
                 for (const data of pa) {
-                    try {
-                        const postActivity = new PostActivity(data);
-                        await postActivity.execute();
-                    } catch (e) {
-                        Logger.error(e.toString(), true);
-                    }
+                    const postActivity = new PostActivity(data);
+                    await postActivity.execute();
                 }
-                Logger.removePrefix();
+                if (originalPrefix) {
+                    Logger.setPrefix(originalPrefix);
+                } else {
+                    Logger.removePrefix();
+                }
             }
         }
     }

@@ -4,17 +4,9 @@ Audit date: 2026-08-27
 
 This report covers reusable steps and callbacks used by more than one action workflow.
 
-## Findings
+## Result
 
-### SHARED-02 — Medium — `trm-server` initialization failures are swallowed
-
-Every post-activity exception is logged and ignored
-([source](../../src/actions/commons/trmServerPa.ts#L25)). Workflows continue even if server
-initialization was required for later API compatibility. The logger prefix is also not restored in
-a `finally`, so a throw from logging itself or from manifest access can leak global prefix state.
-
-Recommendation: distinguish optional activities from required initialization; aggregate and throw
-required failures, and restore prefixes in `finally`.
+No open shared-infrastructure problems were found.
 
 ## Step review
 
@@ -22,12 +14,19 @@ required failures, and restore prefixes in `finally`.
 |---|---|
 | `check-server-auth` | No issue found. The connector contract is `true | ClientError`, and denial is propagated. |
 | `set-system-packages` | No issue found. It preserves a supplied snapshot and propagates query failures. |
-| `trm-server-pa` | SHARED-02. |
+| `trm-server-pa` | No issue found. Post-activity failures reject the workflow step and logger state is restored in `finally`. |
 | `setTransportTarget` | No issue found. Zero targets reject immediately, a sole target is selected automatically, and explicit targets are validated. |
 | `stopWarning` | No issue found. It only emits the standard interruption warning and has no state-changing behavior. |
 | `workflowCallbacks` | No open data-exposure issue. Failure callbacks still assume an `Error` object, so non-`Error` throws lose diagnostic detail, but do not change workflow control flow. |
 
 ## Resolved findings
+
+### SHARED-02 — Resolved — `trm-server` initialization failures propagate
+
+The per-activity `try/catch` was removed. Construction or execution failure now rejects the shared
+step and is handled by the workflow executor like any other step failure. Prefix cleanup remains in
+a `finally` block, so failure does not leak logger state
+([source](../../src/actions/commons/trmServerPa.ts#L21)).
 
 ### SHARED-03 — Resolved — Zero transport targets reject before prompting
 
