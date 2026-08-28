@@ -51,9 +51,9 @@ export const findDependencies: Step<PublishWorkflowContext> = {
 
         //3- find dependencies with local trm packages
         if (trmLocalDependencies.length > 0) {
-            Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${trmLocalDependencies.length} TRM local ${customDependencies.length === 1 ? 'package' : 'packages'}:`);
+            Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${trmLocalDependencies.length} TRM local ${trmLocalDependencies.length === 1 ? 'package' : 'packages'}:`);
             trmLocalDependencies.forEach((d, i) => {
-                Logger.error(`  (${i + 1}/${customDependencies.length}) ${d.trmPackage.packageName}`);
+                Logger.error(`  (${i + 1}/${trmLocalDependencies.length}) ${d.trmPackage.packageName}`);
             });
             throw new Error(`Cannot deliver to registry a TRM package with a local TRM package.`);
         }
