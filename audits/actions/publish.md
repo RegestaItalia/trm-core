@@ -5,15 +5,6 @@ Entry point: [`publish`](../../src/actions/publish/index.ts#L242)
 
 ## Findings
 
-### PUBL-02 — High — Dependencies with unreadable manifests are omitted and publication continues
-
-Automatic discovery logs an error when a TRM dependency has no manifest, but does not throw or add
-a dependency ([source](../../src/actions/publish/findDependencies.ts#L67)). The published artifact
-can then activate unsuccessfully on a clean system.
-
-Recommendation: fail publication unless the caller explicitly acknowledges or supplies the missing
-dependency metadata.
-
 ### PUBL-03 — High — Language transport generation errors are swallowed
 
 Any exception from translation collection or entry inspection becomes a warning; the transport is
@@ -103,7 +94,7 @@ print incorrect pluralization and `(n/0)` counters while reporting the real bloc
 | 2 | `set-system-packages` | No publish-specific issue. |
 | 3 | `trm-server-pa` | SHARED-02. |
 | 4 | `init` | PUBL-05 and PUBL-06. Version/name/lock validation otherwise rejects failures. Publishing without abapGit source or `.abapgit.xml` is intentionally allowed. |
-| 5 | `find-dependencies` | PUBL-02 and PUBL-11. Customer/local package dependencies correctly block publication. |
+| 5 | `find-dependencies` | PUBL-11. Customer/local packages and TRM dependencies without manifests correctly block publication. |
 | 6 | `set-customizing-transports` | No confirmed logic defect found. Invalid new requests reject; retained requests deliberately reuse prior metadata. Connector errors propagate, although a missing E070 currently surfaces as a generic `TypeError` before being wrapped. |
 | 7 | `set-manifest-values` | PUBL-07. Final manifest normalization provides a last validation boundary. |
 | 8 | `set-optional-release-data` | No issue found. Omitted optional text remains undefined in non-interactive mode. |
@@ -114,3 +105,12 @@ print incorrect pluralization and `(n/0)` counters while reporting the real bloc
 | 13 | `release-transport` | PUBL-04 and PUBL-09. |
 | 14 | `publish-to-registry` | No step-local validation issue found; failures propagate, but after irreversible releases (PUBL-04). |
 | 15 | `update-package-data` | PUBL-10. |
+
+## Resolved findings
+
+### PUBL-02 — Resolved — Dependencies without manifests block publication
+
+Automatic discovery now validates every detected TRM dependency before changing the publication
+manifest. If any dependency has no readable manifest, the step reports its ABAP package and rejects
+publication, preventing an incomplete dependency list
+([source](../../src/actions/publish/findDependencies.ts#L65)).

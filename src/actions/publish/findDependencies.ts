@@ -62,22 +62,26 @@ export const findDependencies: Step<PublishWorkflowContext> = {
 
         //3- set trm dependencies in manifest
         if (trmDependencies.length > 0) {
+            const dependenciesWithoutManifest = trmDependencies.filter(o => !o.trmPackage.manifest);
+            if (dependenciesWithoutManifest.length > 0) {
+                dependenciesWithoutManifest.forEach(o => {
+                    Logger.error(`Cannot find manifest of dependency in ABAP package "${o.trmPackage.getDevclass()}"`);
+                });
+                throw new Error(`Cannot publish package "${context.rawInput.packageData.devclass}": ${dependenciesWithoutManifest.length} TRM ${dependenciesWithoutManifest.length === 1 ? 'dependency has' : 'dependencies have'} no manifest.`);
+            }
+
             Logger.log(`Adding TRM package dependencies to manifest`, true);
             Logger.info(`Updating "${context.rawInput.packageData.name}" manifest with dependencies:`);
             trmDependencies.forEach((o, i) => {
-                if (o.trmPackage.manifest) {
-                    const dependencyManifest = o.trmPackage.manifest.get();
-                    const dependencyVersionRange = `^${dependencyManifest.version}`;
-                    const dependencyRegistry = o.trmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.trmPackage.registry.endpoint;
-                    context.runtime.manifest.dependencies.push({
-                        name: dependencyManifest.name,
-                        version: dependencyVersionRange,
-                        registry: dependencyRegistry
-                    });
-                    Logger.info(`  (${i + 1}/${trmDependencies.length}) ${dependencyManifest.name}${dependencyRegistry ? ' (' + o.trmPackage.registry.name + ')' : ''} ${dependencyVersionRange}`);
-                } else {
-                    Logger.error(`  (${i + 1}/${trmDependencies.length}) Cannot find manifest of dependency in ABAP package "${o.trmPackage.getDevclass()}"`);
-                }
+                const dependencyManifest = o.trmPackage.manifest!.get();
+                const dependencyVersionRange = `^${dependencyManifest.version}`;
+                const dependencyRegistry = o.trmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.trmPackage.registry.endpoint;
+                context.runtime.manifest.dependencies.push({
+                    name: dependencyManifest.name,
+                    version: dependencyVersionRange,
+                    registry: dependencyRegistry
+                });
+                Logger.info(`  (${i + 1}/${trmDependencies.length}) ${dependencyManifest.name}${dependencyRegistry ? ' (' + o.trmPackage.registry.name + ')' : ''} ${dependencyVersionRange}`);
             });
         }
 
