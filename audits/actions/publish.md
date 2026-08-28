@@ -5,16 +5,6 @@ Entry point: [`publish`](../../src/actions/publish/index.ts#L242)
 
 ## Findings
 
-### PUBL-03 — High — Language transport generation errors are swallowed
-
-Any exception from translation collection or entry inspection becomes a warning; the transport is
-then deleted and publishing continues without language content
-([source](../../src/actions/publish/generateLangTransport.ts#L37)). Connector outages and real
-generation defects are indistinguishable from “there are no translations.”
-
-Recommendation: treat an empty successful result separately from exceptions and propagate the
-latter.
-
 ### PUBL-04 — High — Partial release/publication cannot be rolled back
 
 Transports are released sequentially before the registry upload
@@ -100,7 +90,7 @@ print incorrect pluralization and `(n/0)` counters while reporting the real bloc
 | 8 | `set-optional-release-data` | No issue found. Omitted optional text remains undefined in non-interactive mode. |
 | 9 | `generate-devc-transport` | No issue found. The transport is registered in context before object addition, allowing deletion on failure while still modifiable. |
 | 10 | `generate-tadir-transport` | No issue found for the same reason as DEVC generation. |
-| 11 | `generate-lang-transport` | PUBL-03. |
+| 11 | `generate-lang-transport` | No issue found. Translation content is optional; an empty generated transport is deleted and publication continues without it. |
 | 12 | `generate-cust-transport` | PUBL-08. |
 | 13 | `release-transport` | PUBL-04 and PUBL-09. |
 | 14 | `publish-to-registry` | No step-local validation issue found; failures propagate, but after irreversible releases (PUBL-04). |
