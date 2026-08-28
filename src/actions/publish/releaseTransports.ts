@@ -19,19 +19,24 @@ export const releaseTransports: Step<PublishWorkflowContext> = {
         }
         context.runtime.aggregatedTransports = context.runtime.aggregatedTransports.concat(context.runtime.transports.cust);
         var counter = 0;
-        for (var transport of context.runtime.aggregatedTransports) {
-            counter++;
-            const prefix = `(${counter}/${context.runtime.aggregatedTransports.length}) `;
-            Logger.setPrefix(prefix);
-            Inquirer.setPrefix(prefix);
-            await transport.addComment(`name=${context.rawInput.packageData.name}`);
-            await transport.addComment(`version=${context.rawInput.packageData.version}`);
-            await transport.setDocumentation(context.runtime.manifestXml);
-            Logger.log(`Ready to release transport ${transport.trkorr}, ${transport.trmIdentifier}`, true);
-            Logger.loading(`${Transport.getTransportIcon()}  Releasing ${transport.trkorr}...`);
-            await transport.release(false, false, context.rawInput.contextData.logTemporaryFolder);
-            Logger.removePrefix();
-            Inquirer.removePrefix();
+        const originalLoggerPrefix = Logger.getPrefix();
+        const originalInquirerPrefix = Inquirer.getPrefix();
+        try {
+            for (var transport of context.runtime.aggregatedTransports) {
+                counter++;
+                const prefix = `(${counter}/${context.runtime.aggregatedTransports.length}) `;
+                Logger.setPrefix(prefix);
+                Inquirer.setPrefix(prefix);
+                await transport.addComment(`name=${context.rawInput.packageData.name}`);
+                await transport.addComment(`version=${context.rawInput.packageData.version}`);
+                await transport.setDocumentation(context.runtime.manifestXml);
+                Logger.log(`Ready to release transport ${transport.trkorr}, ${transport.trmIdentifier}`, true);
+                Logger.loading(`${Transport.getTransportIcon()}  Releasing ${transport.trkorr}...`);
+                await transport.release(false, false, context.rawInput.contextData.logTemporaryFolder);
+            }
+        } finally {
+            Logger.setPrefix(originalLoggerPrefix);
+            Inquirer.setPrefix(originalInquirerPrefix);
         }
     }
 }

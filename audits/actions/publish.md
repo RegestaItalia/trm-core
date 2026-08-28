@@ -51,15 +51,6 @@ the newly created request.
 
 Recommendation: register the transport immediately after creation or clean it in a local catch.
 
-### PUBL-09 — Medium — Prefix state leaks on release errors
-
-`releaseTransports` sets global logger and prompt prefixes and removes them only after a successful
-release ([source](../../src/actions/publish/releaseTransports.ts#L21)). Any annotation or release
-exception leaves prefixes active for rollback and subsequent operations.
-
-Recommendation: restore previous prefixes in `finally` rather than calling `removePrefix()` only on
-success.
-
 ## Step review
 
 | Order | Step | Result |
@@ -76,7 +67,7 @@ success.
 | 10 | `generate-tadir-transport` | No issue found for the same reason as DEVC generation. |
 | 11 | `generate-lang-transport` | No issue found. Translation content is optional; an empty generated transport is deleted and publication continues without it. |
 | 12 | `generate-cust-transport` | PUBL-08. |
-| 13 | `release-transport` | PUBL-04 and PUBL-09. |
+| 13 | `release-transport` | PUBL-04. Logger and prompt prefixes are restored after success or failure. |
 | 14 | `publish-to-registry` | No step-local validation issue found; failures propagate, but after irreversible releases (PUBL-04). |
 | 15 | `update-package-data` | No issue found. Updating the origin-system package record is best-effort and does not invalidate a successful registry publication. |
 
@@ -94,3 +85,9 @@ publication, preventing an incomplete dependency list
 Local TRM dependency pluralization and item counters now use `trmLocalDependencies.length`, so the
 blocking diagnostic reports the correct total independently of non-TRM custom dependencies
 ([source](../../src/actions/publish/findDependencies.ts#L51)).
+
+### PUBL-09 — Resolved — Release prefix state is restored on errors
+
+The release step saves the existing logger and prompt prefixes and restores both in `finally`, so
+annotation or release failures cannot leak per-transport prefix state into rollback or later work
+([source](../../src/actions/publish/releaseTransports.ts#L22)).
