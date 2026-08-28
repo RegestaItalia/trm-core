@@ -25,15 +25,6 @@ decisions before a later, less clear failure.
 
 Recommendation: catch only a typed package-not-found error.
 
-### PUBL-07 — Medium — Retained-dependency prompt can include only one dependency
-
-The prompt asking which missing dependencies to include uses `type: "select"`, even though the
-message and subsequent code treat the response as a collection
-([source](../../src/actions/publish/setManifestValues.ts#L100)). When multiple latest-release
-dependencies are missing, the user cannot retain more than one in that interaction.
-
-Recommendation: use a checkbox/multiselect prompt and validate the returned array.
-
 ### PUBL-08 — Medium — A failed customizing-copy build can leave an untracked transport
 
 `generateCustTransport` creates a TOC and only pushes it into `runtime.transports.cust` after every
@@ -53,7 +44,7 @@ Recommendation: register the transport immediately after creation or clean it in
 | 4 | `init` | PUBL-05. Version/name/lock validation otherwise rejects failures. First remote non-interactive publication requires explicit visibility. Publishing without abapGit source or `.abapgit.xml` is intentionally allowed. |
 | 5 | `find-dependencies` | No issue found. Customer/local packages and TRM dependencies without manifests correctly block publication. |
 | 6 | `set-customizing-transports` | No confirmed logic defect found. Invalid new requests reject; retained requests deliberately reuse prior metadata. Connector errors propagate, although a missing E070 currently surfaces as a generic `TypeError` before being wrapped. |
-| 7 | `set-manifest-values` | PUBL-07. Final manifest normalization provides a last validation boundary. |
+| 7 | `set-manifest-values` | No issue found. Missing dependencies from the latest release can be retained with a multi-select prompt. Final manifest normalization provides a last validation boundary. |
 | 8 | `set-optional-release-data` | No issue found. Omitted optional text remains undefined in non-interactive mode. |
 | 9 | `generate-devc-transport` | No issue found. The transport is registered in context before object addition, allowing deletion on failure while still modifiable. |
 | 10 | `generate-tadir-transport` | No issue found for the same reason as DEVC generation. |
