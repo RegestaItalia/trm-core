@@ -8,7 +8,7 @@ import { PostActivity } from "../../manifest";
 /**
  * Workflow step that runs post-install activities declared by the installed `trm-server` package.
  *
- * Run it after {@link setSystemPackages}. A post-activity failure aborts the containing workflow.
+ * Run it after {@link setSystemPackages}.
  */
 export const trmServerPa: Step<IActionContext> = {
     name: 'trm-server-pa',
