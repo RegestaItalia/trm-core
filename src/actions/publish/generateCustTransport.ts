@@ -42,6 +42,9 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
                 target: context.rawInput.systemData.transportTarget,
                 text: cust.description.trim().slice(0, 60),
             });
+            // Track the TOC before populating it so workflow rollback can delete it if a
+            // subsequent copy or content check fails.
+            context.runtime.transports.cust.push(transport);
             for (const aggInstance of aggregate) {
                 await transport.addObjectsFromTransport(aggInstance.trkorr);
             }
@@ -50,8 +53,9 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
             if (e071.length === 0) {
                 Logger.info(`Customizing transport has no content, deleting.`, true);
                 await transport.delete();
-            } else {
-                context.runtime.transports.cust.push(transport);
+                context.runtime.transports.cust = context.runtime.transports.cust.filter(
+                    trackedTransport => trackedTransport !== transport
+                );
             }
         }
     },

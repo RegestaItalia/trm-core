@@ -25,15 +25,6 @@ decisions before a later, less clear failure.
 
 Recommendation: catch only a typed package-not-found error.
 
-### PUBL-08 — Medium — A failed customizing-copy build can leave an untracked transport
-
-`generateCustTransport` creates a TOC and only pushes it into `runtime.transports.cust` after every
-copy and content check succeeds ([source](../../src/actions/publish/generateCustTransport.ts#L35)).
-If `getTasks`, `addObjectsFromTransport`, or `getE071` fails, the revert handler cannot see or delete
-the newly created request.
-
-Recommendation: register the transport immediately after creation or clean it in a local catch.
-
 ## Step review
 
 | Order | Step | Result |
@@ -49,12 +40,19 @@ Recommendation: register the transport immediately after creation or clean it in
 | 9 | `generate-devc-transport` | No issue found. The transport is registered in context before object addition, allowing deletion on failure while still modifiable. |
 | 10 | `generate-tadir-transport` | No issue found for the same reason as DEVC generation. |
 | 11 | `generate-lang-transport` | No issue found. Translation content is optional; an empty generated transport is deleted and publication continues without it. |
-| 12 | `generate-cust-transport` | PUBL-08. |
+| 12 | `generate-cust-transport` | No issue found. A created TOC is tracked before it is populated, allowing rollback on copy or content-check failure. |
 | 13 | `release-transport` | PUBL-04. Logger and prompt prefixes are restored after success or failure. |
 | 14 | `publish-to-registry` | No step-local validation issue found; failures propagate, but after irreversible releases (PUBL-04). |
 | 15 | `update-package-data` | No issue found. Updating the origin-system package record is best-effort and does not invalidate a successful registry publication. |
 
 ## Resolved findings
+
+### PUBL-08 — Resolved — Failed customizing-copy builds retain rollback tracking
+
+Each customizing TOC is now registered in `runtime.transports.cust` immediately after creation, so
+copy and content-check failures leave it visible to workflow rollback. An empty TOC is removed from
+tracking only after its deletion succeeds
+([source](../../src/actions/publish/generateCustTransport.ts#L42)).
 
 ### PUBL-02 — Resolved — Dependencies without manifests block publication
 
