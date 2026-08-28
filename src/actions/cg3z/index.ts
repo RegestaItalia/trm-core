@@ -1,21 +1,10 @@
 import execute from "@simonegaffurini/sammarksworkflow";
-import { inspect } from "util";
-import { Logger } from "trm-commons";
 import { checkServerAuth, workflowCallbacks } from "..";
 import { upload } from "./upload";
-import { R3transOptions } from "node-r3trans";
 import { TRKORR } from "../../client";
 
 /** Input required to upload a transport to the connected SAP system. */
 export interface Cg3zActionInput {
-    /**
-    * Optional `R3trans` settings forwarded to compatible transport operations.
-    *
-    * The current upload workflow accepts this value for API compatibility but does not
-    * read it directly.
-    */
-    r3transOptions?: R3transOptions;
-
     /**
     * ZIP archive containing exactly one matching `K` header file and `R` data file.
     */
