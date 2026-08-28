@@ -5,17 +5,6 @@ Entry point: [`publish`](../../src/actions/publish/index.ts#L242)
 
 ## Findings
 
-### PUBL-04 — High — Partial release/publication cannot be rolled back
-
-Transports are released sequentially before the registry upload
-([source](../../src/actions/publish/releaseTransports.ts#L21)). If a later release or registry publish
-fails, earlier transports are already released and `canBeDeleted()` prevents normal revert deletion.
-The workflow has no compensating publication transaction, so it can leave released transports with
-no registry release.
-
-Recommendation: prevalidate the complete artifact, define an explicit recovery record for partial
-release, and make registry publication idempotent/resumable.
-
 ### PUBL-05 — Medium — Registry lookup failures are misclassified as first publication
 
 `registry.getPackage(name, "latest")` catches every exception and announces a first publish
@@ -41,8 +30,8 @@ Recommendation: catch only a typed package-not-found error.
 | 10 | `generate-tadir-transport` | No issue found for the same reason as DEVC generation. |
 | 11 | `generate-lang-transport` | No issue found. Translation content is optional; an empty generated transport is deleted and publication continues without it. |
 | 12 | `generate-cust-transport` | No issue found. A created TOC is tracked before it is populated, allowing rollback on copy or content-check failure. |
-| 13 | `release-transport` | PUBL-04. Logger and prompt prefixes are restored after success or failure. |
-| 14 | `publish-to-registry` | No step-local validation issue found; failures propagate, but after irreversible releases (PUBL-04). |
+| 13 | `release-transport` | No issue found. Generated transports are transports of copies, so releasing them does not modify source objects and requires no rollback. Logger and prompt prefixes are restored after success or failure. |
+| 14 | `publish-to-registry` | No issue found; failures propagate and released transports of copies can safely remain released. |
 | 15 | `update-package-data` | No issue found. Updating the origin-system package record is best-effort and does not invalidate a successful registry publication. |
 
 ## Resolved findings
