@@ -70,12 +70,6 @@ incorrect dependency decisions.
 Recommendation: refresh the snapshot after each successful nested install or update it with the
 nested result before processing the next dependency.
 
-### INST-09 — High — Generated deletion transport is omitted from the workflow
-
-`generateDeletionTransport` is implemented to remove objects from prior versions but is not in the
-workflow array. Upgrades/downgrades therefore never execute its cleanup logic. Its own revert is
-also TODO-only ([source](../../src/actions/install/generateDeletionTransport.ts#L16)).
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -90,21 +84,21 @@ also TODO-only ([source](../../src/actions/install/generateDeletionTransport.ts#
 | 8 | `set-install-devclass` | INST-01. Persisting replacement mappings before import is intentional so they can be reused by later attempts. |
 | 9 | `add-namespace` | INST-04. |
 | 10 | `generate-devclass` | No additional issue beyond INST-04's unimplemented package deletion. Existing replacement packages are lock-checked in one connector call, and newly created packages are recorded for rollback. |
-| 11 | `import-devc-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
-| 12 | `import-tadir-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
-| 13 | `import-lang-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
-| 14 | `import-cust-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
-| 15 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
-| 16 | `update-package-data` | INST-06. A missing root replacement now rejects with a descriptive error. |
-| 17 | `execute-post-activities` | INST-07. |
-| 18 | `release-install-transports` | No step-local logic error found; release failures expose INST-06. |
+| 11 | `generate-deletion-transport` | INST-04. The update-only cleanup step is now scheduled before the artifact transports are imported. |
+| 12 | `import-devc-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
+| 13 | `import-tadir-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
+| 14 | `import-lang-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
+| 15 | `import-cust-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
+| 16 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
+| 17 | `update-package-data` | INST-06. A missing root replacement now rejects with a descriptive error. |
+| 18 | `execute-post-activities` | INST-07. |
+| 19 | `release-install-transports` | No step-local logic error found; release failures expose INST-06. |
 
 ## Implemented but omitted steps
 
 | Step | Result |
 |---|---|
 | `check-transports` | INST-01. Optional language and customizing transports intentionally default to skipped in non-interactive mode unless explicitly requested. This is required setup, not optional dead code. |
-| `generate-deletion-transport` | INST-09 and INST-04. |
 
 ## Resolved findings
 
@@ -141,6 +135,14 @@ prefix mutation and their fallible work inside `try/finally` blocks. Each path r
 logger and prompt prefixes captured before the nested operation, whether it succeeds or throws
 ([dependency source](../../src/actions/install/installDependencies.ts#L57),
 [transport source](../../src/actions/install/importDevcTransport.ts#L86)).
+
+### INST-09 — Resolved — Deletion transport generation is scheduled for updates
+
+`generateDeletionTransport` is now part of the install workflow after target-package generation and
+before the DEVC, TADIR, language, and customizing transports are imported. Its filter limits the
+cleanup to non-local update installations, so first installs and local registries remain unaffected
+([workflow](../../src/actions/install/index.ts#L258),
+[filter](../../src/actions/install/generateDeletionTransport.ts#L17)).
 
 ## Non-relevant findings
 

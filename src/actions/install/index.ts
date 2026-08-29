@@ -23,6 +23,7 @@ import { generateLandscapeTransport } from "./generateLandscapeTransport";
 import { updatePackageData } from "./updatePackageData";
 import { executePostActivities } from "./executePostActivities";
 import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
+import { generateDeletionTransport } from "./generateDeletionTransport";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
@@ -266,6 +267,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         setInstallDevclass,
         addNamespace,
         generateDevclass,
+        generateDeletionTransport,
         importDevcTransport,
         importTadirTransport,
         importLangTransport,
