@@ -75,21 +75,24 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         const prefix = `(${Transport.getTransportIcon()}  Workbench) `;
-        if (originalLPrefix) {
-            Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-        } else {
-            Logger.setPrefix(prefix);
+        try {
+            if (originalLPrefix) {
+                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+            } else {
+                Logger.setPrefix(prefix);
+            }
+            if (originalIPrefix) {
+                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+            } else {
+                Inquirer.setPrefix(prefix);
+            }
+            Logger.loading(`Importing ${context.runtime.transports.lang.binaries.trkorr}`, true);
+            await context.runtime.transports.lang.instance.import();
+            Logger.success(`Transport ${context.runtime.transports.lang.binaries.trkorr} imported`, true);
+        } finally {
+            Logger.setPrefix(originalLPrefix);
+            Inquirer.setPrefix(originalIPrefix);
         }
-        if (originalIPrefix) {
-            Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-        } else {
-            Inquirer.setPrefix(prefix);
-        }
-        Logger.loading(`Importing ${context.runtime.transports.lang.binaries.trkorr}`, true);
-        await context.runtime.transports.lang.instance.import();
-        Logger.success(`Transport ${context.runtime.transports.lang.binaries.trkorr} imported`, true);
-        Logger.setPrefix(originalLPrefix);
-        Inquirer.setPrefix(originalIPrefix);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if(context.revert.transports.lang){

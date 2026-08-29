@@ -86,21 +86,24 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         const prefix = `(${Transport.getTransportIcon()}  SAP Packages) `;
-        if (originalLPrefix) {
-            Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-        } else {
-            Logger.setPrefix(prefix);
+        try {
+            if (originalLPrefix) {
+                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+            } else {
+                Logger.setPrefix(prefix);
+            }
+            if (originalIPrefix) {
+                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+            } else {
+                Inquirer.setPrefix(prefix);
+            }
+            Logger.loading(`Importing ${context.runtime.transports.devc.binaries.trkorr}`, true);
+            await context.runtime.transports.devc.instance.import();
+            Logger.success(`Transport ${context.runtime.transports.devc.binaries.trkorr} imported`, true);
+        } finally {
+            Logger.setPrefix(originalLPrefix);
+            Inquirer.setPrefix(originalIPrefix);
         }
-        if (originalIPrefix) {
-            Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-        } else {
-            Inquirer.setPrefix(prefix);
-        }
-        Logger.loading(`Importing ${context.runtime.transports.devc.binaries.trkorr}`, true);
-        await context.runtime.transports.devc.instance.import();
-        Logger.success(`Transport ${context.runtime.transports.devc.binaries.trkorr} imported`, true);
-        Logger.setPrefix(originalLPrefix);
-        Inquirer.setPrefix(originalIPrefix);
 
         Logger.loading(`Finalizing SAP Packages import...`);
 

@@ -60,29 +60,32 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             counter++;
             Logger.loading(`Getting ready to install missing dependency "${dependency.name}"...`);
             var prefix = `(${counter}/${context.runtime.dependencies.length}) `;
-            if(originalLPrefix){
-                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-            }else{
-                Logger.setPrefix(`  ${prefix}`);
+            try {
+                if(originalLPrefix){
+                    Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+                }else{
+                    Logger.setPrefix(`  ${prefix}`);
+                }
+                if(originalIPrefix){
+                    Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+                }else{
+                    Inquirer.setPrefix(`  ${prefix}`);
+                }
+                var inputData: InstallDependencyActionInput = {
+                    dependencyDataPackage: {
+                        name: dependency.name,
+                        versionRange: dependency.version,
+                        registry: RegistryProvider.getRegistry(dependency.registry)
+                    },
+                    contextData: _.cloneDeep(context.rawInput.contextData),
+                    installData: _.cloneDeep(context.rawInput.installData)
+                };
+                delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
+                await InstallDependencyWkf(inputData);
+            } finally {
+                Logger.setPrefix(originalLPrefix);
+                Inquirer.setPrefix(originalIPrefix);
             }
-            if(originalIPrefix){
-                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-            }else{
-                Inquirer.setPrefix(`  ${prefix}`);
-            }
-            var inputData: InstallDependencyActionInput = {
-                dependencyDataPackage: {
-                    name: dependency.name,
-                    versionRange: dependency.version,
-                    registry: RegistryProvider.getRegistry(dependency.registry)
-                },
-                contextData: _.cloneDeep(context.rawInput.contextData),
-                installData: _.cloneDeep(context.rawInput.installData)
-            };
-            delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
-            await InstallDependencyWkf(inputData);
-            Logger.setPrefix(originalLPrefix)
-            Inquirer.setPrefix(originalIPrefix);
         }
     }
 }

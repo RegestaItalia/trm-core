@@ -79,21 +79,24 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
             const originalLPrefix = Logger.getPrefix();
             const originalIPrefix = Inquirer.getPrefix();
             const prefix = `(${Transport.getTransportIcon()}  Workbench) `;
-            if (originalLPrefix) {
-                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-            } else {
-                Logger.setPrefix(prefix);
+            try {
+                if (originalLPrefix) {
+                    Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+                } else {
+                    Logger.setPrefix(prefix);
+                }
+                if (originalIPrefix) {
+                    Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+                } else {
+                    Inquirer.setPrefix(prefix);
+                }
+                Logger.loading(`Importing ${cust.binaries.trkorr}`, true);
+                await cust.instance.import();
+                Logger.success(`Transport ${cust.binaries.trkorr} imported`, true);
+            } finally {
+                Logger.setPrefix(originalLPrefix);
+                Inquirer.setPrefix(originalIPrefix);
             }
-            if (originalIPrefix) {
-                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-            } else {
-                Inquirer.setPrefix(prefix);
-            }
-            Logger.loading(`Importing ${cust.binaries.trkorr}`, true);
-            await cust.instance.import();
-            Logger.success(`Transport ${cust.binaries.trkorr} imported`, true);
-            Logger.setPrefix(originalLPrefix);
-            Inquirer.setPrefix(originalIPrefix);
 
             //replace context instance with current instance
             context.runtime.transports.cust[index-1] = cust;

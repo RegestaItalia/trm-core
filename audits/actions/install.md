@@ -76,15 +76,6 @@ nested result before processing the next dependency.
 workflow array. Upgrades/downgrades therefore never execute its cleanup logic. Its own revert is
 also TODO-only ([source](../../src/actions/install/generateDeletionTransport.ts#L16)).
 
-### INST-10 — Medium — Logger/prompt prefixes leak when nested operations throw
-
-Dependency and transport import steps restore global prefixes only after successful awaits. For
-example, a nested install rejection bypasses restoration
-([source](../../src/actions/install/installDependencies.ts#L57)); the same pattern exists in DEVC,
-TADIR, LANG, CUST, and deletion imports.
-
-Recommendation: wrap every prefix mutation in `try/finally` and restore the exact prior prefix.
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -95,14 +86,14 @@ Recommendation: wrap every prefix mutation in `try/finally` and restore the exac
 | 4 | `init` | No additional issue found; registry and validation failures propagate. |
 | 5 | `check-sap-entries` | No issue found. The subworkflow now reports every row from a missing table as failed and propagates table-probe errors. |
 | 6 | `check-dependencies` | No additional issue found. |
-| 7 | `install-dependencies` | INST-08 and INST-10. |
+| 7 | `install-dependencies` | INST-08. Logger and prompt prefixes are restored after success or failure. |
 | 8 | `set-install-devclass` | INST-01. Persisting replacement mappings before import is intentional so they can be reused by later attempts. |
 | 9 | `add-namespace` | INST-04. |
 | 10 | `generate-devclass` | No additional issue beyond INST-04's unimplemented package deletion. Existing replacement packages are lock-checked in one connector call, and newly created packages are recorded for rollback. |
-| 11 | `import-devc-transport` | INST-02, INST-04, and INST-10. |
-| 12 | `import-tadir-transport` | INST-02, INST-04, and INST-10. |
-| 13 | `import-lang-transport` | INST-02, INST-04, and INST-10. |
-| 14 | `import-cust-transport` | INST-02, INST-04, and INST-10. |
+| 11 | `import-devc-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
+| 12 | `import-tadir-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
+| 13 | `import-lang-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
+| 14 | `import-cust-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
 | 15 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
 | 16 | `update-package-data` | INST-06. A missing root replacement now rejects with a descriptive error. |
 | 17 | `execute-post-activities` | INST-07. |
@@ -142,6 +133,14 @@ Immediately after `createPackage` succeeds, `generateDevclass` now adds the crea
 `context.revert.sapPackages`, avoiding duplicate entries. Recording happens before the following
 TADIR operation so a later failure still leaves the created package visible to workflow rollback
 ([source](../../src/actions/install/generateDevclass.ts#L72)).
+
+### INST-10 — Resolved — Nested operations always restore prefix state
+
+Dependency installation and DEVC, TADIR, LANG, CUST, and deletion transport imports now perform
+prefix mutation and their fallible work inside `try/finally` blocks. Each path restores the exact
+logger and prompt prefixes captured before the nested operation, whether it succeeds or throws
+([dependency source](../../src/actions/install/installDependencies.ts#L57),
+[transport source](../../src/actions/install/importDevcTransport.ts#L86)).
 
 ## Non-relevant findings
 

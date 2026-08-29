@@ -67,21 +67,24 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         const prefix = `(${Transport.getTransportIcon()}  Deletion) `;
-        if (originalLPrefix) {
-            Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-        } else {
-            Logger.setPrefix(prefix);
+        try {
+            if (originalLPrefix) {
+                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+            } else {
+                Logger.setPrefix(prefix);
+            }
+            if (originalIPrefix) {
+                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+            } else {
+                Inquirer.setPrefix(prefix);
+            }
+            Logger.loading(`Importing ${dummy.trkorr}`, true);
+            await context.runtime.dele.import();
+            Logger.success(`Transport ${dummy.trkorr} imported`, true);
+        } finally {
+            Logger.setPrefix(originalLPrefix);
+            Inquirer.setPrefix(originalIPrefix);
         }
-        if (originalIPrefix) {
-            Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-        } else {
-            Inquirer.setPrefix(prefix);
-        }
-        Logger.loading(`Importing ${dummy.trkorr}`, true);
-        await context.runtime.dele.import();
-        Logger.success(`Transport ${dummy.trkorr} imported`, true);
-        Logger.setPrefix(originalLPrefix);
-        Inquirer.setPrefix(originalIPrefix);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if(context.revert.dele){
