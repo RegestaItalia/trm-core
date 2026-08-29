@@ -97,12 +97,6 @@ Recommendation: wrap every prefix mutation in `try/finally` and restore the exac
 ([source](../../src/actions/install/setInstallDevclass.ts#L136)). Its revert only warns that dirty
 records remain. Failed installs therefore influence later runs.
 
-### INST-12 — Medium — Existing target packages are not lock-checked
-
-`generateDevclass` explicitly leaves a TODO where existing ABAP packages should be checked for
-locks ([source](../../src/actions/install/generateDevclass.ts#L35)). Hierarchy and transport-layer
-mutations may then collide with another open transport.
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -116,7 +110,7 @@ mutations may then collide with another open transport.
 | 7 | `install-dependencies` | INST-08 and INST-10. |
 | 8 | `set-install-devclass` | INST-01 and INST-11. |
 | 9 | `add-namespace` | INST-04. |
-| 10 | `generate-devclass` | INST-05 and INST-12. |
+| 10 | `generate-devclass` | INST-05. Existing replacement packages are lock-checked in one connector call before hierarchy mutations. |
 | 11 | `import-devc-transport` | INST-02, INST-04, and INST-10. |
 | 12 | `import-tadir-transport` | INST-02, INST-04, and INST-10. |
 | 13 | `import-lang-transport` | INST-02, INST-04, and INST-10. |
@@ -146,6 +140,13 @@ table. The install wrapper's existing failed-row check therefore rejects install
 the mapping is absent or has no target, finalization rejects with an error that names the original
 root package instead of throwing an opaque property-access `TypeError`
 ([source](../../src/actions/install/updatePackageData.ts#L24)).
+
+### INST-12 — Resolved — Existing target packages are lock-checked in bulk
+
+`generateDevclass` now collects the distinct replacement devclasses that already exist and checks
+all of their `R3TR DEVC` lock keys in a single connector call. Any returned lock is logged with its
+transport and aborts installation before package hierarchy or transport-layer mutations begin
+([source](../../src/actions/install/generateDevclass.ts#L32)).
 
 ## Non-relevant findings
 

@@ -7,7 +7,7 @@ import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Workflow step that validates target ABAP packages and creates any that are missing.
+ * Workflow step that validates target SAP packages and creates any that are missing.
  * 
  * 1- find packages to generate
  * 
@@ -28,18 +28,35 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- find packages to generated
-        Logger.loading(`Checking ABAP packages...`);
+        Logger.loading(`Checking SAP packages...`);
         var generate: DEVCLASS[] = [];
+        const existing = new Set<DEVCLASS>();
         for (const replacement of context.rawInput.installData.installDevclass.replacements) {
             Logger.loading(`Checking existance of devclass ${replacement.installDevclass}...`, true);
             const oDevclass = await SystemConnector.getDevclass(replacement.installDevclass);
             if (oDevclass) {
                 Logger.log(`Devclass ${replacement.installDevclass} exists, skipping generation`, true);
-                //TODO: check it's not locked
+                existing.add(replacement.installDevclass);
             } else {
                 Logger.log(`Devclass ${replacement.installDevclass} doesn't exist, will be generated`, true);
                 generate.push(replacement.installDevclass);
             }
+        }
+
+        if (existing.size > 0) {
+            Logger.loading(`Checking objects locks...`);
+            const locks = await SystemConnector.getObjectsLocks(Array.from(existing, devclass => ({
+                PGMID: 'R3TR',
+                OBJECT: 'DEVC',
+                OBJ_NAME: devclass
+            })));
+            if (locks.length > 0) {
+                locks.forEach(lock => {
+                    Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`);
+                });
+                throw new Error(`Install aborted. To continue, all ABAP packages must be released`);
+            }
+            Logger.log(`All existing SAP packages released, continue`, true);
         }
 
         //2- generate missing packages
@@ -74,7 +91,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         }
 
         //3- build the package hierarchy, based on the original
-        Logger.loading(`Updating ABAP packages hierarchy...`);
+        Logger.loading(`Updating SAP packages hierarchy...`);
         const aDummyTdevc: TDEVC[] = [];
         var parentcl;
         for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
