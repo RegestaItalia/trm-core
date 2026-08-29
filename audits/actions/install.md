@@ -103,13 +103,6 @@ records remain. Failed installs therefore influence later runs.
 locks ([source](../../src/actions/install/generateDevclass.ts#L35)). Hierarchy and transport-layer
 mutations may then collide with another open transport.
 
-### INST-13 — Medium — Missing replacement can throw an unhelpful `TypeError` during finalization
-
-`updatePackageData` dereferences the result of `.find(...).installDevclass` without guarding a
-missing root mapping ([source](../../src/actions/install/updatePackageData.ts#L22)). Earlier logic is
-intended to create it, but malformed persisted mappings or future step changes turn this into an
-opaque exception after imports have completed.
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -129,7 +122,7 @@ opaque exception after imports have completed.
 | 13 | `import-lang-transport` | INST-02, INST-04, and INST-10. |
 | 14 | `import-cust-transport` | INST-02, INST-04, and INST-10. |
 | 15 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
-| 16 | `update-package-data` | INST-06, INST-11, and INST-13. |
+| 16 | `update-package-data` | INST-06 and INST-11. A missing root replacement now rejects with a descriptive error. |
 | 17 | `execute-post-activities` | INST-07. |
 | 18 | `release-install-transports` | No step-local logic error found; release failures expose INST-06. |
 
@@ -146,6 +139,13 @@ opaque exception after imports have completed.
 
 The SAP-entry subworkflow now emits a failed status for every required row belonging to a missing
 table. The install wrapper's existing failed-row check therefore rejects installation as intended.
+
+### INST-13 — Resolved — Missing root replacements produce a descriptive error
+
+`updatePackageData` now checks the root-package replacement before reading its target devclass. If
+the mapping is absent or has no target, finalization rejects with an error that names the original
+root package instead of throwing an opaque property-access `TypeError`
+([source](../../src/actions/install/updatePackageData.ts#L24)).
 
 ## Non-relevant findings
 

@@ -21,9 +21,17 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
         //1- commit new values
         const originalTransport = context.runtime.transports.tadir.binaries.trkorr;
         const installTransport = context.output.transport?.trkorr;
-        const devclass = context.rawInput.installData.installDevclass.keepOriginal ?
-            context.runtime.package.hierarchy.devclass :
-            context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === context.runtime.package.hierarchy.devclass).installDevclass;
+        const originalDevclass = context.runtime.package.hierarchy.devclass;
+        let devclass = originalDevclass;
+        if (!context.rawInput.installData.installDevclass.keepOriginal) {
+            const rootReplacement = context.rawInput.installData.installDevclass.replacements.find(
+                o => o.originalDevclass === originalDevclass
+            );
+            if (!rootReplacement?.installDevclass) {
+                throw new Error(`Missing install devclass replacement for root package "${originalDevclass}".`);
+            }
+            devclass = rootReplacement.installDevclass;
+        }
         var packageRegistry;
         switch (context.rawInput.packageData.registry.getRegistryType()) {
             case RegistryType.PUBLIC:

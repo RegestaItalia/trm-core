@@ -32,7 +32,7 @@ later audits from reporting the same accepted candidates as new findings.
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
 | `install-dependency` | 4 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
-| `install` | 18 scheduled + 2 omitted | 2 | 6 | 4 | 0 | [Package install](install.md) |
+| `install` | 18 scheduled + 2 omitted | 2 | 6 | 3 | 0 | [Package install](install.md) |
 | `publish` | 15 | 0 | 1 | 2 | 0 | [Package publish](publish.md) |
 | Shared steps/callbacks | 5 | 0 | 0 | 0 | 0 | [Shared infrastructure](shared.md) |
 
