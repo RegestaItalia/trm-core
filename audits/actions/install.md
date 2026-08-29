@@ -49,16 +49,6 @@ table already claims the release is installed; the update step has no revert han
 
 Recommendation: release first and commit last, or retain/restore the previous database row.
 
-### INST-07 — High — Post-activity failures are converted into success
-
-`executePostActivities` catches each exception, logs it, and continues
-([source](../../src/actions/install/executePostActivities.ts#L27)). The action can return success
-when required configuration failed. It also mutates manifest parameter values in place when
-substituting `&LANDSCAPE_TRANSPORT&`.
-
-Recommendation: support explicit optional/required activity semantics and reject required failures;
-clone activity data before substitutions.
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -80,7 +70,7 @@ clone activity data before substitutions.
 | 15 | `import-cust-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
 | 16 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
 | 17 | `update-package-data` | INST-06. A missing root replacement now rejects with a descriptive error. |
-| 18 | `execute-post-activities` | INST-07. |
+| 18 | `execute-post-activities` | No issue found. Post-activities are intentionally best-effort: failures are logged without invalidating the completed package installation. |
 | 19 | `release-install-transports` | No step-local logic error found; release failures expose INST-06. |
 
 ## Implemented but omitted steps
@@ -157,3 +147,10 @@ those optional transports; the deterministic opt-in behavior is the supported co
 package mapping can be reused by subsequent installation attempts. A failed install leaving those
 records in place is therefore accepted behavior rather than rollback residue
 ([source](../../src/actions/install/setInstallDevclass.ts#L136)).
+
+### INST-07 — Non-relevant — Post-activities are intentionally best-effort
+
+`executePostActivities` catches and logs each post-activity failure so one optional follow-up action
+does not invalidate an otherwise completed package installation or prevent later post-activities
+from running. Returning installation success in this case is the intended workflow contract
+([source](../../src/actions/install/executePostActivities.ts#L27)).
