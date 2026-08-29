@@ -59,17 +59,6 @@ substituting `&LANDSCAPE_TRANSPORT&`.
 Recommendation: support explicit optional/required activity semantics and reject required failures;
 clone activity data before substitutions.
 
-### INST-08 — High — Recursive dependency installs use stale installed-package snapshots
-
-`installDependencies` deep-clones the parent `contextData` for each dependency
-([source](../../src/actions/install/installDependencies.ts#L73)). `systemPackages` is therefore the
-same pre-install snapshot for all recursive calls. A later dependency can fail to recognize a
-package installed earlier in the same run, causing duplicate installation, same-version errors, or
-incorrect dependency decisions.
-
-Recommendation: refresh the snapshot after each successful nested install or update it with the
-nested result before processing the next dependency.
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -80,7 +69,7 @@ nested result before processing the next dependency.
 | 4 | `init` | No additional issue found; registry and validation failures propagate. |
 | 5 | `check-sap-entries` | No issue found. The subworkflow now reports every row from a missing table as failed and propagates table-probe errors. |
 | 6 | `check-dependencies` | No additional issue found. |
-| 7 | `install-dependencies` | INST-08. Logger and prompt prefixes are restored after success or failure. |
+| 7 | `install-dependencies` | No issue found. The installed-package snapshot is refreshed after each nested install, and logger/prompt prefixes are restored after success or failure. |
 | 8 | `set-install-devclass` | INST-01. Persisting replacement mappings before import is intentional so they can be reused by later attempts. |
 | 9 | `add-namespace` | INST-04. |
 | 10 | `generate-devclass` | No additional issue beyond INST-04's unimplemented package deletion. Existing replacement packages are lock-checked in one connector call, and newly created packages are recorded for rollback. |
@@ -143,6 +132,15 @@ before the DEVC, TADIR, language, and customizing transports are imported. Its f
 cleanup to non-local update installations, so first installs and local registries remain unaffected
 ([workflow](../../src/actions/install/index.ts#L258),
 [filter](../../src/actions/install/generateDeletionTransport.ts#L17)).
+
+### INST-08 — Resolved — Dependency installs refresh the installed-package snapshot
+
+After each successful nested dependency installation, `installDependencies` constructs the
+installed `TrmPackage` from the returned manifest and upserts it into the parent snapshot. The next
+dependency receives a clone of that updated snapshot, so it recognizes packages installed earlier
+in the same run without another target-system query. Upserting also replaces an incompatible
+previous version instead of leaving a stale duplicate
+([source](../../src/actions/install/installDependencies.ts#L84)).
 
 ## Non-relevant findings
 

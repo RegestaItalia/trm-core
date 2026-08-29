@@ -1,9 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger, inspect } from "trm-commons";
+import { Logger } from "trm-commons";
 import { CheckPackageDependenciesActionInput, checkPackageDependencies as CheckPackageDependenciesWkf } from "../checkPackageDependencies";
-
-const SUBWORKFLOW_NAME = 'check-package-dependencies-sub-install';
 
 /**
  * Workflow step that identifies missing or incompatible dependencies on the target system.

@@ -69,6 +69,7 @@ export const init: Step<InstallWorkflowContext> = {
 
         Logger.loading(`Fetching package in registry ${registry.name}...`);
         context.runtime.package.data = await registry.getPackage(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
+        context.output.manifest = context.runtime.package.data.manifest;
 
         //only used to validate manifest
         try {

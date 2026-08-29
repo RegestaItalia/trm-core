@@ -1,11 +1,11 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger, inspect, Inquirer } from "trm-commons";
+import { Logger, Inquirer } from "trm-commons";
 import { InstallDependencyActionInput, installDependency as InstallDependencyWkf } from ".."
+import { Manifest } from "../../manifest";
 import { RegistryProvider } from "../../registry";
+import { TrmPackage } from "../../trmPackage";
 import * as _ from "lodash";
-
-const SUBWORKFLOW_NAME = 'install-dependency-sub-install';
 
 /**
  * Workflow step that installs each dependency missing from the target system.
@@ -71,17 +71,31 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 }else{
                     Inquirer.setPrefix(`  ${prefix}`);
                 }
+                const dependencyRegistry = RegistryProvider.getRegistry(dependency.registry);
                 var inputData: InstallDependencyActionInput = {
                     dependencyDataPackage: {
                         name: dependency.name,
                         versionRange: dependency.version,
-                        registry: RegistryProvider.getRegistry(dependency.registry)
+                        registry: dependencyRegistry
                     },
                     contextData: _.cloneDeep(context.rawInput.contextData),
                     installData: _.cloneDeep(context.rawInput.installData)
                 };
                 delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
-                await InstallDependencyWkf(inputData);
+                const result = await InstallDependencyWkf(inputData);
+                const installedPackage = new TrmPackage(
+                    result.installOutput.manifest.name,
+                    dependencyRegistry,
+                    new Manifest(result.installOutput.manifest)
+                );
+                const installedIndex = context.rawInput.contextData.systemPackages.findIndex(
+                    systemPackage => TrmPackage.compare(systemPackage, installedPackage)
+                );
+                if (installedIndex === -1) {
+                    context.rawInput.contextData.systemPackages.push(installedPackage);
+                } else {
+                    context.rawInput.contextData.systemPackages.splice(installedIndex, 1, installedPackage);
+                }
             } finally {
                 Logger.setPrefix(originalLPrefix);
                 Inquirer.setPrefix(originalIPrefix);

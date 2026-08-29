@@ -1,9 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger, inspect } from "trm-commons";
+import { Logger } from "trm-commons";
 import { checkSapEntries as CheckSapEntriesWkf, CheckSapEntriesActionInput } from "../checkSapEntries";
-
-const SUBWORKFLOW_NAME = 'check-sap-entries-sub-install';
 
 /**
  * Workflow step that blocks installation when required SAP table entries are missing.
