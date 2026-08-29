@@ -41,14 +41,6 @@ Recommendation: implement compensating operations and test failure injection aft
 otherwise remove the misleading rollback handlers and fail before mutations that cannot be safely
 recovered.
 
-### INST-06 — High — Package record is committed before fallible final steps and has no revert
-
-`updatePackageData` runs before post-activities and landscape transport release
-([workflow order](../../src/actions/install/index.ts#L273)). If release fails, the system package
-table already claims the release is installed; the update step has no revert handler.
-
-Recommendation: release first and commit last, or retain/restore the previous database row.
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -69,9 +61,9 @@ Recommendation: release first and commit last, or retain/restore the previous da
 | 14 | `import-lang-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
 | 15 | `import-cust-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
 | 16 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
-| 17 | `update-package-data` | INST-06. A missing root replacement now rejects with a descriptive error. |
+| 17 | `update-package-data` | No issue found. Committing the installed-package record before the remaining finalization steps is accepted behavior; missing root replacements reject descriptively. |
 | 18 | `execute-post-activities` | No issue found. Post-activities are intentionally best-effort: failures are logged without invalidating the completed package installation. |
-| 19 | `release-install-transports` | No step-local logic error found; release failures expose INST-06. |
+| 19 | `release-install-transports` | No step-local logic error found. The package record intentionally remains committed if release fails. |
 
 ## Implemented but omitted steps
 
@@ -154,3 +146,10 @@ records in place is therefore accepted behavior rather than rollback residue
 does not invalidate an otherwise completed package installation or prevent later post-activities
 from running. Returning installation success in this case is the intended workflow contract
 ([source](../../src/actions/install/executePostActivities.ts#L27)).
+
+### INST-06 — Non-relevant — Package-record commit ordering is intentional
+
+`updatePackageData` intentionally records the installed release before post-activities and landscape
+transport release. The package installation has already occurred at this point, and the record is
+not rolled back if a later finalization step fails; that ordering is accepted workflow behavior
+([workflow](../../src/actions/install/index.ts#L273)).
