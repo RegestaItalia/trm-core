@@ -19,15 +19,6 @@ point).
 Recommendation: schedule `checkTransports` after `init` and before SAP/dependency/package mapping
 checks that rely on artifact state.
 
-### INST-02 — Critical — Failed SAP imports are treated as successful
-
-Every import step awaits `Transport.import()`, but that method only logs TMS return codes `-1`, `8`,
-`12`, and `16`; it does not throw ([source](../../src/transport/Transport.ts#L793)). The workflow
-then continues through package registration and returns success after a failed or cancelled import.
-
-Recommendation: make non-success return codes reject (decide explicitly whether RC 4 is accepted),
-return a typed import result, and gate every later step on it.
-
 ### INST-04 — High — Rollback handlers for imported state are empty
 
 The DEVC, TADIR, LANG, CUST, deletion-transport, namespace, and generated-package rollback paths
@@ -56,10 +47,10 @@ recovered.
 | 9 | `add-namespace` | INST-04. |
 | 10 | `generate-devclass` | No additional issue beyond INST-04's unimplemented package deletion. Existing replacement packages are lock-checked in one connector call, and newly created packages are recorded for rollback. |
 | 11 | `generate-deletion-transport` | INST-04. The update-only cleanup step is now scheduled before the artifact transports are imported. |
-| 12 | `import-devc-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
-| 13 | `import-tadir-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
-| 14 | `import-lang-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
-| 15 | `import-cust-transport` | INST-02 and INST-04. Prefix state is restored after success or failure. |
+| 12 | `import-devc-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
+| 13 | `import-tadir-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
+| 14 | `import-lang-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
+| 15 | `import-cust-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
 | 16 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
 | 17 | `update-package-data` | No issue found. Committing the installed-package record before the remaining finalization steps is accepted behavior; missing root replacements reject descriptively. |
 | 18 | `execute-post-activities` | No issue found. Post-activities are intentionally best-effort: failures are logged without invalidating the completed package installation. |
@@ -153,3 +144,10 @@ from running. Returning installation success in this case is the intended workfl
 transport release. The package installation has already occurred at this point, and the record is
 not rolled back if a later finalization step fails; that ordering is accepted workflow behavior
 ([workflow](../../src/actions/install/index.ts#L273)).
+
+### INST-02 — Non-relevant — Import return-code handling follows the transport contract
+
+Install steps intentionally rely on `Transport.import()` to interpret and report TMS return codes.
+The action workflow does not independently convert logged return codes into rejected promises;
+continuing according to the transport layer's result is the accepted contract
+([source](../../src/transport/Transport.ts#L793)).

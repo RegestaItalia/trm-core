@@ -32,7 +32,7 @@ later audits from reporting the same accepted candidates as new findings.
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
 | `install-dependency` | 4 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
-| `install` | 19 scheduled + 1 omitted | 2 | 1 | 0 | 0 | [Package install](install.md) |
+| `install` | 19 scheduled + 1 omitted | 1 | 1 | 0 | 0 | [Package install](install.md) |
 | `publish` | 15 | 0 | 1 | 2 | 0 | [Package publish](publish.md) |
 | Shared steps/callbacks | 5 | 0 | 0 | 0 | 0 | [Shared infrastructure](shared.md) |
 
@@ -40,7 +40,5 @@ later audits from reporting the same accepted candidates as new findings.
 
 1. Add `checkTransports` to the install workflow before any step that reads the artifact hierarchy
    or transport state.
-2. Make transport import return codes 8, 12, 16, unknown, and missing return codes reject the
-   install instead of continuing to package registration.
-3. Implement or explicitly remove the install rollback promises currently represented by empty
+2. Implement or explicitly remove the install rollback promises currently represented by empty
    `revert` handlers.
