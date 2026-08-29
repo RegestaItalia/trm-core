@@ -41,12 +41,6 @@ Recommendation: implement compensating operations and test failure injection aft
 otherwise remove the misleading rollback handlers and fail before mutations that cannot be safely
 recovered.
 
-### INST-05 — High — Generated packages are not recorded for rollback
-
-`generateDevclass` creates packages but never pushes them into `context.revert.sapPackages`
-([creation](../../src/actions/install/generateDevclass.ts#L45)). Even a future implementation of its
-existing revert loop would have no targets.
-
 ### INST-06 — High — Package record is committed before fallible final steps and has no revert
 
 `updatePackageData` runs before post-activities and landscape transport release
@@ -104,7 +98,7 @@ Recommendation: wrap every prefix mutation in `try/finally` and restore the exac
 | 7 | `install-dependencies` | INST-08 and INST-10. |
 | 8 | `set-install-devclass` | INST-01. Persisting replacement mappings before import is intentional so they can be reused by later attempts. |
 | 9 | `add-namespace` | INST-04. |
-| 10 | `generate-devclass` | INST-05. Existing replacement packages are lock-checked in one connector call before hierarchy mutations. |
+| 10 | `generate-devclass` | No additional issue beyond INST-04's unimplemented package deletion. Existing replacement packages are lock-checked in one connector call, and newly created packages are recorded for rollback. |
 | 11 | `import-devc-transport` | INST-02, INST-04, and INST-10. |
 | 12 | `import-tadir-transport` | INST-02, INST-04, and INST-10. |
 | 13 | `import-lang-transport` | INST-02, INST-04, and INST-10. |
@@ -141,6 +135,13 @@ root package instead of throwing an opaque property-access `TypeError`
 all of their `R3TR DEVC` lock keys in a single connector call. Any returned lock is logged with its
 transport and aborts installation before package hierarchy or transport-layer mutations begin
 ([source](../../src/actions/install/generateDevclass.ts#L32)).
+
+### INST-05 — Resolved — Generated packages are recorded for rollback
+
+Immediately after `createPackage` succeeds, `generateDevclass` now adds the created devclass to
+`context.revert.sapPackages`, avoiding duplicate entries. Recording happens before the following
+TADIR operation so a later failure still leaves the created package visible to workflow rollback
+([source](../../src/actions/install/generateDevclass.ts#L72)).
 
 ## Non-relevant findings
 

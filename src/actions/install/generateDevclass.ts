@@ -78,6 +78,9 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                     ctext,
                     dlvunit
                 });
+                if (!context.revert.sapPackages.includes(devclass)) {
+                    context.revert.sapPackages.push(devclass);
+                }
                 if (dlvunit !== 'LOCAL') {
                     await SystemConnector.tadirInterface({
                         pgmid: 'R3TR',
