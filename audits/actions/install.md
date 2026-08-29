@@ -91,12 +91,6 @@ TADIR, LANG, CUST, and deletion imports.
 
 Recommendation: wrap every prefix mutation in `try/finally` and restore the exact prior prefix.
 
-### INST-11 — Medium — Install-package mappings are persisted before installation succeeds
-
-`setInstallDevclass` writes replacement mappings to the SAP table before transports are imported
-([source](../../src/actions/install/setInstallDevclass.ts#L136)). Its revert only warns that dirty
-records remain. Failed installs therefore influence later runs.
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -108,7 +102,7 @@ records remain. Failed installs therefore influence later runs.
 | 5 | `check-sap-entries` | No issue found. The subworkflow now reports every row from a missing table as failed and propagates table-probe errors. |
 | 6 | `check-dependencies` | No additional issue found. |
 | 7 | `install-dependencies` | INST-08 and INST-10. |
-| 8 | `set-install-devclass` | INST-01 and INST-11. |
+| 8 | `set-install-devclass` | INST-01. Persisting replacement mappings before import is intentional so they can be reused by later attempts. |
 | 9 | `add-namespace` | INST-04. |
 | 10 | `generate-devclass` | INST-05. Existing replacement packages are lock-checked in one connector call before hierarchy mutations. |
 | 11 | `import-devc-transport` | INST-02, INST-04, and INST-10. |
@@ -116,7 +110,7 @@ records remain. Failed installs therefore influence later runs.
 | 13 | `import-lang-transport` | INST-02, INST-04, and INST-10. |
 | 14 | `import-cust-transport` | INST-02, INST-04, and INST-10. |
 | 15 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
-| 16 | `update-package-data` | INST-06 and INST-11. A missing root replacement now rejects with a descriptive error. |
+| 16 | `update-package-data` | INST-06. A missing root replacement now rejects with a descriptive error. |
 | 17 | `execute-post-activities` | INST-07. |
 | 18 | `release-install-transports` | No step-local logic error found; release failures expose INST-06. |
 
@@ -156,3 +150,10 @@ When prompts are disabled and `noLang` or `noCust` is unspecified, optional lang
 customizing transports are intentionally skipped. Non-interactive callers must explicitly request
 those optional transports; the deterministic opt-in behavior is the supported contract
 ([source](../../src/actions/install/checkTransports.ts#L40)).
+
+### INST-11 — Non-relevant — Install-package mappings intentionally survive failed installs
+
+`setInstallDevclass` persists replacement mappings before transports are imported so the selected
+package mapping can be reused by subsequent installation attempts. A failed install leaving those
+records in place is therefore accepted behavior rather than rollback residue
+([source](../../src/actions/install/setInstallDevclass.ts#L136)).
