@@ -8,6 +8,7 @@ import { PackageHierarchy } from "../../commons";
 import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa, workflowCallbacks } from "../commons";
 import execute from "@simonegaffurini/sammarksworkflow";
 import { init } from "./init";
+import { checkTransports } from "./checkTransports";
 import { checkSapEntries } from "./checkSapEntries";
 import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
@@ -261,6 +262,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         setSystemPackages,
         trmServerPa,
         init,
+        checkTransports,
         checkSapEntries,
         checkDependencies,
         installDependencies,

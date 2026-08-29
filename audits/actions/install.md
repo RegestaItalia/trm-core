@@ -5,20 +5,6 @@ Entry point: [`install`](../../src/actions/install/index.ts#L257)
 
 ## Findings
 
-### INST-01 — Critical — `checkTransports` is never scheduled
-
-The implemented `checkTransports` step is absent from the workflow array
-([workflow](../../src/actions/install/index.ts#L258)). That step is the only code that downloads or
-indexes artifact transports and populates `runtime.package.hierarchy`
-([source](../../src/actions/install/checkTransports.ts#L78)). The scheduled `setInstallDevclass`
-then dereferences `context.runtime.package.hierarchy.devclass`
-([source](../../src/actions/install/setInstallDevclass.ts#L59)). A standard install therefore fails
-before importing anything, unless out-of-band code mutates the context (none exists in this entry
-point).
-
-Recommendation: schedule `checkTransports` after `init` and before SAP/dependency/package mapping
-checks that rely on artifact state.
-
 ### INST-04 — High — Rollback handlers for imported state are empty
 
 The DEVC, TADIR, LANG, CUST, deletion-transport, namespace, and generated-package rollback paths
@@ -40,29 +26,31 @@ recovered.
 | 2 | `set-system-packages` | No install-specific issue. |
 | 3 | `trm-server-pa` | SHARED-02. |
 | 4 | `init` | No additional issue found; registry and validation failures propagate. |
-| 5 | `check-sap-entries` | No issue found. The subworkflow now reports every row from a missing table as failed and propagates table-probe errors. |
-| 6 | `check-dependencies` | No additional issue found. |
-| 7 | `install-dependencies` | No issue found. The installed-package snapshot is refreshed after each nested install, and logger/prompt prefixes are restored after success or failure. |
-| 8 | `set-install-devclass` | INST-01. Persisting replacement mappings before import is intentional so they can be reused by later attempts. |
-| 9 | `add-namespace` | INST-04. |
-| 10 | `generate-devclass` | No additional issue beyond INST-04's unimplemented package deletion. Existing replacement packages are lock-checked in one connector call, and newly created packages are recorded for rollback. |
-| 11 | `generate-deletion-transport` | INST-04. The update-only cleanup step is now scheduled before the artifact transports are imported. |
-| 12 | `import-devc-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
-| 13 | `import-tadir-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
-| 14 | `import-lang-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
-| 15 | `import-cust-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
-| 16 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
-| 17 | `update-package-data` | No issue found. Committing the installed-package record before the remaining finalization steps is accepted behavior; missing root replacements reject descriptively. |
-| 18 | `execute-post-activities` | No issue found. Post-activities are intentionally best-effort: failures are logged without invalidating the completed package installation. |
-| 19 | `release-install-transports` | No step-local logic error found. The package record intentionally remains committed if release fails. |
-
-## Implemented but omitted steps
-
-| Step | Result |
-|---|---|
-| `check-transports` | INST-01. Optional language and customizing transports intentionally default to skipped in non-interactive mode unless explicitly requested. This is required setup, not optional dead code. |
+| 5 | `check-transports` | No issue found. It downloads and validates artifact transports, populates the package hierarchy, and performs object safety checks before dependent steps run. Optional transports retain their accepted non-interactive defaults. |
+| 6 | `check-sap-entries` | No issue found. The subworkflow now reports every row from a missing table as failed and propagates table-probe errors. |
+| 7 | `check-dependencies` | No additional issue found. |
+| 8 | `install-dependencies` | No issue found. The installed-package snapshot is refreshed after each nested install, and logger/prompt prefixes are restored after success or failure. |
+| 9 | `set-install-devclass` | No issue found. Persisting replacement mappings before import is intentional so they can be reused by later attempts. |
+| 10 | `add-namespace` | INST-04. |
+| 11 | `generate-devclass` | No additional issue beyond INST-04's unimplemented package deletion. Existing replacement packages are lock-checked in one connector call, and newly created packages are recorded for rollback. |
+| 12 | `generate-deletion-transport` | INST-04. The update-only cleanup step is scheduled before the artifact transports are imported. |
+| 13 | `import-devc-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
+| 14 | `import-tadir-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
+| 15 | `import-lang-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
+| 16 | `import-cust-transport` | INST-04. Prefix state is restored after success or failure. Transport return-code handling follows the accepted transport-layer contract. |
+| 17 | `generate-landscape-transport` | No revert exists for a partially built request; covered by INST-04's incomplete recovery category. |
+| 18 | `update-package-data` | No issue found. Committing the installed-package record before the remaining finalization steps is accepted behavior; missing root replacements reject descriptively. |
+| 19 | `execute-post-activities` | No issue found. Post-activities are intentionally best-effort: failures are logged without invalidating the completed package installation. |
+| 20 | `release-install-transports` | No step-local logic error found. The package record intentionally remains committed if release fails. |
 
 ## Resolved findings
+
+### INST-01 — Resolved — Transport validation is scheduled before dependent steps
+
+`checkTransports` now runs immediately after initialization, once the release artifact is available
+and before SAP-entry checks, dependency installation, or package mapping. It downloads and indexes
+the artifact transports and populates `runtime.package.hierarchy` before any later step consumes
+that state ([workflow](../../src/actions/install/index.ts#L258)).
 
 ### INST-03 — Resolved — Missing required SAP tables now block installation
 
