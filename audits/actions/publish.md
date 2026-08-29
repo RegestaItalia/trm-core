@@ -67,3 +67,40 @@ annotation or release failures cannot leak per-transport prefix state into rollb
 When a first remote publication has no `publishData.private` value and interactive prompts are
 disabled, initialization now rejects with a clear error instead of prompting. No visibility default
 is assumed ([source](../../src/actions/publish/init.ts#L237)).
+
+## Non-relevant findings
+
+### PUBL-01 — Non-relevant — Publishing without abapGit source is supported
+
+The audit originally treated every failure from `getAbapgitSource` or the `.abapgit.xml` read as an
+operational failure that must abort publication. Source content and `.abapgit.xml` exclusions are
+optional publication inputs, however, and publishing a transport-only release is supported. The
+broad fallback is therefore intentional ([source](../../src/actions/publish/init.ts#L312)).
+
+### PUBL-03 — Non-relevant — Language content is optional
+
+The audit originally reported that translation collection errors could allow publication without
+language content. Language transport generation is optional by design: when usable translation
+content cannot be generated, the empty transport is deleted and the main release may continue
+([source](../../src/actions/publish/generateLangTransport.ts#L37)).
+
+### PUBL-04 — Non-relevant — Released transports of copies need no rollback
+
+The audit originally treated a registry failure after transport release as an inconsistent partial
+publication. The generated release transports are transports of copies: releasing them does not
+modify the source objects, and the released artifacts may safely remain if registry publication
+fails ([source](../../src/actions/publish/releaseTransports.ts#L21)).
+
+### PUBL-07 — Non-relevant — The prompt adapter supports selecting multiple dependencies
+
+The audit originally inferred from `type: "select"` that only one retained dependency could be
+chosen. In this project's `trm-commons` prompt adapter, that question is the supported multi-select
+flow and returns the dependency collection consumed by the following concatenation
+([source](../../src/actions/publish/setManifestValues.ts#L100)).
+
+### PUBL-10 — Non-relevant — Origin-system record synchronization is best-effort
+
+The audit originally required the action to fail when the final origin-system package-record update
+fails. Registry publication is already complete at that point, and the local record is explicitly a
+best-effort synchronization. Logging the inconsistency while preserving publication success is the
+intended contract ([source](../../src/actions/publish/updatePackageData.ts#L18)).

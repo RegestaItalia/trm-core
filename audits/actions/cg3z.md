@@ -20,3 +20,11 @@ transport that was uploaded but not successfully forwarded.
 |---:|---|---|
 | 1 | `check-server-auth` | No workflow-specific issue found. See the [shared audit](shared.md). |
 | 2 | `upload` | CG3Z-01. Archive cardinality and header/data identity are otherwise checked before mutation. The intentionally tolerated TMS-text refresh failure is logged ([source](../../src/actions/cg3z/upload.ts#L63)). |
+
+## Resolved findings
+
+### CG3Z-02 — Resolved — Unsupported `r3transOptions` input was removed
+
+The public action input previously exposed `r3transOptions`, although no workflow step consumed it.
+The unused field was removed from `CG3ZActionInput`, so callers are no longer led to believe that
+those import options affect upload or forwarding ([source](../../src/actions/cg3z/index.ts#L8)).

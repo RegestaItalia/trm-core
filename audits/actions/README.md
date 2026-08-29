@@ -8,6 +8,11 @@ error handling, rollback handlers, and the shared workflow callbacks. A finding 
 "No workflow-specific issue found" means no defect was identified in that step; ordinary
 connector, registry, filesystem, and prompt failures may still propagate as expected.
 
+Findings remain in their workflow report after review. **Resolved** findings were corrected by a
+code change; **Non-relevant** findings were reviewed and intentionally accepted or rejected as not
+applicable. Neither category is included in the open severity counts below. Retaining both prevents
+later audits from reporting the same accepted candidates as new findings.
+
 ## Severity
 
 - **Critical**: the normal workflow can fail deterministically, report success after a failed
