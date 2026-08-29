@@ -110,12 +110,6 @@ missing root mapping ([source](../../src/actions/install/updatePackageData.ts#L2
 intended to create it, but malformed persisted mappings or future step changes turn this into an
 opaque exception after imports have completed.
 
-### INST-14 — Low — `noInquirer` silently skips optional transports by default
-
-When `noLang`/`noCust` are unspecified and prompts are disabled, all optional language and
-customizing transports are skipped ([source](../../src/actions/install/checkTransports.ts#L40)).
-This is deterministic but easy for API consumers to mistake for default inclusion.
-
 ## Scheduled step review
 
 | Order | Step | Result |
@@ -143,7 +137,7 @@ This is deterministic but easy for API consumers to mistake for default inclusio
 
 | Step | Result |
 |---|---|
-| `check-transports` | INST-01 and INST-14. This is required setup, not optional dead code. |
+| `check-transports` | INST-01. Optional language and customizing transports intentionally default to skipped in non-interactive mode unless explicitly requested. This is required setup, not optional dead code. |
 | `generate-deletion-transport` | INST-09 and INST-04. |
 
 ## Resolved findings
@@ -152,3 +146,12 @@ This is deterministic but easy for API consumers to mistake for default inclusio
 
 The SAP-entry subworkflow now emits a failed status for every required row belonging to a missing
 table. The install wrapper's existing failed-row check therefore rejects installation as intended.
+
+## Non-relevant findings
+
+### INST-14 — Non-relevant — Non-interactive mode intentionally skips unspecified optional transports
+
+When prompts are disabled and `noLang` or `noCust` is unspecified, optional language and
+customizing transports are intentionally skipped. Non-interactive callers must explicitly request
+those optional transports; the deterministic opt-in behavior is the supported contract
+([source](../../src/actions/install/checkTransports.ts#L40)).
