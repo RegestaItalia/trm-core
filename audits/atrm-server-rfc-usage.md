@@ -27,7 +27,6 @@ Analysis date: 2026-08-26
 | `/ATRM/DELETE_LOG_POLLING` | Yes | Yes | Yes |
 | `/ATRM/DELETE_TRANSPORT` | Yes | Yes | Yes |
 | `/ATRM/DEL_TRANSPORT_TMS` | Yes | Yes | Yes |
-| `/ATRM/DEQUEUE_TR` | Yes | Yes | Yes |
 | `/ATRM/EXECUTE_POST_ACTIVITY` | Yes | Yes | Yes |
 | `/ATRM/FORWARD_TR` | Yes | Yes | Yes |
 | `/ATRM/GET_ABAPGIT_SOURCE` | Yes | Yes | Yes |

@@ -376,12 +376,6 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        await this._call("/ATRM/DEQUEUE_TR", {
-            trkorr: trkorr.trim().toUpperCase()
-        });
-    }
-
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean = true): Promise<void> {
         await this._call("/ATRM/FORWARD_TR", {
             trkorr: trkorr.trim().toUpperCase(),

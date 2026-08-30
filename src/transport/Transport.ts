@@ -404,7 +404,6 @@ export class Transport {
 
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
         await SystemConnector.releaseTrkorr(this.trkorr, lock);
-        await SystemConnector.dequeueTransport(this.trkorr);
         if (tmpFolder) {
             await this.readReleaseLog(tmpFolder);
         } else {

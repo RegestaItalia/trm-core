@@ -257,11 +257,6 @@ export namespace SystemConnector {
         return systemConnector.tadirInterface(tadir);
     }
 
-    export async function dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        await checkSystemConnector();
-        return systemConnector.dequeueTransport(trkorr);
-    }
-
     export async function forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean): Promise<void> {
         await checkSystemConnector();
         return systemConnector.forwardTransport(trkorr, target, source, importAgain);

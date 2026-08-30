@@ -357,12 +357,6 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        await this._axiosInstance.post('/dequeue_tr', {
-            trkorr: trkorr.trim().toUpperCase()
-        });
-    }
-
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean = true): Promise<void> {
         await this._axiosInstance.post('/forward_tr', {
             trkorr: trkorr.trim().toUpperCase(),

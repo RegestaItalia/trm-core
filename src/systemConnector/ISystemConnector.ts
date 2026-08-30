@@ -44,7 +44,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     createPackage: (scompkdtln: struct.SCOMPKDTLN) => Promise<void>,
     getDefaultTransportLayer: () => Promise<components.DEVLAYER>,
     tadirInterface: (tadir: struct.TADIR) => Promise<void>,
-    dequeueTransport: (trkorr: components.TRKORR) => Promise<void>,
     forwardTransport: (trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean) => Promise<void>,
     importTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<void>,
     setInstallDevc: (installDevc: struct.ZTRM_INSTALLDEVC[]) => Promise<void>,

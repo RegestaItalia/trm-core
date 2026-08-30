@@ -214,10 +214,6 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.tadirInterface(tadir);
     }
 
-    public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        return this._client.dequeueTransport(trkorr);
-    }
-
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean): Promise<void> {
         return this._client.forwardTransport(trkorr, target, source, importAgain);
     }
