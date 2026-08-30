@@ -10,6 +10,7 @@ import * as xml from "xml-js";
 import { TrmPackageUpdateData } from "../systemConnector";
 
 const nodeRfcLib = 'node-rfc';
+const connectionCheckTimeoutSeconds = 3;
 
 export class RFCClient implements IClient {
     protected _rfcClient: any;
@@ -58,7 +59,7 @@ export class RFCClient implements IClient {
     }
 
     public async checkConnection(): Promise<boolean> {
-        await this._call("RFC_PING");
+        await this._call("RFC_PING", undefined, connectionCheckTimeoutSeconds);
         return true;
     }
 
