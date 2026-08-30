@@ -13,7 +13,6 @@ const nodeRfcLib = 'node-rfc';
 
 export class RFCClient implements IClient {
     protected _rfcClient: any;
-    private _aliveCheck: boolean = false;
 
     constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string, private _globalNodeModulesPath?: string) {
         try {
@@ -59,15 +58,8 @@ export class RFCClient implements IClient {
     }
 
     public async checkConnection(): Promise<boolean> {
-        if (!this._aliveCheck) {
-            if ((await this.getRfcClient()).alive) {
-                Logger.success(`RFC open`, true);
-            } else {
-                Logger.warning(`RFC closed`, true);
-            }
-            this._aliveCheck = true;
-        }
-        return (await this.getRfcClient()).alive;
+        await this._call("RFC_PING");
+        return true;
     }
 
     private async _call(fm: any, arg?: any, timeout?: number, noErrorParsing?: boolean, retryCount: number = 0): Promise<any> {
