@@ -31,3 +31,8 @@ export * from "./ZTRM_OBJ_LOCK";
 export * from "./E07T";
 export * from "./TADIR_KEY";
 export * from "./ZTRM_DIRTY";
+export * from "./STMS_TR_REQUEST";
+export * from "./STMSCALERT";
+export * from "./TPSTDOUT";
+export * from "./TPLOGPTR";
+export * from "./STMS_TP_IMPORT";

@@ -262,9 +262,14 @@ export namespace SystemConnector {
         return systemConnector.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<any> {
+    export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
         await checkSystemConnector();
         return systemConnector.importTransport(trkorr, system, test);
+    }
+
+    export async function importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+        await checkSystemConnector();
+        return systemConnector.importTransportMultiple(trkorr, system, test);
     }
 
     export async function setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {

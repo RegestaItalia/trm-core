@@ -366,10 +366,19 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<any> {
-        const result = (await this._axiosInstance.post('/import_tr', {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+        const result = (await this._axiosInstance.post<{ testResult: struct.STMS_TP_IMPORT }>('/import_tr', {
             system: system.trim().toUpperCase(),
             trkorr: trkorr.trim().toUpperCase(),
+            test: test ? 'X' : ' '
+        })).data;
+        return result.testResult;
+    }
+
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+        const result = (await this._axiosInstance.post<{ testResult: struct.STMS_TP_IMPORT }>('/import_tr_multiple', {
+            system: system.trim().toUpperCase(),
+            trkorr: trkorr.map(value => value.trim().toUpperCase()),
             test: test ? 'X' : ' '
         })).data;
         return result.testResult;

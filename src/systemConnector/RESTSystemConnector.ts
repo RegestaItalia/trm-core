@@ -218,8 +218,12 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<any> {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
         return this._client.importTransport(trkorr, system, test);
+    }
+
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+        return this._client.importTransportMultiple(trkorr, system, test);
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
