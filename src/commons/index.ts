@@ -1,4 +1,5 @@
 export * from "./normalize";
+export * from "./packageDataFromTdevc";
 export * from "./getFileSysSeparator";
 export * from "./fromAbapToDate";
 export * from "./PackageName";

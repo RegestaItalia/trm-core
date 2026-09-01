@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
-import { getPackageHierarchy, getParentFromHierarchy } from "../../commons";
+import { getPackageHierarchy, getParentFromHierarchy, packageDataFromTdevc } from "../../commons";
 import { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
@@ -70,14 +70,20 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                 Logger.loading(`Creating package ${devclass}...`);
                 const originalDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.installDevclass === devclass).originalDevclass;
                 Logger.log(`Original devclass ${originalDevclass}`, true);
+                const originalPackageData = context.runtime.transports.devc.binaries.entries.tdevc?.find(
+                    (o: TDEVC) => o.devclass === originalDevclass
+                );
+                if (!originalPackageData) {
+                    throw new Error(`Original TDEVC data for package ${originalDevclass} was not found.`);
+                }
                 const ctext = context.runtime.transportEntries.tdevct.find(o => o.devclass === originalDevclass)?.ctext || `TRM ${context.rawInput.packageData.name}`;
-                await SystemConnector.createPackage({
+                await SystemConnector.createPackage(packageDataFromTdevc(originalPackageData, {
                     as4user: SystemConnector.getLogonUser(),
                     pdevclass: context.rawInput.installData.installDevclass.transportLayer,
                     devclass,
                     ctext,
                     dlvunit
-                });
+                }));
                 if (!context.revert.sapPackages.includes(devclass)) {
                     context.revert.sapPackages.push(devclass);
                 }
