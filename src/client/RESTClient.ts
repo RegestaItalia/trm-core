@@ -11,6 +11,10 @@ import { TrmPackageUpdateData } from "../systemConnector";
 
 const AXIOS_CTX = "RestServer";
 
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
 export class RESTClient implements IClient {
     protected _axiosInstance: AxiosInstance;
     private _connected: boolean = false;
@@ -38,7 +42,7 @@ export class RESTClient implements IClient {
                     timeout: 5000
                 });
             } catch (e) {
-                throw new RESTClientError("ZNO_CONN", null, e, e.message);
+                throw new RESTClientError("ZNO_CONN", null, e, getErrorMessage(e));
             }
             if (response.status !== 200) {
                 throw new RESTClientError("ZNO_CONN", null, null, `Couldn't reach ${this.endpoint}!`);
@@ -54,40 +58,47 @@ export class RESTClient implements IClient {
                         class: undefined,
                         no: undefined
                     };
-                    if (error.name === `Trm${AXIOS_CTX}Error`) {
+                    if (error && error.name === `Trm${AXIOS_CTX}Error`) {
                         axiosError = error.axiosError;
                     } else {
                         axiosError = error;
                     }
-                    if (axiosError.config.url === '/read_table') {
-                        if (JSON.parse(axiosError.config.data).query_table === 'T100') {
+                    if (axiosError && axiosError.config && axiosError.config.url === '/read_table') {
+                        var requestData;
+                        try {
+                            requestData = typeof axiosError.config.data === 'string' ? JSON.parse(axiosError.config.data) : axiosError.config.data;
+                        } catch (parseError) {
+                            requestData = undefined;
+                        }
+                        if (requestData && requestData.query_table === 'T100') {
                             throw error;
                         }
                     }
-                    if (axiosError.response.data.message) {
+                    const responseData = axiosError && axiosError.response && axiosError.response.data;
+                    if (responseData && responseData.message) {
                         sapMessage = {
-                            no: `${axiosError.response.data.message.msgno}`,
-                            class: axiosError.response.data.message.msgid,
-                            v1: axiosError.response.data.message.msgv1,
-                            v2: axiosError.response.data.message.msgv2,
-                            v3: axiosError.response.data.message.msgv3,
-                            v4: axiosError.response.data.message.msgv4
+                            no: `${responseData.message.msgno}`,
+                            class: responseData.message.msgid,
+                            v1: responseData.message.msgv1,
+                            v2: responseData.message.msgv2,
+                            v3: responseData.message.msgv3,
+                            v4: responseData.message.msgv4
                         };
                         try {
                             message = await this.getMessage(sapMessage);
                         } catch (k) {
                             messageError = k;
-                            message = `Couldn't read error message ${axiosError.response.data.message.msgid} ${axiosError.response.data.message.msgno} ${axiosError.response.data.message.msgv1} ${axiosError.response.data.message.msgv2} ${axiosError.response.data.message.msgv3} ${axiosError.response.data.message.msgv4}`;
+                            message = `Couldn't read error message ${responseData.message.msgid} ${responseData.message.msgno} ${responseData.message.msgv1} ${responseData.message.msgv2} ${responseData.message.msgv3} ${responseData.message.msgv4}`;
                         }
                     } else {
                         throw error;
                     }
-                    var rfcClientError = new RESTClientError(error.message, sapMessage, axiosError, message);
+                    var rfcClientError = new RESTClientError(getErrorMessage(error), sapMessage, axiosError, message);
                     if (messageError) {
                         rfcClientError.messageError = messageError.toString();
                     }
-                    if (axiosError.response.data.log) {
-                        rfcClientError.messageLog = axiosError.response.data.log;
+                    if (responseData && responseData.log) {
+                        rfcClientError.messageLog = responseData.log;
                     }
                     Logger.error(rfcClientError.toString(), true);
                     throw rfcClientError;
@@ -174,7 +185,7 @@ export class RESTClient implements IClient {
                 var sqlLine: any = {};
                 const waSplit = tab512.wa.split(delimiter);
                 result.data.fields.forEach((field, index) => {
-                    sqlLine[field.fieldname] = waSplit[index].trim();
+                    sqlLine[field.fieldname] = (waSplit[index] || '').trim();
                 });
                 sqlOutput.push(sqlLine);
             })
@@ -213,12 +224,8 @@ export class RESTClient implements IClient {
 
     public async writeBinaryFile(filePath: string, binary: Buffer): Promise<void> {
         const formData = new FormData.default();
-        var filename: string;
-        try {
-            filename = /[^\\\/]+$/gmi.exec(filePath)[0];
-        } catch (e) {
-            filename = 'UNKNOWN_FILENAME';
-        }
+        const filenameMatch = /[^\\\/]+$/gmi.exec(filePath);
+        const filename = filenameMatch ? filenameMatch[0] : 'UNKNOWN_FILENAME';
         formData.append('file', binary, filename);
         formData.append('file_path', filePath);
         await this._axiosInstance.post('/write_binary_file', formData, {
@@ -237,7 +244,7 @@ export class RESTClient implements IClient {
     public async createWbTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = (await this._axiosInstance.post('/create_import_tr', {
             text: text,
-            target: target.trim().toUpperCase()
+            target: target ? target.trim().toUpperCase() : ''
         })).data;
         return result.trkorr;
     }
@@ -245,7 +252,7 @@ export class RESTClient implements IClient {
     public async createCustTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = (await this._axiosInstance.post('/create_cust_tr', {
             text: text,
-            target: target.trim().toUpperCase()
+            target: target ? target.trim().toUpperCase() : ''
         })).data;
         return result.trkorr;
     }
@@ -314,7 +321,7 @@ export class RESTClient implements IClient {
         await this._axiosInstance.post('/release_tr', {
             trkorr: trkorr.trim().toUpperCase(),
             lock: lock ? 'X' : ' '
-        }, {
+        }, timeout === undefined ? undefined : {
             timeout: timeout * 1000
         });
     }
@@ -372,6 +379,9 @@ export class RESTClient implements IClient {
             trkorr: trkorr.trim().toUpperCase(),
             test: test ? 'X' : ' '
         })).data;
+        if (!result || !result.testResult) {
+            throw new RESTClientError("ZPARSE_API_DATA", null, null, `Import API response does not contain testResult.`);
+        }
         return result.testResult;
     }
 
@@ -381,6 +391,9 @@ export class RESTClient implements IClient {
             trkorr: trkorr.map(value => value.trim().toUpperCase()),
             test: test ? 'X' : ' '
         })).data;
+        if (!result || !result.testResult) {
+            throw new RESTClientError("ZPARSE_API_DATA", null, null, `Multiple import API response does not contain testResult.`);
+        }
         return result.testResult;
     }
 
@@ -513,14 +526,28 @@ export class RESTClient implements IClient {
             }
         });
         try {
-            const boundary = (headers['content-type']).toString().match(/boundary=([-0-9A-Za-z]+)/i)[1];
+            const contentType = headers && headers['content-type'];
+            const boundaryMatch = contentType && contentType.toString().match(/boundary=(?:"([^"]+)"|([^;\s]+))/i);
+            if (!boundaryMatch) {
+                throw new Error('Multipart boundary is missing');
+            }
+            const boundary = boundaryMatch[1] || boundaryMatch[2];
             const parsedData = parseMultipart(data, boundary);
+            const zipPart = parsedData.find(o => o.name === 'zip');
+            const objectsPart = parsedData.find(o => o.name === 'objects');
+            if (!zipPart || !objectsPart) {
+                throw new Error('Multipart response is missing zip or objects');
+            }
+            const objects = JSON.parse(objectsPart.data.toString());
+            if (!Array.isArray(objects)) {
+                throw new Error('Multipart objects payload is not an array');
+            }
             return {
-                zip: parsedData.find(o => o.name === 'zip').data,
-                objects: JSON.parse(parsedData.find(o => o.name === 'objects').data.toString())
+                zip: zipPart.data,
+                objects
             }
         } catch (e) {
-            throw new RESTClientError("ZPARSE_API_DATA", null, null, `Can't parse api data.`);
+            throw new RESTClientError("ZPARSE_API_DATA", null, e, `Can't parse API data: ${getErrorMessage(e)}`);
         }
     }
 

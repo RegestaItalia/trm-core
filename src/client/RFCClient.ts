@@ -12,6 +12,10 @@ import { TrmPackageUpdateData } from "../systemConnector";
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
 
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
 export class RFCClient implements IClient {
     protected _rfcClient: any;
 
@@ -21,7 +25,7 @@ export class RFCClient implements IClient {
         } catch (e) {
             //not sure if this could cause an error!
             Logger.warning(`Couldn't set RFC trace!`, true);
-            Logger.error(e.toString(), true);
+            Logger.error(getErrorMessage(e), true);
         }
         Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
     }
@@ -44,7 +48,7 @@ export class RFCClient implements IClient {
             await (await this.getRfcClient()).open();
             Logger.success(`RFC open`, true);
         } catch (e) {
-            throw new RFCClientError("ZNO_CONN", null, e, e.message);
+            throw new RFCClientError("ZNO_CONN", null, e, getErrorMessage(e));
         }
     }
 
@@ -54,7 +58,7 @@ export class RFCClient implements IClient {
             await (await this.getRfcClient()).close();
             Logger.success(`RFC closed`, true);
         } catch (e) {
-            throw new RFCClientError("ZNO_CLOSE", null, e, e.message);
+            throw new RFCClientError("ZNO_CLOSE", null, e, getErrorMessage(e));
         }
     }
 
@@ -69,7 +73,7 @@ export class RFCClient implements IClient {
             var emptyKeys = [];
             argNormalized = normalize(arg, 'upper');
             Object.keys(argNormalized).forEach(key => {
-                if (argNormalized[key] === undefined || argNormalized === null) {
+                if (argNormalized[key] === undefined || argNormalized[key] === null) {
                     emptyKeys.push(key);
                 }
             });
@@ -92,7 +96,7 @@ export class RFCClient implements IClient {
             Logger.success(`RFC resonse: ${JSON.stringify(summarizeForLog(responseNormalized))}`, true);
             return responseNormalized;
         } catch (e) {
-            if (e.message === 'device or resource busy: device or resource busy' && retryCount <= 10) {
+            if (getErrorMessage(e) === 'device or resource busy: device or resource busy' && retryCount < 10) {
                 //node-rfc #327 this issue is not yet solved
                 //for the time being try recalling
                 Logger.log('device or resource busy, retrying', true);
@@ -122,7 +126,7 @@ export class RFCClient implements IClient {
                         message = `Couldn't read error message ${e.abapMsgClass} ${e.abapMsgNumber} ${e.abapMsgV1} ${e.abapMsgV2} ${e.abapMsgV3} ${e.abapMsgV4}`;
                     }
                 } else {
-                    message = e.message;
+                    message = getErrorMessage(e);
                 }
                 var rfcClientError = new RFCClientError(e.key, sapMessage, e, message);
                 if (messageError) {
@@ -209,7 +213,7 @@ export class RFCClient implements IClient {
                 var sqlLine: any = {};
                 const waSplit = tab512.wa.split(delimiter);
                 result.fields.forEach((field, index) => {
-                    sqlLine[field.fieldname] = waSplit[index].trim();
+                    sqlLine[field.fieldname] = (waSplit[index] || '').trim();
                 });
                 sqlOutput.push(sqlLine);
             })
@@ -262,7 +266,7 @@ export class RFCClient implements IClient {
     public async createWbTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = await this._call("/ATRM/CREATE_IMPORT_TR", {
             text: text,
-            target: target.trim().toUpperCase()
+            target: target ? target.trim().toUpperCase() : ''
         });
         return result['trkorr'];
     }
@@ -270,7 +274,7 @@ export class RFCClient implements IClient {
     public async createCustTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = await this._call("/ATRM/CREATE_CUST_TR", {
             text: text,
-            target: target.trim().toUpperCase()
+            target: target ? target.trim().toUpperCase() : ''
         });
         return result['trkorr'];
     }
@@ -379,17 +383,24 @@ export class RFCClient implements IClient {
     }
 
     private parseImportTransportResult(data: Buffer | string): struct.STMS_TP_IMPORT {
-        const parsed = xml.xml2js(data.toString(), { compact: true }) as xml.ElementCompact;
-        const importResult = parsed['asx:abap']['asx:values']['IMPORT'];
-        const text = (node: xml.ElementCompact): string => node && node['_text'] !== undefined ? String(node['_text']) : '';
-        const items = (node: xml.ElementCompact): xml.ElementCompact[] => {
-            if (!node || !node.item) {
-                return [];
+        try {
+            if (data === undefined || data === null || data.toString().trim() === '') {
+                throw new Error('Empty import result');
             }
-            return Array.isArray(node.item) ? node.item : [node.item];
-        };
+            const parsed = xml.xml2js(data.toString(), { compact: true }) as xml.ElementCompact;
+            const importResult = parsed['asx:abap'] && parsed['asx:abap']['asx:values'] && parsed['asx:abap']['asx:values']['IMPORT'];
+            if (!importResult || !importResult.REQUEST || !importResult.ALERT) {
+                throw new Error('Unexpected ABAP XML import result');
+            }
+            const text = (node: xml.ElementCompact): string => node && node['_text'] !== undefined ? String(node['_text']) : '';
+            const items = (node: xml.ElementCompact): xml.ElementCompact[] => {
+                if (!node || !node.item) {
+                    return [];
+                }
+                return Array.isArray(node.item) ? node.item : [node.item];
+            };
 
-        return {
+            return {
             request: {
                 trkorr: text(importResult.REQUEST.TRKORR),
                 tarcli: text(importResult.REQUEST.TARCLI),
@@ -436,7 +447,13 @@ export class RFCClient implements IClient {
                 methodptr: text(importResult.ALERT.METHODPTR),
                 properties: text(importResult.ALERT.PROPERTIES)
             }
-        };
+            };
+        } catch (error) {
+            if (error instanceof RFCClientError) {
+                throw error;
+            }
+            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse import result: ${getErrorMessage(error)}`);
+        }
     }
 
     public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
@@ -542,19 +559,26 @@ export class RFCClient implements IClient {
         const result = await this._call("/ATRM/GET_ABAPGIT_SOURCE", {
             devclass: devclass
         });
-        const sXml = result['objects'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
-        const oAbapXml = xml.xml2js(sXml, { compact: true });
-        const objects = oAbapXml['asx:abap']['asx:values']['OBJECTS'].item.map(o => {
+        try {
+            if (!Buffer.isBuffer(result['zip']) || result['objects'] === undefined || result['objects'] === null) {
+                throw new Error('Missing zip or objects payload');
+            }
+            const sXml = result['objects'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
+            const oAbapXml = xml.xml2js(sXml, { compact: true }) as xml.ElementCompact;
+            const objectItems = oAbapXml['asx:abap'] && oAbapXml['asx:abap']['asx:values'] && oAbapXml['asx:abap']['asx:values']['OBJECTS'] && oAbapXml['asx:abap']['asx:values']['OBJECTS'].item;
+            const items: xml.ElementCompact[] = objectItems ? (Array.isArray(objectItems) ? objectItems : [objectItems]) : [];
+            const text = (node: xml.ElementCompact): string => node && node['_text'] !== undefined ? String(node['_text']) : '';
             return {
-                pgmid: o['PGMID']['_text'],
-                object: o['OBJECT']['_text'],
-                objName: o['OBJ_NAME']['_text'],
-                fullPath: o['FULL_PATH']['_text']
+                zip: result['zip'],
+                objects: items.map(o => ({
+                    pgmid: text(o['PGMID']),
+                    object: text(o['OBJECT']),
+                    objName: text(o['OBJ_NAME']),
+                    fullPath: text(o['FULL_PATH'])
+                }))
             };
-        });
-        return {
-            zip: result['zip'],
-            objects
+        } catch (error) {
+            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse API data: ${getErrorMessage(error)}`);
         }
     }
 
