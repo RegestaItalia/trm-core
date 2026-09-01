@@ -196,8 +196,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        return this._client.importTransport(trkorr, system);
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<any> {
+        return this._client.importTransport(trkorr, system, test);
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {

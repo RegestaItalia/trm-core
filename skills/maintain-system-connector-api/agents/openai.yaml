@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain SystemConnector API"
+  short_description: "Synchronize connector APIs across RFC and REST"
+  default_prompt: "Use $maintain-system-connector-api to maintain this SystemConnector API across every required TypeScript layer after inspecting its SAP RFC and REST implementations with ARC-1."

@@ -378,11 +378,13 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        await this._call("/ATRM/IMPORT_TR", {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<any> {
+        const result = await this._call("/ATRM/IMPORT_TR", {
             system: system.trim().toUpperCase(),
-            trkorr: trkorr.trim().toUpperCase()
+            trkorr: trkorr.trim().toUpperCase(),
+            test: test ? 'X' : ' '
         });
+        return result['testResult'];
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {

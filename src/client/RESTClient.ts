@@ -366,11 +366,13 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        await this._axiosInstance.post('/import_tr', {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<any> {
+        const result = (await this._axiosInstance.post('/import_tr', {
             system: system.trim().toUpperCase(),
-            trkorr: trkorr.trim().toUpperCase()
-        });
+            trkorr: trkorr.trim().toUpperCase(),
+            test: test ? 'X' : ' '
+        })).data;
+        return result.testResult;
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {

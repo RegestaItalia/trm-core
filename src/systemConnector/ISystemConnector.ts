@@ -45,7 +45,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getDefaultTransportLayer: () => Promise<components.DEVLAYER>,
     tadirInterface: (tadir: struct.TADIR) => Promise<void>,
     forwardTransport: (trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean) => Promise<void>,
-    importTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<void>,
+    importTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean) => Promise<any>,
     setInstallDevc: (installDevc: struct.ZTRM_INSTALLDEVC[]) => Promise<void>,
     getObjectsList: () => Promise<struct.KO100[]>,
     renameTransportRequest: (trkorr: components.TRKORR, as4text: components.AS4TEXT) => Promise<void>,

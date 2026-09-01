@@ -262,9 +262,9 @@ export namespace SystemConnector {
         return systemConnector.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
+    export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<any> {
         await checkSystemConnector();
-        return systemConnector.importTransport(trkorr, system);
+        return systemConnector.importTransport(trkorr, system, test);
     }
 
     export async function setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {

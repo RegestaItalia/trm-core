@@ -797,7 +797,7 @@ export class Transport {
         Logger.loading(`Forwarding transport ${this.trkorr}`, true);
         await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
         Logger.loading(`Importing ${this.trkorr}`, true);
-        await SystemConnector.importTransport(this.trkorr, this._trTarget);
+        await SystemConnector.importTransport(this.trkorr, this._trTarget, false);
         Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
         const queue = await this._isInTmsQueue(false, true);
         Logger.log(`Transport ${this.trkorr} import ended: return code ${queue.rc}`, true);
