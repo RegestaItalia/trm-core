@@ -5,14 +5,7 @@ Entry point: [`publish`](../../src/actions/publish/index.ts#L242)
 
 ## Findings
 
-### PUBL-05 — Medium — Registry lookup failures are misclassified as first publication
-
-`registry.getPackage(name, "latest")` catches every exception and announces a first publish
-([source](../../src/actions/publish/init.ts#L154)). Network, authentication, and registry failures
-are not equivalent to package-not-found and can lead to incorrect version `1.0.0` and visibility
-decisions before a later, less clear failure.
-
-Recommendation: catch only a typed package-not-found error.
+No active publish-specific findings.
 
 ## Step review
 
@@ -21,7 +14,7 @@ Recommendation: catch only a typed package-not-found error.
 | 1 | `check-server-auth` | No publish-specific issue; see [shared audit](shared.md). |
 | 2 | `set-system-packages` | No publish-specific issue. |
 | 3 | `trm-server-pa` | SHARED-02. |
-| 4 | `init` | PUBL-05. Version/name/lock validation otherwise rejects failures. First remote non-interactive publication requires explicit visibility. Publishing without abapGit source or `.abapgit.xml` is intentionally allowed. |
+| 4 | `init` | Version/name/lock validation rejects failures. Only a registry HTTP 404 enters the first-publication flow. First remote non-interactive publication requires explicit visibility. Publishing without abapGit source or `.abapgit.xml` is intentionally allowed. |
 | 5 | `find-dependencies` | No issue found. Customer/local packages and TRM dependencies without manifests correctly block publication. |
 | 6 | `set-customizing-transports` | No confirmed logic defect found. Invalid new requests reject; retained requests deliberately reuse prior metadata. Connector errors propagate, although a missing E070 currently surfaces as a generic `TypeError` before being wrapped. |
 | 7 | `set-manifest-values` | No issue found. Missing dependencies from the latest release can be retained with a multi-select prompt. Final manifest normalization provides a last validation boundary. |
@@ -35,6 +28,15 @@ Recommendation: catch only a typed package-not-found error.
 | 15 | `update-package-data` | No issue found. Updating the origin-system package record is best-effort and does not invalidate a successful registry publication. |
 
 ## Resolved findings
+
+### PUBL-05 — Resolved — Registry failures are distinct from first publication
+
+Registry HTTP 404 responses are now represented by `RegistryPackageNotFoundError`, including the
+package, requested version, endpoint, and original error. Publish initialization catches only this
+typed error to enter the first-publication flow; authentication, network, timeout, server, and local
+filesystem lookup failures retain their original diagnostics and abort before version or visibility
+defaults are selected
+([registry source](../../src/registry/RegistryV2.ts), [publish source](../../src/actions/publish/init.ts)).
 
 ### PUBL-08 — Resolved — Failed customizing-copy builds retain rollback tracking
 

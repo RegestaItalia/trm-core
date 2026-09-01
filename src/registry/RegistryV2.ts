@@ -15,6 +15,7 @@ import { AbstractRegistry, PublishAdditionalData } from "./AbstractRegistry";
 import NodeCache from "node-cache";
 import { BinaryTransport } from "../transport";
 import * as AdmZip from "adm-zip";
+import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
 
 const AXIOS_CTX = "RegistryV2";
 
@@ -360,7 +361,9 @@ export class RegistryV2 implements AbstractRegistry {
                     } catch { }
                 }
             } catch (e) {
-                data = e;
+                data = this.getErrorStatus(e) === 404
+                    ? new RegistryPackageNotFoundError(fullName, version, this.endpoint, e)
+                    : e;
             }
             this._cache.set(cacheKey, data, ttl);
         }

@@ -5,7 +5,7 @@ import { getPackageNamespace, parsePackageName } from "../../commons";
 import { TrmPackage } from "../../trmPackage";
 import { clean, inc, parse, prerelease, rcompare, valid } from "semver";
 import { SystemConnector } from "../../systemConnector";
-import { RegistryType } from "../../registry";
+import { RegistryPackageNotFoundError, RegistryType } from "../../registry";
 import chalk from "chalk";
 import { setTransportTarget } from "../commons/prompts";
 import { validateDevclass } from "../../validators";
@@ -155,8 +155,12 @@ export const init: Step<PublishWorkflowContext> = {
         var automaticVersion: boolean = false;
         try {
             context.runtime.latest.data = await context.rawInput.packageData.registry.getPackage(context.rawInput.packageData.name, 'latest');
-        } catch {
-            Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL);
+        } catch (e) {
+            if (e instanceof RegistryPackageNotFoundError) {
+                Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL);
+            } else {
+                throw e;
+            }
         }
         if (context.runtime.latest.data) {
             if (!context.runtime.latest.data.dist_tags.latest) {
