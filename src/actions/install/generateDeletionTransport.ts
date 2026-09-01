@@ -4,6 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
+import { restoreTransport } from "./restoreTransport";
 
 /**
  * Workflow step that creates a transport for objects removed by an upgrade.
@@ -87,8 +88,8 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if(context.revert.dele){
-            //TODO: upload original binaries back to the transport and import
+        if (context.revert.dele) {
+            await restoreTransport(context.revert.dele);
         }
     } 
 }

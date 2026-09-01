@@ -74,5 +74,11 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
         await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if (context.output.transport && await context.output.transport.canBeDeleted()) {
+            await context.output.transport.delete();
+            context.output.transport = undefined;
+        }
     }
 }

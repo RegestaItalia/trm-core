@@ -4,6 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
+import { restoreTransport } from "./restoreTransport";
 
 /**
  * Workflow step that imports each customizing transport and records rollback data.
@@ -103,8 +104,8 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        for(const cust of context.revert.transports.cust){
-            //TODO: upload original binaries back to the transport and import
+        for (const cust of [...context.revert.transports.cust].reverse()) {
+            await restoreTransport(cust);
         }
     }
 }

@@ -6,6 +6,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import _ from 'lodash';
 import { stopWarning } from "../stopWarning";
 import { TADIR } from "../../client";
+import { restoreTransport } from "./restoreTransport";
 
 /**
  * Workflow step that imports repository objects and records rollback data.
@@ -122,8 +123,8 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if(context.revert.transports.tadir){
-            //TODO: upload original binaries back to the transport and import
+        if (context.revert.transports.tadir) {
+            await restoreTransport(context.revert.transports.tadir);
         }
     }
 }

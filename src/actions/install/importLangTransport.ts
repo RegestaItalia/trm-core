@@ -4,6 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
+import { restoreTransport } from "./restoreTransport";
 
 /**
  * Workflow step that imports the optional language transport and records rollback data.
@@ -95,8 +96,8 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if(context.revert.transports.lang){
-            //TODO: upload original binaries back to the transport and import
+        if (context.revert.transports.lang) {
+            await restoreTransport(context.revert.transports.lang);
         }
     }
 }

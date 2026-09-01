@@ -5,6 +5,7 @@ import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { TADIR } from "../../client";
 import { stopWarning } from "../stopWarning";
+import { restoreTransport } from "./restoreTransport";
 
 /**
  * Workflow step that imports ABAP package definitions and records rollback data.
@@ -148,8 +149,8 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if(context.revert.transports.devc){
-            //TODO: upload original binaries back to the transport and import
+        if (context.revert.transports.devc) {
+            await restoreTransport(context.revert.transports.devc);
         }
     }
 }
