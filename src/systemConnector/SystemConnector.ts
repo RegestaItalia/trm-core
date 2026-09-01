@@ -173,7 +173,6 @@ export namespace SystemConnector {
 
     export async function readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
         await checkSystemConnector();
-        //TODO -> fix with dedicated method where used
         return systemConnector['readTable'](tableName, fields, options);
     }
 
