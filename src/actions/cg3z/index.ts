@@ -2,6 +2,7 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { checkServerAuth, workflowCallbacks } from "..";
 import { upload } from "./upload";
 import { TRKORR } from "../../client";
+import { Transport } from "../../transport";
 
 /** Input required to upload a transport to the connected SAP system. */
 export interface Cg3zActionInput {
@@ -11,7 +12,10 @@ export interface Cg3zActionInput {
     binaries: Buffer
 }
 
-type WorkflowRuntime = {}
+type WorkflowRuntime = {
+    /** Uploaded transport tracked before file writes so failures can be rolled back. */
+    transport?: Transport
+}
 
 /** Result of a successful {@link cg3z} upload. */
 export type Cg3zActionOutput = {
@@ -48,7 +52,8 @@ export async function cg3z(inputData: Cg3zActionInput): Promise<Cg3zActionOutput
         upload
     ];
     const result = await execute<Cg3zWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData
+        rawInput: inputData,
+        runtime: {}
     }, workflowCallbacks);
     return {
         trkorr: result.output.trkorr

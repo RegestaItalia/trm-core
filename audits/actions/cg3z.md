@@ -5,23 +5,23 @@ Entry point: [`cg3z`](../../src/actions/cg3z/index.ts#L56)
 
 ## Findings
 
-### CG3Z-01 — High — Partial upload/forward has no rollback
-
-The upload writes the header and data separately, then forwards the transport. If the data write
-or forwarding fails after the header was written, the workflow rejects but leaves partial files or
-an uploaded transport behind. There is no `revert` handler ([upload sequence](../../src/actions/cg3z/upload.ts#L48)).
-
-Recommendation: stage both files, clean them on failure, and add a rollback/delete path for a
-transport that was uploaded but not successfully forwarded.
+No active CG3Z-specific findings.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `check-server-auth` | No workflow-specific issue found. See the [shared audit](shared.md). |
-| 2 | `upload` | CG3Z-01. Archive cardinality and header/data identity are otherwise checked before mutation. The intentionally tolerated TMS-text refresh failure is logged ([source](../../src/actions/cg3z/upload.ts#L63)). |
+| 2 | `upload` | No issue found. Archive cardinality and header/data identity are checked before mutation. The transport is tracked before upload and deleted on rollback when SAP reports it as modifiable. The intentionally tolerated TMS-text refresh failure is logged. |
 
 ## Resolved findings
+
+### CG3Z-01 — Resolved — Partial upload/forward is rolled back
+
+The upload step now registers the identified transport in workflow runtime state before writing its
+binary files. If upload or forwarding fails, its revert handler checks whether SAP still considers
+the transport modifiable and deletes it, following the rollback pattern used by generated publish
+transports ([source](../../src/actions/cg3z/upload.ts)).
 
 ### CG3Z-02 — Resolved — Unsupported `r3transOptions` input was removed
 

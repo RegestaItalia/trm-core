@@ -47,6 +47,7 @@ export const upload: Step<Cg3zWorkflowContext> = {
 
         //2- upload
         Logger.loading(`Uploading transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
+        context.runtime.transport = new Transport(context.output.trkorr, SystemConnector.getDest());
         await Transport.upload(
             context.output.trkorr, {
                 binary: {
@@ -66,6 +67,11 @@ export const upload: Step<Cg3zWorkflowContext> = {
             await SystemConnector.refreshTransportTmsTxt(context.output.trkorr);
         } catch {
             Logger.warning(`Coudln't refresh transport text!`);
+        }
+    },
+    revert: async (context: Cg3zWorkflowContext): Promise<void> => {
+        if (context.runtime?.transport && await context.runtime.transport.canBeDeleted()) {
+            await context.runtime.transport.delete();
         }
     }
 }
