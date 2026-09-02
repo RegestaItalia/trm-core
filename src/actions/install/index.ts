@@ -5,7 +5,7 @@ import { Transport } from "../../transport";
 import { TransportBinary, TrmPackage } from "../../trmPackage";
 import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { PackageHierarchy } from "../../commons";
-import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa, workflowCallbacks } from "../commons";
+import { checkServerAuth, IActionContext, setSystemPackages, workflowCallbacks } from "../commons";
 import execute from "@simonegaffurini/sammarksworkflow";
 import { init } from "./init";
 import { checkTransports } from "./checkTransports";
@@ -263,7 +263,6 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
     const workflow = [
         checkServerAuth,
         setSystemPackages,
-        trmServerPa,
         init,
         checkTransports,
         checkSapEntries,

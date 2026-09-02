@@ -1,6 +1,6 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
-import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa, workflowCallbacks } from "..";
+import { checkServerAuth, IActionContext, setSystemPackages, workflowCallbacks } from "..";
 import { ReleaseType } from "semver";
 import { DEVCLASS, TADIR, TR_TARGET, TRKORR, TRNSPACET, TRNSPACETT, ZTY_SER_OBJ } from "../../client";
 import { TrmManifest, TrmManifestBase } from "../../manifest";
@@ -252,7 +252,6 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
     const workflow = [
         checkServerAuth,
         setSystemPackages,
-        trmServerPa,
         init,
         findDependencies,
         setCustomizingTransports,
