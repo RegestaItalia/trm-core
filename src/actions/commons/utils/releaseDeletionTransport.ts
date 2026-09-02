@@ -1,33 +1,37 @@
 import { Inquirer, Logger } from "trm-commons";
-import { Transport } from "../../../transport";
+import { BinaryTransport, Transport } from "../../../transport";
 import { SystemConnector } from "../../../systemConnector";
 import { AbstractRegistry, RegistryDeletionTransportUnauthorizedError } from "../../../registry";
 import type { InstallWorkflowContext } from "../../install";
 
 /** Releases and imports a deletion transport, retaining its original binaries for rollback. */
 export async function releaseDeletionTransport(deletionTransport: Transport, registry: AbstractRegistry, context?: InstallWorkflowContext): Promise<void> {
+    if(!context || !context.revert){ //dummy, context might not even be used
+        context.revert = {
+            dele: undefined,
+            transports: undefined,
+            sapPackages: undefined
+        };
+    }
+
     await deletionTransport.release(false, true);
 
     const tocBinaries = (await deletionTransport.download()).binaries;
 
-    if (context) {
-        //saving dummy binaries for a possible revert
-        context.revert.dele = {
-            trkorr: deletionTransport.trkorr,
-            entries: undefined,
-            binaries: tocBinaries
-        };
-    }
+    //saving dummy binaries for a possible revert
+    context.revert.dele = {
+        trkorr: deletionTransport.trkorr,
+        entries: undefined,
+        binaries: tocBinaries
+    };
 
-    let deleBinaries;
+    let deleBinaries: BinaryTransport;
     try {
         deleBinaries = await registry.delete(tocBinaries);
     } catch (e) {
         if (e instanceof RegistryDeletionTransportUnauthorizedError) {
             await deletionTransport.delete();
-            if (context) {
-                context.revert.dele = undefined;
-            }
+            context.revert.dele = undefined;
         }
         throw e;
     }
@@ -54,9 +58,15 @@ export async function releaseDeletionTransport(deletionTransport: Transport, reg
         } else {
             Inquirer.setPrefix(prefix);
         }
+        Logger.loading(`Testing import of ${deletionTransport.trkorr}...`);
+        const testRc = await context.runtime.dele.import(true);
+        if (testRc < 0 || testRc > 8) {
+            throw new Error(`Test import of transport ${deletionTransport.trkorr} failed: check logs.`);
+        }
         Logger.loading(`Importing ${deletionTransport.trkorr}`, true);
-        await context.runtime.dele.import();
+        await context.runtime.dele.import(false);
         Logger.success(`Transport ${deletionTransport.trkorr} imported`, true);
+        deletionTransport = context.runtime.dele; //replace
     } finally {
         Logger.setPrefix(originalLPrefix);
         Inquirer.setPrefix(originalIPrefix);

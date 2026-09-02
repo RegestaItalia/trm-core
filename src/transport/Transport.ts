@@ -789,7 +789,9 @@ export class Transport {
         return latest;
     }
 
-    public async import(): Promise<void> {
+    public async import(test: boolean): Promise<number> {
+        var rc: number;
+        var message: string;
         if (!this._trTarget) {
             throw new Error('Missing transport target.');
         }
@@ -797,30 +799,40 @@ export class Transport {
         Logger.loading(`Forwarding transport ${this.trkorr}`, true);
         await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
         Logger.loading(`Importing ${this.trkorr}`, true);
-        await SystemConnector.importTransport(this.trkorr, this._trTarget, false);
-        Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
-        const queue = await this._isInTmsQueue(false, true);
-        Logger.log(`Transport ${this.trkorr} import ended: return code ${queue.rc}`, true);
-        switch (queue.rc) {
+        const result = await SystemConnector.importTransport(this.trkorr, this._trTarget, false);
+        if (result) {
+            rc = Number(result.tpRetCode);
+            if(Array(result.tpStdout)){
+                result.tpStdout.forEach(line => Logger.log(line.line, true));
+            }
+        } else {
+            Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
+            const queue = await this._isInTmsQueue(false, true);
+            Logger.log(`Transport ${this.trkorr} import ended: return code ${queue.rc}`, true);
+            rc = queue.rc;
+            message = queue.message;
+        }
+        switch (rc) {
             case -1:
-                Logger.error(`${this.trkorr} import has no return code!`);
+                Logger.error(`${this.trkorr} import has no return code!`, test);
                 break;
             case 0:
-                Logger.success(`${this.trkorr} import ended with success${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.success(`${this.trkorr} import ended with success${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 4:
-                Logger.warning(`${this.trkorr} import ended with warning${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.warning(`${this.trkorr} import ended with warning${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 8:
-                Logger.error(`${this.trkorr} import ended with error (check ${chalk.bold('STMS')})${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.error(`${this.trkorr} import ended with error (check ${chalk.bold('STMS')})${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 12:
-                Logger.error(`${this.trkorr} import was cancelled${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.error(`${this.trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 16:
-                Logger.error(`${this.trkorr} import was cancelled${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.error(`${this.trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, test);
                 break;
         }
+        return rc;
     }
 
     public async rename(as4text: string): Promise<void> {

@@ -79,8 +79,8 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         Logger.loading(`Uploading SAP Packages transport...`);
         context.runtime.transports.devc.instance = await Transport.upload(
             context.runtime.transports.devc.binaries.trkorr, {
-                binary: context.runtime.transports.devc.binaries.binaries,
-                trTarget: SystemConnector.getDest()
+            binary: context.runtime.transports.devc.binaries.binaries,
+            trTarget: SystemConnector.getDest()
         });
 
         //4- import transport
@@ -98,8 +98,13 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             } else {
                 Inquirer.setPrefix(prefix);
             }
+            Logger.loading(`Testing import of ${context.runtime.transports.devc.binaries.trkorr}...`);
+            const testRc = await context.runtime.transports.devc.instance.import(true);
+            if (testRc < 0 || testRc > 8) {
+                throw new Error(`Test import of transport ${context.runtime.transports.devc.binaries.trkorr} failed: check logs.`);
+            }
             Logger.loading(`Importing ${context.runtime.transports.devc.binaries.trkorr}`, true);
-            await context.runtime.transports.devc.instance.import();
+            await context.runtime.transports.devc.instance.import(false);
             Logger.success(`Transport ${context.runtime.transports.devc.binaries.trkorr} imported`, true);
         } finally {
             Logger.setPrefix(originalLPrefix);

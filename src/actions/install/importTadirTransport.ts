@@ -80,8 +80,13 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             } else {
                 Inquirer.setPrefix(prefix);
             }
+            Logger.loading(`Testing import of ${context.runtime.transports.tadir.binaries.trkorr}...`);
+            const testRc = await context.runtime.transports.tadir.instance.import(true);
+            if (testRc < 0 || testRc > 8) {
+                throw new Error(`Test import of transport ${context.runtime.transports.tadir.binaries.trkorr} failed: check logs.`);
+            }
             Logger.loading(`Importing ${context.runtime.transports.tadir.binaries.trkorr}`, true);
-            await context.runtime.transports.tadir.instance.import();
+            await context.runtime.transports.tadir.instance.import(false);
             Logger.success(`Transport ${context.runtime.transports.tadir.binaries.trkorr} imported`, true);
         } finally {
             Logger.setPrefix(originalLPrefix);

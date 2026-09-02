@@ -10,6 +10,7 @@ export async function restoreTransport(snapshot: TransportBinary): Promise<void>
         binary: snapshot.binaries,
         trTarget: SystemConnector.getDest()
     });
-    await transport.import();
+    //avoid test import, it should be fine?...
+    await transport.import(false);
     Logger.success(`Transport ${snapshot.trkorr} restored`, true);
 }

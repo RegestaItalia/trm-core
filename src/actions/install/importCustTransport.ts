@@ -91,8 +91,13 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
                 } else {
                     Inquirer.setPrefix(prefix);
                 }
+                Logger.loading(`Testing import of ${cust.binaries.trkorr}...`);
+                const testRc = await cust.instance.import(true);
+                if(testRc < 0 || testRc > 8){
+                    throw new Error(`Test import of transport ${cust.binaries.trkorr} failed: check logs.`);
+                }
                 Logger.loading(`Importing ${cust.binaries.trkorr}`, true);
-                await cust.instance.import();
+                await cust.instance.import(false);
                 Logger.success(`Transport ${cust.binaries.trkorr} imported`, true);
             } finally {
                 Logger.setPrefix(originalLPrefix);
