@@ -299,7 +299,7 @@ export const init: Step<PublishWorkflowContext> = {
         //8- read namespace
         const packageNamespace = getPackageNamespace(context.rawInput.packageData.devclass);
         if (packageNamespace[0] === '/') {
-            Logger.loading(`Validating...`);
+            Logger.loading(`Reading namespace ${packageNamespace}...`);
             const namespace = await SystemConnector.getNamespace(packageNamespace);
             if (namespace && namespace.trnspacet && namespace.trnspacett.length > 0) {
                 context.runtime.sapPackage.namespace = {
@@ -311,6 +311,7 @@ export const init: Step<PublishWorkflowContext> = {
             }
         }
 
+        Logger.loading(`Reading ${context.rawInput.packageData.devclass} objects...`);
         context.runtime.sapPackage.objects = await SystemConnector.getDevclassObjects(context.rawInput.packageData.devclass, true);
         if (context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC')).length === 0) {
             throw new Error(`ABAP package "${context.rawInput.packageData.devclass}" doesn't contain any object!`);

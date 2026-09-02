@@ -527,7 +527,7 @@ export class RegistryV2 implements AbstractRegistry {
                     publishStatus = (await this._axiosInstance.get<Publish>(progressPoolUrl)).data;
                     logProgress.update(publishStatus.current_step, {
                         message: publishStatus.current_step_message || '',
-                        lastCheck: new Date().toLocaleTimeString()
+                        lastRefresh: new Date().toLocaleTimeString()
                     });
                 }
             } catch (e) {
