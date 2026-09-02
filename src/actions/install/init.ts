@@ -7,6 +7,7 @@ import { eq, gt, valid } from "semver";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
 import { setTransportTarget } from "../commons/prompts";
+import { releaseDeletionTransport } from "../commons/utils";
 
 /**
  * Workflow step that fetches the release, validates install settings, and initializes rollback state.
@@ -62,6 +63,7 @@ export const init: Step<InstallWorkflowContext> = {
                 lang: undefined,
                 cust: []
             },
+            cleanupTransport: undefined,
             sapPackages: [],
             dele: undefined,
             namespace: undefined
@@ -181,5 +183,22 @@ export const init: Step<InstallWorkflowContext> = {
         }
 
         Logger.info(`Ready to install ${context.runtime.package.data.manifest.name} v${context.runtime.package.data.manifest.version}${!valid(context.rawInput.packageData.version) ? (' (' + (context.rawInput.packageData.version || 'latest') + ')') : ''}.`);
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if (context.revert.cleanupTransport) {
+            try {
+                const e071 = await context.revert.cleanupTransport.getE071();
+                if (e071.length > 0) {
+                    await releaseDeletionTransport(context.revert.cleanupTransport, context.rawInput.packageData.registry, context);
+                } else {
+                    //it should always be deletable, no need to check
+                    await context.revert.cleanupTransport.delete();
+                }
+            } catch (e) {
+                //always try delete on error
+                await context.revert.cleanupTransport.delete();
+                throw e;
+            }
+        }
     }
 }

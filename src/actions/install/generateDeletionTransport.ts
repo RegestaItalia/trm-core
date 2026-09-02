@@ -4,7 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
-import { restoreTransport } from "./restoreTransport";
+import { releaseDeletionTransport, restoreTransport } from "../commons/utils";
 
 /**
  * Workflow step that creates a transport for objects removed by an upgrade.
@@ -47,45 +47,7 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
         //if sap packages changes...
         //TODO: we should make an example to understand how to catch this and handle it
 
-        await dummy.release(false, true);
-        const tocBinaries = (await dummy.download()).binaries;
-        //saving dummy binaries for a possible revert
-        context.revert.dele = {
-            trkorr: dummy.trkorr,
-            entries: undefined,
-            binaries: tocBinaries
-        };
-        const deleBinaries = await context.rawInput.packageData.registry.delete(tocBinaries);
-        
-        //2- upload transport binaries
-        Logger.loading(`Uploading deletion transport...`);
-        context.runtime.dele = await Transport.upload(dummy.trkorr, {
-            binary: deleBinaries,
-            trTarget: SystemConnector.getDest()
-        });
-        
-        //3- import transport
-        const originalLPrefix = Logger.getPrefix();
-        const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(${Transport.getTransportIcon()}  Deletion) `;
-        try {
-            if (originalLPrefix) {
-                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-            } else {
-                Logger.setPrefix(prefix);
-            }
-            if (originalIPrefix) {
-                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-            } else {
-                Inquirer.setPrefix(prefix);
-            }
-            Logger.loading(`Importing ${dummy.trkorr}`, true);
-            await context.runtime.dele.import();
-            Logger.success(`Transport ${dummy.trkorr} imported`, true);
-        } finally {
-            Logger.setPrefix(originalLPrefix);
-            Inquirer.setPrefix(originalIPrefix);
-        }
+        await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.revert.dele) {

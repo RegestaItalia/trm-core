@@ -5,6 +5,7 @@ import { getPackageHierarchy, getParentFromHierarchy, packageDataFromTdevc } fro
 import { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
+import { Transport } from "../../transport";
 
 /**
  * Workflow step that validates target SAP packages and creates any that are missing.
@@ -146,9 +147,20 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        for(const devclass of context.revert.sapPackages){
-            //TODO: sap package was generated, it needs to be removed
-            //deletion transport necessary? or function call?
+        if (context.revert.sapPackages.length > 0) {
+            if (!context.revert.cleanupTransport) {
+                context.revert.cleanupTransport = await Transport.createToc({
+                    text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
+                    target: SystemConnector.getDest()
+                });
+            }
+            await context.revert.cleanupTransport.addObjects(context.revert.sapPackages.map(devclass => {
+                return {
+                    pgmid: 'R3TR',
+                    object: 'DEVC',
+                    objName: devclass
+                }
+            }), false);
         }
     }
 }

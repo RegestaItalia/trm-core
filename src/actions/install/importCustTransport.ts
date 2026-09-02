@@ -4,7 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
-import { restoreTransport } from "./restoreTransport";
+import { restoreTransport } from "../commons/utils";
 
 /**
  * Workflow step that imports each customizing transport and records rollback data.

@@ -44,11 +44,6 @@ when SAP still reports it as modifiable
 [customizing rollback](../../src/actions/install/importCustTransport.ts),
 [landscape rollback](../../src/actions/install/generateLandscapeTransport.ts)).
 
-The previous namespace and generated-package rollback handlers were removed instead of retaining
-TODO-only promises: the connector exposes creation but no safe deletion operation for either kind
-of SAP metadata. Those bootstrap mutations are therefore not represented as reversible workflow
-steps.
-
 ### INST-01 — Resolved — Transport validation is scheduled before dependent steps
 
 `checkTransports` now runs immediately after initialization, once the release artifact is available

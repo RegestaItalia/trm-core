@@ -213,6 +213,7 @@ type WorkflowRevert = {
         lang?: TransportBinary,
         cust?: TransportBinary[]
     },
+    cleanupTransport?: Transport,
     sapPackages: DEVCLASS[],
     dele?: TransportBinary,
     namespace?: string

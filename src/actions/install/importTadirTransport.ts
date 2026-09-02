@@ -6,7 +6,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import _ from 'lodash';
 import { stopWarning } from "../stopWarning";
 import { TADIR } from "../../client";
-import { restoreTransport } from "./restoreTransport";
+import { restoreTransport } from "../commons/utils";
 
 /**
  * Workflow step that imports repository objects and records rollback data.

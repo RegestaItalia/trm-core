@@ -5,7 +5,7 @@ import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { TADIR } from "../../client";
 import { stopWarning } from "../stopWarning";
-import { restoreTransport } from "./restoreTransport";
+import { restoreTransport } from "../commons/utils";
 
 /**
  * Workflow step that imports ABAP package definitions and records rollback data.

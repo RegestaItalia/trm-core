@@ -5,6 +5,7 @@ import { getPackageNamespace } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { TRNLICENSE, TRNSPACETT } from "../../client";
 import { stopWarning } from "../stopWarning";
+import { Transport } from "../../transport";
 
 /**
  * Workflow step that registers the package namespace for repair when required.
@@ -94,9 +95,18 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         context.revert.namespace = context.runtime.namespace;
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if(context.revert.namespace){
-            //TODO: namespace was installed, it needs to be removed
-            //deletion transport necessary? or function call?
+        if (context.revert.namespace) {
+            if (!context.revert.cleanupTransport) {
+                context.revert.cleanupTransport = await Transport.createToc({
+                    text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
+                    target: SystemConnector.getDest()
+                });
+            }
+            await context.revert.cleanupTransport.addObjects([{
+                pgmid: 'R3TR',
+                object: 'NSPC',
+                objName: context.revert.namespace
+            }], false);
         }
-    }  
+    }
 }

@@ -13,11 +13,13 @@ import { Manifest } from "../../manifest";
  * 
  * 3- add workbench objects
  * 
- * 4- add translations (if imported)
+ * 4- add namespace (if generated)
  * 
- * 5- add customizing (if imported)
+ * 5- add translations (if imported)
  * 
- * 6- add comments and documentation
+ * 6- add customizing (if imported)
+ * 
+ * 7- add comments and documentation
  * 
 */
 export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
@@ -58,19 +60,32 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         Logger.loading(`Including objects from TADIR transport...`, true);
         await context.output.transport.addObjectsFromTransport(context.runtime.transports.tadir.binaries.trkorr);
 
-        //4- add translations (if imported)
+        //4- add namespace (if generated)
+        //revert namespace is used as the soruce of an actual namespace that was generated
+        //using context.runtime.namespace would be wrong because it's the package namespace, but it doesn't necessarily mean it was generated
+        //check addNamespace step for clarification
+        if (context.revert.namespace) {
+            Logger.loading(`Adding namespace ${context.revert.namespace}...`, true);
+            await context.output.transport.addObjects([{
+                pgmid: 'R3TR',
+                object: 'NSPC',
+                objName: context.revert.namespace
+            }], false);
+        }
+
+        //5- add translations (if imported)
         if (context.runtime.transports.lang) {
             Logger.loading(`Including objects from LANG transport...`, true);
             await context.output.transport.addObjectsFromTransport(context.runtime.transports.lang.binaries.trkorr);
         }
 
-        //5- add customizing (if imported)
+        //6- add customizing (if imported)
         Logger.loading(`Including objects from ${context.runtime.transports.cust.length} CUST transports...`, true);
         for (const cust of context.runtime.transports.cust) {
             await context.output.transport.addObjectsFromTransport(cust.binaries.trkorr);
         }
 
-        //6- add comments and documentation
+        //7- add comments and documentation
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
         await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());

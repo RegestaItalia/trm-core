@@ -1,7 +1,7 @@
 import { Logger } from "trm-commons";
-import { SystemConnector } from "../../systemConnector";
-import { Transport } from "../../transport";
-import { TransportBinary } from "../../trmPackage";
+import { TransportBinary } from "../../../trmPackage";
+import { Transport } from "../../../transport";
+import { SystemConnector } from "../../../systemConnector";
 
 /** Re-imports the transport snapshot captured before an install transport was replaced. */
 export async function restoreTransport(snapshot: TransportBinary): Promise<void> {
