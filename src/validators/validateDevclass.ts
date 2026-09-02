@@ -12,6 +12,8 @@ export async function validateDevclass(devclass: DEVCLASS, allowTemporaryPackage
             const tdevc = await SystemConnector.getDevclass(devclass);
             if(!tdevc){
                 return `ABAP package "${devclass}" does not exist.`;
+            }else if(tdevc.dlvunit !== 'HOME'){
+                return `ABAP package "${devclass}" has software component "${tdevc.dlvunit}", only "HOME" allowed!`;
             }else{
                 return true;
             }
