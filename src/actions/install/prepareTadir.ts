@@ -3,27 +3,21 @@ import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
-import _ from 'lodash';
 import { stopWarning } from "../stopWarning";
-import { TADIR } from "../../client";
 import { restoreTransport } from "../commons/utils";
 
 /**
- * Workflow step that imports repository objects and records rollback data.
+ * Workflow step that prepares and test-imports repository objects.
  * 
  * 1- generate dummy transport (if registry is not local)
  * 
  * 2- upload transport binaries
  * 
- * 3- import transport
- * 
- * 4- reconnect when system is not stateless
- * 
- * 5- run tadir interface (package replacement)
+ * 3- test import transport
  * 
 */
-export const importTadirTransport: Step<InstallWorkflowContext> = {
-    name: 'import-tadir-transport',
+export const prepareTadir: Step<InstallWorkflowContext> = {
+    name: 'prepare-tadir',
     run: async (context: InstallWorkflowContext): Promise<void> => {
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
@@ -65,7 +59,7 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             trTarget: SystemConnector.getDest()
         });
 
-        //3- import transport
+        //3- test import transport
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         const prefix = `(${Transport.getTransportIcon()}  Workbench) `;
@@ -85,47 +79,11 @@ export const importTadirTransport: Step<InstallWorkflowContext> = {
             if (testRc < 0 || testRc > 8) {
                 throw new Error(`Test import of transport ${context.runtime.transports.tadir.binaries.trkorr} failed: check logs.`);
             }
-            Logger.loading(`Importing ${context.runtime.transports.tadir.binaries.trkorr}`, true);
-            await context.runtime.transports.tadir.instance.import(false);
-            Logger.success(`Transport ${context.runtime.transports.tadir.binaries.trkorr} imported`, true);
         } finally {
             Logger.setPrefix(originalLPrefix);
             Inquirer.setPrefix(originalIPrefix);
         }
 
-        Logger.loading(`Finalizing workbench import...`);
-
-        //4- reconnect when system is not stateless
-        if (!SystemConnector.isStateless()) {
-            Logger.loading(`Closing connection for reconnect...`, true);
-            await SystemConnector.closeConnection();
-            Logger.loading(`Reopening connection...`, true);
-            await SystemConnector.connect(true);
-            Logger.success(`OK, continue`, true);
-        }
-
-        //5- run tadir interface (package replacement)
-        //guard -> read from transports tadir entries: if for some reason there are more entries in other transports (it's a mistake?)
-        //this would throw error, because the entry is not in system yet
-        for (const tadir of context.runtime.transports.tadir.binaries.entries.tadir || []) {
-            var object: TADIR = {
-                pgmid: tadir.pgmid,
-                object: tadir.object,
-                objName: tadir.objName,
-                devclass: tadir.devclass,
-                srcsystem: 'TRM'
-            };
-            if (!context.rawInput.installData.installDevclass.keepOriginal) {
-                const replacementDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === tadir.devclass);
-                if (replacementDevclass && replacementDevclass.installDevclass) {
-                    object.devclass = replacementDevclass.installDevclass;
-                } else {
-                    throw new Error(`Replacement ABAP package not found for ${tadir.devclass}!`);
-                }
-            }
-            Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${tadir.devclass} -> ${object.devclass}, src system ${tadir.srcsystem} -> ${object.srcsystem}`, true);
-            await SystemConnector.tadirInterface(object);
-        }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.revert.transports.tadir) {

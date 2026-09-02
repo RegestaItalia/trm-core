@@ -789,6 +789,25 @@ export class Transport {
         return latest;
     }
 
+    public static async importMultiple(transports: Transport[], target: TR_TARGET): Promise<{ trkorr: TRKORR, rc: number, message?: string }[]> {
+        for (const transport of transports) {
+            Logger.loading(`Forwarding transport ${transport.trkorr}`, true);
+            await SystemConnector.forwardTransport(transport.trkorr, target, target, true);
+        }
+        Logger.loading(`Importing ${transports.map(o => o.trkorr).join(', ')} in batch`, true);
+        await SystemConnector.importTransportMultiple(transports.map(o => o.trkorr), target, false);
+        const results: { trkorr: TRKORR, rc: number, message?: string }[] = [];
+        for (const transport of transports) {
+            Logger.log(`Starting transport ${transport.trkorr} TMS queue status check`, true);
+            transport._trTarget = target;
+            const queue = await transport._isInTmsQueue(false, true);
+            Logger.log(`Transport ${transport.trkorr} import ended: return code ${queue.rc}`, true);
+            Transport._printImportResult(transport.trkorr, queue.rc, queue.message, false);
+            results.push({ trkorr: transport.trkorr, rc: queue.rc, message: queue.message });
+        }
+        return results;
+    }
+
     public async import(test: boolean): Promise<number> {
         var rc: number;
         var message: string;
@@ -802,7 +821,7 @@ export class Transport {
         const result = await SystemConnector.importTransport(this.trkorr, this._trTarget, false);
         if (result) {
             rc = Number(result.tpRetCode);
-            if(Array(result.tpStdout)){
+            if (Array(result.tpStdout)) {
                 result.tpStdout.forEach(line => Logger.log(line.line, true));
             }
         } else {
@@ -812,27 +831,31 @@ export class Transport {
             rc = queue.rc;
             message = queue.message;
         }
+        Transport._printImportResult(this.trkorr, rc, message, test);
+        return rc;
+    }
+
+    private static _printImportResult(trkorr: TRKORR, rc: number, message: string, test: boolean): void {
         switch (rc) {
             case -1:
-                Logger.error(`${this.trkorr} import has no return code!`, test);
+                Logger.error(`${trkorr} import has no return code!`, test);
                 break;
             case 0:
-                Logger.success(`${this.trkorr} import ended with success${message ? ' -> ' + message : '.'}`, test);
+                Logger.success(`${trkorr} import ended with success${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 4:
-                Logger.warning(`${this.trkorr} import ended with warning${message ? ' -> ' + message : '.'}`, test);
+                Logger.warning(`${trkorr} import ended with warning${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 8:
-                Logger.error(`${this.trkorr} import ended with error (check ${chalk.bold('STMS')})${message ? ' -> ' + message : '.'}`, test);
+                Logger.error(`${trkorr} import ended with error (check ${chalk.bold('STMS')})${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 12:
-                Logger.error(`${this.trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, test);
+                Logger.error(`${trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 16:
-                Logger.error(`${this.trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, test);
+                Logger.error(`${trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, test);
                 break;
         }
-        return rc;
     }
 
     public async rename(as4text: string): Promise<void> {

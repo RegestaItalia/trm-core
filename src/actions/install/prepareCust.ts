@@ -7,17 +7,17 @@ import { stopWarning } from "../stopWarning";
 import { restoreTransport } from "../commons/utils";
 
 /**
- * Workflow step that imports each customizing transport and records rollback data.
+ * Workflow step that prepares and test-imports each customizing transport.
  * 
  * 1- generate dummy transport (if registry is not local)
  * 
  * 2- upload transport binaries
  * 
- * 3- import transport
+ * 3- test import transport
  * 
 */
-export const importCustTransport: Step<InstallWorkflowContext> = {
-    name: 'import-cust-transport',
+export const prepareCust: Step<InstallWorkflowContext> = {
+    name: 'prepare-cust',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
         if (context.rawInput.installData.import.noCust) {
             Logger.log(`Skipping import CUST transport (user input)`, true);
@@ -76,7 +76,7 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
                 trTarget: SystemConnector.getDest()
             });
 
-            //3- import transport
+            //3- test import transport
             const originalLPrefix = Logger.getPrefix();
             const originalIPrefix = Inquirer.getPrefix();
             const prefix = `(${Transport.getTransportIcon()}  Workbench) `;
@@ -96,9 +96,6 @@ export const importCustTransport: Step<InstallWorkflowContext> = {
                 if(testRc < 0 || testRc > 8){
                     throw new Error(`Test import of transport ${cust.binaries.trkorr} failed: check logs.`);
                 }
-                Logger.loading(`Importing ${cust.binaries.trkorr}`, true);
-                await cust.instance.import(false);
-                Logger.success(`Transport ${cust.binaries.trkorr} imported`, true);
             } finally {
                 Logger.setPrefix(originalLPrefix);
                 Inquirer.setPrefix(originalIPrefix);

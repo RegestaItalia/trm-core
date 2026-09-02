@@ -14,12 +14,13 @@ import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { addNamespace } from "./addNamespace";
-import { DEVCLASS, TDEVCT } from "../../client";
+import { DEVCLASS, TDEVC, TDEVCT } from "../../client";
 import { generateDevclass } from "./generateDevclass";
-import { importDevcTransport } from "./importDevcTransport";
-import { importTadirTransport } from "./importTadirTransport";
-import { importLangTransport } from "./importLangTransport";
-import { importCustTransport } from "./importCustTransport";
+import { prepareDevc } from "./prepareDevc";
+import { prepareTadir } from "./prepareTadir";
+import { prepareLang } from "./prepareLang";
+import { prepareCust } from "./prepareCust";
+import { importBatch } from "./importBatch";
 import { generateLandscapeTransport } from "./generateLandscapeTransport";
 import { updatePackageData } from "./updatePackageData";
 import { executePostActivities } from "./executePostActivities";
@@ -202,6 +203,7 @@ type WorkflowRuntime = {
     },
     dependencies: TrmManifestDependency[],
     namespace: string,
+    rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean
 }
 
@@ -271,10 +273,11 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         addNamespace,
         generateDevclass,
         generateDeletionTransport,
-        importDevcTransport,
-        importTadirTransport,
-        importLangTransport,
-        importCustTransport,
+        prepareDevc,
+        prepareTadir,
+        prepareLang,
+        prepareCust,
+        importBatch,
         generateLandscapeTransport,
         updatePackageData,
         executePostActivities,

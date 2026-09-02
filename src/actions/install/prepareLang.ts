@@ -7,17 +7,17 @@ import { stopWarning } from "../stopWarning";
 import { restoreTransport } from "../commons/utils";
 
 /**
- * Workflow step that imports the optional language transport and records rollback data.
+ * Workflow step that prepares and test-imports the optional language transport.
  * 
  * 1- generate dummy transport (if registry is not local)
  * 
  * 2- upload transport binaries
  * 
- * 3- import transport
+ * 3- test import transport
  * 
 */
-export const importLangTransport: Step<InstallWorkflowContext> = {
-    name: 'import-lang-transport',
+export const prepareLang: Step<InstallWorkflowContext> = {
+    name: 'prepare-lang',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
         if (context.rawInput.installData.import.noLang) {
             Logger.log(`Skipping import LANG transport (user input)`, true);
@@ -72,7 +72,7 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
             trTarget: SystemConnector.getDest()
         });
 
-        //3- import transport
+        //3- test import transport
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         const prefix = `(${Transport.getTransportIcon()}  Workbench) `;
@@ -92,9 +92,6 @@ export const importLangTransport: Step<InstallWorkflowContext> = {
             if (testRc < 0 || testRc > 8) {
                 throw new Error(`Test import of transport ${context.runtime.transports.lang.binaries.trkorr} failed: check logs.`);
             }
-            Logger.loading(`Importing ${context.runtime.transports.lang.binaries.trkorr}`, true);
-            await context.runtime.transports.lang.instance.import(false);
-            Logger.success(`Transport ${context.runtime.transports.lang.binaries.trkorr} imported`, true);
         } finally {
             Logger.setPrefix(originalLPrefix);
             Inquirer.setPrefix(originalIPrefix);

@@ -3,12 +3,11 @@ import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
-import { TADIR } from "../../client";
 import { stopWarning } from "../stopWarning";
 import { restoreTransport } from "../commons/utils";
 
 /**
- * Workflow step that imports ABAP package definitions and records rollback data.
+ * Workflow step that prepares and test-imports ABAP package definitions.
  * 
  * 1- read if root already exists in system
  * 
@@ -16,19 +15,11 @@ import { restoreTransport } from "../commons/utils";
  * 
  * 3- upload transport binaries
  * 
- * 4- import transport
- * 
- * 5- reconnect when system is not stateless
- * 
- * 6- set transport layer
- * 
- * 7- replace root devclass parent devclass
- * 
- * 8- set TRM as source
+ * 4- test import transport
  * 
 */
-export const importDevcTransport: Step<InstallWorkflowContext> = {
-    name: 'import-devc-transport',
+export const prepareDevc: Step<InstallWorkflowContext> = {
+    name: 'prepare-devc',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
         if (context.rawInput.installData.installDevclass.keepOriginal) {
             return true;
@@ -41,7 +32,7 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
         //1- read if root already exists in system
         //this is needed later to understand if keeping the superpackage or not
         Logger.loading(`Getting ready to import SAP Packages...`);
-        const rootDevclass = await SystemConnector.getDevclass(context.runtime.package.hierarchy.devclass);
+        context.runtime.rootDevclassBeforeImport = await SystemConnector.getDevclass(context.runtime.package.hierarchy.devclass);
 
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
@@ -83,7 +74,7 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             trTarget: SystemConnector.getDest()
         });
 
-        //4- import transport
+        //4- test import transport
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         const prefix = `(${Transport.getTransportIcon()}  SAP Packages) `;
@@ -103,55 +94,11 @@ export const importDevcTransport: Step<InstallWorkflowContext> = {
             if (testRc < 0 || testRc > 8) {
                 throw new Error(`Test import of transport ${context.runtime.transports.devc.binaries.trkorr} failed: check logs.`);
             }
-            Logger.loading(`Importing ${context.runtime.transports.devc.binaries.trkorr}`, true);
-            await context.runtime.transports.devc.instance.import(false);
-            Logger.success(`Transport ${context.runtime.transports.devc.binaries.trkorr} imported`, true);
         } finally {
             Logger.setPrefix(originalLPrefix);
             Inquirer.setPrefix(originalIPrefix);
         }
 
-        Logger.loading(`Finalizing SAP Packages import...`);
-
-        //5- reconnect when system is not stateless
-        if (!SystemConnector.isStateless()) {
-            Logger.loading(`Closing connection for reconnect...`, true);
-            await SystemConnector.closeConnection();
-            Logger.loading(`Reopening connection...`, true);
-            await SystemConnector.connect(true);
-            Logger.success(`OK, continue`, true);
-        }
-
-        //6- set transport layer
-        //guard -> read from transports tdevc entries: if for some reason there are more entries in other transports (it's a mistake?)
-        //this would throw error, because the package is not in system yet
-        for (const tdevc of context.runtime.transports.devc.binaries.entries.tdevc || []) {
-            Logger.log(`Running TDEVC interface for devclass ${tdevc.devclass} -> transport layer ${context.rawInput.installData.installDevclass.transportLayer}`, true);
-            await SystemConnector.setPackageTransportLayer(tdevc.devclass, context.rawInput.installData.installDevclass.transportLayer);
-        }
-
-        //7- replace root devclass parent devclass
-        //this resets to user defined superpackage if package was already in system
-        //or clears original superpackage if there was one at publish
-        if (rootDevclass && rootDevclass.parentcl) {
-            await SystemConnector.setPackageSuperpackage(context.runtime.package.hierarchy.devclass, rootDevclass.parentcl)
-        } else {
-            await SystemConnector.clearPackageSuperpackage(context.runtime.package.hierarchy.devclass);
-        }
-
-        //8- set TRM as source
-        //guard -> read from transports tadir entries and filter where srcsystem is not already TRM (avoiding useless calls)
-        for (const tadir of (context.runtime.transports.devc.binaries.entries.tadir || []).filter(o => o.srcsystem !== 'TRM')) {
-            const object: TADIR = {
-                pgmid: tadir.pgmid,
-                object: tadir.object,
-                objName: tadir.objName,
-                devclass: tadir.devclass,
-                srcsystem: 'TRM'
-            };
-            Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${object.devclass} -> src system ${object.srcsystem}`, true);
-            await SystemConnector.tadirInterface(object);
-        }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.revert.transports.devc) {
