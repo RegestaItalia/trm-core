@@ -1,23 +1,36 @@
 import { Inquirer, Logger } from "trm-commons";
 import { Transport } from "../../../transport";
 import { SystemConnector } from "../../../systemConnector";
-import { AbstractRegistry } from "../../../registry";
+import { AbstractRegistry, RegistryDeletionTransportUnauthorizedError } from "../../../registry";
 import type { InstallWorkflowContext } from "../../install";
 
 /** Releases and imports a deletion transport, retaining its original binaries for rollback. */
-export async function releaseDeletionTransport(deletionTransport: Transport, registry: AbstractRegistry, context: InstallWorkflowContext): Promise<void> {
+export async function releaseDeletionTransport(deletionTransport: Transport, registry: AbstractRegistry, context?: InstallWorkflowContext): Promise<void> {
     await deletionTransport.release(false, true);
-    
+
     const tocBinaries = (await deletionTransport.download()).binaries;
 
-    //saving dummy binaries for a possible revert
-    context.revert.dele = {
-        trkorr: deletionTransport.trkorr,
-        entries: undefined,
-        binaries: tocBinaries
-    };
+    if (context) {
+        //saving dummy binaries for a possible revert
+        context.revert.dele = {
+            trkorr: deletionTransport.trkorr,
+            entries: undefined,
+            binaries: tocBinaries
+        };
+    }
 
-    const deleBinaries = await registry.delete(tocBinaries);
+    let deleBinaries;
+    try {
+        deleBinaries = await registry.delete(tocBinaries);
+    } catch (e) {
+        if (e instanceof RegistryDeletionTransportUnauthorizedError) {
+            await deletionTransport.delete();
+            if (context) {
+                context.revert.dele = undefined;
+            }
+        }
+        throw e;
+    }
 
     //upload transport binaries
     Logger.loading(`Uploading deletion transport...`);

@@ -5,6 +5,7 @@ import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
 import { releaseDeletionTransport, restoreTransport } from "../commons/utils";
+import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
 
 /**
  * Workflow step that creates a transport for objects removed by an upgrade.
@@ -47,7 +48,15 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
         //if sap packages changes...
         //TODO: we should make an example to understand how to catch this and handle it
 
-        await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
+        try {
+            await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
+        } catch (e) {
+            if (!(e instanceof RegistryDeletionTransportUnauthorizedError)) {
+                throw e;
+            }
+
+            Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`);
+        }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.revert.dele) {

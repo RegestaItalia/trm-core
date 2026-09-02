@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
-import { RegistryType } from "../../registry";
+import { RegistryDeletionTransportUnauthorizedError, RegistryType } from "../../registry";
 import { eq, gt, valid } from "semver";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
@@ -195,6 +195,11 @@ export const init: Step<InstallWorkflowContext> = {
                     await context.revert.cleanupTransport.delete();
                 }
             } catch (e) {
+                if (e instanceof RegistryDeletionTransportUnauthorizedError) {
+                    context.revert.cleanupTransport = undefined;
+                    Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of revert steps might be necessary.`);
+                    return;
+                }
                 //always try delete on error
                 await context.revert.cleanupTransport.delete();
                 throw e;

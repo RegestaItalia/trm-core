@@ -16,6 +16,7 @@ import NodeCache from "node-cache";
 import { BinaryTransport } from "../transport";
 import * as AdmZip from "adm-zip";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
+import { RegistryDeletionTransportUnauthorizedError } from "./RegistryDeletionTransportUnauthorizedError";
 
 const AXIOS_CTX = "RegistryV2";
 
@@ -591,9 +592,17 @@ export class RegistryV2 implements AbstractRegistry {
             contentType: 'application/octet-stream'
         });
 
-        const deleteResponse = await this._axiosInstance.post<TransportDownload>('/delete', formData, {
-            headers: formData.getHeaders()
-        });
+        let deleteResponse;
+        try {
+            deleteResponse = await this._axiosInstance.post<TransportDownload>('/delete', formData, {
+                headers: formData.getHeaders()
+            });
+        } catch (e) {
+            if (this.getErrorStatus(e) === 401) {
+                throw new RegistryDeletionTransportUnauthorizedError(this.endpoint, e);
+            }
+            throw e;
+        }
         this.assertStatus(deleteResponse.status, [200], 'Deletion transport request');
         const transportDownload = deleteResponse.data;
 
