@@ -5,6 +5,7 @@ import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 import { restoreTransport } from "../commons/utils";
+import { TRKORR } from "../../client";
 
 /**
  * Workflow step that prepares and test-imports the optional language transport.
@@ -41,6 +42,7 @@ export const prepareLang: Step<InstallWorkflowContext> = {
         //checking if binaries are already loaded in context instead of checking registry local
         //is equivalent, but better for possible changes in the future
         //binaries for local registry are loaded in the checkTransports step
+        var trkorr: TRKORR;
         if (!context.runtime.transports.lang.binaries.binaries) {
             Logger.loading(`Generating translations transport...`);
             const dummy = await Transport.createToc({
@@ -62,12 +64,15 @@ export const prepareLang: Step<InstallWorkflowContext> = {
                 Logger.error(`On failure, revert won't be possible!`, true);
             }
             context.runtime.transports.lang.binaries.binaries = await context.rawInput.packageData.registry.transport(context.runtime.transports.lang.binaries.trkorr, dummy.trkorr);
+            trkorr = dummy.trkorr;
+        }else{
+            trkorr = context.runtime.transports.lang.binaries.trkorr;
         }
 
         //2- upload transport binaries
         Logger.loading(`Uploading translations transport...`);
         context.runtime.transports.lang.instance = await Transport.upload(
-            context.runtime.transports.lang.binaries.trkorr, {
+            trkorr, {
             binary: context.runtime.transports.lang.binaries.binaries,
             trTarget: SystemConnector.getDest()
         });
@@ -87,10 +92,10 @@ export const prepareLang: Step<InstallWorkflowContext> = {
             } else {
                 Inquirer.setPrefix(prefix);
             }
-            Logger.loading(`Testing import of ${context.runtime.transports.lang.binaries.trkorr}...`);
+            Logger.loading(`Testing import of ${trkorr}...`);
             const testRc = await context.runtime.transports.lang.instance.import(true);
             if (testRc < 0 || testRc > 8) {
-                throw new Error(`Test import of transport ${context.runtime.transports.lang.binaries.trkorr} failed: check logs.`);
+                throw new Error(`Test import of transport ${trkorr} failed: check logs.`);
             }
         } finally {
             Logger.setPrefix(originalLPrefix);

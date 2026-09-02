@@ -343,8 +343,11 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async getPackage(fullName: string, version: string = 'latest'): Promise<Package> {
+    public async getPackage(fullName: string, version: string = 'latest', refresh: boolean = false): Promise<Package> {
         const cacheKey = this.getPackageCacheKey(fullName, version);
+        if (refresh) {
+            this._cache.del(cacheKey);
+        }
         var data: Package | Error = this._cache.get(cacheKey);
         if (!data) {
             var ttl: number;
@@ -366,7 +369,13 @@ export class RegistryV2 implements AbstractRegistry {
                     ? new RegistryPackageNotFoundError(fullName, version, this.endpoint, e)
                     : e;
             }
-            this._cache.set(cacheKey, data, ttl);
+            // A failed refresh must not poison the cache. In particular, a
+            // transient ECONNRESET should allow the caller to retry the GET.
+            if (!(data instanceof Error)) {
+                if (ttl === undefined || ttl > 0) {
+                    this._cache.set(cacheKey, data, ttl);
+                }
+            }
         }
         if (data instanceof Error) {
             throw data;
@@ -381,11 +390,19 @@ export class RegistryV2 implements AbstractRegistry {
 
     public async transportEntries(fullName: string, version: string, trkorr: string): Promise<any> {
         const download = async (refreshPackage: boolean = false): Promise<any> => {
-            if (refreshPackage) {
-                this._cache.del(this.getPackageCacheKey(fullName, version));
+            let packageData: Package;
+            try {
+                packageData = await this.getPackage(fullName, version, refreshPackage);
+            } catch (e) {
+                // Signed links are commonly refreshed after the HTTP connection
+                // has been idle. Retry this safe metadata GET once if that stale
+                // connection was reset; Axios retains the instance auth headers.
+                if (refreshPackage && (e as AxiosError).code === 'ECONNRESET') {
+                    packageData = await this.getPackage(fullName, version, true);
+                } else {
+                    throw e;
+                }
             }
-
-            const packageData = await this.getPackage(fullName, version);
             const transport = packageData.transports.find(o => o.trkorr === trkorr);
             if (!transport) {
                 throw new Error(`Transport ${trkorr} was not found in package ${fullName} ${version}.`);

@@ -5,6 +5,7 @@ import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 import { restoreTransport } from "../commons/utils";
+import { TRKORR } from "../../client";
 
 /**
  * Workflow step that prepares and test-imports repository objects.
@@ -28,6 +29,7 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
         //checking if binaries are already loaded in context instead of checking registry local
         //is equivalent, but better for possible changes in the future
         //binaries for local registry are loaded in the checkTransports step
+        var trkorr: TRKORR;
         if (!context.runtime.transports.tadir.binaries.binaries) {
             Logger.loading(`Generating workbench transport...`);
             const dummy = await Transport.createToc({
@@ -49,12 +51,15 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
                 Logger.error(`On failure, revert won't be possible!`, true);
             }
             context.runtime.transports.tadir.binaries.binaries = await context.rawInput.packageData.registry.transport(context.runtime.transports.tadir.binaries.trkorr, dummy.trkorr);
+            trkorr = dummy.trkorr;
+        }else{
+            trkorr = context.runtime.transports.tadir.binaries.trkorr;
         }
 
         //2- upload transport binaries
         Logger.loading(`Uploading workbench transport...`);
         context.runtime.transports.tadir.instance = await Transport.upload(
-            context.runtime.transports.tadir.binaries.trkorr, {
+            trkorr, {
             binary: context.runtime.transports.tadir.binaries.binaries,
             trTarget: SystemConnector.getDest()
         });
@@ -74,10 +79,10 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
             } else {
                 Inquirer.setPrefix(prefix);
             }
-            Logger.loading(`Testing import of ${context.runtime.transports.tadir.binaries.trkorr}...`);
+            Logger.loading(`Testing import of ${trkorr}...`);
             const testRc = await context.runtime.transports.tadir.instance.import(true);
             if (testRc < 0 || testRc > 8) {
-                throw new Error(`Test import of transport ${context.runtime.transports.tadir.binaries.trkorr} failed: check logs.`);
+                throw new Error(`Test import of transport ${trkorr} failed: check logs.`);
             }
         } finally {
             Logger.setPrefix(originalLPrefix);

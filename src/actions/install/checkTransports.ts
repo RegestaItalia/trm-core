@@ -145,11 +145,13 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     );
                     switch (transport.type) {
                         case TrmTransportIdentifier.DEVC:
-                            context.runtime.transports.devc.binaries = {
-                                binaries: undefined,
-                                entries,
-                                trkorr: transport.trkorr,
-                                type: transport.type as TrmTransportIdentifier
+                            context.runtime.transports.devc = {
+                                binaries: {
+                                    binaries: undefined,
+                                    entries,
+                                    trkorr: transport.trkorr,
+                                    type: transport.type as TrmTransportIdentifier
+                                }
                             };
                             mergedE071 = mergedE071.concat(entries.e071 || []);
                             mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
@@ -157,11 +159,13 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                             mergedTADIR = mergedTADIR.concat(entries.tadir || []);
                             break;
                         case TrmTransportIdentifier.TADIR:
-                            context.runtime.transports.tadir.binaries = {
-                                binaries: undefined,
-                                entries,
-                                trkorr: transport.trkorr,
-                                type: transport.type as TrmTransportIdentifier
+                            context.runtime.transports.tadir = {
+                                binaries: {
+                                    binaries: undefined,
+                                    entries,
+                                    trkorr: transport.trkorr,
+                                    type: transport.type as TrmTransportIdentifier
+                                }
                             };
                             mergedE071 = mergedE071.concat(entries.e071 || []);
                             mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
@@ -169,11 +173,13 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                             mergedTADIR = mergedTADIR.concat(entries.tadir || []);
                             break;
                         case TrmTransportIdentifier.LANG:
-                            context.runtime.transports.lang.binaries = {
-                                binaries: undefined,
-                                entries,
-                                trkorr: transport.trkorr,
-                                type: transport.type as TrmTransportIdentifier
+                            context.runtime.transports.lang = {
+                                binaries: {
+                                    binaries: undefined,
+                                    entries,
+                                    trkorr: transport.trkorr,
+                                    type: transport.type as TrmTransportIdentifier
+                                }
                             };
                             mergedE071 = mergedE071.concat(entries.e071 || []);
                             mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
@@ -242,7 +248,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         Logger.loading(`Checking objects support...`);
         var missingTypes: string[] = [];
         const systemObjectList = await SystemConnector.getObjectsList();
-        mergedE071.forEach(o => {
+        mergedE071.filter(o => o.pgmid !== '*').forEach(o => {
             if (!systemObjectList.find(k => k.pgmid === o.pgmid && k.object === o.object) && !missingTypes.includes(`${o.pgmid} ${o.object}`)) {
                 missingTypes.push(`${o.pgmid} ${o.object}`);
             }
