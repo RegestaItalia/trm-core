@@ -20,10 +20,10 @@ function _validateDevclass(input: string, namespaces: string[]): string | true {
 }
 
 function flattenDevclasses(pkg: PackageHierarchy): string[] {
-  return [
-    pkg.devclass,
-    ...pkg.sub.flatMap(flattenDevclasses),
-  ];
+    return [
+        pkg.devclass,
+        ...pkg.sub.flatMap(flattenDevclasses),
+    ];
 }
 
 /**
@@ -80,11 +80,10 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                 } else {
                     adaptDevclassName = adaptDevclassName.replace(new RegExp(`^${originalNamespace}`, 'gmi'), updateNamespace);
                 }
-            }else if(context.runtime.isTrmRest){
+            } else if (context.runtime.isTrmRest) {
                 //extra guard for trm-rest first install: move /ATRM/ to $
                 adaptDevclassName = adjustTrmServerRestDevclass(adaptDevclassName);
             }
-            const packageExists = await SystemConnector.getDevclass(adaptDevclassName);
             if (!replacement) {
                 if (context.rawInput.contextData.noInquirer || (context.runtime.isTrmServer || context.runtime.isTrmRest)) {
                     const automaticValue = _validateDevclass(adaptDevclassName, [updateNamespace || originalNamespace, '$', originalNamespace]);
@@ -101,17 +100,22 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                         type: "input",
                         name: originalDevclass,
                         default: adaptDevclassName,
-                        message: packageExists ? `Rename ABAP Package "${adaptDevclassName}"?` : `ABAP Package "${adaptDevclassName}" will be imported. Do you want to rename it?`,
+                        message: `ABAP Package "${adaptDevclassName}" will be imported. Do you want to rename it?`,
                         validate: (input) => {
                             return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
                         }
                     });
                 }
             } else {
-                const devclassValid = _validateDevclass(replacement.installDevclass, [updateNamespace || originalNamespace, '$', originalNamespace]);
-                if (devclassValid !== true) {
-                    throw new Error(devclassValid);
-                }
+                inq1Prompts.push({
+                    type: "input",
+                    name: originalDevclass,
+                    default: replacement.installDevclass,
+                    message: `Do you want to rename ABAP Package "${replacement.installDevclass}"?`,
+                    validate: (input) => {
+                        return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                    }
+                });
             }
         }
         if (inq1Prompts.length > 0) {
