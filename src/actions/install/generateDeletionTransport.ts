@@ -45,6 +45,8 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
             //which includes sap packages, workbench and eventual language and customizing entries
             //for temporary packages, however, this is just the workbench transport
             if(context.runtime.update.getTransport()){
+                //TODO: this may add namespace to deletion, which may conflict with the previous addNamespace step
+                //maybe even blindly deleting it afterwards from deletion transport might be enough
                 await dummy.addObjectsFromTransport(context.runtime.update.getTransport().trkorr);
             }
         }
