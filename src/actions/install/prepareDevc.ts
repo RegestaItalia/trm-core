@@ -94,10 +94,10 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
             } else {
                 Inquirer.setPrefix(prefix);
             }
-            Logger.loading(`Testing import of ${trkorr}...`);
+            Logger.loading(`Testing import...`);
             const testRc = await context.runtime.transports.devc.instance.import(true);
             if (testRc < 0 || testRc > 8) {
-                throw new Error(`Test import of transport ${trkorr} failed: check logs.`);
+                throw new Error(`Test import of SAP packages failed: check logs.`);
             }
         } finally {
             Logger.setPrefix(originalLPrefix);

@@ -373,28 +373,26 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         const result = (await this._axiosInstance.post<{ testResult: struct.STMS_TP_IMPORT }>('/import_tr', {
             system: system.trim().toUpperCase(),
             trkorr: trkorr.trim().toUpperCase(),
             test: test ? 'X' : ' '
         })).data;
-        if (!result || !result.testResult) {
-            throw new RESTClientError("ZPARSE_API_DATA", null, null, `Import API response does not contain testResult.`);
+        if (result && result.testResult) {
+            return result.testResult;
         }
-        return result.testResult;
     }
 
-    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         const result = (await this._axiosInstance.post<{ testResult: struct.STMS_TP_IMPORT }>('/import_tr_multiple', {
             system: system.trim().toUpperCase(),
             trkorr: trkorr.map(value => value.trim().toUpperCase()),
             test: test ? 'X' : ' '
         })).data;
-        if (!result || !result.testResult) {
-            throw new RESTClientError("ZPARSE_API_DATA", null, null, `Multiple import API response does not contain testResult.`);
+        if (result && result.testResult) {
+            return result.testResult;
         }
-        return result.testResult;
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
@@ -665,7 +663,7 @@ export class RESTClient implements IClient {
     public async updateTrmPackageData(data: TrmPackageUpdateData): Promise<void> {
         const formData = new FormData.default();
         formData.append('manifest', data.manifest, 'manifest.json');
-        formData.append('data', JSON.stringify({...data, ...{ manifest: undefined }}));
+        formData.append('data', JSON.stringify({ ...data, ...{ manifest: undefined } }));
         await this._axiosInstance.post('/update_trm_package_data', formData, {
             headers: formData.getHeaders()
         });

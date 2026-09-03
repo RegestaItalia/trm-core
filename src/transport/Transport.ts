@@ -559,14 +559,13 @@ export class Transport {
     }
 
     private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false): Promise<{ rc: number, message?: string }> {
-        Logger.log(`TMS check for transport ${this.trkorr}`, true);
         var inQueue = false;
         var rc: number = 12;
         var message: string;
         var lastCheck: Date;
         if (this._trTarget) {
             var inQueueAttempts = 0;
-            Logger.loading(`Checking transport status...`, skipLog);
+            Logger.loading(`Checking ${this.trkorr} status...`, skipLog);
             while (!inQueue) {
                 inQueueAttempts++;
                 Logger.log(`Attempt ${inQueueAttempts}, reading in 3 seconds...`, true);
@@ -728,7 +727,7 @@ export class Transport {
         return new Transport(trkorr, null);
     }
 
-    public static async upload(trkorr, data: {
+    public static async upload(trkorr: TRKORR, data: {
         binary: BinaryTransport,
         trTarget?: TR_TARGET
     }): Promise<Transport> {
@@ -789,23 +788,37 @@ export class Transport {
         return latest;
     }
 
-    public static async importMultiple(transports: Transport[], target: TR_TARGET): Promise<{ trkorr: TRKORR, rc: number, message?: string }[]> {
-        for (const transport of transports) {
-            Logger.loading(`Forwarding transport ${transport.trkorr}`, true);
-            await SystemConnector.forwardTransport(transport.trkorr, target, target, true);
+    public static async importMultiple(transports: Transport[], target: TR_TARGET, forward: boolean = true): Promise<{ trkorr: TRKORR, rc: number, message?: string }[]> {
+        if (forward) {
+            for (const transport of transports) {
+                Logger.loading(`Forwarding transport ${transport.trkorr}`, true);
+                await SystemConnector.forwardTransport(transport.trkorr, target, target, true);
+            }
         }
         Logger.loading(`Importing ${transports.map(o => o.trkorr).join(', ')} in batch`, true);
         await SystemConnector.importTransportMultiple(transports.map(o => o.trkorr), target, false);
         const results: { trkorr: TRKORR, rc: number, message?: string }[] = [];
-        for (const transport of transports) {
-            Logger.log(`Starting transport ${transport.trkorr} TMS queue status check`, true);
-            transport._trTarget = target;
-            const queue = await transport._isInTmsQueue(false, true);
-            Logger.log(`Transport ${transport.trkorr} import ended: return code ${queue.rc}`, true);
-            Transport._printImportResult(transport.trkorr, queue.rc, queue.message, false);
-            results.push({ trkorr: transport.trkorr, rc: queue.rc, message: queue.message });
+        const originalLPrefix = Logger.getPrefix();
+        try {
+            var index = 0;
+            for (const transport of transports) {
+                index++;
+                const prefix = `(${Transport.getTransportIcon()}  ${index}/${transports.length}) `;
+                if (originalLPrefix) {
+                    Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+                } else {
+                    Logger.setPrefix(prefix);
+                }
+                Logger.log(`Starting transport ${transport.trkorr} TMS queue status check`, true);
+                transport._trTarget = target;
+                const queue = await transport._isInTmsQueue(false, true);
+                Transport._printImportResult(transport.trkorr, queue.rc, queue.message, false);
+                results.push({ trkorr: transport.trkorr, rc: queue.rc, message: queue.message });
+            }
+            return results;
+        } finally {
+            Logger.setPrefix(originalLPrefix);
         }
-        return results;
     }
 
     public async import(test: boolean): Promise<number> {
@@ -814,11 +827,11 @@ export class Transport {
         if (!this._trTarget) {
             throw new Error('Missing transport target.');
         }
-        Logger.log(`Starting ${this.trkorr} import`, true);
+        Logger.log(`Starting ${this.trkorr} import ${test ? 'test' : ''}`, true);
         Logger.loading(`Forwarding transport ${this.trkorr}`, true);
         await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
-        Logger.loading(`Importing ${this.trkorr}`, true);
-        const result = await SystemConnector.importTransport(this.trkorr, this._trTarget, false);
+        Logger.loading(`Importing ${this.trkorr}${test ? ' (TEST IMPORT)' : ''}`, true);
+        const result = await SystemConnector.importTransport(this.trkorr, this._trTarget, test);
         if (result) {
             rc = Number(result.tpRetCode);
             if (Array(result.tpStdout)) {
@@ -827,7 +840,6 @@ export class Transport {
         } else {
             Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
             const queue = await this._isInTmsQueue(false, true);
-            Logger.log(`Transport ${this.trkorr} import ended: return code ${queue.rc}`, true);
             rc = queue.rc;
             message = queue.message;
         }

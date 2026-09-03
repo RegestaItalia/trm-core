@@ -24,32 +24,15 @@ export const importBatch: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- collect prepared transport instances
         const transports = [
-            context.runtime.transports.devc.instance,
             context.runtime.transports.tadir.instance,
+            context.runtime.transports.devc.instance,
             context.runtime.transports.lang?.instance,
             ...(context.runtime.transports.cust || []).map(cust => cust.instance)
         ].filter((transport): transport is Transport => Boolean(transport));
 
         //2- import transports in batch
-        const originalLPrefix = Logger.getPrefix();
-        const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(${Transport.getTransportIcon()}  Batch) `;
-        try {
-            if (originalLPrefix) {
-                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-            } else {
-                Logger.setPrefix(prefix);
-            }
-            if (originalIPrefix) {
-                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-            } else {
-                Inquirer.setPrefix(prefix);
-            }
-            await Transport.importMultiple(transports, SystemConnector.getDest());
-        } finally {
-            Logger.setPrefix(originalLPrefix);
-            Inquirer.setPrefix(originalIPrefix);
-        }
+        Logger.loading(`Installing...`);
+        await Transport.importMultiple(transports, SystemConnector.getDest(), false);
 
         //3- reconnect when system is not stateless
         if (!SystemConnector.isStateless()) {

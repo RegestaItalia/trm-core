@@ -393,60 +393,61 @@ export class RFCClient implements IClient {
                 throw new Error('Unexpected ABAP XML import result');
             }
             const text = (node: xml.ElementCompact): string => node && node['_text'] !== undefined ? String(node['_text']) : '';
-            const items = (node: xml.ElementCompact): xml.ElementCompact[] => {
-                if (!node || !node.item) {
+            const tableRows = (node: xml.ElementCompact, rowName: string): xml.ElementCompact[] => {
+                const rows = node && node[rowName];
+                if (!rows) {
                     return [];
                 }
-                return Array.isArray(node.item) ? node.item : [node.item];
+                return Array.isArray(rows) ? rows : [rows];
             };
 
             return {
-            request: {
-                trkorr: text(importResult.REQUEST.TRKORR),
-                tarcli: text(importResult.REQUEST.TARCLI),
-                project: text(importResult.REQUEST.PROJECT),
-                preflg: text(importResult.REQUEST.PREFLG),
-                owner: text(importResult.REQUEST.OWNER)
-            },
-            tpRetCode: text(importResult.TP_RET_CODE),
-            tpAlog: text(importResult.TP_ALOG),
-            tpSlog: text(importResult.TP_SLOG),
-            tpPid: text(importResult.TP_PID),
-            tpStdout: items(importResult.TP_STDOUT).map(item => ({
-                line: text(item.LINE)
-            })),
-            tpLogptr: items(importResult.TP_LOGPTR).map(item => ({
-                trkorr: text(item.TRKORR),
-                owner: text(item.OWNER),
-                sysname: text(item.SYSNAME),
-                step: text(item.STEP),
-                retcode: text(item.RETCODE),
-                logdate: text(item.LOGDATE),
-                logtime: text(item.LOGTIME),
-                osuser: text(item.OSUSER),
-                hostname: text(item.HOSTNAME),
-                client: text(item.CLIENT)
-            })),
-            alert: {
-                id: text(importResult.ALERT.ID),
-                domnam: text(importResult.ALERT.DOMNAM),
-                sysnam: text(importResult.ALERT.SYSNAM),
-                client: text(importResult.ALERT.CLIENT),
-                service: text(importResult.ALERT.SERVICE),
-                function: text(importResult.ALERT.FUNCTION),
-                error: text(importResult.ALERT.ERROR),
-                severity: text(importResult.ALERT.SEVERITY),
-                text: text(importResult.ALERT.TEXT),
-                msgid: text(importResult.ALERT.MSGID),
-                msgty: text(importResult.ALERT.MSGTY),
-                msgno: text(importResult.ALERT.MSGNO),
-                msgv1: text(importResult.ALERT.MSGV1),
-                msgv2: text(importResult.ALERT.MSGV2),
-                msgv3: text(importResult.ALERT.MSGV3),
-                msgv4: text(importResult.ALERT.MSGV4),
-                methodptr: text(importResult.ALERT.METHODPTR),
-                properties: text(importResult.ALERT.PROPERTIES)
-            }
+                request: {
+                    trkorr: text(importResult.REQUEST.TRKORR),
+                    tarcli: text(importResult.REQUEST.TARCLI),
+                    project: text(importResult.REQUEST.PROJECT),
+                    preflg: text(importResult.REQUEST.PREFLG),
+                    owner: text(importResult.REQUEST.OWNER)
+                },
+                tpRetCode: text(importResult.TP_RET_CODE),
+                tpAlog: text(importResult.TP_ALOG),
+                tpSlog: text(importResult.TP_SLOG),
+                tpPid: text(importResult.TP_PID),
+                tpStdout: tableRows(importResult.TP_STDOUT, 'TPSTDOUT').map(item => ({
+                    line: text(item.LINE)
+                })),
+                tpLogptr: tableRows(importResult.TP_LOGPTR, 'TPLOGPTR').map(item => ({
+                    trkorr: text(item.TRKORR),
+                    owner: text(item.OWNER),
+                    sysname: text(item.SYSNAME),
+                    step: text(item.STEP),
+                    retcode: text(item.RETCODE),
+                    logdate: text(item.LOGDATE),
+                    logtime: text(item.LOGTIME),
+                    osuser: text(item.OSUSER),
+                    hostname: text(item.HOSTNAME),
+                    client: text(item.CLIENT)
+                })),
+                alert: {
+                    id: text(importResult.ALERT.ID),
+                    domnam: text(importResult.ALERT.DOMNAM),
+                    sysnam: text(importResult.ALERT.SYSNAM),
+                    client: text(importResult.ALERT.CLIENT),
+                    service: text(importResult.ALERT.SERVICE),
+                    function: text(importResult.ALERT.FUNCTION),
+                    error: text(importResult.ALERT.ERROR),
+                    severity: text(importResult.ALERT.SEVERITY),
+                    text: text(importResult.ALERT.TEXT),
+                    msgid: text(importResult.ALERT.MSGID),
+                    msgty: text(importResult.ALERT.MSGTY),
+                    msgno: text(importResult.ALERT.MSGNO),
+                    msgv1: text(importResult.ALERT.MSGV1),
+                    msgv2: text(importResult.ALERT.MSGV2),
+                    msgv3: text(importResult.ALERT.MSGV3),
+                    msgv4: text(importResult.ALERT.MSGV4),
+                    methodptr: text(importResult.ALERT.METHODPTR),
+                    properties: text(importResult.ALERT.PROPERTIES)
+                }
             };
         } catch (error) {
             if (error instanceof RFCClientError) {
@@ -456,22 +457,26 @@ export class RFCClient implements IClient {
         }
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         const result = await this._call("/ATRM/IMPORT_TR", {
             system: system.trim().toUpperCase(),
             trkorr: trkorr.trim().toUpperCase(),
             test: test ? 'X' : ' '
         });
-        return this.parseImportTransportResult(result['testResult']);
+        if (result && result.testResult) {
+            return this.parseImportTransportResult(result['testResult']);
+        }
     }
 
-    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         const result = await this._call("/ATRM/IMPORT_TR_MULTIPLE", {
             system: system.trim().toUpperCase(),
             trkorr: trkorr.map(value => value.trim().toUpperCase()),
             test: test ? 'X' : ' '
         });
-        return this.parseImportTransportResult(result['testResult']);
+        if (result && result.testResult) {
+            return this.parseImportTransportResult(result['testResult']);
+        }
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {

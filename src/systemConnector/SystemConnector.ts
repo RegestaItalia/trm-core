@@ -62,7 +62,9 @@ export namespace SystemConnector {
     }
 
     export async function connect(silent: boolean): Promise<void> {
-        await checkSystemConnector();
+        if (!systemConnector) {
+            throw new Error('System connector not initialized.');
+        }
         return systemConnector.connect(silent);
     }
 
@@ -261,12 +263,12 @@ export namespace SystemConnector {
         return systemConnector.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+    export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         await checkSystemConnector();
         return systemConnector.importTransport(trkorr, system, test);
     }
 
-    export async function importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+    export async function importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         await checkSystemConnector();
         return systemConnector.importTransportMultiple(trkorr, system, test);
     }

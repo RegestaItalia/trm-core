@@ -196,11 +196,11 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         return this._client.importTransport(trkorr, system, test);
     }
 
-    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT> {
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         return this._client.importTransportMultiple(trkorr, system, test);
     }
 

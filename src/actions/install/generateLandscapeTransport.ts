@@ -44,7 +44,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         Logger.loading(`Locking landscape transport...`);
         if (context.rawInput.installData.installDevclass.keepOriginal) {
             Logger.loading(`Including objects from DEVC transport...`, true);
-            await context.output.transport.addObjectsFromTransport(context.runtime.transports.devc.binaries.trkorr);
+            await context.output.transport.addObjectsFromTransport(context.runtime.transports.devc.instance.trkorr);
         } else {
             Logger.loading(`Adding package replacements...`, true);
             await context.output.transport.addObjects(context.rawInput.installData.installDevclass.replacements.map(o => {
@@ -58,7 +58,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
 
         //3- add workbench objects
         Logger.loading(`Including objects from TADIR transport...`, true);
-        await context.output.transport.addObjectsFromTransport(context.runtime.transports.tadir.binaries.trkorr);
+        await context.output.transport.addObjectsFromTransport(context.runtime.transports.tadir.instance.trkorr);
 
         //4- add namespace (if generated)
         //revert namespace is used as the soruce of an actual namespace that was generated
@@ -76,13 +76,13 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         //5- add translations (if imported)
         if (context.runtime.transports.lang) {
             Logger.loading(`Including objects from LANG transport...`, true);
-            await context.output.transport.addObjectsFromTransport(context.runtime.transports.lang.binaries.trkorr);
+            await context.output.transport.addObjectsFromTransport(context.runtime.transports.lang.instance.trkorr);
         }
 
         //6- add customizing (if imported)
         Logger.loading(`Including objects from ${context.runtime.transports.cust.length} CUST transports...`, true);
         for (const cust of context.runtime.transports.cust) {
-            await context.output.transport.addObjectsFromTransport(cust.binaries.trkorr);
+            await context.output.transport.addObjectsFromTransport(cust.instance.trkorr);
         }
 
         //7- add comments and documentation
