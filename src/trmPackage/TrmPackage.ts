@@ -4,10 +4,12 @@ import { AbstractRegistry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { DEVCLASS, ZTRM_DIRTY } from "../client";
 import { Lockfile } from "../lockfile";
+import { Transport } from "../transport";
 
 export class TrmPackage {
     private _devclass: DEVCLASS;
     private _dirtyEntries: ZTRM_DIRTY[] = [];
+    private _transport: Transport;
 
     constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
     }
@@ -32,6 +34,15 @@ export class TrmPackage {
 
     public getDevclass(): DEVCLASS {
         return this._devclass;
+    }
+
+    public setTransport(transport: Transport): TrmPackage {
+        this._transport = transport;
+        return this;
+    }
+
+    public getTransport(): Transport | undefined {
+        return this._transport;
     }
 
     public async publish(data: {

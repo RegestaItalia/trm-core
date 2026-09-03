@@ -75,7 +75,7 @@ export const init: Step<InstallWorkflowContext> = {
 
         //only used to validate manifest
         try {
-            Manifest.normalize(context.runtime.package.data.manifest, false);
+            Manifest.normalize(context.runtime.package.data.manifest);
         } catch (e) {
             throw new Error(`Package manifest is invalid: ${e.toString()}`);
         }

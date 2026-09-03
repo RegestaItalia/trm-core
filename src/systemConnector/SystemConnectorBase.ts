@@ -180,10 +180,10 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         }
         for (const o of installedPackagesBackend) {
           const manifest = Manifest.fromAbapXml(o.manifest);
-          if (o.trkorr) {
-            manifest.setTransport(new Transport(o.trkorr, null));
-          }
           const trmPackage = new TrmPackage(o.packageName, RegistryProvider.getRegistry(o.packageRegistry), manifest).setDevclass(o.devclass).setDirtyEntries(o.dirty);
+          if (o.trkorr) {
+            trmPackage.setTransport(new Transport(o.trkorr, null));
+          }
           trmPackages.push(trmPackage);
         }
         fromBackend = true;

@@ -408,7 +408,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         }
 
         //7- normalize manifest values
-        context.runtime.manifest = Manifest.normalize(context.runtime.manifest, false);
+        context.runtime.manifest = Manifest.normalize(context.runtime.manifest);
 
         //8- transform into xml
         context.runtime.manifestXml = new Manifest(context.runtime.manifest).getAbapXml();

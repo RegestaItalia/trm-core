@@ -2,7 +2,6 @@ import * as xml from "xml-js";
 import * as semver from "semver";
 import { TrmManifest } from "./TrmManifest";
 import { jsonStringifyWithKeyOrder, normalize } from "../commons";
-import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../registry";
 import normalizeUrl from "@esm2cjs/normalize-url";
@@ -32,8 +31,8 @@ export class Manifest {
     constructor(private _manifest: TrmManifest, private _filePath?: string) {
     }
 
-    public get(keepRuntimeValues: boolean = false): TrmManifest {
-        return Manifest.normalize(this._manifest, keepRuntimeValues);
+    public get(): TrmManifest {
+        return Manifest.normalize(this._manifest);
     }
 
     public getKey(keepVersion: boolean = true): string {
@@ -50,15 +49,6 @@ export class Manifest {
     public setSrcFolder(src: string): Manifest {
         this._manifest.srcFolder = src;
         return this;
-    }
-
-    public setTransport(transport: Transport): Manifest {
-        this._manifest.transport = transport;
-        return this;
-    }
-
-    public getTransport(): Transport | null {
-        return this._manifest.transport;
     }
 
     public setRegistryEndpoint(endpoint: string): void {
@@ -85,7 +75,7 @@ export class Manifest {
             "sapEntries",
             "postActivities"
         ] satisfies readonly (keyof TrmManifest & string)[];
-        var obj = this.get(false);
+        var obj = this.get();
         ignoredKeys.forEach(k => {
             delete obj[k];
         })
@@ -322,19 +312,16 @@ export class Manifest {
     }
 
     public getPackage(): TrmPackage {
-        const manifest = this.get(true);
+        const manifest = this.get();
         const registry = RegistryProvider.getRegistry(manifest.registry, this._filePath);
         return new TrmPackage(manifest.name, registry, this);
     }
 
-    public static normalize(manifest: TrmManifest, keepRuntimeValues: boolean): TrmManifest {
+    public static normalize(manifest: TrmManifest): TrmManifest {
         //this function is also used for method get()
         //only keys will throw error
         //always check if property has value
         var manifestClone = _.cloneDeep(manifest);
-        if (!keepRuntimeValues) {
-            delete manifestClone.transport;
-        }
         if (!manifestClone.name) {
             throw new Error('Package name missing.')
         } else {
@@ -703,7 +690,7 @@ export class Manifest {
                 });
             } catch (e) { }
         }
-        return new Manifest(Manifest.normalize(manifest, false));
+        return new Manifest(Manifest.normalize(manifest));
     }
 
     public static _parseAbapXmlSapEntriesArray(input: any): any[] {
@@ -729,7 +716,7 @@ export class Manifest {
     }
 
     public static fromJson(sJson: string): Manifest {
-        return new Manifest(Manifest.normalize(JSON.parse(sJson), false));
+        return new Manifest(Manifest.normalize(JSON.parse(sJson)));
     }
 
     public static compare(o1: Manifest, o2: Manifest, checkVersion: boolean = false): boolean {

@@ -38,7 +38,7 @@ export class TrmArtifact {
                     const sapEntries = JSON.parse(sapEntriesEntry.getData().toString());
                     jsonManifest.sapEntries = { ...jsonManifest.sapEntries, ...sapEntries };
                 }
-                const trmManifest = Manifest.normalize(jsonManifest, false);
+                const trmManifest = Manifest.normalize(jsonManifest);
                 this._manifest = new Manifest(trmManifest, this._filePath);
             }
         }

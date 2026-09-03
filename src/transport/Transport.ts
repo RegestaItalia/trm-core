@@ -383,7 +383,8 @@ export class Transport {
                 }
             }
             try {
-                oTrmPackage = Manifest.fromAbapXml(docVal).setTransport(this).getPackage();
+                oTrmPackage = Manifest.fromAbapXml(docVal).getPackage();
+                oTrmPackage.setTransport(this);
             } catch (e) {
                 //invalid manifest
             }
