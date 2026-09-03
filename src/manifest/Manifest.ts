@@ -61,15 +61,6 @@ export class Manifest {
         return this._manifest.transport;
     }
 
-    public setLinkedTransports(transports: Transport[]): Manifest{
-        this._manifest.linkedTransports = transports;
-        return this;
-    }
-
-    public getLinkedTransports(): Transport[]{
-        return this._manifest.linkedTransports || [];
-    }
-
     public setRegistryEndpoint(endpoint: string): void {
         this._manifest.registry = endpoint;
     }

@@ -41,9 +41,9 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
             target: SystemConnector.getDest()
         });
         if (context.runtime.update) {
-            for(const linkedTransport of context.runtime.update.manifest.getLinkedTransports()){
-                await dummy.addObjectsFromTransport(linkedTransport.trkorr);
-            }
+            //for(const linkedTransport of context.runtime.update.manifest.getLinkedTransports()){
+                //await dummy.addObjectsFromTransport(linkedTransport.trkorr);
+            //}
         }
         //if sap packages changes...
         //TODO: we should make an example to understand how to catch this and handle it

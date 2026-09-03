@@ -8,7 +8,6 @@ export interface TrmManifest extends TrmManifestBase {
     private?: boolean,
     registry?: string, //runtime: origin registry instance
     transport?: Transport, //runtime: landscape transport or origin transport if package is temporary
-    linkedTransports?: Transport[], //runtime: all transports linked to this release
     distFolder?: string, //written at runtime, kept in json
     srcFolder?: string, //written at runtime, kept in json
     namespace?: TrmManifestNamespace
