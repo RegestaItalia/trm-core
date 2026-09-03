@@ -41,9 +41,12 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
             target: SystemConnector.getDest()
         });
         if (context.runtime.update) {
-            //for(const linkedTransport of context.runtime.update.manifest.getLinkedTransports()){
-                //await dummy.addObjectsFromTransport(linkedTransport.trkorr);
-            //}
+            //TODO: this works only partially for temporary packages: a transportable package has in getTransport the landscape transport
+            //which includes sap packages, workbench and eventual language and customizing entries
+            //for temporary packages, however, this is just the workbench transport
+            if(context.runtime.update.getTransport()){
+                await dummy.addObjectsFromTransport(context.runtime.update.getTransport().trkorr);
+            }
         }
         //if sap packages changes...
         //TODO: we should make an example to understand how to catch this and handle it
