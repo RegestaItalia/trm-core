@@ -18,10 +18,10 @@ import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
 export const generateDeletionTransport: Step<InstallWorkflowContext> = {
     name: 'generate-deletion-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if(context.runtime.isLocal){
+        if (context.runtime.isLocal) {
             Logger.log(`Skipping generate deletion transport (local registry)`, true);
             return false;
-        }else if (context.runtime.update) {
+        } else if (context.runtime.update) {
             return true;
         } else {
             Logger.log(`Skipping generate deletion transport (first install?)`, true);
@@ -34,38 +34,56 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
             stopWarning('install');
         }
 
-        //1- generate dummy transport
-        Logger.loading(`Generating deletion transport...`);
-        const dummy = await Transport.createToc({
-            text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
-            target: SystemConnector.getDest()
-        });
-        if (context.runtime.update) {
-            //TODO: this works only partially for temporary packages: a transportable package has in getTransport the landscape transport
-            //which includes sap packages, workbench and eventual language and customizing entries
-            //for temporary packages, however, this is just the workbench transport
-            if(context.runtime.update.getTransport()){
-                //TODO: this may add namespace to deletion, which may conflict with the previous addNamespace step
-                //maybe even blindly deleting it afterwards from deletion transport might be enough
-                await dummy.addObjectsFromTransport(context.runtime.update.getTransport().trkorr);
-            }
-        }
-        //if sap packages changes...
-        //TODO: we should make an example to understand how to catch this and handle it
-
+        const originalLPrefix = Logger.getPrefix();
+        const originalIPrefix = Inquirer.getPrefix();
+        const prefix = `(${Transport.getTransportIcon()}  Deletion) `;
         try {
-            await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
-        } catch (e) {
-            if (!(e instanceof RegistryDeletionTransportUnauthorizedError)) {
-                throw e;
+            if (originalLPrefix) {
+                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+            } else {
+                Logger.setPrefix(prefix);
             }
+            if (originalIPrefix) {
+                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
+            } else {
+                Inquirer.setPrefix(prefix);
+            }
+            //1- generate dummy transport
+            Logger.loading(`Generating transport...`);
+            const dummy = await Transport.createToc({
+                text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
+                target: SystemConnector.getDest()
+            });
+            if (context.runtime.update) {
+                //TODO: this works only partially for temporary packages: a transportable package has in getTransport the landscape transport
+                //which includes sap packages, workbench and eventual language and customizing entries
+                //for temporary packages, however, this is just the workbench transport
+                if (context.runtime.update.getTransport()) {
+                    //TODO: this may add namespace to deletion, which may conflict with the previous addNamespace step
+                    //maybe even blindly deleting it afterwards from deletion transport might be enough
+                    await dummy.addObjectsFromTransport(context.runtime.update.getTransport().trkorr);
+                }
+            }
+            //if sap packages changes...
+            //TODO: we should make an example to understand how to catch this and handle it
 
-            Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`);
+            try {
+                await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
+            } catch (e) {
+                if (!(e instanceof RegistryDeletionTransportUnauthorizedError)) {
+                    throw e;
+                }
+
+                Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`);
+            }
+        } finally {
+            Logger.setPrefix(originalLPrefix);
+            Inquirer.setPrefix(originalIPrefix);
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.revert.dele) {
             await restoreTransport(context.revert.dele);
         }
-    } 
+    }
 }

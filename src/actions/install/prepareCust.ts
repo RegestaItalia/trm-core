@@ -37,32 +37,30 @@ export const prepareCust: Step<InstallWorkflowContext> = {
             context.runtime.stopWarningShown = true;
             stopWarning('install');
         }
-        const originalLPrefix1 = Logger.getPrefix();
-        const originalIPrefix1 = Inquirer.getPrefix();
+        var index = 0;
+        const originalLPrefix = Logger.getPrefix();
+        const originalIPrefix = Inquirer.getPrefix();
         try {
-            var index = 0;
             for (var cust of context.runtime.transports.cust) {
                 index++;
-
-                const prefix1 = `(${index}/${context.runtime.transports.cust.length}) `;
-                if (originalLPrefix1) {
-                    Logger.setPrefix(`${originalLPrefix1}-> ${prefix1}`);
+                const prefix = `(${Transport.getTransportIcon()}  ${index}/${context.runtime.transports.cust.length} Customizing) `;
+                if (originalLPrefix) {
+                    Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
                 } else {
-                    Logger.setPrefix(prefix1);
+                    Logger.setPrefix(prefix);
                 }
-                if (originalIPrefix1) {
-                    Inquirer.setPrefix(`${originalIPrefix1}-> ${prefix1}`);
+                if (originalIPrefix) {
+                    Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
                 } else {
-                    Inquirer.setPrefix(prefix1);
+                    Inquirer.setPrefix(prefix);
                 }
-
                 //1- generate dummy transport (if registry is not local)
                 //checking if binaries are already loaded in context instead of checking registry local
                 //is equivalent, but better for possible changes in the future
                 //binaries for local registry are loaded in the checkTransports step
                 var trkorr: TRKORR;
                 if (!cust.binaries.binaries) {
-                    Logger.loading(`Generating customizing transport...`);
+                    Logger.loading(`Generating transport...`);
                     const dummy = await Transport.createToc({
                         text: context.runtime.package.data.transports.find(o => o.trkorr === cust.binaries.trkorr)?.description || `CUST ${index} ${context.rawInput.packageData.name}`,
                         target: SystemConnector.getDest(),
@@ -88,7 +86,7 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                 }
 
                 //2- upload transport binaries
-                Logger.loading(`Uploading customizing transport...`);
+                Logger.loading(`Uploading transport...`);
                 cust.instance = await Transport.upload(
                     trkorr, {
                     binary: cust.binaries.binaries,
@@ -96,36 +94,18 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                 });
 
                 //3- test import transport
-                const originalLPrefix2 = Logger.getPrefix();
-                const originalIPrefix2 = Inquirer.getPrefix();
-                const prefix2 = `(${Transport.getTransportIcon()}  Customizing) `;
-                try {
-                    if (originalLPrefix2) {
-                        Logger.setPrefix(`${originalLPrefix2}-> ${prefix2}`);
-                    } else {
-                        Logger.setPrefix(prefix2);
-                    }
-                    if (originalIPrefix2) {
-                        Inquirer.setPrefix(`${originalIPrefix2}-> ${prefix2}`);
-                    } else {
-                        Inquirer.setPrefix(prefix2);
-                    }
-                    Logger.loading(`Testing import...`);
-                    const testRc = await cust.instance.import(true);
-                    if (testRc < 0 || testRc > 8) {
-                        throw new Error(`Test import of customizing failed: check logs.`);
-                    }
-                } finally {
-                    Logger.setPrefix(originalLPrefix2);
-                    Inquirer.setPrefix(originalIPrefix2);
+                Logger.loading(`Testing import...`);
+                const testRc = await cust.instance.import(true);
+                if (testRc < 0 || testRc > 8) {
+                    throw new Error(`Test import of customizing failed: check logs.`);
                 }
 
                 //replace context instance with current instance
                 context.runtime.transports.cust[index - 1] = cust;
             }
         } finally {
-            Logger.setPrefix(originalLPrefix1);
-            Inquirer.setPrefix(originalIPrefix1);
+            Logger.setPrefix(originalLPrefix);
+            Inquirer.setPrefix(originalIPrefix);
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
