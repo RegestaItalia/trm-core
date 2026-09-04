@@ -36,7 +36,7 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
 
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(${Transport.getTransportIcon()}  Deletion) `;
+        const prefix = `(${Transport.getTransportIcon()}  Upgrade cleanup) `;
         try {
             if (originalLPrefix) {
                 Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);

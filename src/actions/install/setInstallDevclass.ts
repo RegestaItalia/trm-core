@@ -55,6 +55,25 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             Logger.loading(`Checking package replacements...`);
             context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.rawInput.packageData.registry);
         }
+        //if there are replacements and they all equal to original ask if you should continue
+        const replacementsKeepOriginal = context.rawInput.installData.installDevclass.replacements.length > 0
+            && context.rawInput.installData.installDevclass.replacements.every(replacement => replacement.installDevclass === replacement.originalDevclass);
+        if (replacementsKeepOriginal) {
+            let continueWithReplacements = false;
+            if (!context.rawInput.contextData.noInquirer) {
+                continueWithReplacements = (await Inquirer.prompt({
+                    type: 'confirm',
+                    name: 'continueWithReplacements',
+                    message: `Do you want to change original SAP packages name?`,
+                    default: false
+                })).continueWithReplacements;
+            }
+            if (!continueWithReplacements) {
+                // Later workflow steps use this flag to import the original DEVC transport.
+                context.rawInput.installData.installDevclass.keepOriginal = true;
+                return;
+            }
+        }
 
         //2- get root devclass and find namespace
         var rootDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === context.runtime.package.hierarchy.devclass)?.installDevclass;
@@ -111,7 +130,7 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                     type: "input",
                     name: originalDevclass,
                     default: replacement.installDevclass,
-                    message: `Do you want to rename ABAP Package "${replacement.installDevclass}"?`,
+                    message: `Rename ABAP Package "${replacement.installDevclass}"`,
                     validate: (input) => {
                         return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
                     }
