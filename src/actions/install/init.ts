@@ -50,6 +50,7 @@ export const init: Step<InstallWorkflowContext> = {
             },
             dependencies: [],
             namespace: undefined, //will be calculated from either origin devclass or target devclass later
+            previousInstallPackages: [],
             stopWarningShown: false
         };
         context.output = {
@@ -147,6 +148,10 @@ export const init: Step<InstallWorkflowContext> = {
         //5- check if already installed
         context.runtime.update = context.rawInput.contextData.systemPackages.find(o => Manifest.compare(o.manifest, new Manifest(context.runtime.package.data.manifest), false));
         if (context.runtime.update) {
+            context.runtime.previousInstallPackages = await SystemConnector.getInstallPackages(
+                context.rawInput.packageData.name,
+                context.rawInput.packageData.registry
+            );
             const installVersion = context.runtime.package.data.manifest.version;
             const installedVersion = context.runtime.update.manifest.get().version;
             if (eq(installVersion, installedVersion)) {

@@ -203,6 +203,7 @@ type WorkflowRuntime = {
     },
     dependencies: TrmManifestDependency[],
     namespace: string,
+    previousInstallPackages: InstallPackageReplacements[],
     rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean
 }

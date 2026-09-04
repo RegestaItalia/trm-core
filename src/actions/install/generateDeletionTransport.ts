@@ -6,6 +6,11 @@ import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
 import { releaseDeletionTransport, restoreTransport } from "../commons/utils";
 import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
+import { PackageHierarchy } from "../../commons";
+
+function flattenDevclasses(pkg: PackageHierarchy): string[] {
+    return [pkg.devclass, ...pkg.sub.flatMap(flattenDevclasses)];
+}
 
 /**
  * Workflow step that creates a transport for objects removed by an upgrade.
@@ -64,8 +69,37 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
                     await dummy.addObjectsFromTransport(context.runtime.update.getTransport().trkorr);
                 }
             }
-            //if sap packages changes...
-            //TODO: we should make an example to understand how to catch this and handle it
+            const currentDevclasses = new Set(
+                (context.rawInput.installData.installDevclass.keepOriginal
+                    ? flattenDevclasses(context.runtime.package.hierarchy)
+                    : context.rawInput.installData.installDevclass.replacements.map(replacement => replacement.installDevclass)
+                ).map(devclass => devclass.trim().toUpperCase())
+            );
+            const previousDevclasses = new Map<string, string>();
+            context.runtime.previousInstallPackages.forEach(replacement => {
+                previousDevclasses.set(replacement.installDevclass.trim().toUpperCase(), replacement.installDevclass);
+            });
+            // Older installations that kept the publisher package names have no replacement rows.
+            if (previousDevclasses.size === 0 && context.runtime.update.getDevclass()) {
+                const previousRoot = context.runtime.update.getDevclass();
+                previousDevclasses.set(previousRoot.trim().toUpperCase(), previousRoot);
+            }
+
+            const emptyChangedDevclasses: string[] = [];
+            for (const [normalizedDevclass, devclass] of previousDevclasses) {
+                if (!currentDevclasses.has(normalizedDevclass)
+                    && (await SystemConnector.getDevclassObjects(devclass, false)).length === 0) {
+                    emptyChangedDevclasses.push(devclass);
+                }
+            }
+            if (emptyChangedDevclasses.length > 0) {
+                Logger.log(`Adding empty previous SAP packages ${emptyChangedDevclasses.join(', ')} to cleanup transport`, true);
+                await dummy.addObjects(emptyChangedDevclasses.map(devclass => ({
+                    pgmid: 'R3TR',
+                    object: 'DEVC',
+                    objName: devclass
+                })), false);
+            }
 
             try {
                 await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
