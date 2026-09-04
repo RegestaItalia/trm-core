@@ -28,11 +28,9 @@ export function packageDataFromTdevc(
     };
 
     copy("korrflag", source.korrflag);
-    copy("namespace", source.namespace);
     copy("perminher", source.perminher);
     copy("packkind", source.packageKind);
     copy("restricted", source.restricted);
     copy("mainpack", source.mainpack);
-    copy("srvCheck", source.srvCheck);
     return result;
 }
