@@ -7,9 +7,18 @@ import { Transport } from "../../transport";
 import { releaseDeletionTransport, restoreTransport } from "../commons/utils";
 import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
 import { PackageHierarchy } from "../../commons";
+import { E071, TADIR } from "../../client";
 
 function flattenDevclasses(pkg: PackageHierarchy): string[] {
     return [pkg.devclass, ...pkg.sub.flatMap(flattenDevclasses)];
+}
+
+function normalize(value: string): string {
+    return value.trim().toUpperCase();
+}
+
+function objectKey(object: Pick<E071, 'pgmid' | 'object' | 'objName'>): string {
+    return `${normalize(object.pgmid)}\u0000${normalize(object.object)}\u0000${normalize(object.objName)}`;
 }
 
 /**
@@ -69,26 +78,56 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
                     await dummy.addObjectsFromTransport(context.runtime.update.getTransport().trkorr);
                 }
             }
+            const previousTransportObjects = context.runtime.update.getTransport()
+                ? await context.runtime.update.getTransport().getE071()
+                : [];
+            const incomingObjects = context.runtime.transports.tadir.binaries.entries.tadir || [];
+            const replacementDevclasses = new Map(
+                context.rawInput.installData.installDevclass.replacements.map(replacement => [
+                    normalize(replacement.originalDevclass),
+                    replacement.installDevclass
+                ])
+            );
             const currentDevclasses = new Set(
                 (context.rawInput.installData.installDevclass.keepOriginal
                     ? flattenDevclasses(context.runtime.package.hierarchy)
                     : context.rawInput.installData.installDevclass.replacements.map(replacement => replacement.installDevclass)
-                ).map(devclass => devclass.trim().toUpperCase())
+                ).map(normalize)
             );
             const previousDevclasses = new Map<string, string>();
             context.runtime.previousInstallPackages.forEach(replacement => {
-                previousDevclasses.set(replacement.installDevclass.trim().toUpperCase(), replacement.installDevclass);
+                previousDevclasses.set(normalize(replacement.installDevclass), replacement.installDevclass);
             });
             // Older installations that kept the publisher package names have no replacement rows.
             if (previousDevclasses.size === 0 && context.runtime.update.getDevclass()) {
                 const previousRoot = context.runtime.update.getDevclass();
-                previousDevclasses.set(previousRoot.trim().toUpperCase(), previousRoot);
+                previousDevclasses.set(normalize(previousRoot), previousRoot);
             }
 
             const emptyChangedDevclasses: string[] = [];
             for (const [normalizedDevclass, devclass] of previousDevclasses) {
-                if (!currentDevclasses.has(normalizedDevclass)
-                    && (await SystemConnector.getDevclassObjects(devclass, false)).length === 0) {
+                if (currentDevclasses.has(normalizedDevclass)) {
+                    continue;
+                }
+
+                // Simulate the cleanup followed by the incoming workbench import. At this point
+                // the target packages exist, but SAP has not moved their objects there yet.
+                const objectsAfterImport = new Map<string, TADIR>(
+                    (await SystemConnector.getDevclassObjects(devclass, false)).map(object => [objectKey(object), object])
+                );
+                previousTransportObjects.forEach(object => objectsAfterImport.delete(objectKey(object)));
+                incomingObjects.forEach(object => {
+                    const key = objectKey(object);
+                    objectsAfterImport.delete(key);
+                    const installDevclass = context.rawInput.installData.installDevclass.keepOriginal
+                        ? object.devclass
+                        : replacementDevclasses.get(normalize(object.devclass)) || object.devclass;
+                    if (normalize(installDevclass) === normalizedDevclass) {
+                        objectsAfterImport.set(key, object);
+                    }
+                });
+
+                if (objectsAfterImport.size === 0) {
                     emptyChangedDevclasses.push(devclass);
                 }
             }
