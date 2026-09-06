@@ -104,7 +104,7 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
                 previousDevclasses.set(normalize(previousRoot), previousRoot);
             }
 
-            const emptyChangedDevclasses: string[] = [];
+            const changedDevclassesToDelete: string[] = [];
             for (const [normalizedDevclass, devclass] of previousDevclasses) {
                 if (currentDevclasses.has(normalizedDevclass)) {
                     continue;
@@ -127,13 +127,33 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
                     }
                 });
 
-                if (objectsAfterImport.size === 0) {
-                    emptyChangedDevclasses.push(devclass);
+                if (objectsAfterImport.size > 0) {
+                    if (context.rawInput.contextData.noInquirer) {
+                        continue;
+                    }
+                    const { deleteExtraObjects } = await Inquirer.prompt({
+                        name: 'deleteExtraObjects',
+                        type: 'confirm',
+                        message: `SAP package ${devclass} still contains ${objectsAfterImport.size} objects outside this installation. Delete these extra objects too so the TRM package can be cleanly upgraded?`,
+                        default: true
+                    });
+                    if (!deleteExtraObjects) {
+                        continue;
+                    }
+                    Logger.loading(`Generating transport...`);
+                    await dummy.addObjects(Array.from(objectsAfterImport.values()).map(object => ({
+                        pgmid: object.pgmid,
+                        object: object.object,
+                        objName: object.objName
+                    })), false);
                 }
+                changedDevclassesToDelete.push(devclass);
             }
-            if (emptyChangedDevclasses.length > 0) {
-                Logger.log(`Adding empty previous SAP packages ${emptyChangedDevclasses.join(', ')} to cleanup transport`, true);
-                await dummy.addObjects(emptyChangedDevclasses.map(devclass => ({
+
+            if (changedDevclassesToDelete.length > 0) {
+                Logger.loading(`Generating transport...`);
+                Logger.log(`Adding previous SAP packages ${changedDevclassesToDelete.join(', ')} to cleanup transport`, true);
+                await dummy.addObjects(changedDevclassesToDelete.map(devclass => ({
                     pgmid: 'R3TR',
                     object: 'DEVC',
                     objName: devclass
@@ -146,7 +166,6 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
                 if (!(e instanceof RegistryDeletionTransportUnauthorizedError)) {
                     throw e;
                 }
-
                 Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`);
             }
         } finally {

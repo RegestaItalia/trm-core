@@ -3,8 +3,6 @@ import { InstallWorkflowContext } from ".";
 import { adjustTrmServerRestDevclass, getPackageNamespace, PackageHierarchy } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { Logger, Inquirer, Question } from "trm-commons";
-import { ZTRM_INSTALLDEVC } from "../../client";
-import { LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 
 function _validateDevclass(input: string, namespaces: string[]): string | true {
     const sInput: string = input.trim().toUpperCase();
@@ -33,9 +31,7 @@ function flattenDevclasses(pkg: PackageHierarchy): string[] {
  * 
  * 2- get root devclass and find namespace
  * 
- * 3- update z table
- * 
- * 4- if all package names like origin, import devc transport
+ * 3- if all package names like origin, import devc transport
  * 
 */
 export const setInstallDevclass: Step<InstallWorkflowContext> = {
@@ -156,37 +152,13 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             throw new Error(`All packages must start with prefix $ if one (or more) packages are temporary!`);
         }
 
-        //3- update z table
-        Logger.loading(`Updating data...`);
-        var installDevc: ZTRM_INSTALLDEVC[] = [];
-        var packageRegistry: string;
-        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
-            packageRegistry = PUBLIC_RESERVED_KEYWORD;
-        } else if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
-            packageRegistry = LOCAL_RESERVED_KEYWORD;
-        } else {
-            packageRegistry = context.rawInput.packageData.registry.endpoint;
-        }
-        context.rawInput.installData.installDevclass.replacements.forEach(o => {
-            installDevc.push({
-                package_name: context.rawInput.packageData.name,
-                package_registry: packageRegistry,
-                original_devclass: o.originalDevclass,
-                install_devclass: o.installDevclass
-            });
-        });
-        await SystemConnector.setInstallDevc(installDevc);
-
-        //4- if all package names like origin, import devc transport
+        //3- if all package names like origin, import devc transport
         context.rawInput.installData.installDevclass.keepOriginal = true;
         context.rawInput.installData.installDevclass.replacements.forEach(o => {
             if (o.installDevclass !== o.originalDevclass) {
                 context.rawInput.installData.installDevclass.keepOriginal = false;
             }
         });
-
-        //TODO: if a package is being updated and one (or more) of its previous devclasses are changed and don't contain any objects
-        //they should be added to the deletion trasport for cleanup
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         Logger.warning(`Dirty records left in install table, but has no real impact.`, true);
