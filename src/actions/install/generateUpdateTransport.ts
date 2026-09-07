@@ -238,6 +238,7 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.revert.dele) {
+            //check if it can be deleted -> the exception might have been raised before the transport release, we can still cleanup nicely
             const transport = new Transport(context.revert.dele.trkorr);
             if(await (transport.canBeDeleted())){
                 await transport.delete();
