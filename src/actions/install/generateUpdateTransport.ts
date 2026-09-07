@@ -29,8 +29,8 @@ function objectKey(object: Pick<E071, 'pgmid' | 'object' | 'objName'>): string {
  * For these reasons, it's not generated on first install.
  * 
 */
-export const generateDeletionTransport: Step<InstallWorkflowContext> = {
-    name: 'generate-deletion-transport',
+export const generateUpdateTransport: Step<InstallWorkflowContext> = {
+    name: 'generate-update-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
         if (context.runtime.isLocal) {
             Logger.log(`Skipping generate deletion transport (local registry)`, true);
