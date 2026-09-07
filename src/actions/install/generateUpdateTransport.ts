@@ -238,7 +238,12 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.revert.dele) {
-            await restoreTransport(context.revert.dele);
+            const transport = new Transport(context.revert.dele.trkorr);
+            if(await (transport.canBeDeleted())){
+                await transport.delete();
+            }else{
+                await restoreTransport(context.revert.dele);
+            }
         }
     }
 }
