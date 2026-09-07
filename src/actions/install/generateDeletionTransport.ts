@@ -68,26 +68,10 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
                 text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
                 target: SystemConnector.getDest()
             });
-            if (context.runtime.update) {
-                //TODO: this works only partially for temporary packages: a transportable package has in getTransport the landscape transport
-                //which includes sap packages, workbench and eventual language and customizing entries
-                //for temporary packages, however, this is just the workbench transport
-                if (context.runtime.update.getTransport()) {
-                    //TODO: this may add namespace to deletion, which may conflict with the previous addNamespace step
-                    //maybe even blindly deleting it afterwards from deletion transport might be enough
-                    await dummy.addObjectsFromTransport(context.runtime.update.getTransport().trkorr);
-                }
-            }
             const previousTransportObjects = context.runtime.update.getTransport()
                 ? await context.runtime.update.getTransport().getE071()
                 : [];
             const incomingObjects = context.runtime.transports.tadir.binaries.entries.tadir || [];
-            const replacementDevclasses = new Map(
-                context.rawInput.installData.installDevclass.replacements.map(replacement => [
-                    normalize(replacement.originalDevclass),
-                    replacement.installDevclass
-                ])
-            );
             const currentDevclasses = new Set(
                 (context.rawInput.installData.installDevclass.keepOriginal
                     ? flattenDevclasses(context.runtime.package.hierarchy)
@@ -103,61 +87,139 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
                 const previousRoot = context.runtime.update.getDevclass();
                 previousDevclasses.set(normalize(previousRoot), previousRoot);
             }
+            previousTransportObjects.forEach(object => {
+                if (normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC') {
+                    previousDevclasses.set(normalize(object.objName), object.objName);
+                }
+            });
+            const installedDevclasses = new Set(previousDevclasses.keys());
+            const generatedDevclasses = new Set(context.revert.sapPackages.map(normalize));
 
-            const changedDevclassesToDelete: string[] = [];
-            for (const [normalizedDevclass, devclass] of previousDevclasses) {
-                if (currentDevclasses.has(normalizedDevclass)) {
+            // Installation mappings do not include subpackages created locally afterwards.
+            // Inspect the live hierarchy even when the installation keeps its root package.
+            const packageParents = new Map<string, string>();
+            for (const devclass of Array.from(previousDevclasses.values())) {
+                for (const subpackage of await SystemConnector.getSubpackages(devclass)) {
+                    const key = normalize(subpackage.devclass);
+                    previousDevclasses.set(key, subpackage.devclass);
+                    if (subpackage.parentcl) {
+                        packageParents.set(key, normalize(subpackage.parentcl));
+                    }
+                }
+            }
+
+            // Local additions remain cleanup candidates even when reused as incoming targets.
+            // The first local package owns the decision for its locally added descendants.
+            const cleanupGroups = new Map<string, Set<string>>();
+            for (const normalizedDevclass of previousDevclasses.keys()) {
+                const locallyAdded = !installedDevclasses.has(normalizedDevclass);
+                if (generatedDevclasses.has(normalizedDevclass) || (!locallyAdded && currentDevclasses.has(normalizedDevclass))) {
                     continue;
                 }
+                let root = normalizedDevclass;
+                const visited = new Set([root]);
+                let parent = packageParents.get(root);
+                while (parent && previousDevclasses.has(parent) && !generatedDevclasses.has(parent)
+                    && (!installedDevclasses.has(parent) === locallyAdded)
+                    && (locallyAdded || !currentDevclasses.has(parent)) && !visited.has(parent)) {
+                    root = parent;
+                    visited.add(root);
+                    parent = packageParents.get(root);
+                }
+                if (!cleanupGroups.has(root)) {
+                    cleanupGroups.set(root, new Set());
+                }
+                cleanupGroups.get(root).add(normalizedDevclass);
+            }
 
-                // Simulate the cleanup followed by the incoming workbench import. At this point
-                // the target packages exist, but SAP has not moved their objects there yet.
-                const objectsAfterImport = new Map<string, TADIR>(
-                    (await SystemConnector.getDevclassObjects(devclass, false)).map(object => [objectKey(object), object])
-                );
+            const changedDevclassesToDelete: string[] = [];
+            const extraObjectsToDelete = new Map<string, Pick<E071, 'pgmid' | 'object' | 'objName'>>();
+            for (const [root, group] of cleanupGroups) {
+                const devclass = previousDevclasses.get(root);
+
+                // Only objects outside both releases need an extra cleanup decision.
+                const objectsAfterImport = new Map<string, TADIR>();
+                for (const member of group) {
+                    for (const object of await SystemConnector.getDevclassObjects(previousDevclasses.get(member), false)) {
+                        // Package definitions follow the decision for the whole subtree.
+                        if (!(normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC')) {
+                            objectsAfterImport.set(objectKey(object), object);
+                        }
+                    }
+                }
                 previousTransportObjects.forEach(object => objectsAfterImport.delete(objectKey(object)));
                 incomingObjects.forEach(object => {
-                    const key = objectKey(object);
-                    objectsAfterImport.delete(key);
-                    const installDevclass = context.rawInput.installData.installDevclass.keepOriginal
-                        ? object.devclass
-                        : replacementDevclasses.get(normalize(object.devclass)) || object.devclass;
-                    if (normalize(installDevclass) === normalizedDevclass) {
-                        objectsAfterImport.set(key, object);
-                    }
+                    objectsAfterImport.delete(objectKey(object));
                 });
 
-                if (objectsAfterImport.size > 0) {
-                    if (context.rawInput.contextData.noInquirer) {
-                        continue;
-                    }
-                    const { deleteExtraObjects } = await Inquirer.prompt({
+                // Every locally added package definition is an extra object, including
+                // the root of this cleanup group, regardless of whether it has contents.
+                const packagesToRemove = Array.from(group).filter(member => !currentDevclasses.has(member));
+                const extraObjectCount = objectsAfterImport.size + packagesToRemove.filter(member => !installedDevclasses.has(member)).length;
+                if (extraObjectCount > 0) {
+                    const { deleteExtraObjects } = context.rawInput.contextData.noInquirer
+                        ? { deleteExtraObjects: true }
+                        : await Inquirer.prompt({
                         name: 'deleteExtraObjects',
                         type: 'confirm',
-                        message: `SAP package ${devclass} still contains ${objectsAfterImport.size} objects outside this installation. Delete these extra objects too so the TRM package can be cleanly upgraded?`,
+                        message: `Cleanup of SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} will delete ${extraObjectCount} extra objects outside this installation. Continue?`,
                         default: true
                     });
                     if (!deleteExtraObjects) {
                         continue;
                     }
-                    Logger.loading(`Generating transport...`);
-                    await dummy.addObjects(Array.from(objectsAfterImport.values()).map(object => ({
+                    objectsAfterImport.forEach((object, key) => extraObjectsToDelete.set(key, {
                         pgmid: object.pgmid,
                         object: object.object,
                         objName: object.objName
-                    })), false);
+                    }));
                 }
-                changedDevclassesToDelete.push(devclass);
+                changedDevclassesToDelete.push(...packagesToRemove.map(member => previousDevclasses.get(member)));
             }
 
-            if (changedDevclassesToDelete.length > 0) {
+            // A retained child still needs its ancestors, including when cleanup was declined.
+            const deletableDevclasses = new Set(changedDevclassesToDelete.map(normalize));
+            for (const devclass of previousDevclasses.keys()) {
+                if (deletableDevclasses.has(devclass)) {
+                    continue;
+                }
+                const visited = new Set<string>();
+                let parent = packageParents.get(devclass);
+                while (parent && !visited.has(parent)) {
+                    visited.add(parent);
+                    deletableDevclasses.delete(parent);
+                    parent = packageParents.get(parent);
+                }
+            }
+            const packagesToDelete = changedDevclassesToDelete.filter(devclass => deletableDevclasses.has(normalize(devclass)));
+            const additionalObjects = [...extraObjectsToDelete.values(), ...packagesToDelete.map(devclass => ({
+                pgmid: 'R3TR',
+                object: 'DEVC',
+                objName: devclass
+            }))];
+            // Validate the complete deletion selection before adding anything to the transport.
+            const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects].map(object => [objectKey(object), object]));
+            if (deletionObjects.size > 0) {
+                Logger.loading(`Checking cleanup objects locks...`);
+                const locks = await SystemConnector.getObjectsLocks(Array.from(deletionObjects.values(), object => ({
+                    PGMID: object.pgmid,
+                    OBJECT: object.object,
+                    OBJ_NAME: object.objName
+                })));
+                if (locks.length > 0) {
+                    locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`));
+                    throw new Error(`Update aborted. To continue, all cleanup objects and SAP packages must be released`);
+                }
+            }
+            if (context.runtime.update.getTransport()) {
+                await dummy.addObjectsFromTransport(context.runtime.update.getTransport().trkorr);
+            }
+            if (packagesToDelete.length > 0) {
+                Logger.log(`Adding previous SAP packages ${packagesToDelete.join(', ')} to cleanup transport`, true);
+            }
+            if (additionalObjects.length > 0) {
                 Logger.loading(`Generating transport...`);
-                Logger.log(`Adding previous SAP packages ${changedDevclassesToDelete.join(', ')} to cleanup transport`, true);
-                await dummy.addObjects(changedDevclassesToDelete.map(devclass => ({
-                    pgmid: 'R3TR',
-                    object: 'DEVC',
-                    objName: devclass
-                })), false);
+                await dummy.addObjects(additionalObjects, false);
             }
 
             try {
@@ -166,6 +228,7 @@ export const generateDeletionTransport: Step<InstallWorkflowContext> = {
                 if (!(e instanceof RegistryDeletionTransportUnauthorizedError)) {
                     throw e;
                 }
+                //at this point the dummy is already released, transport cannot be deleted but it's a harmless release of a transport of copies.
                 Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`);
             }
         } finally {
