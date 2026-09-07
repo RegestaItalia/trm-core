@@ -71,6 +71,19 @@ export const importBatch: Step<InstallWorkflowContext> = {
             }
         }
 
+        // A former subpackage promoted to the installation root must not retain its
+        // old superpackage. Do this after cleanup has inspected the old hierarchy.
+        if (!context.rawInput.installData.installDevclass.keepOriginal && context.runtime.update) {
+            const rootReplacement = context.rawInput.installData.installDevclass.replacements.find(
+                replacement => replacement.originalDevclass === context.runtime.package.hierarchy.devclass
+            );
+            const previousRoot = context.runtime.update.getDevclass();
+            if (rootReplacement && previousRoot
+                && rootReplacement.installDevclass.trim().toUpperCase() !== previousRoot.trim().toUpperCase()) {
+                await SystemConnector.clearPackageSuperpackage(rootReplacement.installDevclass);
+            }
+        }
+
         //5- finalize workbench import
         Logger.loading(`Finalizing workbench import...`);
         for (const tadir of context.runtime.transports.tadir.binaries.entries.tadir || []) {
