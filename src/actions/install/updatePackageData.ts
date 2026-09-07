@@ -20,7 +20,7 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
         Logger.loading(`Finalizing install...`);
 
         //1- commit new values
-        const originalTransport = context.runtime.transports.tadir.binaries.trkorr;
+        const originalTransport = context.runtime.transports.tadir.instance.trkorr;
         const installTransport = context.output.transport?.trkorr;
         const originalDevclass = context.runtime.package.hierarchy.devclass;
         let devclass = originalDevclass;
