@@ -27,6 +27,7 @@ export class RegistryV2 implements AbstractRegistry {
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
     private _authData: any;
+    private _externalUserAgent: string;
     private _userAgent: string;
 
     constructor(public endpoint: string, public name: string = 'Unknown', private _coreVersion?: string) {
@@ -65,6 +66,10 @@ export class RegistryV2 implements AbstractRegistry {
         }, AXIOS_CTX);
     }
 
+    public setExternalUserAgent(userAgent: string): void {
+        this._externalUserAgent = userAgent;
+    }
+
     private getDefaultAxiosHeaders(): any {
         var axiosHeaders = new AxiosHeaders();
         if (!this._userAgent) {
@@ -74,7 +79,7 @@ export class RegistryV2 implements AbstractRegistry {
                 this._userAgent = `trm-core with unknown version`
             }
         }
-        axiosHeaders.setUserAgent(this._userAgent);
+        axiosHeaders.setUserAgent(this._externalUserAgent ? `${this._externalUserAgent}, ${this._userAgent}` : this._userAgent);
         return axiosHeaders;
     }
 

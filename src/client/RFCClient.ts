@@ -18,6 +18,7 @@ function getErrorMessage(error: unknown): string {
 
 export class RFCClient implements IClient {
     protected _rfcClient: any;
+    private _connectionResponseLogged = false;
 
     constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string, private _globalNodeModulesPath?: string) {
         try {
@@ -63,7 +64,11 @@ export class RFCClient implements IClient {
     }
 
     public async checkConnection(): Promise<boolean> {
-        await this._call("RFC_PING", undefined, connectionCheckTimeoutSeconds);
+        const result = await this._call("STFC_CONNECTION", { requtext: 'This is TRM' }, connectionCheckTimeoutSeconds);
+        if (!this._connectionResponseLogged && result && result.resptext) {
+            Logger.log(result.resptext, true);
+            this._connectionResponseLogged = true;
+        }
         return true;
     }
 
@@ -93,7 +98,9 @@ export class RFCClient implements IClient {
             Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(summarizeForLog(argNormalized))}, opts ${JSON.stringify(summarizeForLog(callOptions))}`, true);
             const response = await (await this.getRfcClient()).call(fm, argNormalized, callOptions);
             const responseNormalized = normalize(response);
-            Logger.success(`RFC resonse: ${JSON.stringify(summarizeForLog(responseNormalized))}`, true);
+            if (fm !== "STFC_CONNECTION") {
+                Logger.success(`RFC resonse: ${JSON.stringify(summarizeForLog(responseNormalized))}`, true);
+            }
             return responseNormalized;
         } catch (e) {
             if (getErrorMessage(e) === 'device or resource busy: device or resource busy' && retryCount < 10) {
