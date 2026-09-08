@@ -1,4 +1,4 @@
-import { inspect, Logger } from "trm-commons";
+import { Inquirer, inspect, Logger } from "trm-commons";
 import { Step, WorkflowCallbacks } from "@simonegaffurini/sammarksworkflow";
 import { summarizeForLog } from "../../commons";
 
@@ -24,11 +24,17 @@ export const workflowCallbacks: WorkflowCallbacks<any> = {
     },
     onRevertStart(step, context) {
         Logger.log(`Starting revert "${step.name}" step`, true);
+        Logger.setPrefix(`(Rollback) `);
+        Inquirer.setPrefix(`(Rollback) `);
     },
     onRevertCompleted(step: Step<any>) {
+        Logger.removePrefix();
+        Inquirer.removePrefix();
         Logger.log(`Completed revert "${step.name}" step`, true);
     },
     onRevertFailed(step: Step<any>, error: Error) {
+        Logger.removePrefix();
+        Inquirer.removePrefix();
         Logger.error(`Failed rollback: ${error.message}`);
         Logger.log(`Failed revert "${step.name}" step: ${error.message}`, true);
     },

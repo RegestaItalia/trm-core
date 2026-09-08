@@ -202,6 +202,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.readTmsQueue(target);
     }
 
+    public async deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        return this._client.deleteTemporaryPackage(devclass);
+    }
+
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
         return this._client.createPackage(scompkdtln);
     }

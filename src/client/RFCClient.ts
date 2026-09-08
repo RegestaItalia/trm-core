@@ -135,7 +135,7 @@ export class RFCClient implements IClient {
                 } else {
                     message = getErrorMessage(e);
                 }
-                var rfcClientError = new RFCClientError(e.key, sapMessage, e, message);
+                var rfcClientError = new RFCClientError(e.key, sapMessage, e, message, fm);
                 if (messageError) {
                     rfcClientError.messageError = messageError;
                 }
@@ -349,6 +349,12 @@ export class RFCClient implements IClient {
         return result['requests'];
     }
 
+    public async deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        await this._call("/ATRM/DELETE_TMP_PACKAGE", {
+            devclass: devclass.trim().toUpperCase()
+        });
+    }
+
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
         await this._call("/ATRM/CREATE_PACKAGE", {
             data: scompkdtln
@@ -389,7 +395,7 @@ export class RFCClient implements IClient {
         });
     }
 
-    private parseImportTransportResult(data: Buffer | string): struct.STMS_TP_IMPORT {
+    private parseImportTransportResult(data: Buffer | string, resource: string): struct.STMS_TP_IMPORT {
         try {
             if (data === undefined || data === null || data.toString().trim() === '') {
                 throw new Error('Empty import result');
@@ -460,7 +466,7 @@ export class RFCClient implements IClient {
             if (error instanceof RFCClientError) {
                 throw error;
             }
-            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse import result: ${getErrorMessage(error)}`);
+            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse import result: ${getErrorMessage(error)}`, resource);
         }
     }
 
@@ -471,7 +477,7 @@ export class RFCClient implements IClient {
             test: test ? 'X' : ' '
         });
         if (result && result.testResult) {
-            return this.parseImportTransportResult(result['testResult']);
+            return this.parseImportTransportResult(result['testResult'], '/ATRM/IMPORT_TR');
         }
     }
 
@@ -482,7 +488,7 @@ export class RFCClient implements IClient {
             test: test ? 'X' : ' '
         });
         if (result && result.testResult) {
-            return this.parseImportTransportResult(result['testResult']);
+            return this.parseImportTransportResult(result['testResult'], '/ATRM/IMPORT_TR_MULTIPLE');
         }
     }
 
@@ -590,7 +596,7 @@ export class RFCClient implements IClient {
                 }))
             };
         } catch (error) {
-            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse API data: ${getErrorMessage(error)}`);
+            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse API data: ${getErrorMessage(error)}`, "/ATRM/GET_ABAPGIT_SOURCE");
         }
     }
 

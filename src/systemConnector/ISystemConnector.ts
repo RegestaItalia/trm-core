@@ -41,6 +41,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     deleteTrkorr: (trkorr: components.TRKORR) => Promise<void>,
     releaseTrkorr: (trkorr: components.TRKORR, lock: boolean, timeout?: number) => Promise<void>,
     readTmsQueue: (target: components.TMSSYSNAM) => Promise<struct.STMSIQREQ[]>,
+    deleteTemporaryPackage: (devclass: components.DEVCLASS) => Promise<void>,
     createPackage: (scompkdtln: struct.SCOMPKDTLN) => Promise<void>,
     getDefaultTransportLayer: () => Promise<components.DEVLAYER>,
     tadirInterface: (tadir: struct.TADIR) => Promise<void>,

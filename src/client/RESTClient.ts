@@ -42,10 +42,10 @@ export class RESTClient implements IClient {
                     timeout: 5000
                 });
             } catch (e) {
-                throw new RESTClientError("ZNO_CONN", null, e, getErrorMessage(e));
+                throw new RESTClientError("ZNO_CONN", null, e, getErrorMessage(e), "/");
             }
             if (response.status !== 200) {
-                throw new RESTClientError("ZNO_CONN", null, null, `Couldn't reach ${this.endpoint}!`);
+                throw new RESTClientError("ZNO_CONN", null, null, `Couldn't reach ${this.endpoint}!`, "/");
             } else {
                 this._connected = true;
                 this._axiosInstance.interceptors.response.use((response) => {
@@ -335,6 +335,14 @@ export class RESTClient implements IClient {
         return result.requests;
     }
 
+    public async deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        await this._axiosInstance.delete('/delete_package', {
+            data: {
+                devclass: devclass.trim().toUpperCase()
+            }
+        });
+    }
+
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
         await this._axiosInstance.post('/create_package', scompkdtln);
     }
@@ -545,7 +553,7 @@ export class RESTClient implements IClient {
                 objects
             }
         } catch (e) {
-            throw new RESTClientError("ZPARSE_API_DATA", null, e, `Can't parse API data: ${getErrorMessage(e)}`);
+            throw new RESTClientError("ZPARSE_API_DATA", null, e, `Can't parse API data: ${getErrorMessage(e)}`, "/get_abapgit_source");
         }
     }
 

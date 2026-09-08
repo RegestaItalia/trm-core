@@ -14,7 +14,7 @@ import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { addNamespace } from "./addNamespace";
-import { DEVCLASS, TDEVC, TDEVCT } from "../../client";
+import { DEVCLASS, TADIR, TDEVC, TDEVCT } from "../../client";
 import { generateDevclass } from "./generateDevclass";
 import { prepareDevc } from "./prepareDevc";
 import { prepareTadir } from "./prepareTadir";
@@ -219,6 +219,8 @@ type WorkflowRevert = {
     cleanupTransport?: Transport,
     sapPackages: DEVCLASS[],
     dele?: TransportBinary,
+    cleanupOriginalTadir?: TADIR[],
+    cleanupTemporaryPackages?: TDEVC[],
     namespace?: string
 }
 

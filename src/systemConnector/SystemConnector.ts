@@ -128,6 +128,11 @@ export namespace SystemConnector {
         return systemConnector.readTmsQueue(target);
     }
 
+    export async function deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.deleteTemporaryPackage(devclass);
+    }
+
     export async function createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
         await checkSystemConnector();
         return systemConnector.createPackage(scompkdtln);

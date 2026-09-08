@@ -148,19 +148,28 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.revert.sapPackages.length > 0) {
-            if (!context.revert.cleanupTransport) {
+            if (!context.revert.cleanupTransport && context.revert.sapPackages.some(d => !d.startsWith('$'))) {
                 context.revert.cleanupTransport = await Transport.createToc({
                     text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
                     target: SystemConnector.getDest()
                 });
             }
-            await context.revert.cleanupTransport.addObjects(context.revert.sapPackages.map(devclass => {
-                return {
-                    pgmid: 'R3TR',
-                    object: 'DEVC',
-                    objName: devclass
+            for (const tmp of context.revert.sapPackages.filter(d => d.startsWith('$'))) {
+                try {
+                    await SystemConnector.deleteTemporaryPackage(tmp);
+                } catch (error) {
+                    Logger.error(`Failed rollback: ${error.message}`);
                 }
-            }), false);
+            }
+            if (context.revert.cleanupTransport) {
+                await context.revert.cleanupTransport.addObjects(context.revert.sapPackages.filter(d => !d.startsWith('$')).map(devclass => {
+                    return {
+                        pgmid: 'R3TR',
+                        object: 'DEVC',
+                        objName: devclass
+                    }
+                }), false);
+            }
         }
     }
 }
