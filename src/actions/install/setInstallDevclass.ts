@@ -4,14 +4,18 @@ import { adjustTrmServerRestDevclass, getPackageNamespace, PackageHierarchy } fr
 import { SystemConnector } from "../../systemConnector";
 import { Logger, Inquirer, Question } from "trm-commons";
 
-function _validateDevclass(input: string, namespaces: string[]): string | true {
+function _validateDevclass(input: string, namespaces?: string[]): string | true {
     const sInput: string = input.trim().toUpperCase();
-    namespaces = [...new Set(namespaces)]; //unique
     if (sInput.length > 30) {
         return `Package name must not exceede 30 characters limit.`;
     }
-    if (!namespaces.some(ns => sInput.startsWith(ns))) {
-        return `Package name must use one of the following namespaces: ${namespaces.join(', ')}.`;
+    if (namespaces) {
+        namespaces = [...new Set(namespaces)]; //unique
+        if (!namespaces.some(ns => sInput.startsWith(ns))) {
+            return `Package name must use one of the following namespaces: ${namespaces.join(', ')}.`;
+        } else {
+            return true;
+        }
     } else {
         return true;
     }
@@ -101,7 +105,8 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             }
             if (!replacement) {
                 if (context.rawInput.contextData.noInquirer || (context.runtime.isTrmServer || context.runtime.isTrmRest)) {
-                    const automaticValue = _validateDevclass(adaptDevclassName, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                    //const automaticValue = _validateDevclass(adaptDevclassName, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                    const automaticValue = _validateDevclass(adaptDevclassName);
                     if (automaticValue === true) {
                         context.rawInput.installData.installDevclass.replacements.push({
                             originalDevclass,
@@ -117,7 +122,8 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                         default: adaptDevclassName,
                         message: `ABAP Package "${adaptDevclassName}" will be imported. Do you want to rename it?`,
                         validate: (input) => {
-                            return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                            //return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                            return _validateDevclass(input);
                         }
                     });
                 }
@@ -128,7 +134,8 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                     default: replacement.installDevclass,
                     message: `Rename ABAP Package "${replacement.installDevclass}"`,
                     validate: (input) => {
-                        return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                        //return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                        return _validateDevclass(input);
                     }
                 });
             }
