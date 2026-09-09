@@ -26,6 +26,7 @@ import { updatePackageData } from "./updatePackageData";
 import { executePostActivities } from "./executePostActivities";
 import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
 import { generateUpdateTransport } from "./generateUpdateTransport";
+import { checkDependants } from "./checkDependants";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
@@ -268,6 +269,7 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         checkServerAuth,
         setSystemPackages,
         init,
+        checkDependants,
         checkTransports,
         checkSapEntries,
         checkDependencies,
