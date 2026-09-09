@@ -13,6 +13,8 @@ function normalize(value: string): string {
  * 
  * 1- add upgrade transport to target transport queue
  * 
+ * 2- release
+ * 
 */
 export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
     name: 'release-install-transports',

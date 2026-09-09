@@ -338,6 +338,10 @@ export class Transport {
         await SystemConnector.addToTransportRequest(this.trkorr, objects, lock);
     }
 
+    public async lock(): Promise<void> {
+        await SystemConnector.lockTransportObjs(this.trkorr);
+    }
+
     public async removeComments() {
         await SystemConnector.removeComments(this.trkorr, COMMENT_OBJ);
     }

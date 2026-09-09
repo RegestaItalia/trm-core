@@ -164,6 +164,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.addToTransportRequest(trkorr, content, lock);
     }
 
+    public async lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        return this._client.lockTransportObjs(trkorr);
+    }
+
     public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         return this._client.repositoryEnvironment(objectType, objectName);
     }

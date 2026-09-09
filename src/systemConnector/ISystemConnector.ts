@@ -37,6 +37,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     setTransportDoc: (trkorr: components.TRKORR, doc: struct.TLINE[]) => Promise<void>,
     removeComments: (trkorr: components.TRKORR, object: components.TROBJTYPE) => Promise<void>,
     addToTransportRequest: (trkorr: components.TRKORR, content: struct.E071[], lock: boolean) => Promise<void>,
+    lockTransportObjs: (trkorr: components.TRKORR) => Promise<void>,
     repositoryEnvironment: (objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME) => Promise<struct.SENVI[]>,
     deleteTrkorr: (trkorr: components.TRKORR) => Promise<void>,
     releaseTrkorr: (trkorr: components.TRKORR, lock: boolean, timeout?: number) => Promise<void>,

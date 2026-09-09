@@ -322,6 +322,11 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                 }
             }
 
+            //guard: clean and rebuild comments
+            await dummy.removeComments();
+            await dummy.addComment(`name=${context.runtime.package.data.manifest.name}`);
+            await dummy.addComment(`version=${context.runtime.update.manifest.get().version}`);
+
             try {
                 await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
             } catch (e) {

@@ -26,6 +26,8 @@ function normalize(value: string): string {
  * 
  * 7- add comments and documentation
  * 
+ * 8- lock objects
+ * 
 */
 export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
     name: 'generate-landscape-transport',
@@ -46,7 +48,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         });
 
         //2- add sap packages
-        Logger.loading(`Locking landscape transport...`);
+        Logger.loading(`Locking transport...`);
         if (context.rawInput.installData.installDevclass.keepOriginal) {
             Logger.loading(`Including objects from DEVC transport...`, true);
             await context.output.transport.addObjectsFromTransport(context.runtime.transports.devc.instance.trkorr);
@@ -75,7 +77,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
                 PGMID: 'R3TR',
                 OBJECT: 'NSPC',
                 OBJ_NAME: context.revert.namespace
-            }])
+            }]);
             if (nspcLock.length === 0) {
                 Logger.loading(`Adding namespace ${context.revert.namespace}...`, true);
                 await context.output.transport.addObjects([{
@@ -99,15 +101,23 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         }
 
         //7- add comments and documentation
-        await context.output.transport.removeComments(); //after merges it might have old comments
+        await context.output.transport.removeComments(); //start clean without TRM comments
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
         //if previous package was temporary, don't add deletion entries
         const noDeletions = context.runtime.update && normalize(context.runtime.update.getDevclass() || '').startsWith('$');
         if (context.revert.dele && !noDeletions) {
+            //avoiding the transport attribute and CTS dependency (requires a CTS project...)
+            //this is the easy solution
+            //for a clean upgrade, first deletion transport then landscape transport should be imported
             await context.output.transport.addComment(`upgrade=${context.revert.dele.trkorr}`);
         }
         await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());
+
+        //8- lock objects
+        //what is lockable gets locked here
+        //all workbench should be lockable here
+        await context.output.transport.lock();
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.output.transport && await context.output.transport.canBeDeleted()) {

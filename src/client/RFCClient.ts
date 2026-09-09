@@ -321,6 +321,12 @@ export class RFCClient implements IClient {
         });
     }
 
+    public async lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        await this._call("/ATRM/LOCK_TRANSPORT_OBJS", {
+            trkorr: trkorr.trim().toUpperCase()
+        });
+    }
+
     public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         const result = await this._call("REPOSITORY_ENVIRONMENT_RFC", {
             obj_type: objectType.trim().toUpperCase(),

@@ -233,6 +233,11 @@ export namespace SystemConnector {
         return systemConnector.addToTransportRequest(trkorr, content, lock);
     }
 
+    export async function lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.lockTransportObjs(trkorr);
+    }
+
     export async function repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         await checkSystemConnector();
         return systemConnector.repositoryEnvironment(objectType, objectName);

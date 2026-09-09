@@ -296,6 +296,12 @@ export class RESTClient implements IClient {
         });
     }
 
+    public async lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        await this._axiosInstance.post('/lock_tr_objects', {
+            trkorr: trkorr.trim().toUpperCase()
+        });
+    }
+
     public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         const result = (await this._axiosInstance.get('/repository_environment', {
             params: {
