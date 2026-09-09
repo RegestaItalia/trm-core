@@ -1,9 +1,8 @@
----
-name: maintain-system-connector-api
-description: Add, edit, rename, or remove a typed public SystemConnector API in trm-core while keeping its interface, facade, RFC and REST connectors, transport clients, and shared types synchronized. Use for requests that change methods exposed through SystemConnector; do not use for client-only helpers that are intentionally not part of the connector API.
----
+# Maintaining SystemConnector APIs
 
-# Maintain SystemConnector APIs
+Follow this workflow when adding, editing, renaming, or removing a typed public
+`SystemConnector` API. It does not apply to client-only helpers that are
+intentionally excluded from the connector API.
 
 Treat a public connector API as one contract implemented through both transports. Unless the user explicitly narrows the scope, keep all of these files synchronized:
 
