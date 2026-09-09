@@ -93,7 +93,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
 
         //7- add upgrade transport deletion entries (if generated)
         //if previous package was temporary, don't add deletion entries
-        const noDeletions = normalize(context.runtime.update.getDevclass() || '').startsWith('$');
+        const noDeletions = context.runtime.update && normalize(context.runtime.update.getDevclass() || '').startsWith('$');
         if(context.revert.dele && !noDeletions){
             await context.output.transport.addObjectsFromTransport(context.revert.dele.trkorr);
         }
