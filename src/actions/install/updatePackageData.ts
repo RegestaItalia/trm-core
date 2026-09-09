@@ -20,6 +20,7 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
         Logger.loading(`Finalizing install...`);
 
         //1- commit new values
+        Logger.loading(`Updating TRM data...`);
         const originalTransport = context.runtime.transports.tadir.instance.trkorr;
         const installTransport = context.output.transport?.trkorr;
         const originalDevclass = context.runtime.package.hierarchy.devclass;
@@ -50,7 +51,6 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
                 break;
         }
 
-        Logger.loading(`Updating data...`);
         var installDevc: ZTRM_INSTALLDEVC[] = [];
         context.rawInput.installData.installDevclass.replacements.forEach(o => {
             installDevc.push({
