@@ -4,6 +4,10 @@ import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
 import { Manifest } from "../../manifest";
 
+function normalize(value: string): string {
+    return value.trim().toUpperCase();
+}
+
 /**
  * Workflow step that creates the landscape transport used to carry installed changes onward.
  * 
@@ -19,7 +23,9 @@ import { Manifest } from "../../manifest";
  * 
  * 6- add customizing (if imported)
  * 
- * 7- add comments and documentation
+ * 7- add upgrade transport deletion entries (if generated)
+ * 
+ * 8- add comments and documentation
  * 
 */
 export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
@@ -85,7 +91,14 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
             await context.output.transport.addObjectsFromTransport(cust.instance.trkorr);
         }
 
-        //7- add comments and documentation
+        //7- add upgrade transport deletion entries (if generated)
+        //if previous package was temporary, don't add deletion entries
+        const noDeletions = normalize(context.runtime.update.getDevclass() || '').startsWith('$');
+        if(context.revert.dele && !noDeletions){
+            await context.output.transport.addObjectsFromTransport(context.revert.dele.trkorr);
+        }
+
+        //8- add comments and documentation
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
         await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());
