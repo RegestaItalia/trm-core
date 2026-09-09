@@ -99,6 +99,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         }
 
         //8- add comments and documentation
+        await context.output.transport.removeComments(); //after merges it might have old comments
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
         await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());
