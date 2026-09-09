@@ -3,6 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
 import { Manifest } from "../../manifest";
+import { SystemConnector } from "../../systemConnector";
 
 function normalize(value: string): string {
     return value.trim().toUpperCase();
@@ -23,9 +24,7 @@ function normalize(value: string): string {
  * 
  * 6- add customizing (if imported)
  * 
- * 7- add upgrade transport deletion entries (if generated)
- * 
- * 8- add comments and documentation
+ * 7- add comments and documentation
  * 
 */
 export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
@@ -71,12 +70,20 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         //using context.runtime.namespace would be wrong because it's the package namespace, but it doesn't necessarily mean it was generated
         //check addNamespace step for clarification
         if (context.revert.namespace) {
-            Logger.loading(`Adding namespace ${context.revert.namespace}...`, true);
-            await context.output.transport.addObjects([{
-                pgmid: 'R3TR',
-                object: 'NSPC',
-                objName: context.revert.namespace
-            }], false);
+            Logger.loading(`Checking namespace ${context.revert.namespace} lock...`, true);
+            const nspcLock = await SystemConnector.getObjectsLocks([{
+                PGMID: 'R3TR',
+                OBJECT: 'NSPC',
+                OBJ_NAME: context.revert.namespace
+            }])
+            if (nspcLock.length === 0) {
+                Logger.loading(`Adding namespace ${context.revert.namespace}...`, true);
+                await context.output.transport.addObjects([{
+                    pgmid: 'R3TR',
+                    object: 'NSPC',
+                    objName: context.revert.namespace
+                }], true);
+            }
         }
 
         //5- add translations (if imported)
@@ -91,17 +98,15 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
             await context.output.transport.addObjectsFromTransport(cust.instance.trkorr);
         }
 
-        //7- add upgrade transport deletion entries (if generated)
-        //if previous package was temporary, don't add deletion entries
-        const noDeletions = context.runtime.update && normalize(context.runtime.update.getDevclass() || '').startsWith('$');
-        if(context.revert.dele && !noDeletions){
-            await context.output.transport.addObjectsFromTransport(context.revert.dele.trkorr);
-        }
-
-        //8- add comments and documentation
+        //7- add comments and documentation
         await context.output.transport.removeComments(); //after merges it might have old comments
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
+        //if previous package was temporary, don't add deletion entries
+        const noDeletions = context.runtime.update && normalize(context.runtime.update.getDevclass() || '').startsWith('$');
+        if (context.revert.dele && !noDeletions) {
+            await context.output.transport.addComment(`upgrade=${context.revert.dele.trkorr}`);
+        }
         await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {

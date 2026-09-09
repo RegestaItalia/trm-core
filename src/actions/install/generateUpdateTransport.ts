@@ -103,7 +103,7 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             //1- generate dummy transport
             Logger.loading(`Generating transport...`);
             dummy = await Transport.createToc({
-                text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
+                text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.update.manifest.get().version}`,
                 target: SystemConnector.getDest()
             });
             const previousTransportObjects = context.runtime.update.getTransport()

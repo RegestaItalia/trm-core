@@ -2,11 +2,16 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { Transport } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
+
+function normalize(value: string): string {
+    return value.trim().toUpperCase();
+}
 
 /**
  * Workflow step that releases the generated landscape transport, when present.
  * 
- * 1- release
+ * 1- add upgrade transport to target transport queue
  * 
 */
 export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
@@ -35,7 +40,15 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
                 Inquirer.setPrefix(prefix);
             }
 
-            //1- release
+            //1- add upgrade transport to target transport queue
+            //if previous package was temporary, don't add deletion entries
+            const noDeletions = context.runtime.update && normalize(context.runtime.update.getDevclass() || '').startsWith('$');
+            if(context.revert.dele && !noDeletions){
+                await SystemConnector.forwardTransport(context.revert.dele.trkorr, context.rawInput.installData.landscapeTransport.targetSystem, SystemConnector.getDest(), true);
+                context.revert.deleInTargetTms = true;
+            }
+
+            //2- release
             Logger.loading(`Releasing...`);
             await context.output.transport.release(true, false, context.rawInput.contextData.logTemporaryFolder);
         } finally {
@@ -44,6 +57,9 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if(context.revert.deleInTargetTms){
+            await SystemConnector.deleteTmsTransport(context.revert.dele.trkorr, context.rawInput.installData.landscapeTransport.targetSystem);
+        }
         if (await context.output.transport.canBeDeleted()) {
             await context.output.transport.delete();
             context.output.transport = undefined;
