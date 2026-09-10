@@ -17,6 +17,7 @@
     "cleanBuild": "rimraf dist/",
     "build": "npm run cleanBuild && tsc --sourceMap false",
     "test": "jest --runInBand",
+    "e2e:revert-matrix": "npm run build && scripts/e2e-revert-matrix.sh",
     "prepublishOnly": "npm run build",
     "postinstall": "node -e \"if (require('fs').existsSync('dist/scripts/checkEngine.js')) require('child_process').execFileSync(process.execPath, ['dist/scripts/checkEngine.js'], { stdio: 'inherit' })\""
   },

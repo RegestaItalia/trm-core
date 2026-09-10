@@ -5,6 +5,9 @@ dist
 sapnwrfc.ini
 dev_rfc.log
 _noderfc.log
-src/test.ts
+src/test*.ts
 *.tgz
 .DS_Store
+logs
+src/e2e
+scripts/e2e-revert-matrix.sh
