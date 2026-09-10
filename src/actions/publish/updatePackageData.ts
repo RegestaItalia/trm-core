@@ -33,6 +33,7 @@ export const updatePackageData: Step<PublishWorkflowContext> = {
             Logger.error(`An error occurred during publish finalize. The package has been published, however package on ${SystemConnector.getDest()} is inconsistent.`);
             Logger.error(`Consider running an install of the newly published package to fix inconsistency.`);
             Logger.error(e.toString(), true);
+            throw e;
         }
     }
 }

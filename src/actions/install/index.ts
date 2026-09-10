@@ -14,7 +14,8 @@ import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { addNamespace } from "./addNamespace";
-import { DEVCLASS, TADIR, TDEVC, TDEVCT } from "../../client";
+import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT } from "../../client";
+import { TrmPackageUpdateData } from "../../systemConnector";
 import { generateDevclass } from "./generateDevclass";
 import { prepareDevc } from "./prepareDevc";
 import { prepareTadir } from "./prepareTadir";
@@ -27,6 +28,7 @@ import { executePostActivities } from "./executePostActivities";
 import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
 import { generateUpdateTransport } from "./generateUpdateTransport";
 import { checkDependants } from "./checkDependants";
+import { executeRetainedWorkflow } from "../commons/utils";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
@@ -205,6 +207,7 @@ type WorkflowRuntime = {
     dependencies: TrmManifestDependency[],
     namespace: string,
     previousInstallPackages: InstallPackageReplacements[],
+    dependencyRollbacks: Array<() => Promise<void>>,
     rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean
 }
@@ -218,11 +221,28 @@ type WorkflowRevert = {
         cust?: TransportBinary[]
     },
     cleanupTransport?: Transport,
+    cleanupImported?: boolean,
+    cleanupSucceeded?: boolean,
+    importStarted?: boolean,
+    importedEntries?: E071[],
+    packageHierarchy?: TDEVC[],
+    packageTransportLayers?: Array<{ devclass: DEVCLASS, transportLayer: string }>,
+    createdTransports?: {
+        devc?: Transport,
+        tadir?: Transport,
+        lang?: Transport,
+        cust: Transport[]
+    },
     sapPackages: DEVCLASS[],
     dele?: TransportBinary,
     deleInTargetTms?: boolean,
     cleanupOriginalTadir?: TADIR[],
     cleanupTemporaryPackages?: TDEVC[],
+    updateCleanupTransport?: Transport,
+    metadataWriteStarted?: boolean,
+    metadataPackageRegistry?: string,
+    metadataPackageRow?: TrmPackageUpdateData,
+    metadataPreviousPackageRow?: TrmPackageUpdateData,
     namespace?: string
 }
 
@@ -265,7 +285,10 @@ const WORKFLOW_NAME = 'install';
  * transport processing, or post-install work fails.
  */
 export async function install(inputData: InstallActionInput): Promise<InstallActionOutput> {
-    const workflow = [
+    return (await runInstall(inputData, false)).output;
+}
+
+const installWorkflow = [
         checkServerAuth,
         setSystemPackages,
         init,
@@ -284,12 +307,36 @@ export async function install(inputData: InstallActionInput): Promise<InstallAct
         prepareCust,
         importBatch,
         generateLandscapeTransport,
-        updatePackageData,
         executePostActivities,
-        releaseLandscapeTransport
-    ];
-    const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {
+        releaseLandscapeTransport,
+        updatePackageData
+];
+
+async function runInstall(inputData: InstallActionInput, retainRollback: boolean): Promise<{
+    output: InstallActionOutput,
+    rollback?: () => Promise<void>
+}> {
+    if (retainRollback) {
+        const retained = await executeRetainedWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, {
+            rawInput: inputData
+        }, workflowCallbacks);
+        return { output: retained.context.output, rollback: retained.rollback };
+    }
+    const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, {
         rawInput: inputData
     }, workflowCallbacks);
-    return result.output;
+    return {
+        output: result.output
+    };
+}
+
+/** Internal transactional entry point used when a parent install must retain rollback ownership. */
+export async function installWithRollback(inputData: InstallActionInput): Promise<{
+    output: InstallActionOutput,
+    rollback: () => Promise<void>
+}> {
+    const retained = await executeRetainedWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, {
+        rawInput: inputData
+    }, workflowCallbacks);
+    return { output: retained.context.output, rollback: retained.rollback };
 }

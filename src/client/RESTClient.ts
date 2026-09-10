@@ -7,7 +7,7 @@ import * as FormData from "form-data";
 import { Logger } from "trm-commons";
 import { Login, RESTClientError, SapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
-import { TrmPackageUpdateData } from "../systemConnector";
+import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 
 const AXIOS_CTX = "RestServer";
 
@@ -412,6 +412,14 @@ export class RESTClient implements IClient {
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         await this._axiosInstance.put('/set_install_devc', {
             installdevc: installDevc
+        });
+    }
+
+    public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        await this._axiosInstance.put('/set_install_devc', {
+            package: data.package,
+            package_exists: data.packageExists ? 'X' : ' ',
+            installdevc: data.installDevc
         });
     }
 

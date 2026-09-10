@@ -15,6 +15,13 @@ export interface TrmPackageUpdateData {
     devclass: string
 }
 
+/** Atomic rollback payload for the TRM package row and install mappings. */
+export interface TrmPackageMetadataRestoreData {
+    package: TrmPackageUpdateData,
+    packageExists: boolean,
+    installDevc: struct.ZTRM_INSTALLDEVC[]
+}
+
 export interface ISystemConnector extends ISystemConnectorBase {
     supportedBulk: SystemConnectorSupportedBulk, //indicates bulk operations allowed
     isStateless: boolean,
@@ -50,6 +57,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     importTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean) => Promise<struct.STMS_TP_IMPORT | void>,
     importTransportMultiple: (trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean) => Promise<struct.STMS_TP_IMPORT | void>,
     setInstallDevc: (installDevc: struct.ZTRM_INSTALLDEVC[]) => Promise<void>,
+    restoreInstallMetadata: (data: TrmPackageMetadataRestoreData) => Promise<void>,
     getObjectsList: () => Promise<struct.KO100[]>,
     renameTransportRequest: (trkorr: components.TRKORR, as4text: components.AS4TEXT) => Promise<void>,
     addTranslationToTr: (trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]) => Promise<void>,

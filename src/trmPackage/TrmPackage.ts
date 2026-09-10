@@ -6,10 +6,21 @@ import { DEVCLASS, ZTRM_DIRTY } from "../client";
 import { Lockfile } from "../lockfile";
 import { Transport } from "../transport";
 
+/** Exact persisted TRM package row, retained for transactional install rollback. */
+export interface TrmPackageMetadataSnapshot {
+    package_name: string,
+    package_registry: string,
+    manifest: Buffer,
+    trkorr: string,
+    integrity: string,
+    devclass: string
+}
+
 export class TrmPackage {
     private _devclass: DEVCLASS;
     private _dirtyEntries: ZTRM_DIRTY[] = [];
     private _transport: Transport;
+    private _metadataSnapshot?: TrmPackageMetadataSnapshot;
 
     constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
     }
@@ -43,6 +54,15 @@ export class TrmPackage {
 
     public getTransport(): Transport | undefined {
         return this._transport;
+    }
+
+    public setMetadataSnapshot(snapshot: TrmPackageMetadataSnapshot): TrmPackage {
+        this._metadataSnapshot = snapshot;
+        return this;
+    }
+
+    public getMetadataSnapshot(): TrmPackageMetadataSnapshot | undefined {
+        return this._metadataSnapshot;
     }
 
     public async publish(data: {

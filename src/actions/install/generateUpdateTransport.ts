@@ -18,27 +18,51 @@ function normalize(value: string): string {
     return value.trim().toUpperCase();
 }
 
+export async function deleteTemporaryCleanupPackages(
+    temporaryPackages: Array<Pick<E071, 'objName'>>
+): Promise<void> {
+    let firstError: unknown;
+    for (const devclass of temporaryPackages) {
+        try {
+            await SystemConnector.deleteTemporaryPackage(devclass.objName);
+        } catch (error) {
+            firstError ||= error;
+        }
+    }
+    if (firstError) {
+        throw firstError;
+    }
+}
+
 function objectKey(object: Pick<E071, 'pgmid' | 'object' | 'objName'>): string {
     return `${normalize(object.pgmid)}\u0000${normalize(object.object)}\u0000${normalize(object.objName)}`;
 }
 
 async function restoreCleanupPackages(context: InstallWorkflowContext): Promise<void> {
     // Snapshots are stored in deletion order: reverse it to recreate parents first.
+    let firstError: unknown;
     for (const pkg of [...(context.revert.cleanupTemporaryPackages || [])].reverse()) {
-        if (await SystemConnector.getDevclass(pkg.devclass)) {
-            continue;
+        try {
+            if (await SystemConnector.getDevclass(pkg.devclass)) {
+                continue;
+            }
+            await SystemConnector.createPackage({
+                ...packageDataFromTdevc(pkg, {
+                    devclass: pkg.devclass,
+                    ctext: pkg.ctext || '',
+                    as4user: pkg.as4user || SystemConnector.getLogonUser(),
+                    dlvunit: pkg.dlvunit,
+                    pdevclass: pkg.pdevclass || ''
+                }),
+                parentcl: pkg.parentcl,
+                tpclass: pkg.tpclass
+            });
+        } catch (error) {
+            firstError ||= error;
         }
-        await SystemConnector.createPackage({
-            ...packageDataFromTdevc(pkg, {
-                devclass: pkg.devclass,
-                ctext: pkg.ctext || '',
-                as4user: pkg.as4user || SystemConnector.getLogonUser(),
-                dlvunit: pkg.dlvunit,
-                pdevclass: pkg.pdevclass || ''
-            }),
-            parentcl: pkg.parentcl,
-            tpclass: pkg.tpclass
-        });
+    }
+    if (firstError) {
+        throw firstError;
     }
 }
 
@@ -51,10 +75,18 @@ async function restoreCleanupAssignments(context: InstallWorkflowContext, restor
         return;
     }
     const existing = new Set((await SystemConnector.getExistingObjects(originals)).map(objectKey));
+    let firstError: unknown;
     for (const object of originals) {
         if (existing.has(objectKey(object))) {
-            await SystemConnector.tadirInterface(object);
+            try {
+                await SystemConnector.tadirInterface(object);
+            } catch (error) {
+                firstError ||= error;
+            }
         }
+    }
+    if (firstError) {
+        throw firstError;
     }
 }
 
@@ -106,6 +138,7 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                 text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.update.manifest.get().version}`,
                 target: SystemConnector.getDest()
             });
+            context.revert.updateCleanupTransport = dummy;
             const previousTransportObjects = context.runtime.update.getTransport()
                 ? await context.runtime.update.getTransport().getE071()
                 : [];
@@ -263,6 +296,9 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                     stagingDevclass = `ZTRM_DELE_${randomBytes(8).toString('hex').toUpperCase()}`; // 25 characters; DEVCLASS allows 30.
                 } while (await SystemConnector.getDevclass(stagingDevclass));
                 Logger.loading(`Creating package ${stagingDevclass}...`, true);
+                // Track before the mutating await because SAP may commit the package
+                // even when the connector response fails.
+                context.revert.sapPackages.push(stagingDevclass);
                 await SystemConnector.createPackage({
                     devclass: stagingDevclass,
                     ctext: 'TRM upgrade cleanup',
@@ -270,7 +306,6 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                     dlvunit: 'HOME',
                     pdevclass: await SystemConnector.getDefaultTransportLayer()
                 });
-                context.revert.sapPackages.push(stagingDevclass);
                 await SystemConnector.tadirInterface({
                     pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass,
                     devclass: stagingDevclass, srcsystem: 'TRM'
@@ -314,13 +349,7 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                 }
                 context.revert.cleanupTemporaryPackages.push({ ...pkg });
             }
-            for (const devclass of temporaryPackages) {
-                try {
-                    await SystemConnector.deleteTemporaryPackage(devclass.objName);
-                } catch (e) {
-                    Logger.warning(`Could not delete temporary SAP package ${devclass.objName}: ${e instanceof Error ? e.message : String(e)}. Manual cleanup may be necessary.`);
-                }
-            }
+            await deleteTemporaryCleanupPackages(temporaryPackages);
 
             //guard: clean and rebuild comments
             await dummy.removeComments();
@@ -338,9 +367,6 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                 await restoreCleanupAssignments(context, true);
             }
         } catch (e) {
-            if (dummy && (await dummy.canBeDeleted())) {
-                await dummy.delete();
-            }
             throw e;
         } finally {
             Logger.setPrefix(originalLPrefix);
@@ -348,16 +374,35 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        await restoreCleanupPackages(context);
-        if (context.revert.dele) {
-            //check if it can be deleted -> the exception might have been raised before the transport release, we can still cleanup nicely
-            const transport = new Transport(context.revert.dele.trkorr);
-            if (await (transport.canBeDeleted())) {
-                await transport.delete();
-            } else {
-                await restoreTransport(context.revert.dele);
-            }
+        let firstError: unknown;
+        try {
+            await restoreCleanupPackages(context);
+        } catch (error) {
+            firstError = error;
         }
-        await restoreCleanupAssignments(context, false);
+        try {
+            if (context.revert.dele) {
+                //check if it can be deleted -> the exception might have been raised before the transport release, we can still cleanup nicely
+                const transport = new Transport(context.revert.dele.trkorr);
+                if (await (transport.canBeDeleted())) {
+                    await transport.delete();
+                } else {
+                    await restoreTransport(context.revert.dele);
+                }
+            } else if (context.revert.updateCleanupTransport
+                && await context.revert.updateCleanupTransport.canBeDeleted()) {
+                await context.revert.updateCleanupTransport.delete();
+            }
+        } catch (error) {
+            firstError ||= error;
+        }
+        try {
+            await restoreCleanupAssignments(context, false);
+        } catch (error) {
+            firstError ||= error;
+        }
+        if (firstError) {
+            throw firstError;
+        }
     }
 }

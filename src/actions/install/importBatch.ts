@@ -1,9 +1,129 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { Inquirer, Logger } from "trm-commons";
-import { TADIR } from "../../client";
+import type { E071, TADIR } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { Transport } from "../../transport";
 import { InstallWorkflowContext } from ".";
+import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
+import { releaseDeletionTransport } from "../commons/utils";
+
+function entryKey(entry: { pgmid: string, object: string, objName: string }): string {
+    return `${entry.pgmid.trim().toUpperCase()}\u0000${entry.object.trim().toUpperCase()}\u0000${entry.objName.trim().toUpperCase()}`;
+}
+
+function importedTransports(context: InstallWorkflowContext): Transport[] {
+    return [
+        context.runtime.transports.tadir.instance,
+        context.runtime.transports.devc.instance,
+        context.runtime.transports.lang?.instance,
+        ...(context.runtime.transports.cust || []).map(cust => cust.instance)
+    ].filter((transport): transport is Transport => Boolean(transport));
+}
+
+async function snapshotImportedEntries(context: InstallWorkflowContext, transports: Transport[]): Promise<void> {
+    const entries = (await Promise.all(transports.map(transport => transport.getE071()))).flat();
+    context.revert.importedEntries = Array.from(
+        new Map(entries.map(entry => [entryKey(entry), entry])).values()
+    );
+}
+
+function cleanupEntries(context: InstallWorkflowContext): E071[] {
+    const entries = new Map(
+        (context.revert.importedEntries || [])
+            // Temporary packages have a dedicated deletion API. Their other
+            // imported objects still remain in the single workbench cleanup
+            // transport, but the DEVC row itself must not be transported.
+            .filter(entry => !(entry.pgmid.trim().toUpperCase() === 'R3TR'
+                && entry.object.trim().toUpperCase() === 'DEVC'
+                && entry.objName.trim().startsWith('$')))
+            .map(entry => [entryKey(entry), entry])
+    );
+
+    for (const devclass of context.revert.sapPackages.filter(devclass => !devclass.startsWith('$'))) {
+        const entry = { pgmid: 'R3TR', object: 'DEVC', objName: devclass };
+        entries.set(entryKey(entry), entry);
+    }
+    if (context.revert.namespace) {
+        const entry = { pgmid: 'R3TR', object: 'NSPC', objName: context.revert.namespace };
+        entries.set(entryKey(entry), entry);
+    }
+    return Array.from(entries.values());
+}
+
+export async function deleteImportedEntries(context: InstallWorkflowContext): Promise<void> {
+    if (context.revert.cleanupImported) {
+        return;
+    }
+
+    let cleanupError: unknown;
+    let workbenchSucceeded = true;
+    const entries = cleanupEntries(context);
+    if (entries.length > 0) {
+        try {
+            if (!context.revert.cleanupTransport) {
+                context.revert.cleanupTransport = await Transport.createToc({
+                    text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
+                    target: SystemConnector.getDest()
+                });
+            }
+            const cleanupTransport = context.revert.cleanupTransport;
+            await cleanupTransport.addObjects(entries, false);
+            const transportEntries = await cleanupTransport.getE071();
+            if (transportEntries.length > 0) {
+                await releaseDeletionTransport(cleanupTransport, context.rawInput.packageData.registry, context, false);
+            } else {
+                await cleanupTransport.delete();
+            }
+        } catch (error) {
+            workbenchSucceeded = false;
+            if (error instanceof RegistryDeletionTransportUnauthorizedError) {
+                context.revert.cleanupTransport = undefined;
+                Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of imported entries might be necessary.`);
+            } else {
+                cleanupError = error;
+                const cleanupTransport = context.revert.cleanupTransport;
+                if (cleanupTransport) {
+                    try {
+                        if (await cleanupTransport.canBeDeleted()) {
+                            await cleanupTransport.delete();
+                        }
+                    } catch (deleteError) {
+                        cleanupError ||= deleteError;
+                    }
+                }
+            }
+        }
+    }
+
+    const temporaryPackages = new Set(
+        context.revert.sapPackages.filter(devclass => devclass.startsWith('$'))
+    );
+    for (const entry of context.revert.importedEntries || []) {
+        if (entry.pgmid.trim().toUpperCase() === 'R3TR'
+            && entry.object.trim().toUpperCase() === 'DEVC'
+            && entry.objName.trim().startsWith('$')) {
+            temporaryPackages.add(entry.objName.trim());
+        }
+    }
+
+    let temporaryPackagesSucceeded = true;
+    for (const devclass of temporaryPackages) {
+        try {
+            await SystemConnector.deleteTemporaryPackage(devclass);
+        } catch (error) {
+            temporaryPackagesSucceeded = false;
+            cleanupError ||= error;
+        }
+    }
+
+    // A failed cleanup is terminal for this rollback pass. In particular, prepared
+    // payloads must not be restored on top of objects that were not deleted.
+    context.revert.cleanupSucceeded = workbenchSucceeded && temporaryPackagesSucceeded;
+    context.revert.cleanupImported = true;
+    if (cleanupError) {
+        throw cleanupError;
+    }
+}
 
 /**
  * Workflow step that imports every prepared transport in one TMS batch.
@@ -23,18 +143,18 @@ export const importBatch: Step<InstallWorkflowContext> = {
     name: 'import-batch',
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- collect prepared transport instances
-        const transports = [
-            context.runtime.transports.tadir.instance,
-            context.runtime.transports.devc.instance,
-            context.runtime.transports.lang?.instance,
-            ...(context.runtime.transports.cust || []).map(cust => cust.instance)
-        ].filter((transport): transport is Transport => Boolean(transport));
+        const transports = importedTransports(context);
 
-        //2- import transports in batch
+        //2- snapshot every entry that may be imported. The deletion transport itself
+        // is created only during revert, so it cannot lock objects before this import.
+        await snapshotImportedEntries(context, transports);
+
+        //3- import transports in batch
         Logger.loading(`Installing...`);
+        context.revert.importStarted = true;
         await Transport.importMultiple(transports, SystemConnector.getDest(), false);
 
-        //3- reconnect when system is not stateless
+        //4- reconnect when system is not stateless
         if (!SystemConnector.isStateless()) {
             Logger.loading(`Closing connection for reconnect...`, true);
             await SystemConnector.closeConnection();
@@ -43,10 +163,20 @@ export const importBatch: Step<InstallWorkflowContext> = {
             Logger.success(`OK, continue`, true);
         }
 
-        //4- finalize SAP Packages import
+        //5- finalize SAP Packages import
         if (context.runtime.transports.devc.instance) {
             Logger.loading(`Finalizing SAP Packages import...`);
             for (const tdevc of context.runtime.transports.devc.binaries.entries.tdevc || []) {
+                const previous = await SystemConnector.getDevclass(tdevc.devclass);
+                const isGenerated = context.revert.sapPackages.includes(tdevc.devclass);
+                if (context.runtime.update && !isGenerated && previous?.pdevclass
+                    && !(context.revert.packageTransportLayers || []).some(layer => layer.devclass === tdevc.devclass)) {
+                    context.revert.packageTransportLayers ||= [];
+                    context.revert.packageTransportLayers.push({
+                        devclass: tdevc.devclass,
+                        transportLayer: previous.pdevclass
+                    });
+                }
                 Logger.log(`Running TDEVC interface for devclass ${tdevc.devclass} -> transport layer ${context.rawInput.installData.installDevclass.transportLayer}`, true);
                 await SystemConnector.setPackageTransportLayer(tdevc.devclass, context.rawInput.installData.installDevclass.transportLayer);
             }
@@ -84,7 +214,7 @@ export const importBatch: Step<InstallWorkflowContext> = {
             }
         }
 
-        //5- finalize workbench import
+        //6- finalize workbench import
         Logger.loading(`Finalizing workbench import...`);
         for (const tadir of context.runtime.transports.tadir.binaries.entries.tadir || []) {
             const object: TADIR = {
@@ -104,5 +234,9 @@ export const importBatch: Step<InstallWorkflowContext> = {
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${tadir.devclass} -> ${object.devclass}, src system ${tadir.srcsystem} -> ${object.srcsystem}`, true);
             await SystemConnector.tadirInterface(object);
         }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        // Run before the prepare-* reverts restore the transport snapshots.
+        await deleteImportedEntries(context);
     }
 };

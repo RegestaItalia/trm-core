@@ -46,8 +46,9 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
             //if previous package was temporary, don't add deletion entries
             const noDeletions = context.runtime.update && normalize(context.runtime.update.getDevclass() || '').startsWith('$');
             if(context.revert.dele && !noDeletions){
-                await SystemConnector.forwardTransport(context.revert.dele.trkorr, context.rawInput.installData.landscapeTransport.targetSystem, SystemConnector.getDest(), true);
+                // The queue may be changed even when the connector response fails.
                 context.revert.deleInTargetTms = true;
+                await SystemConnector.forwardTransport(context.revert.dele.trkorr, context.rawInput.installData.landscapeTransport.targetSystem, SystemConnector.getDest(), true);
             }
 
             //2- release
@@ -59,12 +60,24 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
+        let firstError: unknown;
         if(context.revert.deleInTargetTms){
-            await SystemConnector.deleteTmsTransport(context.revert.dele.trkorr, context.rawInput.installData.landscapeTransport.targetSystem);
+            try {
+                await SystemConnector.deleteTmsTransport(context.revert.dele.trkorr, context.rawInput.installData.landscapeTransport.targetSystem);
+            } catch (error) {
+                firstError = error;
+            }
         }
-        if (await context.output.transport.canBeDeleted()) {
-            await context.output.transport.delete();
-            context.output.transport = undefined;
+        try {
+            if (await context.output.transport.canBeDeleted()) {
+                await context.output.transport.delete();
+                context.output.transport = undefined;
+            }
+        } catch (error) {
+            firstError ||= error;
+        }
+        if (firstError) {
+            throw firstError;
         }
     }
 }

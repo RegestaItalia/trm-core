@@ -60,10 +60,18 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
         }
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
+        let firstError: unknown;
         for (const transport of context.runtime.transports.cust) {
-            if (await transport.canBeDeleted()) {
-                await transport.delete();
+            try {
+                if (await transport.canBeDeleted()) {
+                    await transport.delete();
+                }
+            } catch (error) {
+                firstError ||= error;
             }
+        }
+        if (firstError) {
+            throw firstError;
         }
     }
 }

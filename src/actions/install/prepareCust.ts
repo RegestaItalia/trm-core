@@ -4,8 +4,9 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
-import { restoreTransport } from "../commons/utils";
+import { revertPreparedTransport } from "../commons/utils";
 import { TRKORR } from "../../client";
+import { deleteImportedEntries } from "./importBatch";
 
 /**
  * Workflow step that prepares and test-imports each customizing transport.
@@ -66,6 +67,7 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                         target: SystemConnector.getDest(),
                         trmIdentifier: TrmTransportIdentifier.CUST
                     });
+                    context.revert.createdTransports.cust.push(dummy);
                     await dummy.release(false, true);
                     try {
                         //saving dummy binaries for a possible revert
@@ -109,8 +111,21 @@ export const prepareCust: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if (!context.revert.cleanupImported && (context.revert.namespace || context.revert.sapPackages.length > 0)) {
+            await deleteImportedEntries(context);
+        }
+        if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
+            return;
+        }
         for (const cust of [...context.revert.transports.cust].reverse()) {
-            await restoreTransport(cust);
+            const generated = context.revert.createdTransports.cust.find(transport => transport.trkorr === cust.trkorr);
+            await revertPreparedTransport(generated, cust);
+        }
+        for (const generated of [...context.revert.createdTransports.cust].reverse()) {
+            const hasSnapshot = context.revert.transports.cust.some(snapshot => snapshot.trkorr === generated.trkorr);
+            if (!hasSnapshot) {
+                await revertPreparedTransport(generated, undefined);
+            }
         }
     }
 }

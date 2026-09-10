@@ -60,14 +60,62 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
                 install_devclass: o.installDevclass
             });
         });
-        await SystemConnector.setInstallDevc(installDevc);
-        await SystemConnector.updateTrmPackageData({
+        context.revert.metadataPackageRegistry = packageRegistry;
+        if (context.runtime.update && typeof context.runtime.update.getMetadataSnapshot === 'function') {
+            context.revert.metadataPreviousPackageRow = context.runtime.update.getMetadataSnapshot();
+        }
+        context.revert.metadataPackageRow = {
             package_name: context.runtime.package.data.manifest.name,
             package_registry: packageRegistry,
             manifest: Buffer.from(new Manifest(context.runtime.package.data.manifest).getAbapXml(), 'utf8'),
             trkorr: installTransport || originalTransport,
             integrity: context.runtime.package.data.checksum,
             devclass
-        });
+        };
+        // Mark before the mutating await: SAP may commit the mapping and still
+        // fail while returning the response.
+        context.revert.metadataWriteStarted = true;
+        await SystemConnector.setInstallDevc(installDevc);
+        await SystemConnector.updateTrmPackageData(context.revert.metadataPackageRow);
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        // Restore the exact persisted row when available; first installs remove
+        // the newly written row through the same atomic SAP operation.
+        if (!context.revert.metadataWriteStarted) {
+            return;
+        }
+        if (!context.runtime.update) {
+            if (context.revert.metadataPackageRow) {
+                await SystemConnector.restoreInstallMetadata({
+                    package: context.revert.metadataPackageRow,
+                    packageExists: false,
+                    installDevc: []
+                });
+            }
+            return;
+        }
+        if (context.runtime.previousInstallPackages.length === 0 && !context.revert.metadataPreviousPackageRow) {
+            return;
+        }
+        const packageRegistry = context.revert.metadataPreviousPackageRow?.package_registry
+            || context.revert.metadataPackageRegistry;
+        if (!packageRegistry) {
+            return;
+        }
+        const previousInstallDevc = context.runtime.previousInstallPackages.map(replacement => ({
+            package_name: context.rawInput.packageData.name,
+            package_registry: packageRegistry,
+            original_devclass: replacement.originalDevclass,
+            install_devclass: replacement.installDevclass
+        }));
+        if (context.revert.metadataPreviousPackageRow) {
+            await SystemConnector.restoreInstallMetadata({
+                package: context.revert.metadataPreviousPackageRow,
+                packageExists: true,
+                installDevc: previousInstallDevc
+            });
+            return;
+        }
+        await SystemConnector.setInstallDevc(previousInstallDevc);
     }
 }

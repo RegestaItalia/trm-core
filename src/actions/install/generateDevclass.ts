@@ -2,10 +2,9 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { getPackageHierarchy, getParentFromHierarchy, packageDataFromTdevc } from "../../commons";
-import { DEVCLASS, TDEVC } from "../../client";
+import type { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
-import { Transport } from "../../transport";
 
 /**
  * Workflow step that validates target SAP packages and creates any that are missing.
@@ -38,6 +37,9 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
             if (oDevclass) {
                 Logger.log(`Devclass ${replacement.installDevclass} exists, skipping generation`, true);
                 existing.add(replacement.installDevclass);
+                if (!context.revert.packageHierarchy.some(pkg => pkg.devclass === oDevclass.devclass)) {
+                    context.revert.packageHierarchy.push(oDevclass);
+                }
             } else {
                 Logger.log(`Devclass ${replacement.installDevclass} doesn't exist, will be generated`, true);
                 generate.push(replacement.installDevclass);
@@ -78,6 +80,11 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                     throw new Error(`Original TDEVC data for package ${originalDevclass} was not found.`);
                 }
                 const ctext = context.runtime.transportEntries.tdevct.find(o => o.devclass === originalDevclass)?.ctext || `TRM ${context.rawInput.packageData.name}`;
+                // Track before the mutating await because the package may have been
+                // created even when the connector response fails.
+                if (!context.revert.sapPackages.includes(devclass)) {
+                    context.revert.sapPackages.push(devclass);
+                }
                 await SystemConnector.createPackage(packageDataFromTdevc(originalPackageData, {
                     as4user: SystemConnector.getLogonUser(),
                     pdevclass: context.rawInput.installData.installDevclass.transportLayer,
@@ -85,9 +92,6 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                     ctext,
                     dlvunit
                 }));
-                if (!context.revert.sapPackages.includes(devclass)) {
-                    context.revert.sapPackages.push(devclass);
-                }
                 if (dlvunit !== 'LOCAL') {
                     await SystemConnector.tadirInterface({
                         pgmid: 'R3TR',
@@ -143,32 +147,6 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                         await SystemConnector.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
                     }
                 }
-            }
-        }
-    },
-    revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if (context.revert.sapPackages.length > 0) {
-            if (!context.revert.cleanupTransport && context.revert.sapPackages.some(d => !d.startsWith('$'))) {
-                context.revert.cleanupTransport = await Transport.createToc({
-                    text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version}`,
-                    target: SystemConnector.getDest()
-                });
-            }
-            for (const tmp of context.revert.sapPackages.filter(d => d.startsWith('$'))) {
-                try {
-                    await SystemConnector.deleteTemporaryPackage(tmp);
-                } catch (error) {
-                    Logger.error(`Failed rollback: ${error.message}`);
-                }
-            }
-            if (context.revert.cleanupTransport) {
-                await context.revert.cleanupTransport.addObjects(context.revert.sapPackages.filter(d => !d.startsWith('$')).map(devclass => {
-                    return {
-                        pgmid: 'R3TR',
-                        object: 'DEVC',
-                        objName: devclass
-                    }
-                }), false);
             }
         }
     }

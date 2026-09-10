@@ -2,7 +2,7 @@ import { Logger } from "trm-commons";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
 import { Login } from "../client/Login";
-import { ISystemConnector, TrmPackageUpdateData } from "./ISystemConnector";
+import { ISystemConnector, TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "./ISystemConnector";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
@@ -236,6 +236,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         return this._client.setInstallDevc(installDevc);
+    }
+
+    public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        return this._client.restoreInstallMetadata(data);
     }
 
     public async getObjectsList(): Promise<struct.KO100[]> {

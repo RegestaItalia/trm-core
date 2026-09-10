@@ -232,8 +232,8 @@ const WORKFLOW_NAME = 'publish';
  * @param inputData Source package, destination registry, release metadata, and publish options.
  * @returns The published package model and generated binary artifact.
  * @throws When validation, authorization, source serialization, transport generation/release,
- * or registry publication fails. A final local package-record update failure is logged but does
- * not reject an otherwise successful publication.
+ * or registry publication fails. A final local package-record update failure is propagated so
+ * the workflow rollback callbacks can run and the caller can repair the origin system.
  */
 export async function publish(inputData: PublishActionInput): Promise<PublishActionOutput> {
     inputData.contextData ??= {};

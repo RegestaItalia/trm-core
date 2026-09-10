@@ -4,8 +4,9 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
-import { restoreTransport } from "../commons/utils";
+import { revertPreparedTransport } from "../commons/utils";
 import { TRKORR } from "../../client";
+import { deleteImportedEntries } from "./importBatch";
 
 /**
  * Workflow step that prepares and test-imports the optional language transport.
@@ -64,6 +65,7 @@ export const prepareLang: Step<InstallWorkflowContext> = {
                     target: SystemConnector.getDest(),
                     trmIdentifier: TrmTransportIdentifier.LANG
                 });
+                context.revert.createdTransports.lang = dummy;
                 await dummy.release(false, true);
                 try {
                     //saving dummy binaries for a possible revert
@@ -103,8 +105,13 @@ export const prepareLang: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if (context.revert.transports.lang) {
-            await restoreTransport(context.revert.transports.lang);
+        if (!context.revert.cleanupImported && (context.revert.namespace || context.revert.sapPackages.length > 0)) {
+            await deleteImportedEntries(context);
         }
+        if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
+            return;
+        }
+        const snapshot = context.revert.transports.lang;
+        await revertPreparedTransport(context.revert.createdTransports.lang, snapshot);
     }
 }

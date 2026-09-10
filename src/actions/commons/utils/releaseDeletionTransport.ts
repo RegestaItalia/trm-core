@@ -5,25 +5,24 @@ import { AbstractRegistry, RegistryDeletionTransportUnauthorizedError } from "..
 import type { InstallWorkflowContext } from "../../install";
 
 /** Releases and imports a deletion transport, retaining its original binaries for rollback. */
-export async function releaseDeletionTransport(deletionTransport: Transport, registry: AbstractRegistry, context?: InstallWorkflowContext): Promise<void> {
-    if (!context || !context.revert) { //dummy, context might not even be used
-        context.revert = {
-            dele: undefined,
-            transports: undefined,
-            sapPackages: undefined
-        };
-    }
-
+export async function releaseDeletionTransport(
+    deletionTransport: Transport,
+    registry: AbstractRegistry,
+    context: InstallWorkflowContext,
+    retainSnapshot = true
+): Promise<void> {
     await deletionTransport.release(false, true);
 
     const tocBinaries = (await deletionTransport.download()).binaries;
 
     //saving dummy binaries for a possible revert
-    context.revert.dele = {
-        trkorr: deletionTransport.trkorr,
-        entries: undefined,
-        binaries: tocBinaries
-    };
+    if (retainSnapshot) {
+        context.revert.dele = {
+            trkorr: deletionTransport.trkorr,
+            entries: undefined,
+            binaries: tocBinaries
+        };
+    }
 
     let deleBinaries: BinaryTransport;
     try {
@@ -31,7 +30,9 @@ export async function releaseDeletionTransport(deletionTransport: Transport, reg
     } catch (e) {
         if (e instanceof RegistryDeletionTransportUnauthorizedError) {
             await deletionTransport.delete();
-            context.revert.dele = undefined;
+            if (retainSnapshot) {
+                context.revert.dele = undefined;
+            }
         }
         throw e;
     }

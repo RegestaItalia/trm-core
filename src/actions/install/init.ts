@@ -2,12 +2,12 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
-import { RegistryDeletionTransportUnauthorizedError, RegistryType } from "../../registry";
+import { RegistryType } from "../../registry";
 import { eq, gt, valid } from "semver";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
 import { setTransportTarget } from "../commons/prompts";
-import { releaseDeletionTransport } from "../commons/utils";
+import { deleteImportedEntries } from "./importBatch";
 
 /**
  * Workflow step that fetches the release, validates install settings, and initializes rollback state.
@@ -51,6 +51,7 @@ export const init: Step<InstallWorkflowContext> = {
             dependencies: [],
             namespace: undefined, //will be calculated from either origin devclass or target devclass later
             previousInstallPackages: [],
+            dependencyRollbacks: [],
             stopWarningShown: false
         };
         context.output = {
@@ -65,8 +66,19 @@ export const init: Step<InstallWorkflowContext> = {
                 cust: []
             },
             cleanupTransport: undefined,
+            cleanupImported: false,
+            cleanupSucceeded: false,
+            importStarted: false,
+            importedEntries: [],
+            packageHierarchy: [],
+            packageTransportLayers: [],
+            createdTransports: { cust: [] },
             sapPackages: [],
             dele: undefined,
+            metadataWriteStarted: false,
+            metadataPackageRegistry: undefined,
+            metadataPackageRow: undefined,
+            metadataPreviousPackageRow: undefined,
             namespace: undefined
         };
 
@@ -190,25 +202,37 @@ export const init: Step<InstallWorkflowContext> = {
         Logger.info(`Ready to install ${context.runtime.package.data.manifest.name} v${context.runtime.package.data.manifest.version}${!valid(context.rawInput.packageData.version) ? (' (' + (context.rawInput.packageData.version || 'latest') + ')') : ''}.`);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if (context.revert.cleanupTransport) {
+        if (!context.revert.cleanupImported && (
+            context.revert.importStarted || context.revert.importedEntries.length > 0
+            || context.revert.cleanupTransport || context.revert.namespace || context.revert.sapPackages.length > 0
+        )) {
+            await deleteImportedEntries(context);
+        }
+        if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
+            return;
+        }
+
+        let firstError: unknown;
+        for (const layer of context.revert.packageTransportLayers || []) {
             try {
-                const e071 = await context.revert.cleanupTransport.getE071();
-                if (e071.length > 0) {
-                    await releaseDeletionTransport(context.revert.cleanupTransport, context.rawInput.packageData.registry, context);
-                } else {
-                    //it should always be deletable, no need to check
-                    await context.revert.cleanupTransport.delete();
-                }
-            } catch (e) {
-                if (e instanceof RegistryDeletionTransportUnauthorizedError) {
-                    context.revert.cleanupTransport = undefined;
-                    Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of revert steps might be necessary.`);
-                    return;
-                }
-                //always try delete on error
-                await context.revert.cleanupTransport.delete();
-                throw e;
+                await SystemConnector.setPackageTransportLayer(layer.devclass, layer.transportLayer);
+            } catch (error) {
+                firstError ||= error;
             }
+        }
+        for (const pkg of context.revert.packageHierarchy || []) {
+            try {
+                if (pkg.parentcl) {
+                    await SystemConnector.setPackageSuperpackage(pkg.devclass, pkg.parentcl);
+                } else {
+                    await SystemConnector.clearPackageSuperpackage(pkg.devclass);
+                }
+            } catch (error) {
+                firstError ||= error;
+            }
+        }
+        if (firstError) {
+            throw firstError;
         }
     }
 }

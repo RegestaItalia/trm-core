@@ -2,7 +2,7 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
 import { AbstractRegistry } from "../../registry";
-import { IActionContext, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages, workflowCallbacks } from "..";
+import { IActionContext, InstallActionInput, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages, workflowCallbacks } from "..";
 import { init } from "./init";
 import { findInstallRelease } from "./findInstallRelease";
 import { installRelease } from "./installRelease";
@@ -40,7 +40,8 @@ export interface InstallDependencyActionInput {
 type WorkflowRuntime = {
     trmPackage: TrmPackage,
     installVersion: string,
-    installOutput: InstallActionOutput
+    installOutput: InstallActionOutput,
+    rollback?: () => Promise<void>
 }
 
 /** Result returned after a dependency release has been selected and installed. */
@@ -56,7 +57,12 @@ export interface InstallDependencyWorkflowContext extends IActionContext {
     /** Resolved package, selected version, and nested installation result. */
     runtime?: WorkflowRuntime,
     /** Dependency-install result. */
-    output?: InstallDependencyActionOutput
+    output?: InstallDependencyActionOutput,
+    /** Optional transactional install runner supplied by a parent workflow. */
+    installRunner?: (input: InstallActionInput) => Promise<{
+        output: InstallActionOutput,
+        rollback: () => Promise<void>
+    }>
 };
 
 const WORKFLOW_NAME = 'install-dependency';
@@ -72,7 +78,9 @@ const WORKFLOW_NAME = 'install-dependency';
  * @returns The nested installation result.
  * @throws When no compatible release can be found or the nested install fails.
  */
-export async function installDependency(inputData: InstallDependencyActionInput): Promise<InstallDependencyActionOutput> {
+export async function installDependency(inputData: InstallDependencyActionInput, installRunner?: InstallDependencyWorkflowContext['installRunner']): Promise<InstallDependencyActionOutput & {
+    rollback?: () => Promise<void>
+}> {
     const workflow = [
         init,
         setSystemPackages,
@@ -80,10 +88,12 @@ export async function installDependency(inputData: InstallDependencyActionInput)
         installRelease
     ];
     const result = await execute<InstallDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData
+        rawInput: inputData,
+        installRunner
     }, workflowCallbacks);
     const installOutput = result.runtime.installOutput;
     return {
-        installOutput
+        installOutput,
+        rollback: result.runtime.rollback
     }
 }

@@ -7,7 +7,7 @@ import { existsSync } from "fs";
 import path from "path";
 import { RFCClientError, SapMessage } from ".";
 import * as xml from "xml-js";
-import { TrmPackageUpdateData } from "../systemConnector";
+import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
@@ -501,6 +501,14 @@ export class RFCClient implements IClient {
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         await this._call("/ATRM/SET_INSTALL_DEVC", {
             installdevc: installDevc
+        });
+    }
+
+    public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        await this._call("/ATRM/SET_INSTALL_DEVC", {
+            package: data.package,
+            package_exists: data.packageExists ? 'X' : ' ',
+            installdevc: data.installDevc
         });
     }
 

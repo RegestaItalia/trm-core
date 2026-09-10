@@ -4,8 +4,9 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
-import { restoreTransport } from "../commons/utils";
+import { revertPreparedTransport } from "../commons/utils";
 import { TRKORR } from "../../client";
+import { deleteImportedEntries } from "./importBatch";
 
 /**
  * Workflow step that prepares and test-imports ABAP package definitions.
@@ -66,6 +67,7 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
                     target: SystemConnector.getDest(),
                     trmIdentifier: TrmTransportIdentifier.DEVC
                 });
+                context.revert.createdTransports.devc = dummy;
                 await dummy.release(false, true);
                 try {
                     //saving dummy binaries for a possible revert
@@ -105,8 +107,13 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if (context.revert.transports.devc) {
-            await restoreTransport(context.revert.transports.devc);
+        if (!context.revert.cleanupImported && (context.revert.namespace || context.revert.sapPackages.length > 0)) {
+            await deleteImportedEntries(context);
         }
+        if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
+            return;
+        }
+        const snapshot = context.revert.transports.devc;
+        await revertPreparedTransport(context.revert.createdTransports.devc, snapshot);
     }
 }

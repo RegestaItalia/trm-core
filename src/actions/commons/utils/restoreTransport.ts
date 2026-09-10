@@ -14,3 +14,22 @@ export async function restoreTransport(snapshot: TransportBinary): Promise<void>
     await transport.import(false);
     Logger.success(`Transport ${snapshot.trkorr} restored`, true);
 }
+
+/** Deletes a generated transport before import, or restores its snapshot after replacement/import. */
+export async function revertPreparedTransport(generated: Transport | undefined, snapshot: TransportBinary | undefined): Promise<void> {
+    if (generated) {
+        try {
+            if (await generated.canBeDeleted()) {
+                await generated.delete();
+                return;
+            }
+        } catch (error) {
+            if (!snapshot) {
+                throw error;
+            }
+        }
+    }
+    if (snapshot) {
+        await restoreTransport(snapshot);
+    }
+}

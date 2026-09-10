@@ -6,6 +6,7 @@ import { Manifest } from "../../manifest";
 import { RegistryProvider } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import * as _ from "lodash";
+import { installWithRollback } from ".";
 
 /**
  * Workflow step that installs each dependency missing from the target system.
@@ -82,7 +83,11 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                     installData: _.cloneDeep(context.rawInput.installData)
                 };
                 delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
-                const result = await InstallDependencyWkf(inputData);
+                const result = await InstallDependencyWkf(inputData, installWithRollback);
+                if (!result.rollback) {
+                    throw new Error(`Dependency install did not return its rollback journal.`);
+                }
+                context.runtime.dependencyRollbacks.push(result.rollback);
                 const installedPackage = new TrmPackage(
                     result.installOutput.manifest.name,
                     dependencyRegistry,
@@ -100,6 +105,19 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 Logger.setPrefix(originalLPrefix);
                 Inquirer.setPrefix(originalIPrefix);
             }
+        }
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        let firstError: unknown;
+        for (const rollback of [...context.runtime.dependencyRollbacks].reverse()) {
+            try {
+                await rollback();
+            } catch (error) {
+                firstError ||= error;
+            }
+        }
+        if (firstError) {
+            throw firstError;
         }
     }
 }

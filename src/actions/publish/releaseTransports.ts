@@ -38,5 +38,22 @@ export const releaseTransports: Step<PublishWorkflowContext> = {
             Logger.setPrefix(originalLoggerPrefix);
             Inquirer.setPrefix(originalInquirerPrefix);
         }
+    },
+    revert: async (context: PublishWorkflowContext): Promise<void> => {
+        // A release can fail after earlier requests were already released. Walk every
+        // request independently so one status/delete failure does not hide later cleanup.
+        let firstError: unknown;
+        for (const transport of context.runtime.aggregatedTransports || []) {
+            try {
+                if (await transport.canBeDeleted()) {
+                    await transport.delete();
+                }
+            } catch (error) {
+                firstError ||= error;
+            }
+        }
+        if (firstError) {
+            throw firstError;
+        }
     }
 }

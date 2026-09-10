@@ -1,7 +1,7 @@
 import { TRKORR, DEVCLASS, TDEVC, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError } from "../client";
 import { AbstractRegistry } from "../registry";
 import { TrmPackage } from "../trmPackage";
-import { ISystemConnector, TrmPackageUpdateData } from "./ISystemConnector";
+import { ISystemConnector, TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "./ISystemConnector";
 import { InstallPackage } from "./InstallPackage";
 import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
@@ -286,6 +286,11 @@ export namespace SystemConnector {
     export async function setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         await checkSystemConnector();
         return systemConnector.setInstallDevc(installDevc);
+    }
+
+    export async function restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.restoreInstallMetadata(data);
     }
 
     export async function getObjectsList(): Promise<struct.KO100[]> {
