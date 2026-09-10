@@ -127,7 +127,7 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                         }
                     });
                 }
-            } else {
+            } else if (!context.rawInput.contextData.noInquirer) {
                 inq1Prompts.push({
                     type: "input",
                     name: originalDevclass,
