@@ -11,20 +11,13 @@ function entryKey(entry: { pgmid: string, object: string, objName: string }): st
     return `${entry.pgmid.trim().toUpperCase()}\u0000${entry.object.trim().toUpperCase()}\u0000${entry.objName.trim().toUpperCase()}`;
 }
 
-function importedTransports(context: InstallWorkflowContext): Transport[] {
+function importedTransports(context: InstallWorkflowContext): { transport: Transport, e071: E071[] }[] {
     return [
-        context.runtime.transports.tadir.instance,
-        context.runtime.transports.devc.instance,
-        context.runtime.transports.lang?.instance,
-        ...(context.runtime.transports.cust || []).map(cust => cust.instance)
-    ].filter((transport): transport is Transport => Boolean(transport));
-}
-
-async function snapshotImportedEntries(context: InstallWorkflowContext, transports: Transport[]): Promise<void> {
-    const entries = (await Promise.all(transports.map(transport => transport.getE071()))).flat();
-    context.revert.importedEntries = Array.from(
-        new Map(entries.map(entry => [entryKey(entry), entry])).values()
-    );
+        { transport: context.runtime.transports.tadir.instance, e071: context.runtime.transports.tadir.binaries?.entries?.e071 },
+        { transport: context.runtime.transports.devc.instance, e071: context.runtime.transports.devc?.binaries?.entries?.e071 },
+        { transport: context.runtime.transports.lang?.instance, e071: context.runtime.transports.lang?.binaries?.entries?.e071 },
+        ...(context.runtime.transports.cust || []).map(cust => { return { transport: cust.instance, e071: cust.binaries?.entries?.e071 } })
+    ].filter((transport) => Boolean(transport.transport));
 }
 
 function cleanupEntries(context: InstallWorkflowContext): E071[] {
@@ -68,6 +61,7 @@ export async function deleteImportedEntries(context: InstallWorkflowContext): Pr
             }
             const cleanupTransport = context.revert.cleanupTransport;
             await cleanupTransport.addObjects(entries, false);
+            await cleanupTransport.removeComments();
             const transportEntries = await cleanupTransport.getE071();
             if (transportEntries.length > 0) {
                 await releaseDeletionTransport(cleanupTransport, context.rawInput.packageData.registry, context, false);
@@ -144,15 +138,12 @@ export const importBatch: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- collect prepared transport instances
         const transports = importedTransports(context);
-
-        //2- snapshot every entry that may be imported. The deletion transport itself
-        // is created only during revert, so it cannot lock objects before this import.
-        await snapshotImportedEntries(context, transports);
+        context.revert.importedEntries = transports.flatMap(o => o.e071);
 
         //3- import transports in batch
         Logger.loading(`Installing...`);
         context.revert.importStarted = true;
-        await Transport.importMultiple(transports, SystemConnector.getDest(), false);
+        await Transport.importMultiple(transports.map(o => o.transport), SystemConnector.getDest(), false);
 
         //4- reconnect when system is not stateless
         if (!SystemConnector.isStateless()) {
@@ -234,6 +225,7 @@ export const importBatch: Step<InstallWorkflowContext> = {
             Logger.log(`Running TADIR interface for object ${object.pgmid} ${object.object} ${object.objName}, devclass ${tadir.devclass} -> ${object.devclass}, src system ${tadir.srcsystem} -> ${object.srcsystem}`, true);
             await SystemConnector.tadirInterface(object);
         }
+        throw new Error();
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         // Run before the prepare-* reverts restore the transport snapshots.
