@@ -76,21 +76,21 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         }
 
         //2- get root devclass and find namespace
-        var rootDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === context.runtime.package.hierarchy.devclass)?.installDevclass;
+        let rootDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === context.runtime.package.hierarchy.devclass)?.installDevclass;
         if (!rootDevclass) {
             rootDevclass = context.runtime.package.hierarchy.devclass;
         }
         const originalNamespace = getPackageNamespace(rootDevclass);
-        var updateNamespace;
+        let updateNamespace;
         if (context.runtime.update) {
             updateNamespace = getPackageNamespace(context.runtime.update.getDevclass());
         }
 
-        var inq1Prompts: Question[] = [];
+        const inq1Prompts: Question[] = [];
         Logger.loading(`Analyzing package replacements...`);
         const originalDevclassFlat = flattenDevclasses(context.runtime.package.hierarchy);
         for (const originalDevclass of originalDevclassFlat) {
-            var adaptDevclassName = originalDevclass;
+            let adaptDevclassName = originalDevclass;
             const replacement = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalDevclass);
             if (updateNamespace) {
                 //only for trm-server and trm-rest with /ATRM/: if no replacement and updating from namespace $, adapt naming convention

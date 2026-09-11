@@ -37,10 +37,7 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
 
         //2- check result
         const sapEntriesOutput = result.sapEntriesStatus;
-        var missingEntries: any[] = [];
-        Object.keys(sapEntriesOutput).forEach(t => {
-            missingEntries = missingEntries.concat(sapEntriesOutput[t].filter(o => !o.status));
-        });
+        const missingEntries = Object.values(sapEntriesOutput).flatMap(entries => entries.filter(o => !o.status));
         if(missingEntries.length > 0){
             Logger.error(JSON.stringify(missingEntries), true);
             if(missingEntries.length === 1){

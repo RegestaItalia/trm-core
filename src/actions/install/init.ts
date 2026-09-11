@@ -169,7 +169,7 @@ export const init: Step<InstallWorkflowContext> = {
             if (eq(installVersion, installedVersion)) {
                 if (context.rawInput.packageData.overwrite) {
                     if (context.runtime.update.isDirty()) {
-                        var ignoreDirty = false;
+                        let ignoreDirty = false;
                         Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`);
                         Logger.warning(`Consider analyzing dirty entries before overwrite.`);
                         if (!context.rawInput.contextData.noInquirer) {

@@ -34,7 +34,7 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
             }
             devclass = rootReplacement.installDevclass;
         }
-        var packageRegistry;
+        let packageRegistry;
         switch (context.rawInput.packageData.registry.getRegistryType()) {
             case RegistryType.PUBLIC:
                 packageRegistry = PUBLIC_RESERVED_KEYWORD;
@@ -51,7 +51,7 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
                 break;
         }
 
-        var installDevc: ZTRM_INSTALLDEVC[] = [];
+        const installDevc: ZTRM_INSTALLDEVC[] = [];
         context.rawInput.installData.installDevclass.replacements.forEach(o => {
             installDevc.push({
                 package_name: context.rawInput.packageData.name,

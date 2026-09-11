@@ -40,7 +40,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
         });
 
         //2- prompt install
-        var confirmInstall = true;
+        let confirmInstall = true;
         if(!context.rawInput.contextData.noInquirer){
             confirmInstall = (await Inquirer.prompt({
                 type: 'confirm',
@@ -54,13 +54,13 @@ export const installDependencies: Step<InstallWorkflowContext> = {
         }
 
         //3- run install workflow for each missing dependency
-        var counter: number = 0;
+        let counter = 0;
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         for(const dependency of context.runtime.dependencies){
             counter++;
             Logger.loading(`Getting ready to install missing dependency "${dependency.name}"...`);
-            var prefix = `(${counter}/${context.runtime.dependencies.length}) `;
+            const prefix = `(${counter}/${context.runtime.dependencies.length}) `;
             try {
                 if(originalLPrefix){
                     Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
@@ -73,7 +73,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                     Inquirer.setPrefix(`  ${prefix}`);
                 }
                 const dependencyRegistry = RegistryProvider.getRegistry(dependency.registry);
-                var inputData: InstallDependencyActionInput = {
+                const inputData: InstallDependencyActionInput = {
                     dependencyDataPackage: {
                         name: dependency.name,
                         versionRange: dependency.version,

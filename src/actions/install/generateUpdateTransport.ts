@@ -4,7 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
-import { releaseDeletionTransport, restoreTransport } from "../commons/utils";
+import { releaseDeletionTransport, restoreTransport, withScopedPrefix } from "../commons/utils";
 import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
 import { PackageHierarchy, packageDataFromTdevc } from "../../commons";
 import { E071, TADIR } from "../../client";
@@ -117,24 +117,10 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             stopWarning('install');
         }
 
-        var dummy: Transport;
-        const originalLPrefix = Logger.getPrefix();
-        const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(${Transport.getTransportIcon()}  Upgrade cleanup) `;
-        try {
-            if (originalLPrefix) {
-                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-            } else {
-                Logger.setPrefix(prefix);
-            }
-            if (originalIPrefix) {
-                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-            } else {
-                Inquirer.setPrefix(prefix);
-            }
+        await withScopedPrefix(`(${Transport.getTransportIcon()}  Upgrade cleanup) `, async () => {
             //1- generate dummy transport
             Logger.loading(`Generating transport...`);
-            dummy = await Transport.createToc({
+            const dummy = await Transport.createToc({
                 text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.update.manifest.get().version}`,
                 target: SystemConnector.getDest()
             });
@@ -366,12 +352,7 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                 Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`);
                 await restoreCleanupAssignments(context, true);
             }
-        } catch (e) {
-            throw e;
-        } finally {
-            Logger.setPrefix(originalLPrefix);
-            Inquirer.setPrefix(originalIPrefix);
-        }
+        });
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         let firstError: unknown;

@@ -1,24 +1,24 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Inquirer, Logger } from "trm-commons";
+import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
-import { revertPreparedTransport } from "../commons/utils";
+import { revertPreparedTransport, withScopedPrefix } from "../commons/utils";
 import { TRKORR } from "../../client";
 import { deleteImportedEntries } from "./importBatch";
 
 /**
  * Workflow step that prepares and test-imports ABAP package definitions.
- * 
+ *
  * 1- read if root already exists in system
- * 
+ *
  * 2- generate dummy transport (if registry is not local)
- * 
+ *
  * 3- upload transport binaries
- * 
+ *
  * 4- test import transport
- * 
+ *
 */
 export const prepareDevc: Step<InstallWorkflowContext> = {
     name: 'prepare-devc',
@@ -41,25 +41,12 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
             stopWarning('install');
         }
 
-        const originalLPrefix = Logger.getPrefix();
-        const originalIPrefix = Inquirer.getPrefix();
-        const prefix = `(${Transport.getTransportIcon()}  SAP Packages) `;
-        try {
-            if (originalLPrefix) {
-                Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-            } else {
-                Logger.setPrefix(prefix);
-            }
-            if (originalIPrefix) {
-                Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-            } else {
-                Inquirer.setPrefix(prefix);
-            }
+        await withScopedPrefix(`(${Transport.getTransportIcon()}  SAP Packages) `, async () => {
             //2- generate dummy transport (if registry is not local)
             //checking if binaries are already loaded in context instead of checking registry local
             //is equivalent, but better for possible changes in the future
             //binaries for local registry are loaded in the checkTransports step
-            var trkorr: TRKORR;
+            let trkorr: TRKORR;
             if (!context.runtime.transports.devc.binaries.binaries) {
                 Logger.loading(`Generating transport...`);
                 const dummy = await Transport.createToc({
@@ -101,10 +88,7 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
             if (testRc < 0 || testRc > 8) {
                 throw new Error(`Test import of SAP packages failed: check logs.`);
             }
-        } finally {
-            Logger.setPrefix(originalLPrefix);
-            Inquirer.setPrefix(originalIPrefix);
-        }
+        });
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (!context.revert.cleanupImported && (context.revert.namespace || context.revert.sapPackages.length > 0)) {

@@ -15,19 +15,17 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
         if (context.rawInput.installData.skipPostActivities) {
             Logger.log(`Skipping post activities (user input)`, true);
             return false;
-        } else {
-            if (context.runtime.package.data.manifest.postActivities && context.runtime.package.data.manifest.postActivities.length > 0) {
-                return true;
-            } else {
-                Logger.log(`Skipping post activities (none defined)`, true);
-                return false;
-            }
         }
+        if (context.runtime.package.data.manifest.postActivities && context.runtime.package.data.manifest.postActivities.length > 0) {
+            return true;
+        }
+        Logger.log(`Skipping post activities (none defined)`, true);
+        return false;
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- execute post activities
-        var counter: number = 0;
-        for(var data of context.runtime.package.data.manifest.postActivities){
+        let counter = 0;
+        for (const data of context.runtime.package.data.manifest.postActivities) {
             counter++;
             Logger.setPrefix(`(${counter}/${context.runtime.package.data.manifest.postActivities.length}) `);
             try{

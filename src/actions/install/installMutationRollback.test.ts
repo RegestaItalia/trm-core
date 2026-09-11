@@ -96,6 +96,7 @@ describe('install mutation checkpoints', () => {
         cleanup = {
             entries: [] as any[],
             addObjects: jest.fn(async function (entries: any[]) { this.entries.push(...entries); }),
+            removeComments: jest.fn().mockResolvedValue(undefined),
             getE071: jest.fn(async function () { return this.entries; }),
             release: jest.fn().mockResolvedValue(undefined),
             download: jest.fn().mockResolvedValue({ binaries: { header: Buffer.from('h'), data: Buffer.from('d') } }),

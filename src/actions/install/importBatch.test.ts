@@ -39,6 +39,15 @@ import { init } from './init';
 
 type RegistryOutcome = 'allowed' | 'denied';
 
+// Entries here mirror what SystemConnector.readTable('E071', ...) would return from
+// a real transport - but production code must NOT source these from a live RFC read
+// (see importedTransports in importBatch.ts): transports built by TRM inject a
+// downloaded payload directly into cofiles/data, bypassing the normal object-list
+// recording APIs, so SAP's own E071 table is never a reliable source for "what does
+// this transport actually contain". These entries instead live on
+// context.runtime.transports.*.binaries.entries.e071, already parsed client-side from
+// the registry payload during check-transports - which is what these mock contexts
+// populate below, one slot (tadir/devc/lang/cust) each.
 const importedEntries = [
     { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' },
     { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_TWO' },
@@ -48,8 +57,7 @@ const importedEntries = [
 
 function makeImportedTransport(index: number): Transport {
     return {
-        trkorr: `DEVK90000${index}`,
-        getE071: jest.fn().mockResolvedValue([importedEntries[index]])
+        trkorr: `DEVK90000${index}`
     } as unknown as Transport;
 }
 
@@ -79,10 +87,13 @@ function makeContext(registryDelete: jest.Mock) {
             transports: {
                 tadir: {
                     instance: transports[0],
-                    binaries: { entries: { tadir: [
-                        { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE', devclass: 'ZROOT', srcsystem: 'OLD' },
-                        { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_TWO', devclass: 'ZROOT', srcsystem: 'OLD' }
-                    ] } }
+                    binaries: { entries: {
+                        tadir: [
+                            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE', devclass: 'ZROOT', srcsystem: 'OLD' },
+                            { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_TWO', devclass: 'ZROOT', srcsystem: 'OLD' }
+                        ],
+                        e071: [importedEntries[0]]
+                    } }
                 },
                 devc: {
                     instance: transports[1],
@@ -94,11 +105,12 @@ function makeContext(registryDelete: jest.Mock) {
                         tadir: [
                             { pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT', devclass: 'ZROOT', srcsystem: 'OLD' },
                             { pgmid: 'R3TR', object: 'DEVC', objName: 'ZSUB', devclass: 'ZROOT', srcsystem: 'OLD' }
-                        ]
+                        ],
+                        e071: [importedEntries[1]]
                     } }
                 },
-                lang: { instance: transports[2], binaries: { entries: {} } },
-                cust: [{ instance: transports[3], binaries: { entries: {} } }]
+                lang: { instance: transports[2], binaries: { entries: { e071: [importedEntries[2]] } } },
+                cust: [{ instance: transports[3], binaries: { entries: { e071: [importedEntries[3]] } } }]
             }
         },
         revert: {
@@ -144,6 +156,7 @@ describe('importBatch rollback checkpoint', () => {
                 await fail('cleanup.addObjects');
                 this.entries.push(...entries);
             }),
+            removeComments: jest.fn(async () => fail('cleanup.removeComments')),
             getE071: jest.fn(async function () {
                 await fail('cleanup.getE071');
                 return this.entries;
@@ -216,16 +229,6 @@ describe('importBatch rollback checkpoint', () => {
             });
         }
         const context = makeContext(registryDelete);
-        if (point.startsWith('transport.getE071.')) {
-            const index = Number(point.split('.').at(-1));
-            const transports = [
-                context.runtime.transports.tadir.instance,
-                context.runtime.transports.devc.instance,
-                context.runtime.transports.lang.instance,
-                context.runtime.transports.cust[0].instance
-            ];
-            transports[index].getE071.mockRejectedValue(new Error(`failure at ${point}`));
-        }
         const restore = {
             name: 'prepared-transport',
             run: async () => undefined,
@@ -308,6 +311,81 @@ describe('importBatch rollback checkpoint', () => {
         expect(entries).toHaveLength(5);
     });
 
+    test('excludes a transport slot from import and from the revert checkpoint when it was never actually uploaded', async () => {
+        // Regression test: mirrors "Skipping import DEVC transport" - when the install
+        // devclass is generated directly (generateDevclass.ts) instead of importing the
+        // package's own DEVC transport, that slot's `instance` is never set. Its registry
+        // payload can still describe a devclass (e.g. the package's original ZEXPERIMENTAL)
+        // that was never created on the target system at all. If that payload leaked into
+        // the revert checkpoint, the deletion transport would reference a non-existent
+        // package and SAP would reject the whole cleanup ("Package ... does not exist"),
+        // aborting revert entirely and leaving everything that WAS created behind.
+        const context = makeContext(registryDelete);
+        const devcInstance = context.runtime.transports.devc.instance;
+        context.runtime.transports.devc.instance = undefined;
+        failurePoint = 'connect';
+        const restore = { name: 'restore', run: async () => undefined, revert: async () => undefined };
+
+        await expect(execute('test', [restore, importBatch], context)).rejects.toThrow();
+
+        const importedTransportsArg = (Transport.importMultiple as jest.Mock).mock.calls[0][0];
+        expect(importedTransportsArg).not.toContain(devcInstance);
+
+        const entries = cleanupTransport.addObjects.mock.calls[0][0];
+        expect(entries).not.toContainEqual({ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_TWO' });
+        expect(entries).toEqual(expect.arrayContaining([
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' },
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_THREE' },
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'ZGENERATED' },
+            { pgmid: 'R3TR', object: 'NSPC', objName: '/TEST/' }
+        ]));
+        expect(entries).toHaveLength(4);
+    });
+
+    test('a single object SAP refuses to add does not block cleanup of everything else', async () => {
+        // Regression test: SAP's ADD_OBJS_TR can reject the WHOLE batch call when even
+        // one object's bookkept current package doesn't exist on the target (e.g. a
+        // namespace-rejected object left referencing a devclass that was only ever a
+        // transient placeholder - see importedTransports). The batch call must fall back
+        // to adding objects one at a time so the generated devclass (and any other
+        // addable object) still gets cleaned up, instead of one poisoned entry blocking
+        // everything.
+        const context = makeContext(registryDelete);
+        context.revert.sapPackages = ['/ATRM/EXP'];
+        context.revert.namespace = undefined;
+        context.revert.importedEntries = [
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_EXPERIMENTAL1' },
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_EXPERIMENTAL2' }
+        ];
+        cleanupTransport.addObjects = jest.fn(async function (entries: any[]) {
+            if (entries.some(entry => entry.object === 'CLAS')) {
+                throw new Error('Package ZEXPERIMENTAL does not exist');
+            }
+            this.entries.push(...entries);
+        });
+
+        // The function still surfaces a failure overall (not everything could be
+        // cleaned up), but that must not come at the cost of losing partial cleanup.
+        await expect(deleteImportedEntries(context)).rejects.toThrow('Package ZEXPERIMENTAL does not exist');
+
+        // First attempt is the batch call (all 3 entries); it fails because of the
+        // CLAS entries, so it must retry one at a time.
+        expect(cleanupTransport.addObjects).toHaveBeenNthCalledWith(1, expect.arrayContaining([
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_EXPERIMENTAL1' },
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_EXPERIMENTAL2' },
+            { pgmid: 'R3TR', object: 'DEVC', objName: '/ATRM/EXP' }
+        ]), false);
+        expect(cleanupTransport.addObjects).toHaveBeenCalledWith([{ pgmid: 'R3TR', object: 'DEVC', objName: '/ATRM/EXP' }], false);
+        // The generated devclass got cleaned up despite the two CLAS failures.
+        expect(cleanupTransport.entries).toContainEqual({ pgmid: 'R3TR', object: 'DEVC', objName: '/ATRM/EXP' });
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('ZCL_EXPERIMENTAL1'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('ZCL_EXPERIMENTAL2'));
+        // Not everything could be cleaned up: this must still be reported as a
+        // failure, so a later revert step doesn't restore old data on top of objects
+        // that remain in the system.
+        expect(context.revert.cleanupSucceeded).toBe(false);
+    });
+
     test('temporary imported package uses dedicated deletion API and is omitted from cleanup transport', async () => {
         const context = makeContext(registryDelete);
         context.revert.sapPackages = [];
@@ -381,36 +459,6 @@ describe('importBatch rollback checkpoint', () => {
         expect(Transport.createToc).not.toHaveBeenCalled();
         expect(context.revert.cleanupTransport).toBe(cleanupTransport);
         expect(cleanupTransport.addObjects).toHaveBeenCalledTimes(1);
-    });
-
-    describe.each(['allowed', 'denied'] as RegistryOutcome[])('pre-import failures with registry deletion %s', outcome => {
-        test.each([0, 1, 2, 3])('transport entry read %s does not start import and reverts an existing checkpoint', async index => {
-            const point = `transport.getE071.${index}`;
-            if (outcome === 'denied') {
-                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied')));
-            }
-            const context = makeContext(registryDelete);
-            cleanupTransport.entries.push({ pgmid: 'R3TR', object: 'NSPC', objName: '/TEST/' });
-            context.revert.cleanupTransport = cleanupTransport;
-            const transports = [
-                context.runtime.transports.tadir.instance,
-                context.runtime.transports.devc.instance,
-                context.runtime.transports.lang.instance,
-                context.runtime.transports.cust[0].instance
-            ];
-            transports[index].getE071.mockRejectedValue(new Error(`failure at ${point}`));
-            const restore = {
-                name: 'restore',
-                run: async () => undefined,
-                revert: async () => { events.push('restore-old-payload'); }
-            };
-
-            await expect(execute('test', [restore, importBatch], context)).rejects.toThrow();
-
-            expect(Transport.importMultiple).not.toHaveBeenCalled();
-            expect(registryDelete).toHaveBeenCalledTimes(1);
-            expect(events.indexOf('registry.delete')).toBeLessThan(events.indexOf('restore-old-payload'));
-        });
     });
 
     test('cleanup transport creation happens during revert after import and blocks old payload restore on failure', async () => {

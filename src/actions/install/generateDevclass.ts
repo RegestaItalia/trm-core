@@ -20,7 +20,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
     name: 'generate-devclass',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
         if (context.rawInput.installData.installDevclass.keepOriginal || context.runtime.isTrmServer) {
-            Logger.log(`Skipping generate devclass devclass (user input)`, true);
+            Logger.log(`Skipping generate devclass (user input)`, true);
             return false;
         } else {
             return true;
@@ -29,7 +29,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- find packages to generated
         Logger.loading(`Checking SAP packages...`);
-        var generate: DEVCLASS[] = [];
+        const generate: DEVCLASS[] = [];
         const existing = new Set<DEVCLASS>();
         for (const replacement of context.rawInput.installData.installDevclass.replacements) {
             Logger.loading(`Checking existance of devclass ${replacement.installDevclass}...`, true);
@@ -107,7 +107,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         //3- build the package hierarchy, based on the original
         Logger.loading(`Updating SAP packages hierarchy...`);
         const aDummyTdevc: TDEVC[] = [];
-        var parentcl;
+        let parentcl: DEVCLASS;
         for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
             parentcl = '';
             const originalRoot = context.runtime.package.hierarchy.devclass === packageReplacement.originalDevclass;

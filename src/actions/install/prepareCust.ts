@@ -1,22 +1,22 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Inquirer, Logger } from "trm-commons";
+import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
-import { revertPreparedTransport } from "../commons/utils";
+import { revertPreparedTransport, withScopedPrefix } from "../commons/utils";
 import { TRKORR } from "../../client";
 import { deleteImportedEntries } from "./importBatch";
 
 /**
  * Workflow step that prepares and test-imports each customizing transport.
- * 
+ *
  * 1- generate dummy transport (if registry is not local)
- * 
+ *
  * 2- upload transport binaries
- * 
+ *
  * 3- test import transport
- * 
+ *
 */
 export const prepareCust: Step<InstallWorkflowContext> = {
     name: 'prepare-cust',
@@ -38,28 +38,16 @@ export const prepareCust: Step<InstallWorkflowContext> = {
             context.runtime.stopWarningShown = true;
             stopWarning('install');
         }
-        var index = 0;
-        const originalLPrefix = Logger.getPrefix();
-        const originalIPrefix = Inquirer.getPrefix();
-        try {
-            for (var cust of context.runtime.transports.cust) {
-                index++;
-                const prefix = `(${Transport.getTransportIcon()}  ${index}/${context.runtime.transports.cust.length} Customizing) `;
-                if (originalLPrefix) {
-                    Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
-                } else {
-                    Logger.setPrefix(prefix);
-                }
-                if (originalIPrefix) {
-                    Inquirer.setPrefix(`${originalIPrefix}-> ${prefix}`);
-                } else {
-                    Inquirer.setPrefix(prefix);
-                }
+        let index = 0;
+        for (const cust of context.runtime.transports.cust) {
+            index++;
+            const prefix = `(${Transport.getTransportIcon()}  ${index}/${context.runtime.transports.cust.length} Customizing) `;
+            await withScopedPrefix(prefix, async () => {
                 //1- generate dummy transport (if registry is not local)
                 //checking if binaries are already loaded in context instead of checking registry local
                 //is equivalent, but better for possible changes in the future
                 //binaries for local registry are loaded in the checkTransports step
-                var trkorr: TRKORR;
+                let trkorr: TRKORR;
                 if (!cust.binaries.binaries) {
                     Logger.loading(`Generating transport...`);
                     const dummy = await Transport.createToc({
@@ -101,13 +89,7 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                 if (testRc < 0 || testRc > 8) {
                     throw new Error(`Test import of customizing failed: check logs.`);
                 }
-
-                //replace context instance with current instance
-                context.runtime.transports.cust[index - 1] = cust;
-            }
-        } finally {
-            Logger.setPrefix(originalLPrefix);
-            Inquirer.setPrefix(originalIPrefix);
+            });
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {

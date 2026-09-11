@@ -10,35 +10,41 @@ import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons"
 /**
  * Workflow step that validates artifact transports and classifies them by TRM identifier.
  * A package must contain exactly one DEVC transport and one TADIR transport.
- * 
+ *
  * Optionally, one LANG (Translation) and one (or more) CUST (Customizing) transport.
- * 
+ *
  * 1- fill lang import
- * 
+ *
  * 2- fill cust import
- * 
+ *
  * 3- get entries of requested transports
- * 
+ *
  * 4- check devc and tadir existance
- * 
+ *
  * 5- set original hierarchy
- * 
+ *
  * 6- check objects aren't locked
- * 
+ *
  * 7- check all object types are supported
- * 
+ *
  * 8- check objects existance
  *
 */
 export const checkTransports: Step<InstallWorkflowContext> = {
     name: 'check-transports',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        var mergedE071: E071[] = [];
-        var mergedTDEVC: TDEVC[] = [];
-        var mergedTADIR: TADIR[] = [];
+        let mergedE071: E071[] = [];
+        let mergedTDEVC: TDEVC[] = [];
+        let mergedTADIR: TADIR[] = [];
+        function mergeEntries(entries: { e071?: E071[], tdevc?: TDEVC[], tdevct?: any[], tadir?: TADIR[] }): void {
+            mergedE071 = mergedE071.concat(entries.e071 || []);
+            mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
+            context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(entries.tdevct || []);
+            mergedTADIR = mergedTADIR.concat(entries.tadir || []);
+        }
 
         //1- fill lang import
-        var importLang = context.rawInput.installData.import.noLang === false;
+        let importLang = context.rawInput.installData.import.noLang === false;
         if (context.rawInput.installData.import.noLang === undefined && context.runtime.package.data.transports.find(o => o.type === TrmTransportIdentifier.LANG)) {
             if (!context.rawInput.contextData.noInquirer) {
                 importLang = (await Inquirer.prompt({
@@ -54,7 +60,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
 
         //2- fill cust import
         const custTransports = context.runtime.package.data.transports.filter(o => o.type === TrmTransportIdentifier.CUST);
-        var skippedCust: string[] = [];
+        let skippedCust: string[] = [];
         if (context.rawInput.installData.import.noCust === undefined) {
             if (!context.rawInput.contextData.noInquirer) {
                 for (const cust of custTransports) {
@@ -86,29 +92,20 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                         context.runtime.transports.devc = {
                             binaries: o
                         };
-                        mergedE071 = mergedE071.concat(o.entries.e071 || []);
-                        mergedTDEVC = mergedTDEVC.concat(o.entries.tdevc || []);
-                        context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(o.entries.tdevct || []);
-                        mergedTADIR = mergedTADIR.concat(o.entries.tadir || []);
+                        mergeEntries(o.entries);
                         break;
                     case TrmTransportIdentifier.TADIR:
                         context.runtime.transports.tadir = {
                             binaries: o
                         };
-                        mergedE071 = mergedE071.concat(o.entries.e071 || []);
-                        mergedTDEVC = mergedTDEVC.concat(o.entries.tdevc || []);
-                        context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(o.entries.tdevct || []);
-                        mergedTADIR = mergedTADIR.concat(o.entries.tadir || []);
+                        mergeEntries(o.entries);
                         break;
                     case TrmTransportIdentifier.LANG:
                         if (importLang) {
                             context.runtime.transports.lang = {
                                 binaries: o
                             };
-                            mergedE071 = mergedE071.concat(o.entries.e071 || []);
-                            mergedTDEVC = mergedTDEVC.concat(o.entries.tdevc || []);
-                            context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(o.entries.tdevct || []);
-                            mergedTADIR = mergedTADIR.concat(o.entries.tadir || []);
+                            mergeEntries(o.entries);
                         }
                         break;
                     case TrmTransportIdentifier.CUST:
@@ -116,10 +113,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                             context.runtime.transports.cust.push({
                                 binaries: o
                             });
-                            mergedE071 = mergedE071.concat(o.entries.e071 || []);
-                            mergedTDEVC = mergedTDEVC.concat(o.entries.tdevc || []);
-                            context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(o.entries.tdevct || []);
-                            mergedTADIR = mergedTADIR.concat(o.entries.tadir || []);
+                            mergeEntries(o.entries);
                         }
                         break;
                     default:
@@ -130,7 +124,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
             //here we're just reading entries: actual download of transport is done after confirming import of each is allowed
             Logger.loading(`Reading package transports contents...`);
             for (const transport of context.runtime.package.data.transports) {
-                var readEntries = true;
+                let readEntries = true;
                 if (!importLang && transport.type === TrmTransportIdentifier.LANG) {
                     readEntries = false;
                 }
@@ -143,62 +137,28 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                         context.runtime.package.data.manifest.version,
                         transport.trkorr
                     );
+                    const binaries = {
+                        binaries: undefined,
+                        entries,
+                        trkorr: transport.trkorr,
+                        type: transport.type as TrmTransportIdentifier
+                    };
                     switch (transport.type) {
                         case TrmTransportIdentifier.DEVC:
-                            context.runtime.transports.devc = {
-                                binaries: {
-                                    binaries: undefined,
-                                    entries,
-                                    trkorr: transport.trkorr,
-                                    type: transport.type as TrmTransportIdentifier
-                                }
-                            };
-                            mergedE071 = mergedE071.concat(entries.e071 || []);
-                            mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
-                            context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(entries.tdevct || []);
-                            mergedTADIR = mergedTADIR.concat(entries.tadir || []);
+                            context.runtime.transports.devc = { binaries };
+                            mergeEntries(entries);
                             break;
                         case TrmTransportIdentifier.TADIR:
-                            context.runtime.transports.tadir = {
-                                binaries: {
-                                    binaries: undefined,
-                                    entries,
-                                    trkorr: transport.trkorr,
-                                    type: transport.type as TrmTransportIdentifier
-                                }
-                            };
-                            mergedE071 = mergedE071.concat(entries.e071 || []);
-                            mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
-                            context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(entries.tdevct || []);
-                            mergedTADIR = mergedTADIR.concat(entries.tadir || []);
+                            context.runtime.transports.tadir = { binaries };
+                            mergeEntries(entries);
                             break;
                         case TrmTransportIdentifier.LANG:
-                            context.runtime.transports.lang = {
-                                binaries: {
-                                    binaries: undefined,
-                                    entries,
-                                    trkorr: transport.trkorr,
-                                    type: transport.type as TrmTransportIdentifier
-                                }
-                            };
-                            mergedE071 = mergedE071.concat(entries.e071 || []);
-                            mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
-                            context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(entries.tdevct || []);
-                            mergedTADIR = mergedTADIR.concat(entries.tadir || []);
+                            context.runtime.transports.lang = { binaries };
+                            mergeEntries(entries);
                             break;
                         case TrmTransportIdentifier.CUST:
-                            context.runtime.transports.cust.push({
-                                binaries: {
-                                    binaries: undefined,
-                                    entries,
-                                    trkorr: transport.trkorr,
-                                    type: transport.type as TrmTransportIdentifier
-                                }
-                            });
-                            mergedE071 = mergedE071.concat(entries.e071 || []);
-                            mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
-                            context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(entries.tdevct || []);
-                            mergedTADIR = mergedTADIR.concat(entries.tadir || []);
+                            context.runtime.transports.cust.push({ binaries });
+                            mergeEntries(entries);
                             break;
                         default:
                             break;
@@ -246,7 +206,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
 
         //7- check all object types are supported
         Logger.loading(`Checking objects support...`);
-        var missingTypes: string[] = [];
+        const missingTypes: string[] = [];
         const systemObjectList = await SystemConnector.getObjectsList();
         mergedE071.filter(o => o.pgmid !== '*').forEach(o => {
             if (!systemObjectList.find(k => k.pgmid === o.pgmid && k.object === o.object) && !missingTypes.includes(`${o.pgmid} ${o.object}`)) {
@@ -258,7 +218,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         }
 
         //8- check objects existance
-        var existingObjects: TADIR[] = [];
+        let existingObjects: TADIR[] = [];
         const checkTadir = mergedTADIR.map(o => {
             return {
                 ...o, ...{
@@ -273,7 +233,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         }
         Logger.log(`TADIR object that already exist in system: ${JSON.stringify(existingObjects)}`, true);
         //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
-        var throwExistingObjectsError = false;
+        let throwExistingObjectsError = false;
         if (existingObjects.length > 0) {
             const sObjs = existingObjects.map(o => `${o.pgmid} ${o.object} ${o.objName}`).join('\n');
             if (context.runtime.update) {

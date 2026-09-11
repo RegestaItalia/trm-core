@@ -21,7 +21,7 @@ export const addNamespace: Step<InstallWorkflowContext> = {
     name: 'add-namespace',
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- set namespace
-        var originalNamespace = getPackageNamespace(context.runtime.package.hierarchy.devclass);
+        const originalNamespace = getPackageNamespace(context.runtime.package.hierarchy.devclass);
         Logger.log(`Package original namespace is ${originalNamespace}`, true);
         if (!context.rawInput.installData.installDevclass.keepOriginal && context.rawInput.installData.installDevclass.replacements.length > 0) {
             context.runtime.namespace = getPackageNamespace(context.rawInput.installData.installDevclass.replacements[0].installDevclass);
@@ -66,8 +66,8 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         }
 
         //3- create namespace
-        var replicense: TRNLICENSE;
-        var aTexts: TRNSPACETT[] = [];
+        let replicense: TRNLICENSE;
+        let aTexts: TRNSPACETT[] = [];
         if (context.runtime.package.data.manifest.namespace) {
             replicense = context.runtime.package.data.manifest.namespace.replicense;
             aTexts = context.runtime.package.data.manifest.namespace.texts.map(o => {
