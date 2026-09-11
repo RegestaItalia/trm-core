@@ -166,8 +166,5 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                 context.rawInput.installData.installDevclass.keepOriginal = false;
             }
         });
-    },
-    revert: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.warning(`Dirty records left in install table, but has no real impact.`, true);
     }
 }
