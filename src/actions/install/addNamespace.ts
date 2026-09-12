@@ -42,11 +42,6 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         } else {
             if (context.runtime.namespace === originalNamespace) {
                 //trying to install with the same namespace provided by package
-                //TODO: this if, i don't understand. it seems like if skipNamespace is set to false it will skip it anyway?
-                if (context.rawInput.installData.installDevclass.keepOriginal) {
-                    Logger.warning(`Install will continue without importing namespace ${context.runtime.namespace}. Run install with namespace import or manually add namespace in SE03.`, context.runtime.namespace === '/ATRM/');
-                    return;
-                }
                 if (context.rawInput.installData.installDevclass.skipNamespace === undefined && !context.rawInput.contextData.noInquirer) {
                     context.rawInput.installData.installDevclass.skipNamespace = !(await Inquirer.prompt({
                         message: `Package uses namespace ${context.runtime.namespace}, do you want to import it (repair license)?`,
@@ -56,6 +51,11 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                     })).skipNamespace;
                 }
                 if (context.rawInput.installData.installDevclass.skipNamespace) {
+                    if (context.rawInput.installData.installDevclass.keepOriginal) {
+                        //no packages are being generated under this namespace, importing it is optional
+                        Logger.warning(`Install will continue without importing namespace ${context.runtime.namespace}. Run install with namespace import or manually add namespace in SE03.`, context.runtime.namespace === '/ATRM/');
+                        return;
+                    }
                     //namespace doesn't exist but packages must be generated, it's mandatory to have the namespace
                     throw new Error(`Cannot generate packages without namespace ${context.runtime.namespace}. Run install with namespace import or avoid renaming packages.`);
                 }
