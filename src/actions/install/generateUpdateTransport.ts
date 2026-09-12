@@ -6,7 +6,7 @@ import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
 import { releaseDeletionTransport, restoreTransport, withScopedPrefix } from "../commons/utils";
 import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
-import { PackageHierarchy, packageDataFromTdevc } from "../../commons";
+import { PackageHierarchy, packageDataFromTdevc, getPackageNamespace } from "../../commons";
 import { E071, TADIR } from "../../client";
 import { randomBytes } from "crypto";
 
@@ -249,11 +249,37 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                 }
             }
             const packagesToDelete = changedDevclassesToDelete.filter(devclass => deletableDevclasses.has(normalize(devclass)));
+
+            // The namespace itself can only be cleaned up alongside its last remaining package.
+            let namespaceToDelete: string;
+            if (packagesToDelete.length > 0 && context.runtime.update.getDevclass()) {
+                try {
+                    const namespace = getPackageNamespace(context.runtime.update.getDevclass());
+                    if (namespace.startsWith('/')) {
+                        const namespaceExists = await SystemConnector.getNamespace(namespace);
+                        if (namespaceExists) {
+                            const namespacePackages = await SystemConnector.getNamespacePackages(namespace);
+                            const deletingDevclasses = new Set(packagesToDelete.map(normalize));
+                            const remainingPackages = namespacePackages.filter(pkg => !deletingDevclasses.has(normalize(pkg.devclass)));
+                            if (remainingPackages.length === 0) {
+                                namespaceToDelete = namespace;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    // devclass doesn't use a custom namespace, nothing to clean up
+                }
+            }
+
             const additionalObjects = [...extraObjectsToDelete.values(), ...packagesToDelete.map(devclass => ({
                 pgmid: 'R3TR',
                 object: 'DEVC',
                 objName: devclass
-            }))];
+            })), ...(namespaceToDelete ? [{
+                pgmid: 'R3TR',
+                object: 'NSPC',
+                objName: namespaceToDelete
+            }] : [])];
             // Validate the complete deletion selection before adding anything to the transport.
             const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects].map(object => [objectKey(object), object]));
             if (deletionObjects.size > 0) {

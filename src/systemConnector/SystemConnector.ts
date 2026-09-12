@@ -103,6 +103,11 @@ export namespace SystemConnector {
         return systemConnector.getSubpackages(devclass);
     }
 
+    export async function getNamespacePackages(namespace: components.NAMESPACE): Promise<TDEVC[]> {
+        await checkSystemConnector();
+        return systemConnector.getNamespacePackages(namespace);
+    }
+
     export async function getDevclassObjects(devclass: DEVCLASS, includeSubpackages: boolean): Promise<TADIR[]> {
         await checkSystemConnector();
         return systemConnector.getDevclassObjects(devclass, includeSubpackages);

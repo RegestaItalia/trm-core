@@ -295,6 +295,13 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
+  public async getNamespacePackages(namespace: components.NAMESPACE): Promise<TDEVC[]> {
+    return await this.readTable('TDEVC',
+      [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }, { fieldName: 'TPCLASS' }, { fieldName: 'DLVUNIT' }, { fieldName: 'NAMESPACE' }],
+      `NAMESPACE EQ '${namespace.trim().toUpperCase()}'`
+    );
+  }
+
   public async getSubpackages(devclass: components.DEVCLASS): Promise<TDEVC[]> {
     const queryFields = [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }];
     var subpackages: {

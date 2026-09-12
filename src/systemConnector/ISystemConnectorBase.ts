@@ -13,6 +13,7 @@ export interface ISystemConnectorBase {
     getInstalledPackages: (refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }) => Promise<TrmPackage[]>,
     getDevclass: (devclass: components.DEVCLASS) => Promise<struct.TDEVC>,
     getSubpackages: (devclass: components.DEVCLASS) => Promise<struct.TDEVC[]>,
+    getNamespacePackages: (namespace: components.NAMESPACE) => Promise<struct.TDEVC[]>,
     getDevclassObjects: (devclass: components.DEVCLASS, includeSubpackages: boolean) => Promise<struct.TADIR[]>,
     getInstallPackages: (packageName: string, registry: AbstractRegistry) => Promise<InstallPackage[]>,
     setPackageSuperpackage: (devclass: components.DEVCLASS, superpackage: components.DEVCLASS) => Promise<void>,
