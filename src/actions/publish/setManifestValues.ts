@@ -231,7 +231,6 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 message: "License",
                 name: "license",
                 default: context.runtime.manifest.license
-                //validate -> TODO should validate if on public registry!
             }]);
             context.runtime.manifest = { ...context.runtime.manifest, ...inq };
         }

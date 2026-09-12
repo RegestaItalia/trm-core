@@ -478,7 +478,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           try {
             const status = await newConnection.readLogPolling(logId);
             if (status) {
-              //TODO: fix with a better solution, for now testing regex is ok...
               const match = status.match(/\(([\d.]+)%\)/);
               if (match) {
                 logProgress.update(parseFloat(match[1]));
