@@ -90,11 +90,6 @@ export class TrmArtifact {
         return this._transportBinaries;
     }
 
-    public async getContent(r3transConfig?: any): Promise<any> {
-        //TODO: DELETE
-        return null;
-    }
-
     public static async create(data: {
         transports: Transport[],
         manifest: Manifest,
@@ -123,13 +118,12 @@ export class TrmArtifact {
         for (const transport of data.transports) {
             Logger.log(`Downloading transport ${transport.trmIdentifier}`, true);
             const trBinary = await transport.download();
-            const trEntries = await transport.getEntries();
             binaries.push({
                 trkorr: transport.trkorr,
                 type: transport.trmIdentifier,
                 binaries: trBinary.binaries,
                 filenames: trBinary.filenames,
-                entries: trEntries
+                entries: {}
             });
         }
         for (const bin of binaries) {

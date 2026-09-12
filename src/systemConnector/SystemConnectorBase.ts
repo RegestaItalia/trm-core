@@ -9,7 +9,6 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
-import { R3trans } from "node-r3trans";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
 
@@ -435,14 +434,23 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     if (!this._r3transInfoLog) {
       this._r3transInfoLog = await this.getR3transInfo();
     }
-    return R3trans.getVersion(this._r3transInfoLog);
+    try {
+      return this._r3transInfoLog.split(/\r?\n|\r|\n/g)[0];
+    } catch (e) {
+      return undefined;
+    }
   }
 
   public async getR3transUnicode(): Promise<boolean> {
     if (!this._r3transInfoLog) {
       this._r3transInfoLog = await this.getR3transInfo();
     }
-    return R3trans.isUnicode(this._r3transInfoLog);
+    try {
+      const outputLine = this._r3transInfoLog.split(/\r?\n|\r|\n/g)[1];
+      return !outputLine.startsWith('non-unicode');
+    } catch (e) {
+      return undefined;
+    }
   }
 
   public async isTransportLayerExist(devlayer: components.DEVLAYER): Promise<boolean> {

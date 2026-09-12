@@ -55,7 +55,6 @@
     "minimatch": "^10.2.6",
     "node-cache": "^5.1.2",
     "node-html-parser": "^7.0.1",
-    "node-r3trans": "^2.0.3",
     "object-keys-normalizer": "^1.0.1",
     "opener": "^1.5.2",
     "parse-multipart-data": "^1.5.0",

@@ -2,7 +2,7 @@ import { BinaryTransport } from "./BinaryTransport";
 import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
 import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
-import { R3transLogParser, ReleaseLogStep } from "node-r3trans";
+import { R3transLogParser, ReleaseLogStep } from "./R3transLogParser";
 import { Documentation } from "./Documentation";
 import { TrmTransportIdentifier } from "./TrmTransportIdentifier";
 import { TrmPackage } from "../trmPackage";
@@ -16,6 +16,12 @@ import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
+
+const RELEASE_LOG_STEPS: { id: string, name: string, namePadding: string }[] = [
+    { id: 'ETP182', name: 'CHECK WRITEABILITY OF BUFFERS', namePadding: '' },
+    { id: 'ETP183', name: 'EXPORT PREPARATION', namePadding: '           ' },
+    { id: 'ETP150', name: 'MAIN EXPORT', namePadding: '                  ' }
+];
 
 export class Transport {
     private _fileNames: FileNames;
@@ -441,24 +447,15 @@ export class Transport {
         Logger.log(`System R3trans unicode: ${systemR3transUnicode}`, true);
 
         const multibar = Logger.multibar('{stage} [{bar}] {exitCode} {result}', Transport.getTransportIcon());
-        var iEtp182 = 0;
-        var iEtp183 = 0;
-        var iEtp150 = 0;
-        const etp182 = multibar.create(100, iEtp182, {
-            stage: '',
-            exitCode: '',
-            result: 'Needs update'
-        });
-        const etp183 = multibar.create(100, iEtp183, {
-            stage: '',
-            exitCode: '',
-            result: 'Needs update'
-        });
-        const etp150 = multibar.create(100, iEtp150, {
-            stage: '',
-            exitCode: '',
-            result: 'Needs update'
-        });
+        const steps = RELEASE_LOG_STEPS.map(step => ({
+            ...step,
+            progress: 0,
+            bar: multibar.create(100, 0, {
+                stage: '',
+                exitCode: '',
+                result: 'Needs update'
+            })
+        }));
 
         var exitWhile = false;
         var whileResult: 'ERROR' | 'WARNING' | 'SUCCESS' = null;
@@ -468,86 +465,46 @@ export class Transport {
             try {
                 const logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
                 fs.writeFileSync(localPath, logBinary);
-                logResult = await (new R3transLogParser(localPath, systemR3transUnicode)).getReleaseLog();
+                logResult = await (new R3transLogParser(localPath)).getReleaseLog();
                 fs.unlinkSync(localPath);
             } catch (e) {
                 logResult = [];
             }
-            var etp182LogResult = logResult.find(o => o.id === 'ETP182') || { name: 'CHECK WRITEABILITY OF BUFFERS', exitCode: null };
-            var etp183LogResult = logResult.find(o => o.id === 'ETP183') || { name: 'EXPORT PREPARATION', exitCode: null };
-            var etp150LogResult = logResult.find(o => o.id === 'ETP150') || { name: 'MAIN EXPORT', exitCode: null };
-            etp183LogResult.name += '           ';
-            etp150LogResult.name += '                  ';
-            const etp182ExitCode = R3transLogParser.parseExitCode(etp182LogResult.exitCode);
-            const etp183ExitCode = R3transLogParser.parseExitCode(etp183LogResult.exitCode);
-            const etp150ExitCode = R3transLogParser.parseExitCode(etp150LogResult.exitCode);
 
-            exitWhile = (etp182LogResult.exitCode !== null) && (etp183LogResult.exitCode !== null) && (etp150LogResult.exitCode !== null);
+            const stepResults = steps.map(step => {
+                const logStep = logResult.find(o => o.id === step.id) || { name: step.name, exitCode: null as number };
+                return {
+                    step,
+                    stageName: logStep.name + step.namePadding,
+                    exitCode: logStep.exitCode,
+                    parsedExitCode: R3transLogParser.parseExitCode(logStep.exitCode)
+                };
+            });
 
-            if (etp182ExitCode.type === 'SUCCESS' || etp183ExitCode.type === 'SUCCESS' || etp150ExitCode.type === 'SUCCESS') {
+            exitWhile = stepResults.every(o => o.exitCode !== null);
+
+            if (stepResults.some(o => o.parsedExitCode.type === 'SUCCESS')) {
                 whileResult = 'SUCCESS';
             }
-            if (etp182ExitCode.type === 'WARNING' || etp183ExitCode.type === 'WARNING' || etp150ExitCode.type === 'WARNING') {
+            if (stepResults.some(o => o.parsedExitCode.type === 'WARNING')) {
                 whileResult = 'WARNING';
             }
-            if (etp182ExitCode.type === 'ERROR' || etp183ExitCode.type === 'ERROR' || etp150ExitCode.type === 'ERROR') {
+            if (stepResults.some(o => o.parsedExitCode.type === 'ERROR')) {
                 whileResult = 'ERROR';
             }
 
-            const etp182Payload = {
-                stage: etp182LogResult.name,
-                exitCode: etp182LogResult.exitCode || '',
-                result: etp182ExitCode.type !== 'UNKNOWN' ? etp182ExitCode.value : 'In progress'
-            }
-            const etp183Payload = {
-                stage: etp183LogResult.name,
-                exitCode: etp183LogResult.exitCode || '',
-                result: etp183ExitCode.type !== 'UNKNOWN' ? etp183ExitCode.value : 'In progress'
-            }
-            const etp150Payload = {
-                stage: etp150LogResult.name,
-                exitCode: etp150LogResult.exitCode || '',
-                result: etp150ExitCode.type !== 'UNKNOWN' ? etp150ExitCode.value : 'In progress'
-            }
-
-            if (iEtp182 < 99) {
-                if (etp182ExitCode.type === 'UNKNOWN') {
-                    iEtp182++;
-                } else {
-                    iEtp182 = 100;
+            for (const { step, stageName, exitCode, parsedExitCode } of stepResults) {
+                if (parsedExitCode.type === 'UNKNOWN') {
+                    step.progress++;
+                } else if (step.progress < 99) {
+                    step.progress = 100;
                 }
-            } else {
-                if (etp182ExitCode.type === 'UNKNOWN') {
-                    iEtp182++;
-                }
+                step.bar.update(step.progress, {
+                    stage: stageName,
+                    exitCode: exitCode || '',
+                    result: parsedExitCode.type !== 'UNKNOWN' ? parsedExitCode.value : 'In progress'
+                });
             }
-            etp182.update(iEtp182, etp182Payload);
-
-            if (iEtp183 < 99) {
-                if (etp183ExitCode.type === 'UNKNOWN') {
-                    iEtp183++;
-                } else {
-                    iEtp183 = 100;
-                }
-            } else {
-                if (etp183ExitCode.type === 'UNKNOWN') {
-                    iEtp183++;
-                }
-            }
-            etp183.update(iEtp183, etp183Payload);
-
-            if (iEtp150 < 99) {
-                if (etp150ExitCode.type === 'UNKNOWN') {
-                    iEtp150++;
-                } else {
-                    iEtp150 = 100;
-                }
-            } else {
-                if (etp150ExitCode.type === 'UNKNOWN') {
-                    iEtp150++;
-                }
-            }
-            etp150.update(iEtp150, etp150Payload);
 
             await setTimeout(1000); //each second
         }
@@ -922,11 +879,6 @@ export class Transport {
 
     public static getTransportIcon(): string {
         return '⛟';
-    }
-
-    public async getEntries(): Promise<any> {
-        //TODO: read entries on system via r3trans and parse result
-        return {};
     }
 
 }
