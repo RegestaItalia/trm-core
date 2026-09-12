@@ -9,6 +9,7 @@ export * from "./TLINE";
 export * from "./TMSCSYS";
 export * from "./E070";
 export * from "./E071";
+export * from "./E071K";
 export * from "./SENVI";
 export * from "./STMSIQREQ"
 export * from "./SCOMPKDTLN";

@@ -11,7 +11,7 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import { Logger } from "trm-commons";
-import { TROBJTYPE, E070, E071, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
+import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 
@@ -21,6 +21,7 @@ export class Transport {
     private _fileNames: FileNames;
     private _e070: E070;
     private _e071: E071[];
+    private _e071k: E071K[];
     private _e07t: E07T[];
     private _docs: Documentation[];
     private _trmPackageName: string;
@@ -80,6 +81,20 @@ export class Transport {
             );
         }
         return this._e071;
+    }
+
+    public async getE071K(): Promise<E071K[]> {
+        if (!this._e071k) {
+            const fields: RFC_DB_FLD[] = [
+                { fieldName: 'PGMID' },
+                { fieldName: 'OBJECT' },
+                { fieldName: 'OBJ_NAME' }
+            ];
+            this._e071k = await SystemConnector.readTable('E071K', fields,
+                `TRKORR EQ '${this.trkorr}'`
+            );
+        }
+        return this._e071k;
     }
 
     public async getE07T(): Promise<E07T[]> {

@@ -14,13 +14,22 @@ const DONE_OPTION = "done";
 const normalizeTrkorr = (trkorr: string): string => trkorr.trim().toUpperCase();
 
 const validateCustomizingTransport = async (transport: Transport): Promise<void> => {
-    //TODO: actually, a workbench transport can be considered customizing if it only contains table content for tables without client
-    //how to check this?
+    const aggregate = [transport, ...(await transport.getTasks())];
+
     if ((await transport.getE070()).trfunction !== "W") {
-        throw new Error("Transport request must be of type customizing");
+        //a workbench transport can still be considered customizing if every object it carries
+        //is table content (i.e. has a matching E071K key entry) rather than a real repository object
+        for (const item of aggregate) {
+            const [e071, e071k] = await Promise.all([item.getE071(), item.getE071K()]);
+            const realObject = e071
+                .filter(o => o.pgmid !== '*')
+                .find(o => !e071k.some(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName));
+            if (realObject) {
+                throw new Error(`Transport request must be of type customizing (${realObject.pgmid} ${realObject.object} ${realObject.objName} is not table content)`);
+            }
+        }
     }
 
-    const aggregate = [transport, ...(await transport.getTasks())];
     const entries = await Promise.all(aggregate.map(item => item.getE071()));
     if (entries.every(item => item.length === 0)) {
         throw new Error("Transport request is empty");
