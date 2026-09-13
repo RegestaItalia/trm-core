@@ -81,8 +81,16 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             rootDevclass = context.runtime.package.hierarchy.devclass;
         }
         const originalNamespace = getPackageNamespace(rootDevclass);
+        // Only carry the currently installed namespace forward onto newly introduced original
+        // devclasses when the package was genuinely customized before (some stored replacement
+        // actually renamed a package). Otherwise "currently installed" is just this package's
+        // own untouched default from whichever version happens to be installed right now, and
+        // has nothing to do with the namespace of the version being installed/rolled back to.
+        const hasCustomization = context.rawInput.installData.installDevclass.replacements.some(
+            replacement => replacement.installDevclass !== replacement.originalDevclass
+        );
         let updateNamespace;
-        if (context.runtime.update) {
+        if (context.runtime.update && hasCustomization) {
             updateNamespace = getPackageNamespace(context.runtime.update.getDevclass());
         }
 
