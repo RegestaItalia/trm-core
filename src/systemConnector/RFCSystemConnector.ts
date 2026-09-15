@@ -1,5 +1,5 @@
 import { Logger } from "trm-commons";
-import { ClientError, RFCClient, RFCClientError, SapMessage } from "../client";
+import { ClientError, RFCClient, RFCClientError, SapMessage, TransportEntries } from "../client";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
 import { RFCConnection } from "./RFCConnection";
@@ -258,6 +258,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.ZTY_SER_OBJ[] }> {
         return this._client.getAbapgitSource(devclass);
+    }
+
+    public async getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        return this._client.getTransportEntries(trkorr);
     }
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {

@@ -1,4 +1,4 @@
-import { TRKORR, DEVCLASS, TDEVC, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError } from "../client";
+import { TRKORR, DEVCLASS, TDEVC, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError, TransportEntries } from "../client";
 import { AbstractRegistry } from "../registry";
 import { TrmPackage } from "../trmPackage";
 import { ISystemConnector, TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "./ISystemConnector";
@@ -389,6 +389,11 @@ export namespace SystemConnector {
     export async function getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.ZTY_SER_OBJ[] }> {
         await checkSystemConnector();
         return systemConnector.getAbapgitSource(devclass);
+    }
+
+    export async function getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        await checkSystemConnector();
+        return systemConnector.getTransportEntries(trkorr);
     }
 
     export async function executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {

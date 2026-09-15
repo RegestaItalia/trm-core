@@ -7,7 +7,7 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
-import { ClientError, RESTClient, RESTClientError, SapMessage } from "../client";
+import { ClientError, RESTClient, RESTClientError, SapMessage, TransportEntries } from "../client";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 
@@ -288,6 +288,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public async getAbapgitSource(devclass: components.DEVCLASS): Promise<{ zip: Buffer, objects: struct.ZTY_SER_OBJ[] }> {
         return this._client.getAbapgitSource(devclass);
+    }
+
+    public async getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        return this._client.getTransportEntries(trkorr);
     }
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {

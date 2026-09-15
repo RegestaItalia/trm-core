@@ -4,7 +4,7 @@ import { Logger } from "trm-commons";
 import { TrmTransportIdentifier } from "../../transport";
 import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { E071, TADIR, TDEVC } from "../../client";
+import { E071, TADIR, TDEVC, TransportEntries } from "../../client";
 import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons";
 
 /**
@@ -36,7 +36,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         let mergedE071: E071[] = [];
         let mergedTDEVC: TDEVC[] = [];
         let mergedTADIR: TADIR[] = [];
-        function mergeEntries(entries: { e071?: E071[], tdevc?: TDEVC[], tdevct?: any[], tadir?: TADIR[] }): void {
+        function mergeEntries(entries: TransportEntries): void {
             mergedE071 = mergedE071.concat(entries.e071 || []);
             mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
             context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(entries.tdevct || []);

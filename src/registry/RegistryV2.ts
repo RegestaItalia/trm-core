@@ -13,6 +13,7 @@ import _, { add } from 'lodash';
 import { getAxiosInstance, getNodePackage, normalize } from "../commons";
 import { AbstractRegistry, PublishAdditionalData } from "./AbstractRegistry";
 import NodeCache from "node-cache";
+import { TransportEntries } from "../client";
 import { BinaryTransport } from "../transport";
 import * as AdmZip from "adm-zip";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
@@ -393,8 +394,8 @@ export class RegistryV2 implements AbstractRegistry {
         return `package-${fullName}-${version}`;
     }
 
-    public async transportEntries(fullName: string, version: string, trkorr: string): Promise<any> {
-        const download = async (refreshPackage: boolean = false): Promise<any> => {
+    public async transportEntries(fullName: string, version: string, trkorr: string): Promise<TransportEntries> {
+        const download = async (refreshPackage: boolean = false): Promise<TransportEntries> => {
             let packageData: Package;
             try {
                 packageData = await this.getPackage(fullName, version, refreshPackage);
@@ -418,7 +419,7 @@ export class RegistryV2 implements AbstractRegistry {
             }
 
             try {
-                return normalize((await this._axiosInstance.get(transport.contents.download_link)).data || {});
+                return normalize((await this._axiosInstance.get(transport.contents.download_link)).data || {}) as TransportEntries;
             } catch (e) {
                 const status = this.getErrorStatus(e);
                 if (!refreshPackage && (status === 401 || status === 403)) {

@@ -1,4 +1,4 @@
-import { TRKORR } from "../client";
+import { AS4TEXT, TRKORR, TransportEntries } from "../client";
 import { Logger } from "trm-commons";
 import { Manifest } from "../manifest";
 import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from "../transport";
@@ -8,6 +8,13 @@ import { normalize } from "../commons";
 
 const DIST_FOLDER = 'dist';
 const SRC_FOLDER = 'src';
+export const TRANSPORT_INDEX_FILE = 'transport_index.json';
+
+export type TransportIndexEntry = {
+    trkorr: TRKORR,
+    type: TrmTransportIdentifier,
+    description: AS4TEXT
+};
 
 export class TrmArtifact {
     private _zip: AdmZip;
@@ -57,6 +64,31 @@ export class TrmArtifact {
         return this._distFolder;
     }
 
+    public getTransportIndex(): TransportIndexEntry[] {
+        const matches = this._zip.getEntries().filter(entry => entry.entryName === TRANSPORT_INDEX_FILE);
+        if (matches.length !== 1) {
+            throw new Error(`Artifact is missing a unique ${TRANSPORT_INDEX_FILE}. Republish the package with a current TRM version.`);
+        }
+        let value: unknown;
+        try {
+            value = JSON.parse(matches[0].getData().toString('utf8'));
+        } catch (error) {
+            throw new Error(`Artifact ${TRANSPORT_INDEX_FILE} is malformed. Republish the package with a current TRM version.`);
+        }
+        if (!Array.isArray(value) || value.length === 0) {
+            throw new Error(`Artifact ${TRANSPORT_INDEX_FILE} is incomplete. Republish the package with a current TRM version.`);
+        }
+        const allowed = new Set(Object.values(TrmTransportIdentifier));
+        const seen = new Set<string>();
+        for (const item of value) {
+            if (!item || typeof item.trkorr !== 'string' || !item.trkorr || !allowed.has(item.type) || typeof item.description !== 'string' || seen.has(item.trkorr)) {
+                throw new Error(`Artifact ${TRANSPORT_INDEX_FILE} contains invalid or duplicate transports. Republish the package with a current TRM version.`);
+            }
+            seen.add(item.trkorr);
+        }
+        return value as TransportIndexEntry[];
+    }
+
     public async getTransportBinaries(): Promise<TransportBinary[]> {
         if (this._transportBinaries === undefined) {
             const distFolder = this.getDistFolder();
@@ -64,18 +96,35 @@ export class TrmArtifact {
                 throw new Error(`Unable to locate dist folder.`);
             }
             const zipEntries = this._zip.getEntries();
-            this._transportBinaries = [];
-            for (const entry of zipEntries.filter(o => o.entryName.startsWith(distFolder))) {
-                //entry that start with dist are only be zipped header, data and entries file
+            const transportBinaries: TransportBinary[] = [];
+            const index = this.getTransportIndex();
+            const packedEntries = zipEntries.filter(o => o.entryName.startsWith(`${distFolder}/`) && !o.isDirectory);
+            if (packedEntries.length !== index.length) {
+                throw new Error(`Artifact transport files do not match ${TRANSPORT_INDEX_FILE}. Republish the package.`);
+            }
+            for (const metadata of index) {
                 try {
+                    const matches = packedEntries.filter(entry => entry.name === metadata.trkorr);
+                    if (matches.length !== 1 || matches[0].comment !== metadata.type) {
+                        throw new Error(`Packed transport ${metadata.trkorr} does not match its index entry`);
+                    }
+                    const entry = matches[0];
                     const zippedTransport = new AdmZip.default(entry.getData());
                     const header = zippedTransport.getEntries().find(o => o.comment === 'header');
                     const data = zippedTransport.getEntries().find(o => o.comment === 'data');
-                    const entries = zippedTransport.getEntries().find(o => o.comment === 'entries');
-                    this._transportBinaries.push({
-                        trkorr: entry.name,
-                        type: entry.comment as TrmTransportIdentifier,
-                        entries: normalize(JSON.parse(entries.getData().toString())),
+                    const entryFiles = zippedTransport.getEntries().filter(o => o.comment === 'entries' && o.name === `${metadata.trkorr}.JSON`);
+                    if (!header || !data || entryFiles.length !== 1) {
+                        throw new Error(`Packed transport ${metadata.trkorr} is incomplete`);
+                    }
+                    const transportEntries = JSON.parse(entryFiles[0].getData().toString());
+                    if (!transportEntries || !Array.isArray(transportEntries.e071) || transportEntries.e071.length === 0 ||
+                        !Array.isArray(transportEntries.tdevc) || !Array.isArray(transportEntries.tdevct) || !Array.isArray(transportEntries.tadir)) {
+                        throw new Error(`Packed transport ${metadata.trkorr} has incomplete entries`);
+                    }
+                    transportBinaries.push({
+                        trkorr: metadata.trkorr,
+                        type: metadata.type,
+                        entries: normalize(transportEntries) as TransportEntries,
                         binaries: {
                             header: header.getData(),
                             data: data.getData()
@@ -84,8 +133,10 @@ export class TrmArtifact {
                 } catch (e) {
                     Logger.error(`Malformed artifact!`, true);
                     Logger.error(e.toString(), true);
+                    throw new Error(`Artifact transport ${metadata.trkorr} is malformed. Republish the package with a current TRM version.`);
                 }
             }
+            this._transportBinaries = transportBinaries;
         }
         return this._transportBinaries;
     }
@@ -108,7 +159,8 @@ export class TrmArtifact {
             type?: TrmTransportIdentifier,
             binaries: BinaryTransport,
             filenames: FileNames,
-            entries: any
+            entries: TransportEntries,
+            description: AS4TEXT
         }[] = [];
         var packedTransports: {
             filename: string,
@@ -116,14 +168,23 @@ export class TrmArtifact {
             comment?: string,
         }[] = [];
         for (const transport of data.transports) {
+            if (!transport.trmIdentifier || !Object.values(TrmTransportIdentifier).includes(transport.trmIdentifier)) {
+                throw new Error(`Transport ${transport.trkorr} has no valid TRM transport type.`);
+            }
             Logger.log(`Downloading transport ${transport.trmIdentifier}`, true);
             const trBinary = await transport.download();
+            const entries = await transport.getEntries();
+            if (!entries || !Array.isArray(entries.e071) || entries.e071.length === 0 ||
+                !Array.isArray(entries.tdevc) || !Array.isArray(entries.tdevct) || !Array.isArray(entries.tadir)) {
+                throw new Error(`Transport ${transport.trkorr} returned incomplete entries.`);
+            }
             binaries.push({
                 trkorr: transport.trkorr,
                 type: transport.trmIdentifier,
                 binaries: trBinary.binaries,
                 filenames: trBinary.filenames,
-                entries: {}
+                entries,
+                description: await transport.getDescription()
             });
         }
         for (const bin of binaries) {
@@ -144,6 +205,12 @@ export class TrmArtifact {
             Logger.log(`Adding packed transport ${file.comment} to artifact`, true);
             artifact.addFile(`${data.distFolder}/${file.filename}`, file.binary, file.comment);
         }
+
+        artifact.addFile(TRANSPORT_INDEX_FILE, Buffer.from(JSON.stringify(binaries.map(bin => ({
+            trkorr: bin.trkorr,
+            type: bin.type,
+            description: bin.description
+        })), null, 2), 'utf8'));
 
         data.manifest.setDistFolder(data.distFolder);
 

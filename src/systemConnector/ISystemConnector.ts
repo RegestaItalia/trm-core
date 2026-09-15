@@ -1,4 +1,4 @@
-import { ClientError, SapMessage } from "../client";
+import { ClientError, SapMessage, TransportEntries } from "../client";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
@@ -70,6 +70,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     refreshTransportTmsTxt: (trkorr: components.TRKORR) => Promise<void>,
     getDotAbapgit: (devclass: components.DEVCLASS) => Promise<Buffer>,
     getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}>,
+    getTransportEntries: (trkorr: components.TRKORR) => Promise<TransportEntries>,
     executePostActivity: (data: Buffer, pre?: boolean) => Promise<{ messages: struct.SYMSG[], execute?: boolean }>,
     isServerApisAllowed: () => Promise<true|ClientError>,
     changeTrOwner: (trkorr: components.TRKORR, owner: components.TR_AS4USER) => Promise<void>,

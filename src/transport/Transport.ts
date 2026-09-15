@@ -11,7 +11,7 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import { Logger } from "trm-commons";
-import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
+import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER, TransportEntries } from "../client";
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 
@@ -34,6 +34,7 @@ export class Transport {
     private _trmPackageVersion: string;
     private _linkedTrmPackage: TrmPackage;
     private _rootDevclass: DEVCLASS;
+    private _entries: TransportEntries;
     public trmIdentifier?: TrmTransportIdentifier;
 
     constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET) {
@@ -128,6 +129,13 @@ export class Transport {
         } else {
             return '';
         }
+    }
+
+    public async getEntries(): Promise<TransportEntries> {
+        if (!this._entries) {
+            this._entries = await SystemConnector.getTransportEntries(this.trkorr);
+        }
+        return this._entries;
     }
 
     public async getTasks(): Promise<Transport[]> {

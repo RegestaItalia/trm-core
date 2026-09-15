@@ -8,6 +8,7 @@ import path from "path";
 import { RFCClientError, SapMessage } from ".";
 import * as xml from "xml-js";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
+import { TransportEntries } from "./TransportEntries";
 
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
@@ -611,6 +612,30 @@ export class RFCClient implements IClient {
             };
         } catch (error) {
             throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse API data: ${getErrorMessage(error)}`, "/ATRM/GET_ABAPGIT_SOURCE");
+        }
+    }
+
+    public async getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        const result = await this._call("/ATRM/GET_TRANSPORT_ENTRIES", { trkorr });
+        try {
+            if (!Buffer.isBuffer(result['entries'])) {
+                throw new Error('Missing entries payload');
+            }
+            const parsed = xml.xml2js(result['entries'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;"), { compact: true }) as xml.ElementCompact;
+            const root = parsed['asx:abap']?.['asx:values']?.['ENTRIES'];
+            const rows = (name: string): Record<string, string>[] => {
+                const value = root?.[name]?.item;
+                const items: xml.ElementCompact[] = value ? (Array.isArray(value) ? value : [value]) : [];
+                return items.map(item => Object.fromEntries(Object.entries(item).map(([key, node]: [string, xml.ElementCompact]) => [key, node?._text === undefined ? '' : String(node._text)])));
+            };
+            return normalize({
+                e071: rows('E071'),
+                tdevc: rows('TDEVC'),
+                tdevct: rows('TDEVCT'),
+                tadir: rows('TADIR')
+            }) as TransportEntries;
+        } catch (error) {
+            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse API data: ${getErrorMessage(error)}`, "/ATRM/GET_TRANSPORT_ENTRIES");
         }
     }
 

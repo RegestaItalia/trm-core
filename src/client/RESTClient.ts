@@ -8,6 +8,7 @@ import { Logger } from "trm-commons";
 import { Login, RESTClientError, SapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
+import { TransportEntries } from "./TransportEntries";
 
 const AXIOS_CTX = "RestServer";
 
@@ -569,6 +570,11 @@ export class RESTClient implements IClient {
         } catch (e) {
             throw new RESTClientError("ZPARSE_API_DATA", null, e, `Can't parse API data: ${getErrorMessage(e)}`, "/get_abapgit_source");
         }
+    }
+
+    public async getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        const result = (await this._axiosInstance.get('/get_transport_entries', { data: { trkorr } })).data;
+        return normalize(result) as TransportEntries;
     }
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {

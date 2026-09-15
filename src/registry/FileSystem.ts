@@ -7,6 +7,8 @@ import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync }
 import { parse as parsePath } from "path";
 import { writeFile } from "fs/promises";
 import { BinaryTransport } from "../transport";
+import { createHash } from "crypto";
+import { TransportEntries } from "../client";
 
 export const LOCAL_RESERVED_KEYWORD = 'local';
 
@@ -93,6 +95,8 @@ export class FileSystem implements AbstractRegistry {
         if (this._filePath) {
             const artifact = await this.getArtifact();
             const manifest = artifact.getManifest();
+            const transportIndex = artifact.getTransportIndex();
+            await artifact.getTransportBinaries();
             return {
                 name: fullName,
                 dist_tags: {
@@ -102,9 +106,15 @@ export class FileSystem implements AbstractRegistry {
                 yanked_versions: [],
                 deprecated: false,
                 manifest: manifest ? manifest.get() : undefined,
-                checksum: undefined,
+                checksum: createHash('sha512').update(artifact.binary).digest('base64'),
                 download_link: this._filePath,
-                transports: []
+                transports: transportIndex.map(transport => ({
+                    ...transport,
+                    contents: {
+                        download_link: this._filePath,
+                        checksum: createHash('sha512').update(artifact.binary).digest('base64')
+                    }
+                }))
             }
         }
         throw new Error(`File system can't view packages!`);
@@ -123,7 +133,7 @@ export class FileSystem implements AbstractRegistry {
                 }
                 return this._artifact;
             } catch (e) {
-                throw new Error(`File system couldn't read package`);
+                throw new Error(`File system couldn't read package. The artifact may be incomplete or legacy; republish it with a current TRM version.`);
             }
         }
         throw new Error(`Missing file path!`);
@@ -167,8 +177,12 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system can't fetch transports!`);
     }
 
-    public async transportEntries(_fullName: string, _version: string, _trkorr: string): Promise<any> {
-        throw new Error(`File system can't fetch transport entries!`);
+    public async transportEntries(_fullName: string, _version: string, trkorr: string): Promise<TransportEntries> {
+        const transport = (await (await this.getArtifact()).getTransportBinaries()).find(item => item.trkorr === trkorr);
+        if (!transport) {
+            throw new Error(`Transport ${trkorr} was not found in the local artifact.`);
+        }
+        return transport.entries;
     }
 
     public async delete(_transport: BinaryTransport): Promise<BinaryTransport> {

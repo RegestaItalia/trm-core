@@ -26,6 +26,9 @@ jest.mock('../../transport', () => {
         addObjects = jest.fn(async () => { hit('addObjects'); });
         addTranslations = jest.fn(async () => { hit('addTranslations'); });
         getE071 = jest.fn(async () => { hit('getE071'); return [{ pgmid: 'R3TR', object: 'PROG', objName: 'ZOBJ' }]; });
+        getEntries = jest.fn(async () => { hit('getEntries'); return { e071: [{ pgmid: 'R3TR', object: 'PROG', objName: 'ZOBJ' }], tdevc: [], tdevct: [], tadir: [] }; });
+        getDescription = jest.fn(async () => `${this.trkorr} description`);
+        download = jest.fn(async () => ({ binaries: { header: Buffer.from('header'), data: Buffer.from('data') }, filenames: { header: 'K.FILE', data: 'R.FILE' } }));
         getTasks = jest.fn(async () => { hit('getTasks'); return [new MockTransport(`${this.trkorr}-TASK`)]; });
         addObjectsFromTransport = jest.fn(async () => { hit('addObjectsFromTransport'); });
         addComment = jest.fn(async () => { hit('addComment'); });
@@ -54,7 +57,7 @@ function context() {
         rawInput: {
             contextData: {},
             systemData: { transportTarget: 'TST' },
-            packageData: { name: 'pkg', version: '1.0.0' },
+            packageData: { name: 'pkg', version: '1.0.0', tags: [] },
             publishData: { noLanguageTransport: false, noCustomizingTransports: false }
         },
         runtime: {
@@ -73,7 +76,10 @@ function context() {
             },
             transports: { devc: undefined, tadir: undefined, lang: undefined, cust: [] },
             aggregatedTransports: []
-        }
+            ,manifest: { name: 'pkg', version: '1.0.0', authors: [], keywords: [], dependencies: [], postActivities: [], sapEntries: {} },
+            abapGit: {}
+        },
+        output: { trmPackage: { publish: jest.fn() } }
     } as any;
 }
 
@@ -172,5 +178,18 @@ describe('publish transport rollback chain', () => {
         await expect(releaseTransports.revert(ctx)).rejects.toThrow('status failed');
         expect(ctx.runtime.transports.devc.delete).toHaveBeenCalledTimes(1);
         expect(ctx.runtime.transports.tadir.canBeDeleted).toHaveBeenCalledTimes(1);
+    });
+
+    test('entries read failure after release triggers rollback before registry publication', async () => {
+        const ctx = context();
+        (Transport as any).setFault('getEntries', 1);
+
+        const { publishToRegistry } = await import('./publishToRegistry');
+        await expect(execute('publish-test', [...steps(), publishToRegistry], ctx)).rejects.toThrow('failure at getEntries.1');
+
+        expect(ctx.output.trmPackage.publish).not.toHaveBeenCalled();
+        for (const generated of (Transport as any).created) {
+            expect(generated.canBeDeleted).toHaveBeenCalled();
+        }
     });
 });
