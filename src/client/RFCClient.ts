@@ -9,6 +9,7 @@ import { RFCClientError, SapMessage } from ".";
 import * as xml from "xml-js";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
+import { ActionLockKey } from "./struct/ActionLockKey";
 
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
@@ -18,6 +19,28 @@ function getErrorMessage(error: unknown): string {
 }
 
 export class RFCClient implements IClient {
+    public async acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        await this._call("/ATRM/ACQUIRE_ACT_LOCKS", {
+            owner_token: ownerToken,
+            action_name: actionName,
+            keys: keys.map(key => ({
+                resource_type: key.resourceType,
+                resource_hash: key.resourceHash,
+                resource_name: key.resourceName
+            }))
+        });
+    }
+
+    public async releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        await this._call("/ATRM/RELEASE_ACT_LOCKS", {
+            owner_token: ownerToken,
+            keys: keys.map(key => ({
+                resource_type: key.resourceType,
+                resource_hash: key.resourceHash,
+                resource_name: key.resourceName
+            }))
+        });
+    }
     protected _rfcClient: any;
     private _connectionResponseLogged = false;
 

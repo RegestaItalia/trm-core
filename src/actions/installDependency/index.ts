@@ -42,6 +42,7 @@ type WorkflowRuntime = {
     installVersion: string,
     installOutput: InstallActionOutput,
     rollback?: () => Promise<void>
+    release?: () => Promise<void>
 }
 
 /** Result returned after a dependency release has been selected and installed. */
@@ -62,6 +63,7 @@ export interface InstallDependencyWorkflowContext extends IActionContext {
     installRunner?: (input: InstallActionInput) => Promise<{
         output: InstallActionOutput,
         rollback: () => Promise<void>
+        release: () => Promise<void>
     }>
 };
 
@@ -80,6 +82,7 @@ const WORKFLOW_NAME = 'install-dependency';
  */
 export async function installDependency(inputData: InstallDependencyActionInput, installRunner?: InstallDependencyWorkflowContext['installRunner']): Promise<InstallDependencyActionOutput & {
     rollback?: () => Promise<void>
+    release?: () => Promise<void>
 }> {
     const workflow = [
         init,
@@ -94,6 +97,7 @@ export async function installDependency(inputData: InstallDependencyActionInput,
     const installOutput = result.runtime.installOutput;
     return {
         installOutput,
-        rollback: result.runtime.rollback
+        rollback: result.runtime.rollback,
+        release: result.runtime.release
     }
 }

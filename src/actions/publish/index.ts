@@ -20,6 +20,8 @@ import { generateCustTransport } from "./generateCustTransport";
 import { releaseTransports } from "./releaseTransports";
 import { publishToRegistry } from "./publishToRegistry";
 import { updatePackageData } from "./updatePackageData";
+import { ActionLockScope, packageLockResource, withActionLockScope } from "../commons/utils";
+import { lockResources } from "./lockResources";
 
 /** Input required to build and publish a TRM package release from the connected SAP system. */
 export interface PublishActionInput {
@@ -209,6 +211,7 @@ export type PublishActionOutput = {
 
 /** Internal state shared by package-publish workflow steps. */
 export interface PublishWorkflowContext extends IActionContext {
+    lockScope?: ActionLockScope,
     /** Original action input; optional groups and collections are normalized before execution. */
     rawInput: PublishActionInput,
     /** Latest release, SAP objects, generated transports, manifest, and source data. */
@@ -257,6 +260,7 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         setCustomizingTransports,
         setManifestValues,
         setOptionalReleaseData,
+        lockResources,
         generateDevcTransport,
         generateTadirTransport,
         generateLangTransport,
@@ -265,11 +269,16 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         publishToRegistry,
         updatePackageData
     ];
-    const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData
-    }, workflowCallbacks);
-    return {
-        trmPackage: result.output.trmPackage,
-        trmArtifact: result.output.trmArtifact
-    }
+    const lockScope = new ActionLockScope(WORKFLOW_NAME);
+    await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
+    return withActionLockScope(lockScope, async () => {
+        const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
+            rawInput: inputData,
+            lockScope
+        }, workflowCallbacks);
+        return {
+            trmPackage: result.output.trmPackage,
+            trmArtifact: result.output.trmArtifact
+        };
+    });
 }

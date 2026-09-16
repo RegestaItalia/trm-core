@@ -30,6 +30,7 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
             const result = await context.installRunner(inputData);
             context.runtime.installOutput = result.output;
             context.runtime.rollback = result.rollback;
+            context.runtime.release = result.release;
         } else {
             context.runtime.installOutput = await InstallWkf(inputData);
         }

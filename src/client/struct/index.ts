@@ -37,3 +37,4 @@ export * from "./STMSCALERT";
 export * from "./TPSTDOUT";
 export * from "./TPLOGPTR";
 export * from "./STMS_TP_IMPORT";
+export * from "./ActionLockKey";

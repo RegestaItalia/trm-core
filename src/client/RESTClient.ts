@@ -9,6 +9,7 @@ import { Login, RESTClientError, SapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
+import { ActionLockKey } from "./struct/ActionLockKey";
 
 const AXIOS_CTX = "RestServer";
 
@@ -17,6 +18,28 @@ function getErrorMessage(error: unknown): string {
 }
 
 export class RESTClient implements IClient {
+    public async acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        await this._axiosInstance.post('/acquire_act_locks', {
+            owner_token: ownerToken,
+            action_name: actionName,
+            keys: keys.map(key => ({
+                resource_type: key.resourceType,
+                resource_hash: key.resourceHash,
+                resource_name: key.resourceName
+            }))
+        });
+    }
+
+    public async releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        await this._axiosInstance.post('/release_act_locks', {
+            owner_token: ownerToken,
+            keys: keys.map(key => ({
+                resource_type: key.resourceType,
+                resource_hash: key.resourceHash,
+                resource_name: key.resourceName
+            }))
+        });
+    }
     protected _axiosInstance: AxiosInstance;
     private _connected: boolean = false;
 

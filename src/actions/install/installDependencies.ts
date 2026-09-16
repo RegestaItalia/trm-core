@@ -88,6 +88,9 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                     throw new Error(`Dependency install did not return its rollback journal.`);
                 }
                 context.runtime.dependencyRollbacks.push(result.rollback);
+                if (result.release) {
+                    context.runtime.dependencyReleases.push(result.release);
+                }
                 const installedPackage = new TrmPackage(
                     result.installOutput.manifest.name,
                     dependencyRegistry,

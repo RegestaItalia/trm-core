@@ -8,9 +8,20 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
+import { ActionLockKey } from "./ActionLock";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
+
+    export async function acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.acquireActionLocks(keys, ownerToken, actionName);
+    }
+
+    export async function releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.releaseActionLocks(keys, ownerToken);
+    }
 
     function checkSystemConnector() {
         if (!systemConnector) {

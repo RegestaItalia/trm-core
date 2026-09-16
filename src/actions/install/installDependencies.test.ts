@@ -27,7 +27,8 @@ function context() {
                 { name: 'dep-one', version: '^1.0.0' },
                 { name: 'dep-two', version: '^2.0.0' }
             ],
-            dependencyRollbacks: []
+            dependencyRollbacks: [],
+            dependencyReleases: []
         }
     } as any;
 }
@@ -47,13 +48,15 @@ describe('nested dependency rollback ownership', () => {
     test('a completed dependency is rolled back when the next dependency fails', async () => {
         const ctx = context();
         const rollbackFirst = jest.fn().mockResolvedValue(undefined);
+        const releaseFirst = jest.fn().mockResolvedValue(undefined);
         (installDependency as jest.Mock)
-            .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-one' } }, rollback: rollbackFirst })
+            .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-one' } }, rollback: rollbackFirst, release: releaseFirst })
             .mockRejectedValueOnce(new Error('second dependency failed'));
 
         await expect(execute('test', [installDependencies], ctx)).rejects.toThrow();
 
         expect(rollbackFirst).toHaveBeenCalledTimes(1);
+        expect(ctx.runtime.dependencyReleases).toEqual([releaseFirst]);
     });
 
     test('all completed dependencies roll back in reverse order after a later parent failure', async () => {

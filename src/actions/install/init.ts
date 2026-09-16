@@ -52,6 +52,7 @@ export const init: Step<InstallWorkflowContext> = {
             namespace: undefined, //will be calculated from either origin devclass or target devclass later
             previousInstallPackages: [],
             dependencyRollbacks: [],
+            dependencyReleases: [],
             stopWarningShown: false
         };
         context.output = {

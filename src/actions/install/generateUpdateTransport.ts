@@ -9,6 +9,7 @@ import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
 import { PackageHierarchy, packageDataFromTdevc, getPackageNamespace } from "../../commons";
 import { E071, TADIR } from "../../client";
 import { randomBytes } from "crypto";
+import { objectLockResource } from "../commons/utils";
 
 function flattenDevclasses(pkg: PackageHierarchy): string[] {
     return [pkg.devclass, ...pkg.sub.flatMap(flattenDevclasses)];
@@ -282,6 +283,12 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             }] : [])];
             // Validate the complete deletion selection before adding anything to the transport.
             const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects].map(object => [objectKey(object), object]));
+            await context.lockScope.acquire([
+                ...Array.from(deletionObjects.values(), objectLockResource),
+                ...Array.from(deletionObjects.values())
+                    .filter(object => normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC')
+                    .map(object => ({ type: "DEVCLASS" as const, name: object.objName }))
+            ]);
             if (deletionObjects.size > 0) {
                 Logger.loading(`Checking cleanup objects locks...`, true);
                 const locks = await SystemConnector.getObjectsLocks(Array.from(deletionObjects.values(), object => ({

@@ -5,6 +5,7 @@ import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { RFCConnection } from "./RFCConnection";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
+import { ActionLockKey } from "./ActionLock";
 
 export interface TrmPackageUpdateData {
     package_name: string,
@@ -81,4 +82,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getObjectsLocks: (objects: struct.TADIR_KEY[]) => Promise<struct.ZTRM_OBJ_LOCK[]>,
     updateTrmPackageData: (data: TrmPackageUpdateData) => Promise<void>,
     getTransportTargets:() => Promise<components.TARSYSTEM[]>
+    acquireActionLocks: (keys: ActionLockKey[], ownerToken: string, actionName: string) => Promise<void>,
+    releaseActionLocks: (keys: ActionLockKey[], ownerToken: string) => Promise<void>
 }

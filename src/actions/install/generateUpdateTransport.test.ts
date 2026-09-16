@@ -161,6 +161,41 @@ describe('generateUpdateTransport revert', () => {
         expect(dummy.delete).toHaveBeenCalledTimes(1);
     });
 
+    test('rejects cleanup lock conflicts before changing selected objects', async () => {
+        const dummy = new Transport('DEVK9TRACKED') as any;
+        dummy.canBeDeleted.mockResolvedValue(true);
+        jest.spyOn(Transport, 'createToc').mockResolvedValue(dummy);
+        const acquire = jest.fn().mockRejectedValue(new Error('object locked'));
+        const ctx = {
+            lockScope: { acquire },
+            rawInput: {
+                packageData: { name: 'pkg' },
+                installData: { installDevclass: { replacements: [] } },
+                contextData: { noInquirer: true }
+            },
+            runtime: {
+                stopWarningShown: true,
+                update: {
+                    manifest: { get: () => ({ version: '1.0.0' }) },
+                    getTransport: () => ({ getE071: async () => [{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_OLD' }] }),
+                    getDevclass: () => undefined
+                },
+                transports: { tadir: { binaries: { entries: { tadir: [] } } } },
+                previousInstallPackages: [],
+                package: { hierarchy: { devclass: 'Z_ROOT', sub: [] } }
+            },
+            revert: { sapPackages: [], cleanupTemporaryPackages: [], cleanupOriginalTadir: [] }
+        } as any;
+
+        await expect(generateUpdateTransport.run(ctx)).rejects.toThrow('object locked');
+        expect(acquire).toHaveBeenCalledWith([{ type: 'OBJECT', name: 'R3TR CLAS Z_OLD' }]);
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+        expect(ctx.revert.updateCleanupTransport).toBe(dummy);
+
+        await generateUpdateTransport.revert(ctx);
+        expect(dummy.delete).toHaveBeenCalledTimes(1);
+    });
+
     test('temporary package deletion attempts every package and reports the first failure', async () => {
         (SystemConnector.deleteTemporaryPackage as jest.Mock)
             .mockRejectedValueOnce(new Error('first delete failed'))

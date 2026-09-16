@@ -9,8 +9,16 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
+import { ActionLockKey } from "./ActionLock";
 
 export class RFCSystemConnector extends SystemConnectorBase implements ISystemConnector {
+    public acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        return this._client.acquireActionLocks(keys, ownerToken, actionName);
+    }
+
+    public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        return this._client.releaseActionLocks(keys, ownerToken);
+    }
     private _lang: string;
     private _user: string;
     protected _client: RFCClient;

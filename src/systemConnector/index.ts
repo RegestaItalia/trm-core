@@ -3,6 +3,7 @@ export * from "../client/Login";
 export * from "./InstallPackage";
 export * from "../client/SapMessage";
 export * from "./ISystemConnector";
+export * from "./ActionLock";
 export * from "./SystemConnector";
 export * from "./ISystemConnectorBase";
 export * from "./SystemConnectorBase";

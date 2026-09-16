@@ -29,6 +29,8 @@ import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
 import { generateUpdateTransport } from "./generateUpdateTransport";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
+import { ActionLockScope, packageLockResource } from "../commons/utils";
+import { lockResources } from "./lockResources";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
@@ -208,6 +210,7 @@ type WorkflowRuntime = {
     namespace: string,
     previousInstallPackages: InstallPackageReplacements[],
     dependencyRollbacks: Array<() => Promise<void>>,
+    dependencyReleases: Array<() => Promise<void>>,
     rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean
 }
@@ -256,6 +259,7 @@ export type InstallActionOutput = {
 
 /** Internal state shared by package-install workflow steps and rollback handlers. */
 export interface InstallWorkflowContext extends IActionContext {
+    lockScope?: ActionLockScope,
     /** Original action input; optional groups are normalized during initialization. */
     rawInput: InstallActionInput,
     /** Resolved release, package hierarchy, transports, dependencies, and system metadata. */
@@ -296,8 +300,9 @@ const installWorkflow = [
         checkTransports,
         checkSapEntries,
         checkDependencies,
-        installDependencies,
         setInstallDevclass,
+        lockResources,
+        installDependencies,
         addNamespace,
         generateDevclass,
         generateUpdateTransport,
@@ -314,29 +319,71 @@ const installWorkflow = [
 
 async function runInstall(inputData: InstallActionInput, retainRollback: boolean): Promise<{
     output: InstallActionOutput,
-    rollback?: () => Promise<void>
+    rollback?: () => Promise<void>,
+    release?: () => Promise<void>
 }> {
-    if (retainRollback) {
-        const retained = await executeRetainedWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, {
-            rawInput: inputData
-        }, workflowCallbacks);
-        return { output: retained.context.output, rollback: retained.rollback };
-    }
-    const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, {
-        rawInput: inputData
-    }, workflowCallbacks);
-    return {
-        output: result.output
+    const lockScope = new ActionLockScope(WORKFLOW_NAME);
+    const context: InstallWorkflowContext = { rawInput: inputData, lockScope };
+    await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
+    const release = async (): Promise<void> => {
+        let firstError: unknown;
+        for (const releaseDependency of [...(context.runtime?.dependencyReleases || [])].reverse()) {
+            try {
+                await releaseDependency();
+            } catch (error) {
+                firstError ||= error;
+            }
+        }
+        try {
+            await lockScope.release();
+        } catch (error) {
+            firstError ||= error;
+        }
+        if (firstError) throw firstError;
     };
+    try {
+        if (retainRollback) {
+            const retained = await executeRetainedWorkflow<InstallWorkflowContext>(
+                WORKFLOW_NAME, installWorkflow, context, workflowCallbacks
+            );
+            return {
+                output: retained.context.output,
+                release,
+                rollback: async () => {
+                    let firstError: unknown;
+                    try {
+                        await retained.rollback();
+                    } catch (error) {
+                        firstError = error;
+                    }
+                    try {
+                        await release();
+                    } catch (error) {
+                        firstError ||= error;
+                    }
+                    if (firstError) throw firstError;
+                }
+            };
+        }
+        const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
+        await release();
+        return { output: result.output };
+    } catch (error) {
+        try {
+            await release();
+        } catch {
+            // Preserve the workflow failure; the release failure was already attempted.
+        }
+        throw error;
+    }
 }
 
 /** Internal transactional entry point used when a parent install must retain rollback ownership. */
 export async function installWithRollback(inputData: InstallActionInput): Promise<{
     output: InstallActionOutput,
-    rollback: () => Promise<void>
+    rollback: () => Promise<void>,
+    release: () => Promise<void>
 }> {
-    const retained = await executeRetainedWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, {
-        rawInput: inputData
-    }, workflowCallbacks);
-    return { output: retained.context.output, rollback: retained.rollback };
+    const retained = await runInstall(inputData, true);
+    return { output: retained.output, rollback: retained.rollback, release: retained.release };
 }

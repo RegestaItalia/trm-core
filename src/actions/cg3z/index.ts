@@ -1,6 +1,7 @@
 import execute from "@simonegaffurini/sammarksworkflow";
 import { checkServerAuth, workflowCallbacks } from "..";
-import { upload } from "./upload";
+import { parseTransportArchive, upload } from "./upload";
+import { ActionLockScope, withActionLockScope } from "../commons/utils";
 import { TRKORR } from "../../client";
 import { Transport } from "../../transport";
 
@@ -47,15 +48,18 @@ const WORKFLOW_NAME = 'cg3z';
  * refresh failure is logged as a warning and does not reject the action.
  */
 export async function cg3z(inputData: Cg3zActionInput): Promise<Cg3zActionOutput> {
+    const trkorr = parseTransportArchive(inputData.binaries).trkorr;
+    const lockScope = new ActionLockScope(WORKFLOW_NAME);
+    await lockScope.acquire([{ type: "TRANSPORT", name: trkorr }]);
     const workflow = [
         checkServerAuth,
         upload
     ];
-    const result = await execute<Cg3zWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData,
-        runtime: {}
-    }, workflowCallbacks);
-    return {
-        trkorr: result.output.trkorr
-    }
+    return withActionLockScope(lockScope, async () => {
+        const result = await execute<Cg3zWorkflowContext>(WORKFLOW_NAME, workflow, {
+            rawInput: inputData,
+            runtime: {}
+        }, workflowCallbacks);
+        return { trkorr: result.output.trkorr };
+    });
 }

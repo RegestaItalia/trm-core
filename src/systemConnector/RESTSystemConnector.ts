@@ -10,11 +10,19 @@ import { RESTConnection } from "./RESTConnection";
 import { ClientError, RESTClient, RESTClientError, SapMessage, TransportEntries } from "../client";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
+import { ActionLockKey } from "./ActionLock";
 
 const ENDPOINT_RESOURCE_BASE = '/ztrmserver';
 const NONE_DEST = 'NONE';
 
 export class RESTSystemConnector extends SystemConnectorBase implements ISystemConnector {
+    public acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        return this._client.acquireActionLocks(keys, ownerToken, actionName);
+    }
+
+    public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        return this._client.releaseActionLocks(keys, ownerToken);
+    }
     private _dest: string;
     private _lang: string;
     private _user: string;

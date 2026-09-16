@@ -5,6 +5,28 @@ import { Logger } from "trm-commons";
 import * as AdmZip from "adm-zip";
 import { SystemConnector } from "../../systemConnector";
 
+export function parseTransportArchive(binaries: Buffer): {
+    header: AdmZip.IZipEntry,
+    data: AdmZip.IZipEntry,
+    trkorr: string
+} {
+    const zip = new AdmZip.default(binaries);
+    const headers: AdmZip.IZipEntry[] = [];
+    const data: AdmZip.IZipEntry[] = [];
+    zip.forEach(entry => {
+        if (entry.entryName.startsWith("K")) headers.push(entry);
+        if (entry.entryName.startsWith("R")) data.push(entry);
+    });
+    if (headers.length !== 1 || data.length !== 1) {
+        throw new Error("Transport archive must contain exactly one header and one data file.");
+    }
+    const trkorr = Transport.getTrkorrFromFileName(data[0].entryName);
+    if (Transport.getTrkorrFromFileName(headers[0].entryName) !== trkorr) {
+        throw new Error("Transport header and data don't match!");
+    }
+    return { header: headers[0], data: data[0], trkorr };
+}
+
 /**
  * Workflow step that validates, uploads, forwards, and refreshes a transport archive.
  * 
@@ -18,32 +40,10 @@ export const upload: Step<Cg3zWorkflowContext> = {
     run: async (context: Cg3zWorkflowContext): Promise<void> => {
         //1- identifying transport
         Logger.loading(`Reading data...`);
-        const zip = new AdmZip.default(context.rawInput.binaries);
-        var aHeader: AdmZip.IZipEntry[] = [];
-        var aData: AdmZip.IZipEntry[] = [];
-        zip.forEach(e => {
-            if (e.entryName.startsWith('K')) {
-                aHeader.push(e);
-            }
-            if (e.entryName.startsWith('R')) {
-                aData.push(e);
-            }
-        });
-        if (aHeader.length === 0) {
-            throw new Error(`Couldn't find transport header file.`);
-        }
-        if (aData.length === 0) {
-            throw new Error(`Couldn't find transport data file.`);
-        }
-        if (aHeader.length > 1 || aData.length > 1) {
-            throw new Error(`Found multiple transports in same zip file!`);
-        }
+        const archive = parseTransportArchive(context.rawInput.binaries);
         context.output = {
-            trkorr: Transport.getTrkorrFromFileName(aData[0].entryName)
+            trkorr: archive.trkorr
         };
-        if (Transport.getTrkorrFromFileName(aHeader[0].entryName) !== context.output.trkorr) {
-            throw new Error(`Transport header and data don't match!`);
-        }
 
         //2- upload
         Logger.loading(`Uploading transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
@@ -51,8 +51,8 @@ export const upload: Step<Cg3zWorkflowContext> = {
         await Transport.upload(
             context.output.trkorr, {
                 binary: {
-                    header: aHeader[0].getData(),
-                    data: aData[0].getData()
+                    header: archive.header.getData(),
+                    data: archive.data.getData()
                 },
                 trTarget: SystemConnector.getDest()
         });
