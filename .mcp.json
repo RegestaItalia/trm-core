@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "arc-1": {
+      "command": "./scripts/arc1.sh"
+    }
+  }
+}
