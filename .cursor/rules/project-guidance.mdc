@@ -1,0 +1,8 @@
+---
+description: Canonical project guidance
+alwaysApply: true
+---
+
+Read and follow @AGENTS.md before making changes. When working in
+`audits/actions/`, also read and follow @audits/actions/AGENTS.md. These are the
+canonical project instructions.
