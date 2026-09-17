@@ -11,4 +11,5 @@ src/test*.ts
 logs
 src/e2e
 scripts/e2e-revert-matrix.sh
-.claude
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
