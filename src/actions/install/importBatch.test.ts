@@ -406,6 +406,23 @@ describe('importBatch rollback checkpoint', () => {
         );
     });
 
+    test('reports denied workbench cleanup after attempting every temporary-package cleanup', async () => {
+        const context = makeContext(registryDelete);
+        context.revert.sapPackages = ['$TMP', '$OTHER'];
+        const authorizationError = new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied'));
+        registryDelete.mockRejectedValue(authorizationError);
+        (SystemConnector.deleteTemporaryPackage as jest.Mock)
+            .mockRejectedValueOnce(new Error('first temporary cleanup failed'))
+            .mockResolvedValueOnce(undefined);
+
+        await expect(deleteImportedEntries(context)).rejects.toBe(authorizationError);
+
+        expect(SystemConnector.deleteTemporaryPackage).toHaveBeenNthCalledWith(1, '$TMP');
+        expect(SystemConnector.deleteTemporaryPackage).toHaveBeenNthCalledWith(2, '$OTHER');
+        expect(context.revert.cleanupImported).toBe(true);
+        expect(context.revert.cleanupSucceeded).toBe(false);
+    });
+
     test('rollback cleanup does not overwrite the upgrade deletion transport snapshot', async () => {
         const context = makeContext(registryDelete);
         const upgradeSnapshot = {

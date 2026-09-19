@@ -32,7 +32,7 @@ later audits from reporting the same accepted candidates as new findings.
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
 | `install-dependency` | 4 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
-| `install` | 22 | 0 | 1 | 0 | 0 | [Package install](install.md) |
+| `install` | 22 | 0 | 0 | 0 | 0 | [Package install](install.md) |
 | `publish` | 15 | 0 | 0 | 0 | 0 | [Package publish](publish.md) |
 | Shared steps/callbacks | 5 | 0 | 0 | 0 | 0 | [Shared infrastructure](shared.md) |
 
@@ -40,9 +40,16 @@ The linked workflow reports retain the 2026-08-27 step reviews and finding histo
 
 ## Findings
 
-### ACT-2026-01 — High — Unauthorized cleanup can report a successful rollback
+### ACT-2026-01 — Resolved — Unauthorized cleanup can report a successful rollback
 
-When workbench cleanup is denied by the registry, `deleteImportedEntries` marks cleanup unsuccessful and logs a warning, but leaves `cleanupError` unset and returns normally ([source](../../src/actions/install/importBatch.ts#L115)). Preparation reverts then skip snapshot restoration because `cleanupSucceeded` is false ([example](../../src/actions/install/prepareDevc.ts#L93)). The rollback caller can therefore see a successful rollback even though imported objects remain and prior state was not restored. Preserve the authorization error for reporting after the temporary-package cleanup pass.
+When workbench cleanup was denied by the registry, `deleteImportedEntries` marked cleanup
+unsuccessful and logged a warning, but returned normally after the temporary-package cleanup pass.
+Preparation reverts then skipped snapshot restoration because `cleanupSucceeded` was false, so the
+rollback caller could see a successful rollback even though imported objects remained.
+
+The authorization error is now retained as the first cleanup failure and thrown after every
+temporary package has received an independent cleanup attempt. Regression coverage verifies that a
+later temporary-package failure does not replace it and that all temporary packages are attempted.
 
 ### ACT-2026-02 — Resolved — Post-activity substitution changes the release manifest
 
@@ -66,6 +73,6 @@ failure.
 
 ## Highest-priority remediation
 
-1. Make unauthorized rollback cleanup report its failure after attempting independent cleanup operations (ACT-2026-01).
+No open action-workflow findings remain.
 
 These findings were identified by static review and were not reproduced against SAP or a registry.
