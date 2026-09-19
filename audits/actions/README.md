@@ -32,7 +32,7 @@ later audits from reporting the same accepted candidates as new findings.
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
 | `install-dependency` | 4 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
-| `install` | 22 | 0 | 1 | 1 | 0 | [Package install](install.md) |
+| `install` | 22 | 0 | 1 | 0 | 0 | [Package install](install.md) |
 | `publish` | 15 | 0 | 0 | 0 | 0 | [Package publish](publish.md) |
 | Shared steps/callbacks | 5 | 0 | 0 | 0 | 0 | [Shared infrastructure](shared.md) |
 
@@ -44,9 +44,16 @@ The linked workflow reports retain the 2026-08-27 step reviews and finding histo
 
 When workbench cleanup is denied by the registry, `deleteImportedEntries` marks cleanup unsuccessful and logs a warning, but leaves `cleanupError` unset and returns normally ([source](../../src/actions/install/importBatch.ts#L115)). Preparation reverts then skip snapshot restoration because `cleanupSucceeded` is false ([example](../../src/actions/install/prepareDevc.ts#L93)). The rollback caller can therefore see a successful rollback even though imported objects remain and prior state was not restored. Preserve the authorization error for reporting after the temporary-package cleanup pass.
 
-### ACT-2026-02 — Medium — Post-activity substitution changes the release manifest
+### ACT-2026-02 — Resolved — Post-activity substitution changes the release manifest
 
-`executePostActivities` replaces `&LANDSCAPE_TRANSPORT&` directly in `context.runtime.package.data.manifest.postActivities` ([source](../../src/actions/install/executePostActivities.ts#L28)). `updatePackageData` then serializes that same manifest into the installed-package record ([source](../../src/actions/install/updatePackageData.ts#L68)). The stored manifest consequently contains a transport number from this installation rather than the published placeholder. A later reinstall from that metadata can no longer substitute its own landscape transport. Pass a copied activity and parameters to `PostActivity`.
+`executePostActivities` previously replaced `&LANDSCAPE_TRANSPORT&` directly in
+`context.runtime.package.data.manifest.postActivities`. `updatePackageData` then serialized that
+same manifest into the installed-package record, leaving a transport number from the current
+installation in place of the published placeholder.
+
+The execution step now copies each activity and its parameters before resolving placeholders for
+`PostActivity`. The release manifest remains unchanged for persistence and later reinstalls, with
+regression coverage for both substituted and unchanged parameters.
 
 ### ACT-2026-03 — Resolved — A published release is reported as failed if local synchronization fails
 
@@ -60,6 +67,5 @@ failure.
 ## Highest-priority remediation
 
 1. Make unauthorized rollback cleanup report its failure after attempting independent cleanup operations (ACT-2026-01).
-2. Copy post-activity inputs before substituting the landscape transport (ACT-2026-02).
 
 These findings were identified by static review and were not reproduced against SAP or a registry.

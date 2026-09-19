@@ -29,18 +29,18 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
             counter++;
             Logger.setPrefix(`(${counter}/${context.runtime.package.data.manifest.postActivities.length}) `);
             try{
-                if(Array.isArray(data.parameters)){
-                    data.parameters.forEach(param => {
-                        switch(param.value){
-                            case '&LANDSCAPE_TRANSPORT&':
-                                param.value = context.output.transport?.trkorr;
-                                break;
-                            default:
-                                break;
-                        }
-                    });
-                }
-                const postActivity = new PostActivity(data);
+                const activity = {
+                    ...data,
+                    parameters: Array.isArray(data.parameters)
+                        ? data.parameters.map(param => ({
+                            ...param,
+                            value: param.value === '&LANDSCAPE_TRANSPORT&'
+                                ? context.output.transport?.trkorr
+                                : param.value
+                        }))
+                        : data.parameters
+                };
+                const postActivity = new PostActivity(activity);
                 await postActivity.execute();
             } catch (e) {
                 Logger.error(`Failed execution of post activity: ${e.message}`);

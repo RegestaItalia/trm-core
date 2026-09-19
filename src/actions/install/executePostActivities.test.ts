@@ -47,16 +47,32 @@ describe('executePostActivities rollback boundary', () => {
         expect(Logger.removePrefix).toHaveBeenCalledTimes(2);
     });
 
-    test('landscape transport placeholder is resolved before execution', async () => {
+    test('resolves the landscape transport on a copy without changing the release manifest', async () => {
         const ctx = context();
         ctx.runtime.package.data.manifest.postActivities = [{
             name: 'ZCL_ACTIVITY',
-            parameters: [{ name: 'TRKORR', value: '&LANDSCAPE_TRANSPORT&' }]
+            parameters: [
+                { name: 'TRKORR', value: '&LANDSCAPE_TRANSPORT&' },
+                { name: 'MODE', value: 'CHECK' }
+            ]
         }];
         (PostActivity as any).execute.mockResolvedValue(undefined);
 
         await executePostActivities.run(ctx);
 
-        expect(ctx.runtime.package.data.manifest.postActivities[0].parameters[0].value).toBe('DEVK900001');
+        expect((PostActivity as any).execute).toHaveBeenCalledWith({
+            name: 'ZCL_ACTIVITY',
+            parameters: [
+                { name: 'TRKORR', value: 'DEVK900001' },
+                { name: 'MODE', value: 'CHECK' }
+            ]
+        });
+        expect(ctx.runtime.package.data.manifest.postActivities).toEqual([{
+            name: 'ZCL_ACTIVITY',
+            parameters: [
+                { name: 'TRKORR', value: '&LANDSCAPE_TRANSPORT&' },
+                { name: 'MODE', value: 'CHECK' }
+            ]
+        }]);
     });
 });
