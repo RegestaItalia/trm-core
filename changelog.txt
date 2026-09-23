@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-09-23 v9.10.6
+-------------------
+! trm-commons ^5.1.0
+
 2026-07-29 v9.10.5
 -------------------
 + allow self signed certificates in rest client
