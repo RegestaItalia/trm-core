@@ -136,6 +136,8 @@ export type InstallActionInputInstallData = {
     landscapeTransport?: {
         /**
          * TMS target for the generated landscape transport. It is selected interactively when omitted.
+         * When omitted and the system has no transport targets, it is treated as the final system
+         * of the landscape and no landscape transport is generated.
          */
         targetSystem?: string;
     };

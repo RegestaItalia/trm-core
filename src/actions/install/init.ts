@@ -151,12 +151,19 @@ export const init: Step<InstallWorkflowContext> = {
 
         //4- check/set system target
         Logger.loading(`Checking system target...`);
-        context.rawInput.installData.landscapeTransport.targetSystem = await setTransportTarget(
-            context.rawInput.contextData.noInquirer,
-            await SystemConnector.getTransportTargets(),
-            context.rawInput.installData.landscapeTransport.targetSystem,
-            "Install transport target"
-        );
+        const transportTargets = await SystemConnector.getTransportTargets();
+        if (transportTargets.length === 0 && !context.rawInput.installData.landscapeTransport.targetSystem) {
+            //no transport targets: system is the last in the landscape?
+            Logger.info(`No transport targets in ${SystemConnector.getDest()}`);
+            Logger.warning(`Is ${SystemConnector.getDest()} final system in landscape? Install transport won't be generated.`, true);
+        } else {
+            context.rawInput.installData.landscapeTransport.targetSystem = await setTransportTarget(
+                context.rawInput.contextData.noInquirer,
+                transportTargets,
+                context.rawInput.installData.landscapeTransport.targetSystem,
+                "Install transport target"
+            );
+        }
 
         //5- check if already installed
         context.runtime.update = context.rawInput.contextData.systemPackages.find(o => Manifest.compare(o.manifest, new Manifest(context.runtime.package.data.manifest), false));

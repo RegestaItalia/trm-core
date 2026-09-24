@@ -32,11 +32,14 @@ function normalize(value: string): string {
 export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
     name: 'generate-landscape-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if (context.runtime.namespace !== '$') {
-            return true;
-        } else {
+        if (context.runtime.namespace === '$') {
             Logger.log(`Skipping install transport generation (package is temporary)`, true);
             return false;
+        } else if (!context.rawInput.installData.landscapeTransport.targetSystem) {
+            Logger.log(`Skipping install transport generation (system has no transport targets)`, true);
+            return false;
+        } else {
+            return true;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {

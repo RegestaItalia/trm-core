@@ -121,4 +121,15 @@ describe('generateLandscapeTransport rollback', () => {
         expect(landscape.delete).toHaveBeenCalledTimes(1);
         expect(ctx.output.transport).toBeUndefined();
     });
+
+    test('no transport target skips landscape generation', async () => {
+        jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
+        const ctx = context();
+        ctx.rawInput.installData.landscapeTransport.targetSystem = undefined;
+
+        await execute('test', [generateLandscapeTransport], ctx);
+
+        expect(Transport.createWb).not.toHaveBeenCalled();
+        expect(ctx.output.transport).toBeUndefined();
+    });
 });
