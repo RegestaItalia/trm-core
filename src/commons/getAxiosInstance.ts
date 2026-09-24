@@ -3,7 +3,7 @@ import { inspect } from "util";
 import { CliLogFileLogger, Logger } from "trm-commons";
 import { parse as htmlParser } from 'node-html-parser';
 import { randomUUID } from "crypto";
-import { summarizeForLog } from "./summarizeForLog";
+import { summarizeForLog, summarizeUrlForLog } from "./summarizeForLog";
 
 export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';
 export const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
@@ -26,7 +26,7 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         if (Logger.logger instanceof CliLogFileLogger) {
             request.headers.set(AXIOS_SESSION_HEADER, Logger.logger.getSessionId());
         }
-        var sRequest = `${request.method} ${request.baseURL}${request.url}`;
+        var sRequest = `${request.method} ${summarizeUrlForLog(request.baseURL, request.url)}`;
         if (request.params) {
             sRequest += `, parameters: ${inspect(summarizeForLog(request.params), { breakLength: Infinity, compact: true })}`;
         }

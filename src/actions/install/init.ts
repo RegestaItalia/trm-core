@@ -138,11 +138,14 @@ export const init: Step<InstallWorkflowContext> = {
         if (!context.rawInput.installData.installDevclass.transportLayer) {
             try {
                 context.rawInput.installData.installDevclass.transportLayer = await SystemConnector.getDefaultTransportLayer();
-                Logger.log(`Setting transport layer to default: ${context.rawInput.installData.installDevclass.transportLayer}`, true);
             } catch (e) {
                 Logger.error(e.toString(), true);
                 throw new Error(`Couldn't determine system's default transport layer.`);
             }
+            if (!context.rawInput.installData.installDevclass.transportLayer) {
+                throw new Error(`System has no default transport layer, specify one.`);
+            }
+            Logger.log(`Setting transport layer to default: ${context.rawInput.installData.installDevclass.transportLayer}`, true);
         } else {
             if (!(await SystemConnector.isTransportLayerExist(context.rawInput.installData.installDevclass.transportLayer))) {
                 throw new Error(`Transport layer "${context.rawInput.installData.installDevclass.transportLayer}" doesn't exist.`);

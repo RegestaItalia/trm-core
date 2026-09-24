@@ -482,7 +482,7 @@ export class RegistryV2 implements AbstractRegistry {
             }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to fetch package at ${packageData.download_link}: ${(e as AxiosError).message}`);
+            Logger.error(`Failed to fetch package ${fullName} ${version}: ${(e as AxiosError).message}`);
             throw e;
         }
 
@@ -676,7 +676,7 @@ export class RegistryV2 implements AbstractRegistry {
             }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to download deletion transport at ${transportDownload.download_link}: ${(e as AxiosError).message}`);
+            Logger.error(`Failed to download deletion transport: ${(e as AxiosError).message}`);
             throw e;
         }
 
@@ -767,7 +767,7 @@ export class RegistryV2 implements AbstractRegistry {
             }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to download transport at ${transportDownload.download_link}: ${(e as AxiosError).message}`);
+            Logger.error(`Failed to download transport ${label}: ${(e as AxiosError).message}`);
             throw e;
         }
         const checksum = createHash("sha512").update(buffer).digest("base64");

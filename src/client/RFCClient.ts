@@ -123,7 +123,7 @@ export class RFCClient implements IClient {
             const response = await (await this.getRfcClient()).call(fm, argNormalized, callOptions);
             const responseNormalized = normalize(response);
             if (fm !== "STFC_CONNECTION") {
-                Logger.success(`RFC resonse: ${JSON.stringify(summarizeForLog(responseNormalized))}`, true);
+                Logger.success(`RFC response: ${JSON.stringify(summarizeForLog(responseNormalized))}`, true);
             }
             return responseNormalized;
         } catch (e) {

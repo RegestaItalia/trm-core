@@ -16,8 +16,35 @@ function isSensitiveKey(key: string): boolean {
         "password",
         "passwd",
         "apikey",
-        "privatekey"
+        "privatekey",
+        "downloadlink",
+        "replicense"
     ].includes(normalized) || normalized.endsWith("secret") || normalized.endsWith("token");
+}
+
+/**
+ * Formats a request URL for diagnostic logging.
+ *
+ * Relative URLs are resolved against the base URL. Absolute URLs outside the base URL (such as
+ * signed download links) only keep their origin, since their path and query may grant access.
+ *
+ * @param baseURL Base URL of the client, if any.
+ * @param url Request URL.
+ * @returns A log-safe URL.
+ */
+export function summarizeUrlForLog(baseURL: string | undefined, url: string | undefined): string {
+    const sUrl = url || "";
+    if (!/^[a-z][a-z\d+\-.]*:\/\//i.test(sUrl)) {
+        return `${baseURL || ""}${sUrl}`;
+    }
+    if (baseURL && sUrl.startsWith(baseURL)) {
+        return sUrl;
+    }
+    try {
+        return `${new URL(sUrl).origin}/[REDACTED]`;
+    } catch {
+        return "[REDACTED]";
+    }
 }
 
 /**
