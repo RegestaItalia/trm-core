@@ -95,7 +95,58 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
             });
         }
 
-        if (!context.rawInput.contextData.noInquirer) {
+        if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
+            const rows: CustomizingTransport[] = (await Inquirer.prompt({
+                message: "Customizing transports",
+                name: "customizingTransports",
+                type: "input",
+                ui: {
+                    kind: "table",
+                    addLabel: "Add transport",
+                    value: enrichedCustomizing,
+                    columns: [{
+                        name: "trkorr",
+                        label: "Transport",
+                        required: true,
+                        case: "upper",
+                        validate: async (trkorr: string) => {
+                            if (latestByTrkorr.has(trkorr)) {
+                                return true;
+                            }
+                            Logger.loading(`Validating ${trkorr}...`);
+                            try {
+                                await validateCustomizingTransport(new Transport(trkorr));
+                                return true;
+                            } catch (error) {
+                                return error instanceof Error ? error.message : "Invalid transport request";
+                            } finally {
+                                Logger.forceStop();
+                            }
+                        }
+                    }, {
+                        name: "description",
+                        label: "Description",
+                        maxLength: 60,
+                        placeholder: "Transport description"
+                    }]
+                },
+                validate: (input: CustomizingTransport[]) => {
+                    const duplicate = input.find((transport, i) => input.findIndex(o => o.trkorr === transport.trkorr) !== i);
+                    return duplicate ? `${duplicate.trkorr} added more than once` : true;
+                }
+            })).customizingTransports;
+            enrichedCustomizing = [];
+            for (const row of rows) {
+                const trkorr = normalizeTrkorr(row.trkorr);
+                const retainedTransport = latestByTrkorr.get(trkorr);
+                enrichedCustomizing.push({
+                    trkorr,
+                    //descriptions of transports retained from the latest release can't change
+                    description: retainedTransport?.description
+                        ?? (row.description || await new Transport(trkorr).getDescription())
+                });
+            }
+        } else if (!context.rawInput.contextData.noInquirer) {
             const shouldEdit = (await Inquirer.prompt({
                 message: enrichedCustomizing.length > 0
                     ? "Do you want to add more customizing transports?"

@@ -62,7 +62,21 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         const custTransports = context.runtime.package.data.transports.filter(o => o.type === TrmTransportIdentifier.CUST);
         let skippedCust: string[] = [];
         if (context.rawInput.installData.import.noCust === undefined) {
-            if (!context.rawInput.contextData.noInquirer) {
+            if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
+                if (custTransports.length > 0) {
+                    const importCust: string[] = (await Inquirer.prompt({
+                        name: 'importCust',
+                        type: 'select',
+                        message: `Select customizing to import`,
+                        choices: custTransports.map(o => ({
+                            name: o.description || o.trkorr,
+                            value: o.trkorr
+                        })),
+                        default: custTransports.map(o => o.trkorr)
+                    })).importCust || [];
+                    skippedCust = custTransports.filter(o => !importCust.includes(o.trkorr)).map(o => o.trkorr);
+                }
+            } else if (!context.rawInput.contextData.noInquirer) {
                 for (const cust of custTransports) {
                     const importCust = (await Inquirer.prompt({
                         name: 'importCust',
