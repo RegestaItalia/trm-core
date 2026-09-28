@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
 import { validRange as semverValidRange } from "semver";
+import { validate as validateEmail } from "email-validator";
 import { RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency } from "../../manifest";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
@@ -218,7 +219,27 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                         return true;
                     }
                 }
-            }, {
+            }, Inquirer.isUi() ? {
+                type: "input",
+                message: "Authors",
+                name: "authors",
+                ui: {
+                    kind: 'table',
+                    addLabel: 'Add author',
+                    value: Array.isArray(context.runtime.manifest.authors)
+                        ? context.runtime.manifest.authors
+                        : (defaultAuthors ? Manifest.stringAuthorsToArray(defaultAuthors) : []),
+                    columns: [{
+                        name: 'name',
+                        label: 'Name'
+                    }, {
+                        name: 'email',
+                        label: 'Email',
+                        case: 'lower',
+                        validate: (value) => validateEmail(value) ? true : 'Invalid email'
+                    }]
+                }
+            } : {
                 type: "input",
                 message: "Authors (separated by comma)",
                 name: "authors",
