@@ -1,5 +1,5 @@
 import { valid as semverValid } from "semver";
-import { inspect, Logger } from "trm-commons";
+import { inspect, Logger, ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { Manifest } from "../manifest";
 import { TADIR, TDEVC } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
@@ -19,6 +19,8 @@ export const TRM_REST_PACKAGE_NAME: string = 'trm-rest';
 export const SRC_TRKORR_TABL = '/ATRM/SRC_TRKORR';
 export const SKIP_TRKORR_TABL = '/ATRM/SKIPTRKORR';
 export const INSTALL_DEVCLASS_VIEW = '/ATRM/V_INSTDEVC';
+export const POST_ACTIVITY_ATTRIBUTE = 'TRM_PA';
+export const POST_ACTIVITY_METHOD = 'EXECUTE';
 
 export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
@@ -30,7 +32,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   private _rootDevclass: any = {};
   private _timezone: string;
 
-  protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]>
+  protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]>
   protected abstract getSysname(): string
   protected abstract getLangu(c: boolean): string
   protected abstract getTrmServerVersion(): Promise<string>
@@ -88,6 +90,66 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     if (tadir.length === 1) {
       return tadir[0];
     }
+  }
+
+  private escapeSearch(search?: string): string {
+    return (search || '').trim().toUpperCase().replace(/['%_]/g, '');
+  }
+
+  public async getPostActivities(ctx: ValueHelpContext): Promise<ValueHelpPage> {
+    //post activities are classes with constant TRM_PA
+    var options = `CMPNAME EQ '${POST_ACTIVITY_ATTRIBUTE}'`;
+    const search = this.escapeSearch(ctx.search);
+    if (search) {
+      options += ` AND CLSNAME LIKE '%${search}%'`;
+    }
+    const classes: { clsname: string }[] = await this.readTable('SEOCOMPO',
+      [{ fieldName: 'CLSNAME' }],
+      options,
+      { offset: ctx.offset, limit: ctx.limit + 1 }
+    );
+    const hasMore = classes.length > ctx.limit;
+    const rows: { name: string, description?: string }[] = classes.slice(0, ctx.limit).map(o => ({ name: o.clsname }));
+    if (rows.length > 0) {
+      const texts: { clsname: string, descript: string }[] = await this.readTable('SEOCLASSTX',
+        [{ fieldName: 'CLSNAME' }, { fieldName: 'DESCRIPT' }],
+        `LANGU EQ '${this.getLangu(true)}' AND ( ${rows.map(o => `CLSNAME EQ '${o.name}'`).join(' OR ')} )`
+      );
+      rows.forEach(o => {
+        o.description = texts.find(t => t.clsname === o.name)?.descript;
+      });
+    }
+    return { rows, hasMore };
+  }
+
+  public async getPostActivityParameters(className: string, ctx: ValueHelpContext): Promise<ValueHelpPage> {
+    //post activity parameters are the importing parameters of method EXECUTE
+    const clsname = this.escapeSearch(className);
+    if (!clsname) {
+      return { rows: [], hasMore: false };
+    }
+    var options = `CLSNAME EQ '${clsname}' AND CMPNAME EQ '${POST_ACTIVITY_METHOD}' AND PARDECLTYP EQ '0' AND VERSION EQ '1'`;
+    const search = this.escapeSearch(ctx.search);
+    if (search) {
+      options += ` AND SCONAME LIKE '%${search}%'`;
+    }
+    const parameters: { sconame: string }[] = await this.readTable('SEOSUBCODF',
+      [{ fieldName: 'SCONAME' }],
+      options,
+      { offset: ctx.offset, limit: ctx.limit + 1 }
+    );
+    const hasMore = parameters.length > ctx.limit;
+    const rows: { name: string, description?: string }[] = parameters.slice(0, ctx.limit).map(o => ({ name: o.sconame }));
+    if (rows.length > 0) {
+      const texts: { sconame: string, descript: string }[] = await this.readTable('SEOSUBCOTX',
+        [{ fieldName: 'SCONAME' }, { fieldName: 'DESCRIPT' }],
+        `CLSNAME EQ '${clsname}' AND CMPNAME EQ '${POST_ACTIVITY_METHOD}' AND LANGU EQ '${this.getLangu(true)}'`
+      );
+      rows.forEach(o => {
+        o.description = texts.find(t => t.sconame === o.name)?.descript;
+      });
+    }
+    return { rows, hasMore };
   }
 
   public async getIgnoredTrkorr(refresh?: boolean): Promise<components.TRKORR[]> {

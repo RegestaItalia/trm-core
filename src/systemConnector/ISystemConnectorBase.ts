@@ -4,6 +4,7 @@ import * as struct from "../client/struct";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
+import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
@@ -37,5 +38,7 @@ export interface ISystemConnectorBase {
     getObjectDependencies: (object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<ObjectDependencies>,
     getTableKeys: (tabname: components.TABNAME) => Promise<struct.DD03L[]>,
     getRootDevclass: (devclass: components.DEVCLASS) => Promise<components.DEVCLASS>,
-    getTimezone: () => Promise<string>
+    getTimezone: () => Promise<string>,
+    getPostActivities: (ctx: ValueHelpContext) => Promise<ValueHelpPage>,
+    getPostActivityParameters: (className: string, ctx: ValueHelpContext) => Promise<ValueHelpPage>
 }

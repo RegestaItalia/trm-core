@@ -202,7 +202,7 @@ export class RFCClient implements IClient {
         return this._getMessage(false, data);
     }
 
-    private async _readTable(noErrorParsing: boolean, tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+    private async _readTable(noErrorParsing: boolean, tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
         var sqlOutput = [];
         const delimiter = '|';
         var aOptions: struct.RFC_DB_OPT[] = [];
@@ -226,6 +226,15 @@ export class RFCClient implements IClient {
                     }
                 });
             }
+            //lines exceeding 72 chars are split on OR operator
+            aOptions = aOptions.reduce((acc, o) => {
+                if (o.text.length > 72) {
+                    o.text.split(/\s+OR\s+/).forEach((s, i) => acc.push({ text: i === 0 ? s.trim() : `OR ${s.trim()}` }));
+                } else {
+                    acc.push(o);
+                }
+                return acc;
+            }, [] as struct.RFC_DB_OPT[]);
             /*aOptions = (options.match(/.{1,72}/g)).map(s => {
                 return {
                     text: s
@@ -233,12 +242,17 @@ export class RFCClient implements IClient {
             }) || [];*/
         }
         try {
-            const result = await this._call("RFC_READ_TABLE", {
+            const params: any = {
                 query_table: tableName,
                 delimiter,
                 options: aOptions,
                 fields
-            }, undefined, noErrorParsing);
+            };
+            if (paging) {
+                params.rowskips = paging.offset;
+                params.rowcount = paging.limit;
+            }
+            const result = await this._call("RFC_READ_TABLE", params, undefined, noErrorParsing);
             const data: struct.TAB512[] = result['data'];
             data.forEach(tab512 => {
                 var sqlLine: any = {};
@@ -258,8 +272,8 @@ export class RFCClient implements IClient {
         }
     }
 
-    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
-        return this._readTable(false, tableName, fields, options);
+    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
+        return this._readTable(false, tableName, fields, options, paging);
     }
 
     public async getFileSystem(): Promise<struct.FILESYS> {

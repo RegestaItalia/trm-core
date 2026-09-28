@@ -1,11 +1,13 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
+import { validRange as semverValidRange } from "semver";
 import { RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency } from "../../manifest";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 import _ from 'lodash';
 import { TrmPackage } from "../../trmPackage";
+import { SystemConnector } from "../../systemConnector";
 
 /**
  * Workflow step that merges, collects, normalizes, and serializes release manifest values.
@@ -221,7 +223,16 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 message: "Authors (separated by comma)",
                 name: "authors",
                 default: defaultAuthors
-            }, {
+            }, Inquirer.isUi() ? {
+                type: "input",
+                message: "Keywords",
+                name: "keywords",
+                ui: {
+                    kind: 'tags',
+                    case: 'lower',
+                    value: defaultKeywords ? Manifest.stringKeywordsToArray(defaultKeywords) : []
+                }
+            } : {
                 type: "input",
                 message: "Keywords (separated by comma)",
                 name: "keywords",
@@ -258,7 +269,52 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         }
 
         //5- set post install activities
-        if (!context.rawInput.contextData.noInquirer) {
+        if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
+            const inqDefault1 = context.runtime.manifest.postActivities || [];
+            const inq = await Inquirer.prompt({
+                message: 'Post activities',
+                type: 'input',
+                name: 'postActivities',
+                ui: {
+                    kind: 'table',
+                    addLabel: 'Add post activity',
+                    value: inqDefault1,
+                    columns: [{
+                        name: 'name',
+                        label: 'Class',
+                        required: true,
+                        case: 'upper',
+                        valueHelp: {
+                            key: 'name',
+                            columns: [{ name: 'name', label: 'Class' }, { name: 'description', label: 'Description' }],
+                            handler: (ctx) => SystemConnector.getPostActivities(ctx)
+                        }
+                    }, {
+                        name: 'parameters',
+                        label: 'Parameters',
+                        type: 'table',
+                        columns: [{
+                            name: 'name',
+                            label: 'Name',
+                            required: true,
+                            case: 'upper',
+                            valueHelp: {
+                                key: 'name',
+                                columns: [{ name: 'name', label: 'Parameter' }, { name: 'description', label: 'Description' }],
+                                handler: (ctx) => SystemConnector.getPostActivityParameters(ctx.parentRows?.[0]?.name, ctx)
+                            }
+                        }, {
+                            name: 'value',
+                            label: 'Value'
+                        }]
+                    }]
+                }
+            });
+            if (!_.isEqual(inq.postActivities, inqDefault1)) {
+                Logger.log(`Post activities were manually changed: before -> ${JSON.stringify(context.runtime.manifest.postActivities)}, after -> ${JSON.stringify(inq.postActivities)}`, true);
+                context.runtime.manifest.postActivities = inq.postActivities;
+            }
+        } else if (!context.rawInput.contextData.noInquirer) {
             const inqDefault1 = context.runtime.manifest.postActivities || [];
             const inq = await Inquirer.prompt([{
                 message: inqDefault1.length > 0 ? `Do you want to edit ${inqDefault1.length} post activities?` : `Do you want to add post activities?`,
@@ -328,7 +384,39 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         }
 
         //6- edit dependencies/sap entries
-        if (!context.rawInput.contextData.noInquirer) {
+        if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
+            const inqDefault2 = context.runtime.manifest.dependencies || [];
+            const inq = await Inquirer.prompt({
+                message: 'Dependencies',
+                type: 'input',
+                name: 'dependencies',
+                ui: {
+                    kind: 'table',
+                    addLabel: 'Add dependency',
+                    value: inqDefault2,
+                    columns: [{
+                        name: 'name',
+                        label: 'Name',
+                        required: true,
+                        case: 'lower'
+                    }, {
+                        name: 'version',
+                        label: 'Version',
+                        required: true,
+                        placeholder: '^1.0.0',
+                        validate: (value) => semverValidRange(value) ? true : 'Invalid semver range'
+                    }, {
+                        name: 'registry',
+                        label: 'Registry',
+                        placeholder: 'public'
+                    }]
+                }
+            });
+            if (!_.isEqual(inq.dependencies, inqDefault2)) {
+                Logger.log(`Dependencies were manually changed: before -> ${JSON.stringify(context.runtime.manifest.dependencies)}, after -> ${JSON.stringify(inq.dependencies)}`, true);
+                context.runtime.manifest.dependencies = inq.dependencies;
+            }
+        } else if (!context.rawInput.contextData.noInquirer) {
             const inqDefault2 = context.runtime.manifest.dependencies || [];
             const inq = await Inquirer.prompt([{
                 message: `Do you want to manually edit dependencies?`,

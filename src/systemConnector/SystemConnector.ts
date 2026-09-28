@@ -9,6 +9,7 @@ import * as struct from "../client/struct";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { ActionLockKey } from "./ActionLock";
+import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -124,6 +125,16 @@ export namespace SystemConnector {
         return systemConnector.getDevclassObjects(devclass, includeSubpackages);
     }
 
+    export async function getPostActivities(ctx: ValueHelpContext): Promise<ValueHelpPage> {
+        await checkSystemConnector();
+        return systemConnector.getPostActivities(ctx);
+    }
+
+    export async function getPostActivityParameters(className: string, ctx: ValueHelpContext): Promise<ValueHelpPage> {
+        await checkSystemConnector();
+        return systemConnector.getPostActivityParameters(className, ctx);
+    }
+
     export async function getObject(pgmid: PGMID, object: TROBJTYPE, objName: SOBJ_NAME): Promise<TADIR> {
         await checkSystemConnector();
         return systemConnector.getObject(pgmid, object, objName);
@@ -194,9 +205,9 @@ export namespace SystemConnector {
         return systemConnector.getPackageIntegrity(oPackage);
     }
 
-    export async function readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+    export async function readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
         await checkSystemConnector();
-        return systemConnector['readTable'](tableName, fields, options);
+        return systemConnector['readTable'](tableName, fields, options, paging);
     }
 
     export async function getFileSystem(): Promise<struct.FILESYS> {

@@ -164,7 +164,7 @@ export class RESTClient implements IClient {
         }
     }
 
-    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
         try {
             var sqlOutput = [];
             const delimiter = '|';
@@ -188,6 +188,15 @@ export class RESTClient implements IClient {
                         }
                     });
                 }
+                //lines exceeding 72 chars are split on OR operator
+                aOptions = aOptions.reduce((acc, o) => {
+                    if (o.text.length > 72) {
+                        o.text.split(/\s+OR\s+/).forEach((s, i) => acc.push({ text: i === 0 ? s.trim() : `OR ${s.trim()}` }));
+                    } else {
+                        acc.push(o);
+                    }
+                    return acc;
+                }, [] as struct.RFC_DB_OPT[]);
                 /*aOptions = (options.match(/.{1,72}/g)).map(s => {
                     return {
                         text: s
@@ -198,7 +207,14 @@ export class RESTClient implements IClient {
                 params: {
                     rfcdest: this.rfcdest
                 },
-                data: {
+                data: paging ? {
+                    query_table: tableName.toUpperCase(),
+                    delimiter,
+                    options: aOptions,
+                    fields: fields,
+                    rowskips: paging.offset,
+                    rowcount: paging.limit
+                } : {
                     query_table: tableName.toUpperCase(),
                     delimiter,
                     options: aOptions,

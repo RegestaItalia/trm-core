@@ -86,8 +86,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         }
     }
 
-    protected async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
-        return this._client.readTable(tableName, fields, options);
+    protected async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
+        return this._client.readTable(tableName, fields, options, paging);
     }
 
     protected async getTrmServerVersion(): Promise<string> {
