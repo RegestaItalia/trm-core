@@ -59,7 +59,12 @@ describe('FileSystem embedded transports', () => {
         expect(pkg.transports.map(item => item.type)).toEqual(Object.values(TrmTransportIdentifier));
         expect(pkg.transports.map(item => item.description)).toEqual(Object.values(TrmTransportIdentifier).map(type => `${type} description`));
         expect(pkg.checksum).toBe(createHash('sha512').update(binary).digest('base64'));
+        const zip = new AdmZip.default(binary);
         for (const item of pkg.transports) {
+            const packed = new AdmZip.default(zip.getEntry(`dist/${item.trkorr}`).getData());
+            const entriesData = packed.getEntry(`${item.trkorr}.JSON`).getData();
+            expect(item.contents.checksum).toBe(createHash('sha512').update(entriesData).digest('base64'));
+            expect(item.contents.checksum).not.toBe(pkg.checksum);
             await expect(registry.transportEntries('offline', '1.0.0', item.trkorr)).resolves.toMatchObject({ e071: expect.any(Array) });
         }
     });

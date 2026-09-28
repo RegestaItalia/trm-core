@@ -5,6 +5,7 @@ import { BinaryTransport, FileNames, Transport, TrmTransportIdentifier } from ".
 import * as AdmZip from "adm-zip";
 import { TransportBinary } from "./TransportBinary";
 import { normalize } from "../commons";
+import { createHash } from "crypto";
 
 const DIST_FOLDER = 'dist';
 const SRC_FOLDER = 'src';
@@ -116,7 +117,8 @@ export class TrmArtifact {
                     if (!header || !data || entryFiles.length !== 1) {
                         throw new Error(`Packed transport ${metadata.trkorr} is incomplete`);
                     }
-                    const transportEntries = JSON.parse(entryFiles[0].getData().toString());
+                    const entriesData = entryFiles[0].getData();
+                    const transportEntries = JSON.parse(entriesData.toString());
                     if (!transportEntries || !Array.isArray(transportEntries.e071) || transportEntries.e071.length === 0 ||
                         !Array.isArray(transportEntries.tdevc) || !Array.isArray(transportEntries.tdevct) || !Array.isArray(transportEntries.tadir)) {
                         throw new Error(`Packed transport ${metadata.trkorr} has incomplete entries`);
@@ -125,6 +127,7 @@ export class TrmArtifact {
                         trkorr: metadata.trkorr,
                         type: metadata.type,
                         entries: normalize(transportEntries) as TransportEntries,
+                        entriesChecksum: createHash('sha512').update(entriesData).digest('base64'),
                         binaries: {
                             header: header.getData(),
                             data: data.getData()

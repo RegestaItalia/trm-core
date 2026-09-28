@@ -96,7 +96,7 @@ export class FileSystem implements AbstractRegistry {
             const artifact = await this.getArtifact();
             const manifest = artifact.getManifest();
             const transportIndex = artifact.getTransportIndex();
-            await artifact.getTransportBinaries();
+            const transportBinaries = await artifact.getTransportBinaries();
             return {
                 name: fullName,
                 dist_tags: {
@@ -112,7 +112,7 @@ export class FileSystem implements AbstractRegistry {
                     ...transport,
                     contents: {
                         download_link: this._filePath,
-                        checksum: createHash('sha512').update(artifact.binary).digest('base64')
+                        checksum: transportBinaries.find(item => item.trkorr === transport.trkorr).entriesChecksum
                     }
                 }))
             }
