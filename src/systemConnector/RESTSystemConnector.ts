@@ -11,6 +11,7 @@ import { ClientError, RESTClient, RESTClientError, SapMessage, TransportEntries 
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 import { ActionLockKey } from "./ActionLock";
+import { summarizeForLog } from "../commons/summarizeForLog";
 
 const ENDPOINT_RESOURCE_BASE = '/ztrmserver';
 const NONE_DEST = 'NONE';
@@ -42,7 +43,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._lang = this._login.lang;
         this._user = this._login.user;
         if (this._normalizeEndpoint) {
-            Logger.log(`REST connection data before normalize: ${JSON.stringify(this._connection)}`, true);
+            Logger.log(`REST connection data before normalize: ${JSON.stringify(summarizeForLog(this._connection))}`, true);
             this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
                 removeTrailingSlash: true
             });
@@ -58,7 +59,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
             this.supportedBulk.getExistingObjects = false;
         }
         this._connection.rfcdest = this._connection.rfcdest.toUpperCase().trim();
-        Logger.log(`REST connection data after normalize: ${JSON.stringify(this._connection)}`, true);
+        Logger.log(`REST connection data after normalize: ${JSON.stringify(summarizeForLog(this._connection))}`, true);
         this._client = new RESTClient(this._connection.endpoint, this._connection.rfcdest, this._login, this._lang[0]);
     }
 
