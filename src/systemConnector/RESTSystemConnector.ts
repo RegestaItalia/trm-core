@@ -8,13 +8,40 @@ import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { ClientError, RESTClient, RESTClientError, SapMessage, TransportEntries } from "../client";
-import normalizeUrl from "@esm2cjs/normalize-url";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 import { ActionLockKey } from "./ActionLock";
 import { summarizeForLog } from "../commons/summarizeForLog";
 
 const ENDPOINT_RESOURCE_BASE = '/ztrmserver';
 const NONE_DEST = 'NONE';
+
+/**
+ * Reduces a user-provided REST endpoint to the base URL the TRM server resource is appended to.
+ *
+ * Users often paste a full SAP URL (e.g. with the ICF path, sap-client or other query
+ * parameters). A missing scheme defaults to http, credentials, query and hash are discarded.
+ * When the path contains the TRM server resource, the path before it is kept (e.g. a reverse
+ * proxy prefix) and everything after it is discarded; any other path is discarded.
+ *
+ * @param endpoint Endpoint as entered by the user.
+ * @returns The endpoint base URL, without trailing slash and without the TRM server resource.
+ */
+function normalizeEndpointBase(endpoint: string): string {
+    const sEndpoint = (endpoint || '').trim();
+    let url: URL;
+    try {
+        url = new URL(/^[a-z][a-z\d+\-.]*:\/\//i.test(sEndpoint) ? sEndpoint : `http://${sEndpoint}`);
+    } catch {
+        throw new Error(`Invalid REST endpoint "${sEndpoint}".`);
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new Error(`Invalid REST endpoint "${sEndpoint}": protocol must be http or https.`);
+    }
+    const segments = url.pathname.split('/').filter(segment => segment);
+    const resourceIndex = segments.findIndex(segment => `/${segment.toLowerCase()}` === ENDPOINT_RESOURCE_BASE);
+    const prefix = resourceIndex > 0 ? `/${segments.slice(0, resourceIndex).join('/')}` : '';
+    return `${url.protocol}//${url.host}${prefix}`;
+}
 
 export class RESTSystemConnector extends SystemConnectorBase implements ISystemConnector {
     public acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
@@ -44,9 +71,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._user = this._login.user;
         if (this._normalizeEndpoint) {
             Logger.log(`REST connection data before normalize: ${JSON.stringify(summarizeForLog(this._connection))}`, true);
-            this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
-                removeTrailingSlash: true
-            });
+            this._connection.endpoint = normalizeEndpointBase(this._connection.endpoint);
         }
         if (!new RegExp(`${ENDPOINT_RESOURCE_BASE}$`, 'gmi').test(this._connection.endpoint)) {
             this._connection.endpoint = `${this._connection.endpoint}${ENDPOINT_RESOURCE_BASE}`;
