@@ -10,6 +10,7 @@ import * as xml from "xml-js";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
+import { logMessageLog, parseMessageLog } from "./messageLog";
 
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
@@ -163,9 +164,29 @@ export class RFCClient implements IClient {
                 if (messageError) {
                     rfcClientError.messageError = messageError;
                 }
+                if (sapMessage.no && sapMessage.class) {
+                    rfcClientError.messageLog = await this._getExceptionLog(fm, e.key);
+                }
                 Logger.error(rfcClientError.toString(), true);
+                logMessageLog(rfcClientError);
                 throw rfcClientError;
             }
+        }
+    }
+
+    private async _getExceptionLog(fm: string, exceptionKey: string): Promise<string[] | undefined> {
+        //classic RFC exceptions only carry the T100 message: the /ATRM/CX_EXCEPTION log
+        //stays in the function group memory of this RFC session and is read with a follow-up call
+        if (typeof fm !== 'string' || !fm.startsWith('/ATRM/') || fm === '/ATRM/GET_EXCEPTION_LOG' || exceptionKey === 'TRM_RFC_UNAUTHORIZED') {
+            return undefined;
+        }
+        try {
+            const result = await this._call('/ATRM/GET_EXCEPTION_LOG', undefined, undefined, true);
+            return parseMessageLog(result?.log);
+        } catch (e) {
+            //older trm-server releases don't have this function
+            Logger.warning(`Couldn't read exception log: ${getErrorMessage(e)}`, true);
+            return undefined;
         }
     }
 

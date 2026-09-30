@@ -10,6 +10,7 @@ import { parse as parseMultipart } from "parse-multipart-data";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
+import { logMessageLog, parseMessageLog } from "./messageLog";
 
 const AXIOS_CTX = "RestServer";
 
@@ -121,10 +122,9 @@ export class RESTClient implements IClient {
                     if (messageError) {
                         rfcClientError.messageError = messageError.toString();
                     }
-                    if (responseData && responseData.log) {
-                        rfcClientError.messageLog = responseData.log;
-                    }
+                    rfcClientError.messageLog = parseMessageLog(responseData.log);
                     Logger.error(rfcClientError.toString(), true);
+                    logMessageLog(rfcClientError);
                     throw rfcClientError;
                 });
             }
