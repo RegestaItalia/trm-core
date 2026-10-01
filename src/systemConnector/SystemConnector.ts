@@ -10,6 +10,7 @@ import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { ActionLockKey } from "./ActionLock";
 import { ValueHelpContext, ValueHelpPage } from "trm-commons";
+import { TrmManifestEngineTableCondition } from "../manifest";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -476,6 +477,26 @@ export namespace SystemConnector {
     export async function getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
         await checkSystemConnector();
         return systemConnector.getTransportImportStatus(trkorr, system);
+    }
+
+    export async function getSoftwareComponents(): Promise<struct.CVERS[]> {
+        await checkSystemConnector();
+        return systemConnector.getSoftwareComponents();
+    }
+
+    export async function getInstalledProducts(): Promise<struct.PRDVERS[]> {
+        await checkSystemConnector();
+        return systemConnector.getInstalledProducts();
+    }
+
+    export async function getNoteStatus(numm: components.CWBNTNUMM): Promise<{ prstatus?: components.CWBPRSTAT, versno?: components.CWBNTVERS }> {
+        await checkSystemConnector();
+        return systemConnector.getNoteStatus(numm);
+    }
+
+    export async function checkTableCondition(table: components.TABNAME, where: TrmManifestEngineTableCondition[]): Promise<boolean> {
+        await checkSystemConnector();
+        return systemConnector.checkTableCondition(table, where);
     }
 
     export async function getTimezone(): Promise<string> {

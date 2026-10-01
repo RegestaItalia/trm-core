@@ -10,6 +10,7 @@ import execute from "@simonegaffurini/sammarksworkflow";
 import { init } from "./init";
 import { checkTransports } from "./checkTransports";
 import { checkSapEntries } from "./checkSapEntries";
+import { checkEngines } from "./checkEngines";
 import { checkDependencies } from "./checkDependencies";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
@@ -93,6 +94,11 @@ export type InstallActionInputInstallData = {
          * Skip validation of required SAP table entries. Defaults to `false`.
          */
         noSapEntries?: boolean;
+
+        /**
+         * Skip validation of the manifest engines (SAP components, products, notes, tables). Defaults to `false`.
+         */
+        noEngines?: boolean;
 
         /**
          * Skip package dependency validation and installation. Defaults to `false`.
@@ -301,6 +307,7 @@ const installWorkflow = [
         checkDependants,
         checkTransports,
         checkSapEntries,
+        checkEngines,
         checkDependencies,
         setInstallDevclass,
         lockResources,

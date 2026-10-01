@@ -1,0 +1,1 @@
+export type BORM_VEND = string;

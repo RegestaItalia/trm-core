@@ -1,5 +1,6 @@
 import { TrmManifestAuthor } from "./TrmManifestAuthor"
 import { TrmManifestDependency } from "./TrmManifestDependency"
+import { TrmManifestEngines } from "./TrmManifestEngines"
 import { TrmManifestPostActivity } from "./TrmManifestPostActivity"
 
 export interface TrmManifestBase {
@@ -12,5 +13,6 @@ export interface TrmManifestBase {
     keywords?: string | string[],
     dependencies?: TrmManifestDependency[],
     sapEntries?: any,
-    postActivities?: TrmManifestPostActivity[]
+    postActivities?: TrmManifestPostActivity[],
+    engines?: TrmManifestEngines
 }

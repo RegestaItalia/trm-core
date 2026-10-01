@@ -1,6 +1,6 @@
 import { valid as semverValid } from "semver";
 import { inspect, Logger, ValueHelpContext, ValueHelpPage } from "trm-commons";
-import { Manifest } from "../manifest";
+import { Manifest, TrmManifestEngineTableCondition } from "../manifest";
 import { TADIR, TDEVC } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
@@ -628,6 +628,50 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }
     }
     return this._rootDevclass[devclass];
+  }
+
+  public async getSoftwareComponents(): Promise<struct.CVERS[]> {
+    return await this.readTable('CVERS',
+      [{ fieldName: 'COMPONENT' }, { fieldName: 'RELEASE' }, { fieldName: 'EXTRELEASE' }, { fieldName: 'COMP_TYPE' }]
+    );
+  }
+
+  public async getInstalledProducts(): Promise<struct.PRDVERS[]> {
+    return await this.readTable('PRDVERS',
+      [{ fieldName: 'ID' }, { fieldName: 'NAME' }, { fieldName: 'VERSION' }, { fieldName: 'VENDOR' }, { fieldName: 'DESCRIPT' }, { fieldName: 'INSTSTATUS' }],
+      `INSTSTATUS EQ '+'`
+    );
+  }
+
+  public async getNoteStatus(numm: components.CWBNTNUMM): Promise<{ prstatus?: components.CWBPRSTAT, versno?: components.CWBNTVERS }> {
+    const note = numm.trim().padStart(10, '0');
+    const cust: struct.CWBNTCUST[] = await this.readTable('CWBNTCUST',
+      [{ fieldName: 'NUMM' }, { fieldName: 'NTSTATUS' }, { fieldName: 'PRSTATUS' }],
+      `NUMM EQ '${note}'`
+    );
+    if (cust.length === 0) {
+      return {};
+    }
+    const head: struct.CWBNTHEAD[] = await this.readTable('CWBNTHEAD',
+      [{ fieldName: 'NUMM' }, { fieldName: 'VERSNO' }],
+      `NUMM EQ '${note}'`
+    );
+    //the implemented version is the latest downloaded one (older implemented versions have status V)
+    const versno = head.map(o => o.versno).sort((a, b) => parseInt(b, 10) - parseInt(a, 10))[0];
+    return {
+      prstatus: cust[0].prstatus,
+      versno
+    };
+  }
+
+  public async checkTableCondition(table: components.TABNAME, where: TrmManifestEngineTableCondition[]): Promise<boolean> {
+    //unlike checkSapEntryExists, read errors (missing table, authorization) are thrown
+    const aQuery = where.map(condition => `${condition.field.trim().toUpperCase()} ${(condition.op || 'EQ').trim().toUpperCase()} '${condition.value.toString().replace(/'/g, "''")}'`);
+    const rows: any[] = await this.readTable(table.trim().toUpperCase(),
+      [{ fieldName: where[0].field.trim().toUpperCase() }],
+      aQuery.join(' AND '),
+      { offset: 0, limit: 1 });
+    return rows.length > 0;
   }
 
   public async getTimezone(): Promise<string> {

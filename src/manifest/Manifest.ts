@@ -12,6 +12,7 @@ import { DOMParser } from '@xmldom/xmldom';
 import _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
 import { Logger } from "trm-commons";
+import { normalizeEngines, validateEngines } from "./engines";
 
 
 function getManifestAuthor(sAuthor: string) {
@@ -72,6 +73,7 @@ export class Manifest {
             "authors",
             "keywords",
             "dependencies",
+            "engines",
             "sapEntries",
             "postActivities"
         ] satisfies readonly (keyof TrmManifest & string)[];
@@ -307,6 +309,12 @@ export class Manifest {
                 }
             }
         }
+        if (manifest.engines) {
+            oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['ENGINES'] = {
+                //escape xml special characters as json unicode escapes, JSON.parse restores them
+                "_text": JSON.stringify(manifest.engines).replace(/&/g, '\\u0026').replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
+            }
+        }
         const sXml = xml.js2xml(oAbapXml, { compact: true });
         return sXml ? new XmlBeautify({ useSelfClosingElement: true, parser: DOMParser }).beautify(sXml) : null;
     }
@@ -508,6 +516,15 @@ export class Manifest {
                 }
             }
         }
+        if (!manifestClone.engines || typeof manifestClone.engines !== 'object' || Object.keys(manifestClone.engines).length === 0) {
+            delete manifestClone.engines;
+        } else {
+            const enginesErrors = validateEngines(manifestClone.engines);
+            if (enginesErrors.length > 0) {
+                throw new Error(`Invalid engines declaration: ${enginesErrors[0]}`);
+            }
+            manifestClone.engines = normalizeEngines(manifestClone.engines);
+        }
         if (manifestClone.distFolder) {
             try {
                 manifestClone.distFolder = manifestClone.distFolder.replace(/^\//, '');
@@ -669,6 +686,13 @@ export class Manifest {
                     version: oAbapManifest.dependencies.item.version?.text,
                     registry: oAbapManifest.dependencies.item.registry?.text
                 }];
+            }
+        }
+        if (oAbapManifest.engines && oAbapManifest.engines.text) {
+            try {
+                manifest.engines = JSON.parse(oAbapManifest.engines.text);
+            } catch (e) {
+                Logger.error(`Couldn't parse engines in abap xml manifest`, true);
             }
         }
         if (sapEntries && sapEntries.item) {

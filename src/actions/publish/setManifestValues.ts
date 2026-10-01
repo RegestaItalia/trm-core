@@ -4,7 +4,9 @@ import { Logger, Inquirer } from "trm-commons";
 import { validRange as semverValidRange } from "semver";
 import { validate as validateEmail } from "email-validator";
 import { RegistryType } from "../../registry";
-import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency } from "../../manifest";
+import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency, validateEngines } from "../../manifest";
+import { ENGINES_TEMPLATE, getSystemEngines } from "./getSystemEngines";
+import { ENGINES_UI_COLUMNS, EnginesUiSection, enginesToUiRows, uiRowsToEngines, validateEnginesUiSection } from "./enginesUi";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 import _ from 'lodash';
 import { TrmPackage } from "../../trmPackage";
@@ -23,7 +25,7 @@ import { SystemConnector } from "../../systemConnector";
  * 
  * 5- set post install activities
  * 
- * 6- edit dependencies/sap entries
+ * 6- edit dependencies/sap entries/engines
  * 
  * 7- normalize manifest values
  * 
@@ -44,6 +46,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 context.runtime.manifest.git ||= latestManifest.git;
                 context.runtime.manifest.license ||= latestManifest.license;
                 context.runtime.manifest.website ||= latestManifest.website;
+                context.runtime.manifest.engines ||= latestManifest.engines;
 
                 //merging input authors with latest release authors
                 if (context.runtime.manifest.authors) {
@@ -404,7 +407,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             });
         }
 
-        //6- edit dependencies/sap entries
+        //6- edit dependencies/sap entries/engines
         if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
             const inqDefault2 = context.runtime.manifest.dependencies || [];
             const inq = await Inquirer.prompt({
@@ -512,6 +515,123 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             if (inq.sapEntries) {
                 Logger.log(`SAP entries were manually changed: before -> ${JSON.stringify(context.runtime.manifest.sapEntries)}, after -> ${JSON.parse(inq.sapEntries)}`, true);
                 context.runtime.manifest.sapEntries = JSON.parse(inq.sapEntries);
+            }
+        }
+
+        if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
+            const hasEngines = !!context.runtime.manifest.engines && Object.keys(context.runtime.manifest.engines).length > 0;
+            const inqConfirm = await Inquirer.prompt({
+                message: `Do you want to declare engines (SAP system requirements)?`,
+                type: 'confirm',
+                name: 'editEngines',
+                default: hasEngines
+            });
+            if (inqConfirm.editEngines) {
+                var inqDefault4 = hasEngines ? context.runtime.manifest.engines : await getSystemEngines();
+                if (inqDefault4 === ENGINES_TEMPLATE) {
+                    inqDefault4 = {};
+                }
+                const rows = enginesToUiRows(inqDefault4);
+                const sections: { section: EnginesUiSection, message: string, addLabel: string }[] = [
+                    { section: 'components', message: 'Engines: software components', addLabel: 'Add component' },
+                    { section: 'products', message: 'Engines: product versions', addLabel: 'Add product' },
+                    { section: 'notes', message: 'Engines: SAP Notes', addLabel: 'Add SAP Note' },
+                    { section: 'tables', message: 'Engines: table conditions', addLabel: 'Add table condition' }
+                ];
+                for (const o of sections) {
+                    const inq = await Inquirer.prompt({
+                        message: o.message,
+                        type: 'input',
+                        name: o.section,
+                        ui: {
+                            kind: 'table',
+                            addLabel: o.addLabel,
+                            value: rows[o.section],
+                            columns: ENGINES_UI_COLUMNS[o.section]
+                        },
+                        validate: (value) => validateEnginesUiSection(o.section, value)
+                    });
+                    rows[o.section] = inq[o.section] || [];
+                }
+                const hasAnyOf = Array.isArray(rows.anyOf) && rows.anyOf.length > 0;
+                const inqAnyOf = await Inquirer.prompt([{
+                    message: hasAnyOf ? `Do you want to edit engines alternatives (anyOf)?` : `Do you want to declare engines alternatives (anyOf)?`,
+                    type: 'confirm',
+                    name: 'editAnyOf',
+                    default: false
+                }, {
+                    message: 'Edit engines alternatives (anyOf)',
+                    type: 'editor',
+                    name: 'anyOf',
+                    postfix: '.json',
+                    when: (hash) => {
+                        return hash.editAnyOf
+                    },
+                    default: JSON.stringify(hasAnyOf ? rows.anyOf : [{
+                        components: { '<<COMPONENT>>': { release: '<<release range>>' } }
+                    }, {
+                        components: { '<<COMPONENT>>': { release: '<<release range>>' } }
+                    }], null, 2),
+                    validate: (input) => {
+                        var parsedInput;
+                        try {
+                            parsedInput = JSON.parse(input);
+                        } catch (e) {
+                            return 'Invalid JSON';
+                        }
+                        if (!Array.isArray(parsedInput)) {
+                            return 'Invalid array';
+                        }
+                        if (parsedInput.length === 0) {
+                            return true;
+                        }
+                        const errors = validateEngines({ anyOf: parsedInput }, { strict: true });
+                        return errors.length === 0 ? true : errors[0];
+                    }
+                }]);
+                if (inqAnyOf.anyOf) {
+                    rows.anyOf = JSON.parse(inqAnyOf.anyOf);
+                }
+                var engines = uiRowsToEngines(rows);
+                if (Object.keys(engines).length === 0) {
+                    engines = undefined;
+                }
+                if (!_.isEqual(engines, context.runtime.manifest.engines)) {
+                    Logger.log(`Engines were manually changed: before -> ${JSON.stringify(context.runtime.manifest.engines)}, after -> ${JSON.stringify(engines)}`, true);
+                    context.runtime.manifest.engines = engines;
+                }
+            }
+        } else if (!context.rawInput.contextData.noInquirer) {
+            const hasEngines = !!context.runtime.manifest.engines && Object.keys(context.runtime.manifest.engines).length > 0;
+            const inqConfirm = await Inquirer.prompt({
+                message: `Do you want to declare engines (SAP system requirements)?`,
+                type: 'confirm',
+                name: 'editEngines',
+                default: hasEngines
+            });
+            if (inqConfirm.editEngines) {
+                const inqDefault4 = hasEngines ? context.runtime.manifest.engines : await getSystemEngines();
+                const inq = await Inquirer.prompt({
+                    message: 'Edit engines',
+                    type: 'editor',
+                    name: 'engines',
+                    postfix: '.json',
+                    default: JSON.stringify(inqDefault4, null, 2),
+                    validate: (input) => {
+                        var parsedInput;
+                        try {
+                            parsedInput = JSON.parse(input);
+                        } catch (e) {
+                            return 'Invalid JSON';
+                        }
+                        const errors = validateEngines(parsedInput, { strict: true });
+                        return errors.length === 0 ? true : errors[0];
+                    }
+                });
+                if (inq.engines) {
+                    Logger.log(`Engines were manually changed: before -> ${JSON.stringify(context.runtime.manifest.engines)}, after -> ${inq.engines}`, true);
+                    context.runtime.manifest.engines = JSON.parse(inq.engines);
+                }
             }
         }
 

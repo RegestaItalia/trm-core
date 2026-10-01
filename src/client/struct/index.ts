@@ -38,3 +38,8 @@ export * from "./TPSTDOUT";
 export * from "./TPLOGPTR";
 export * from "./STMS_TP_IMPORT";
 export * from "./ActionLockKey";
+
+export * from "./CVERS";
+export * from "./PRDVERS";
+export * from "./CWBNTCUST";
+export * from "./CWBNTHEAD";
