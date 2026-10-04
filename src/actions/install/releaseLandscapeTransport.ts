@@ -2,12 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
-import { SystemConnector } from "../../systemConnector";
-import { withScopedPrefix } from "../commons/utils";
-
-function normalize(value: string): string {
-    return value.trim().toUpperCase();
-}
+import { forwardDeletionTransport, isDeletionForwardable, revertForwardedDeletionTransport, withScopedPrefix } from "../commons/utils";
 
 /**
  * Workflow step that releases the generated landscape transport, when present.
@@ -31,11 +26,8 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
         await withScopedPrefix(`(${Transport.getTransportIcon()}  Landscape) `, async () => {
             //1- add upgrade transport to target transport queue
             //if previous package was temporary, don't add deletion entries
-            const noDeletions = context.runtime.update && normalize(context.runtime.update.getDevclass() || '').startsWith('$');
-            if (context.revert.dele && !noDeletions) {
-                // The queue may be changed even when the connector response fails.
-                context.revert.deleInTargetTms = true;
-                await SystemConnector.forwardTransport(context.revert.dele.trkorr, context.rawInput.installData.landscapeTransport.targetSystem, SystemConnector.getDest(), true);
+            if (isDeletionForwardable(context)) {
+                await forwardDeletionTransport(context, context.rawInput.installData.landscapeTransport.targetSystem);
             }
 
             //2- release
@@ -45,12 +37,10 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         let firstError: unknown;
-        if (context.revert.deleInTargetTms) {
-            try {
-                await SystemConnector.deleteTmsTransport(context.revert.dele.trkorr, context.rawInput.installData.landscapeTransport.targetSystem);
-            } catch (error) {
-                firstError = error;
-            }
+        try {
+            await revertForwardedDeletionTransport(context, context.rawInput.installData.landscapeTransport.targetSystem);
+        } catch (error) {
+            firstError = error;
         }
         try {
             if (await context.output.transport.canBeDeleted()) {

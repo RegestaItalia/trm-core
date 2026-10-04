@@ -23,6 +23,8 @@ binary files. If upload or forwarding fails, its revert handler checks whether S
 the transport modifiable and deletes it, following the rollback pattern used by generated publish
 transports ([source](../../src/actions/cg3z/upload.ts)).
 
+> **2026-10-04 audit:** this fix is ineffective in practice (uploaded transports have no E070 row, so `canBeDeleted()` throws, and files/TMS buffer are never cleaned). Tracked as active finding ACT-2026-85 in the [README](README.md).
+
 ### CG3Z-02 — Resolved — Unsupported `r3transOptions` input was removed
 
 The public action input previously exposed `r3transOptions`, although no workflow step consumed it.

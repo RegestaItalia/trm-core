@@ -23,6 +23,8 @@ re-thrown with the affected table name and original message, preserving the dist
 missing table and an authorization, connection, or response failure
 ([source](../../src/actions/checkSapEntries/analyze.ts#L63)).
 
+> **2026-10-04 audit:** this fix is ineffective because `SystemConnectorBase.checkSapEntryExists` swallows every error and returns `false`, so the rethrow never runs. Tracked as active finding ACT-2026-69 in the [README](README.md).
+
 ## Step review
 
 | Order | Step | Result |

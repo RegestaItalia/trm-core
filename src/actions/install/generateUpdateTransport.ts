@@ -1,124 +1,15 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Inquirer, Logger } from "trm-commons";
-import { SystemConnector } from "../../systemConnector";
+import { Logger } from "trm-commons";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
-import { releaseDeletionTransport, restoreTransport, withScopedPrefix } from "../commons/utils";
-import { RegistryDeletionTransportUnauthorizedError } from "../../registry";
-import { PackageHierarchy, packageDataFromTdevc, getPackageNamespace } from "../../commons";
-import { E071, TADIR } from "../../client";
-import { randomBytes } from "crypto";
-import { objectLockResource } from "../commons/utils";
+import { cleanupInstalledPackage, revertInstalledPackageCleanup } from "../commons/utils";
+import { PackageHierarchy } from "../../commons";
+
+export { deleteTemporaryCleanupPackages } from "../commons/utils";
 
 function flattenDevclasses(pkg: PackageHierarchy): string[] {
     return [pkg.devclass, ...pkg.sub.flatMap(flattenDevclasses)];
-}
-
-function normalize(value: string): string {
-    return value.trim().toUpperCase();
-}
-
-export async function deleteTemporaryCleanupPackages(
-    temporaryPackages: Array<Pick<E071, 'objName'>>
-): Promise<void> {
-    let firstError: unknown;
-    for (const devclass of temporaryPackages) {
-        try {
-            await SystemConnector.deleteTemporaryPackage(devclass.objName);
-        } catch (error) {
-            firstError ||= error;
-        }
-    }
-    if (firstError) {
-        throw firstError;
-    }
-}
-
-function objectKey(object: Pick<E071, 'pgmid' | 'object' | 'objName'>): string {
-    return `${normalize(object.pgmid)}\u0000${normalize(object.object)}\u0000${normalize(object.objName)}`;
-}
-
-async function restoreCleanupPackages(context: InstallWorkflowContext): Promise<void> {
-    // Snapshots are stored in deletion order: reverse it to recreate parents first.
-    let firstError: unknown;
-    for (const pkg of [...(context.revert.cleanupTemporaryPackages || [])].reverse()) {
-        try {
-            if (await SystemConnector.getDevclass(pkg.devclass)) {
-                continue;
-            }
-            await SystemConnector.createPackage({
-                ...packageDataFromTdevc(pkg, {
-                    devclass: pkg.devclass,
-                    ctext: pkg.ctext || '',
-                    as4user: pkg.as4user || SystemConnector.getLogonUser(),
-                    dlvunit: pkg.dlvunit,
-                    pdevclass: pkg.pdevclass || ''
-                }),
-                parentcl: pkg.parentcl,
-                tpclass: pkg.tpclass
-            });
-        } catch (error) {
-            firstError ||= error;
-        }
-    }
-    if (firstError) {
-        throw firstError;
-    }
-}
-
-async function restoreCleanupAssignments(context: InstallWorkflowContext, restorePackages: boolean): Promise<void> {
-    if (restorePackages) {
-        await restoreCleanupPackages(context);
-    }
-    await restoreTadirAssignments(context.revert.cleanupOriginalTadir || []);
-}
-
-async function restoreTadirAssignments(originals: TADIR[]): Promise<void> {
-    if (originals.length === 0) {
-        return;
-    }
-    const existing = new Set((await SystemConnector.getExistingObjects(originals)).map(objectKey));
-    let firstError: unknown;
-    for (const object of originals) {
-        if (existing.has(objectKey(object))) {
-            try {
-                await SystemConnector.tadirInterface(object);
-            } catch (error) {
-                firstError ||= error;
-            }
-        }
-    }
-    if (firstError) {
-        throw firstError;
-    }
-}
-
-/**
- * Releases a transport of copies with the previous definition of the retained tables,
- * so a rollback can restore them without dropping their data.
- */
-async function backupRetainedTables(
-    context: InstallWorkflowContext,
-    retainedTables: Array<Pick<E071, 'pgmid' | 'object' | 'objName'>>
-): Promise<void> {
-    Logger.loading(`Backing up ${retainedTables.length} retained tables...`, true);
-    const backup = await Transport.createToc({
-        text: `@X1@TRM (BKP) ${context.rawInput.packageData.name} ${context.runtime.update.manifest.get().version}`,
-        target: SystemConnector.getDest()
-    });
-    context.revert.updateTablesBackupTransport = backup;
-    await backup.addObjects(retainedTables.map(object => ({
-        pgmid: object.pgmid,
-        object: object.object,
-        objName: object.objName
-    })), false);
-    await backup.release(false, true);
-    context.revert.retainedTables = {
-        trkorr: backup.trkorr,
-        entries: undefined,
-        binaries: (await backup.download()).binaries
-    };
 }
 
 /**
@@ -127,7 +18,9 @@ async function backupRetainedTables(
  *   - upgrading/downgrading a package: to ensure old entries are cleaned up
  *   - sap packages were changes after upgrade/downgrade: to ensure empty packages are cleaned up
  * For these reasons, it's not generated on first install.
- * 
+ *
+ * The cleanup itself is shared with the delete action, which removes the installed
+ * release without an incoming one.
 */
 export const generateUpdateTransport: Step<InstallWorkflowContext> = {
     name: 'generate-update-transport',
@@ -147,336 +40,23 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             context.runtime.stopWarningShown = true;
             stopWarning('install');
         }
-
-        await withScopedPrefix(`(${Transport.getTransportIcon()}  Upgrade cleanup) `, async () => {
-            //1- generate dummy transport
-            Logger.loading(`Generating transport...`);
-            const dummy = await Transport.createToc({
-                text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.update.manifest.get().version}`,
-                target: SystemConnector.getDest()
-            });
-            context.revert.updateCleanupTransport = dummy;
-            const previousTransportObjects = context.runtime.update.getTransport()
-                ? await context.runtime.update.getTransport().getE071()
-                : [];
-            const incomingObjects = context.runtime.transports.tadir.binaries.entries.tadir || [];
-            // Tables shipped again by the new release are adjusted by its import instead of
-            // being dropped and re-created, which would lose their data.
-            const incomingKeys = new Set(incomingObjects.map(objectKey));
-            const retainedTables = previousTransportObjects.filter(object =>
-                normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'TABL'
-                && incomingKeys.has(objectKey(object)));
-            const retainedKeys = new Set(retainedTables.map(objectKey));
-            retainedTables.forEach(object => Logger.log(`Keeping table ${object.objName} (present in new release)`, true));
-            const currentDevclasses = new Set(
-                (context.rawInput.installData.installDevclass.keepOriginal
+        // Read the target lazily: a failure reading the previous release must still be tracked first.
+        const installDevclass = context.rawInput.installData?.installDevclass;
+        await cleanupInstalledPackage(context, {
+            get incomingObjects() {
+                return context.runtime.transports.tadir.binaries.entries.tadir || [];
+            },
+            get keptDevclasses() {
+                return installDevclass.keepOriginal
                     ? flattenDevclasses(context.runtime.package.hierarchy)
-                    : context.rawInput.installData.installDevclass.replacements.map(replacement => replacement.installDevclass)
-                ).map(normalize)
-            );
-            const previousDevclasses = new Map<string, string>();
-            context.runtime.previousInstallPackages.forEach(replacement => {
-                previousDevclasses.set(normalize(replacement.installDevclass), replacement.installDevclass);
-            });
-            // Older installations that kept the publisher package names have no replacement rows.
-            if (previousDevclasses.size === 0 && context.runtime.update.getDevclass()) {
-                const previousRoot = context.runtime.update.getDevclass();
-                previousDevclasses.set(normalize(previousRoot), previousRoot);
-            }
-            previousTransportObjects.forEach(object => {
-                if (normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC') {
-                    previousDevclasses.set(normalize(object.objName), object.objName);
-                }
-            });
-            const installedDevclasses = new Set(previousDevclasses.keys());
-            const generatedDevclasses = new Set(context.revert.sapPackages.map(normalize));
-
-            // Installation mappings do not include subpackages created locally afterwards.
-            // Inspect the live hierarchy even when the installation keeps its root package.
-            const packageParents = new Map<string, string>();
-            for (const devclass of Array.from(previousDevclasses.values())) {
-                for (const subpackage of await SystemConnector.getSubpackages(devclass)) {
-                    const key = normalize(subpackage.devclass);
-                    previousDevclasses.set(key, subpackage.devclass);
-                    if (subpackage.parentcl) {
-                        packageParents.set(key, normalize(subpackage.parentcl));
-                    }
-                }
-            }
-
-            // Local additions remain cleanup candidates even when reused as incoming targets.
-            // The first local package owns the decision for its locally added descendants.
-            const cleanupGroups = new Map<string, Set<string>>();
-            for (const normalizedDevclass of previousDevclasses.keys()) {
-                const locallyAdded = !installedDevclasses.has(normalizedDevclass);
-                if (generatedDevclasses.has(normalizedDevclass) || (!locallyAdded && currentDevclasses.has(normalizedDevclass))) {
-                    continue;
-                }
-                let root = normalizedDevclass;
-                const visited = new Set([root]);
-                let parent = packageParents.get(root);
-                while (parent && previousDevclasses.has(parent) && !generatedDevclasses.has(parent)
-                    && (!installedDevclasses.has(parent) === locallyAdded)
-                    && (locallyAdded || !currentDevclasses.has(parent)) && !visited.has(parent)) {
-                    root = parent;
-                    visited.add(root);
-                    parent = packageParents.get(root);
-                }
-                if (!cleanupGroups.has(root)) {
-                    cleanupGroups.set(root, new Set());
-                }
-                cleanupGroups.get(root).add(normalizedDevclass);
-            }
-
-            const changedDevclassesToDelete: string[] = [];
-            const extraObjectsToDelete = new Map<string, Pick<E071, 'pgmid' | 'object' | 'objName'>>();
-            for (const [root, group] of cleanupGroups) {
-                const devclass = previousDevclasses.get(root);
-
-                // Only objects outside both releases need an extra cleanup decision.
-                const objectsAfterImport = new Map<string, TADIR>();
-                for (const member of group) {
-                    for (const object of await SystemConnector.getDevclassObjects(previousDevclasses.get(member), false)) {
-                        // Package definitions follow the decision for the whole subtree.
-                        if (!(normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC')) {
-                            objectsAfterImport.set(objectKey(object), object);
-                        }
-                    }
-                }
-                previousTransportObjects.forEach(object => objectsAfterImport.delete(objectKey(object)));
-                incomingObjects.forEach(object => {
-                    objectsAfterImport.delete(objectKey(object));
-                });
-
-                // Every locally added package definition is an extra object, including
-                // the root of this cleanup group, regardless of whether it has contents.
-                const packagesToRemove = Array.from(group).filter(member => !currentDevclasses.has(member));
-                const extraObjectCount = objectsAfterImport.size + packagesToRemove.filter(member => !installedDevclasses.has(member)).length;
-                if (extraObjectCount > 0) {
-                    const { deleteExtraObjects } = context.rawInput.contextData.noInquirer
-                        ? { deleteExtraObjects: true }
-                        : await Inquirer.prompt({
-                            name: 'deleteExtraObjects',
-                            type: 'confirm',
-                            message: `Cleanup of SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} will delete ${extraObjectCount} extra objects outside this installation. Continue?`,
-                            default: true
-                        });
-                    if (!deleteExtraObjects) {
-                        continue;
-                    }
-                    objectsAfterImport.forEach((object, key) => extraObjectsToDelete.set(key, {
-                        pgmid: object.pgmid,
-                        object: object.object,
-                        objName: object.objName
-                    }));
-                }
-                changedDevclassesToDelete.push(...packagesToRemove.map(member => previousDevclasses.get(member)));
-            }
-
-            // A retained child still needs its ancestors, including when cleanup was declined.
-            const deletableDevclasses = new Set(changedDevclassesToDelete.map(normalize));
-            for (const devclass of previousDevclasses.keys()) {
-                if (deletableDevclasses.has(devclass)) {
-                    continue;
-                }
-                const visited = new Set<string>();
-                let parent = packageParents.get(devclass);
-                while (parent && !visited.has(parent)) {
-                    visited.add(parent);
-                    deletableDevclasses.delete(parent);
-                    parent = packageParents.get(parent);
-                }
-            }
-            const packagesToDelete = changedDevclassesToDelete.filter(devclass => deletableDevclasses.has(normalize(devclass)));
-
-            // The namespace itself can only be cleaned up alongside its last remaining package.
-            let namespaceToDelete: string;
-            if (packagesToDelete.length > 0 && context.runtime.update.getDevclass()) {
-                try {
-                    const namespace = getPackageNamespace(context.runtime.update.getDevclass());
-                    if (namespace.startsWith('/')) {
-                        const namespaceExists = await SystemConnector.getNamespace(namespace);
-                        if (namespaceExists) {
-                            const namespacePackages = await SystemConnector.getNamespacePackages(namespace);
-                            const deletingDevclasses = new Set(packagesToDelete.map(normalize));
-                            const remainingPackages = namespacePackages.filter(pkg => !deletingDevclasses.has(normalize(pkg.devclass)));
-                            if (remainingPackages.length === 0) {
-                                namespaceToDelete = namespace;
-                            }
-                        }
-                    }
-                } catch (e) {
-                    // devclass doesn't use a custom namespace, nothing to clean up
-                }
-            }
-
-            const additionalObjects = [...extraObjectsToDelete.values(), ...packagesToDelete.map(devclass => ({
-                pgmid: 'R3TR',
-                object: 'DEVC',
-                objName: devclass
-            })), ...(namespaceToDelete ? [{
-                pgmid: 'R3TR',
-                object: 'NSPC',
-                objName: namespaceToDelete
-            }] : [])];
-            // Validate the complete deletion selection before adding anything to the transport.
-            const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects]
-                .filter(object => !retainedKeys.has(objectKey(object)))
-                .map(object => [objectKey(object), object]));
-            await context.lockScope.acquire([
-                ...Array.from(deletionObjects.values(), objectLockResource),
-                ...Array.from(deletionObjects.values())
-                    .filter(object => normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC')
-                    .map(object => ({ type: "DEVCLASS" as const, name: object.objName }))
-            ]);
-            if (deletionObjects.size > 0) {
-                Logger.loading(`Checking cleanup objects locks...`, true);
-                const locks = await SystemConnector.getObjectsLocks(Array.from(deletionObjects.values(), object => ({
-                    PGMID: object.pgmid,
-                    OBJECT: object.object,
-                    OBJ_NAME: object.objName
-                })));
-                if (locks.length > 0) {
-                    locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`));
-                    throw new Error(`Update aborted. To continue, all cleanup objects and SAP packages must be released`);
-                }
-            }
-            const temporaryPackages = Array.from(deletionObjects.values()).filter(object =>
-                normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC'
-                && normalize(object.objName).startsWith('$'));
-            const objectsToTransport = Array.from(deletionObjects.values()).filter(object =>
-                !temporaryPackages.includes(object));
-            // Cleanup exports the previous installation's objects, regardless of the new namespace.
-            const needsStaging = normalize(context.runtime.update.getDevclass() || '').startsWith('$');
-            let stagingDevclass: string;
-            let retainedOriginalTadir: TADIR[] = [];
-            if (needsStaging && (objectsToTransport.length > 0 || retainedTables.length > 0)) {
-                // A short-lived, transportable package lets CTS export local objects.
-                do {
-                    stagingDevclass = `ZTRM_DELE_${randomBytes(8).toString('hex').toUpperCase()}`; // 25 characters; DEVCLASS allows 30.
-                } while (await SystemConnector.getDevclass(stagingDevclass));
-                Logger.loading(`Creating package ${stagingDevclass}...`, true);
-                // Track before the mutating await because SAP may commit the package
-                // even when the connector response fails.
-                context.revert.sapPackages.push(stagingDevclass);
-                await SystemConnector.createPackage({
-                    devclass: stagingDevclass,
-                    ctext: 'TRM upgrade cleanup',
-                    as4user: SystemConnector.getLogonUser(),
-                    dlvunit: 'HOME',
-                    pdevclass: await SystemConnector.getDefaultTransportLayer()
-                });
-                await SystemConnector.tadirInterface({
-                    pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass,
-                    devclass: stagingDevclass, srcsystem: 'TRM'
-                });
-                const existingObjects = await SystemConnector.getExistingObjects(
-                    [...objectsToTransport, ...retainedTables].map(object => ({
-                        pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: ''
-                    }))
-                );
-                context.revert.cleanupOriginalTadir = [];
-                for (const object of existingObjects) {
-                    context.revert.cleanupOriginalTadir.push({ ...object });
-                    if (retainedKeys.has(objectKey(object))) {
-                        retainedOriginalTadir.push({ ...object });
-                    }
-                    await SystemConnector.tadirInterface({ ...object, devclass: stagingDevclass, srcsystem: 'TRM' });
-                }
-            }
-            if (retainedTables.length > 0) {
-                await backupRetainedTables(context, retainedTables);
-                // Retained tables stay installed: move them out of the staging package before it is deleted.
-                await restoreTadirAssignments(retainedOriginalTadir);
-            }
-            if (objectsToTransport.length > 0) {
-                await dummy.addObjects(objectsToTransport, false);
-            }
-            if (stagingDevclass) {
-                await dummy.addObjects([
-                    { pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass }
-                ], false);
-            }
-            const packageDepth = (devclass: string): number => {
-                const visited = new Set<string>();
-                let parent = packageParents.get(normalize(devclass));
-                while (parent && !visited.has(parent)) {
-                    visited.add(parent);
-                    parent = packageParents.get(parent);
-                }
-                return visited.size;
-            };
-            // Delete descendants before their parents, regardless of transport entry order.
-            temporaryPackages.sort((a, b) => packageDepth(b.objName) - packageDepth(a.objName));
-            context.revert.cleanupTemporaryPackages = [];
-            // Snapshot every definition before deleting any package, including for partial failures.
-            for (const devclass of temporaryPackages) {
-                const pkg = await SystemConnector.getDevclass(devclass.objName);
-                if (!pkg) {
-                    throw new Error(`Cannot back up temporary SAP package ${devclass.objName}`);
-                }
-                context.revert.cleanupTemporaryPackages.push({ ...pkg });
-            }
-            await deleteTemporaryCleanupPackages(temporaryPackages);
-
-            //guard: clean and rebuild comments
-            await dummy.removeComments();
-            await dummy.addComment(`name=${context.runtime.package.data.manifest.name}`);
-            await dummy.addComment(`version=${context.runtime.update.manifest.get().version}`);
-
-            try {
-                await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
-            } catch (e) {
-                if (!(e instanceof RegistryDeletionTransportUnauthorizedError)) {
-                    throw e;
-                }
-                //at this point the dummy is already released, transport cannot be deleted but it's a harmless release of a transport of copies.
-                Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`);
-                await restoreCleanupAssignments(context, true);
-            }
+                    : installDevclass.replacements.map(replacement => replacement.installDevclass);
+            },
+            prefix: `(${Transport.getTransportIcon()}  Upgrade cleanup) `,
+            actionName: 'Update',
+            requireDeletion: false
         });
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        let firstError: unknown;
-        try {
-            await restoreCleanupPackages(context);
-        } catch (error) {
-            firstError = error;
-        }
-        try {
-            if (context.revert.dele) {
-                //check if it can be deleted -> the exception might have been raised before the transport release, we can still cleanup nicely
-                const transport = new Transport(context.revert.dele.trkorr);
-                if (await (transport.canBeDeleted())) {
-                    await transport.delete();
-                } else {
-                    await restoreTransport(context.revert.dele);
-                }
-            } else if (context.revert.updateCleanupTransport
-                && await context.revert.updateCleanupTransport.canBeDeleted()) {
-                await context.revert.updateCleanupTransport.delete();
-            }
-        } catch (error) {
-            firstError ||= error;
-        }
-        try {
-            if (context.revert.retainedTables) {
-                // Old table definitions are imported over the new ones: data is kept.
-                await restoreTransport(context.revert.retainedTables);
-            } else if (context.revert.updateTablesBackupTransport
-                && await context.revert.updateTablesBackupTransport.canBeDeleted()) {
-                await context.revert.updateTablesBackupTransport.delete();
-            }
-        } catch (error) {
-            firstError ||= error;
-        }
-        try {
-            await restoreCleanupAssignments(context, false);
-        } catch (error) {
-            firstError ||= error;
-        }
-        if (firstError) {
-            throw firstError;
-        }
+        await revertInstalledPackageCleanup(context);
     }
 }

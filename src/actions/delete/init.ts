@@ -1,0 +1,108 @@
+import { Step } from "@simonegaffurini/sammarksworkflow";
+import { DeleteWorkflowContext } from ".";
+import { Inquirer, Logger } from "trm-commons";
+import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
+import { RegistryType } from "../../registry";
+import { TrmPackage } from "../../trmPackage";
+import { setLandscapeTarget } from "../commons/prompts";
+
+/**
+ * Workflow step that finds the installed package and initializes rollback state.
+ *
+ * 1- fill missing input data
+ *
+ * 2- find installed package
+ *
+ * 3- check if package can be deleted
+ *
+ * 4- check/set system target
+ *
+ * 5- fill context data
+ *
+*/
+export const init: Step<DeleteWorkflowContext> = {
+    name: 'init',
+    run: async (context: DeleteWorkflowContext): Promise<void> => {
+        const registry = context.rawInput.packageData.registry;
+
+        //1- fill missing input data
+        if (!context.rawInput.deleteData) {
+            context.rawInput.deleteData = {};
+        }
+        if (!context.rawInput.deleteData.checks) {
+            context.rawInput.deleteData.checks = {};
+        }
+        if (!context.rawInput.deleteData.landscapeTransport) {
+            context.rawInput.deleteData.landscapeTransport = {};
+        }
+
+        //2- find installed package
+        //the registry generates the deletion transport
+        if (registry.getRegistryType() === RegistryType.LOCAL) {
+            throw new Error(`Delete aborted. Deletion transports can't be generated from a local registry.`);
+        }
+        const installed = context.rawInput.contextData.systemPackages.find(o => o.manifest
+            && TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, registry)));
+        if (!installed) {
+            throw new Error(`Package ${context.rawInput.packageData.name} is not installed in ${SystemConnector.getDest()}.`);
+        }
+
+        //3- check if package can be deleted
+        if (registry.getRegistryType() === RegistryType.PUBLIC
+            && (installed.packageName === TRM_SERVER_PACKAGE_NAME || installed.packageName === TRM_REST_PACKAGE_NAME)) {
+            throw new Error(`Delete aborted. ${installed.packageName} is required by TRM and can't be deleted.`);
+        }
+        if (installed.isDirty()) {
+            let ignoreDirty = false;
+            Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted!`);
+            Logger.warning(`Consider analyzing dirty entries before delete.`);
+            if (!context.rawInput.contextData.noInquirer) {
+                ignoreDirty = (await Inquirer.prompt({
+                    message: `Continue with delete?`,
+                    type: 'confirm',
+                    default: false,
+                    name: 'ignoreDirty'
+                })).ignoreDirty;
+            }
+            if (!ignoreDirty) {
+                throw new Error(`Delete aborted.`);
+            }
+        }
+
+        //4- check/set system target
+        //objects of a temporary package only exist on this system
+        if (!(installed.getDevclass() || '').trim().startsWith('$')) {
+            context.rawInput.deleteData.landscapeTransport.targetSystem = await setLandscapeTarget(
+                context.rawInput.contextData.noInquirer,
+                context.rawInput.deleteData.landscapeTransport.targetSystem,
+                "Deletion transport target",
+                "Deletion transport won't be forwarded."
+            );
+        }
+
+        //5- fill context data
+        context.runtime = {
+            update: installed,
+            previousInstallPackages: await SystemConnector.getInstallPackages(
+                context.rawInput.packageData.name,
+                registry
+            ),
+            dele: undefined,
+            stopWarningShown: false
+        };
+        context.output = {
+            manifest: installed.manifest.get(),
+            transport: undefined,
+            targetSystem: undefined
+        };
+        context.revert = {
+            sapPackages: [],
+            dele: undefined,
+            deleInTargetTms: false,
+            metadataRemoveStarted: false,
+            metadataPreviousPackageRow: undefined
+        };
+
+        Logger.info(`Ready to delete ${installed.packageName} v${installed.manifest.get().version}.`);
+    }
+}

@@ -2,13 +2,13 @@ import { Inquirer, Logger } from "trm-commons";
 import { BinaryTransport, Transport } from "../../../transport";
 import { SystemConnector } from "../../../systemConnector";
 import { AbstractRegistry, RegistryDeletionTransportUnauthorizedError } from "../../../registry";
-import type { InstallWorkflowContext } from "../../install";
+import type { PackageCleanupContext } from "./packageCleanup";
 
 /** Releases and imports a deletion transport, retaining its original binaries for rollback. */
 export async function releaseDeletionTransport(
     deletionTransport: Transport,
     registry: AbstractRegistry,
-    context: InstallWorkflowContext,
+    context: PackageCleanupContext,
     retainSnapshot = true
 ): Promise<void> {
     await deletionTransport.release(false, true);

@@ -4,10 +4,7 @@ import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
 import { Manifest } from "../../manifest";
 import { SystemConnector } from "../../systemConnector";
-
-function normalize(value: string): string {
-    return value.trim().toUpperCase();
-}
+import { isDeletionForwardable } from "../commons/utils";
 
 /**
  * Workflow step that creates the landscape transport used to carry installed changes onward.
@@ -108,8 +105,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
         //if previous package was temporary, don't add deletion entries
-        const noDeletions = context.runtime.update && normalize(context.runtime.update.getDevclass() || '').startsWith('$');
-        if (context.revert.dele && !noDeletions) {
+        if (isDeletionForwardable(context)) {
             //avoiding the transport attribute and CTS dependency (requires a CTS project...)
             //this is the easy solution
             //for a clean upgrade, first deletion transport then landscape transport should be imported

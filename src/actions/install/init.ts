@@ -6,7 +6,7 @@ import { RegistryType } from "../../registry";
 import { eq, gt, valid } from "semver";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
-import { setTransportTarget } from "../commons/prompts";
+import { setLandscapeTarget } from "../commons/prompts";
 import { deleteImportedEntries } from "./importBatch";
 
 /**
@@ -153,20 +153,12 @@ export const init: Step<InstallWorkflowContext> = {
         }
 
         //4- check/set system target
-        Logger.loading(`Checking system target...`);
-        const transportTargets = await SystemConnector.getTransportTargets();
-        if (transportTargets.length === 0 && !context.rawInput.installData.landscapeTransport.targetSystem) {
-            //no transport targets: system is the last in the landscape?
-            Logger.info(`No transport targets in ${SystemConnector.getDest()}`);
-            Logger.warning(`Is ${SystemConnector.getDest()} final system in landscape? Install transport won't be generated.`, true);
-        } else {
-            context.rawInput.installData.landscapeTransport.targetSystem = await setTransportTarget(
-                context.rawInput.contextData.noInquirer,
-                transportTargets,
-                context.rawInput.installData.landscapeTransport.targetSystem,
-                "Install transport target"
-            );
-        }
+        context.rawInput.installData.landscapeTransport.targetSystem = await setLandscapeTarget(
+            context.rawInput.contextData.noInquirer,
+            context.rawInput.installData.landscapeTransport.targetSystem,
+            "Install transport target",
+            "Install transport won't be generated."
+        );
 
         //5- check if already installed
         context.runtime.update = context.rawInput.contextData.systemPackages.find(o => Manifest.compare(o.manifest, new Manifest(context.runtime.package.data.manifest), false));

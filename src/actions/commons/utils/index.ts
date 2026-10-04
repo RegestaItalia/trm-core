@@ -3,3 +3,4 @@ export * from "./releaseDeletionTransport";
 export * from "./retainedWorkflow";
 export * from "./withScopedPrefix";
 export * from "./actionLocks";
+export * from "./packageCleanup";
