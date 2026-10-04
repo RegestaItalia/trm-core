@@ -71,7 +71,10 @@ async function restoreCleanupAssignments(context: InstallWorkflowContext, restor
     if (restorePackages) {
         await restoreCleanupPackages(context);
     }
-    const originals = context.revert.cleanupOriginalTadir || [];
+    await restoreTadirAssignments(context.revert.cleanupOriginalTadir || []);
+}
+
+async function restoreTadirAssignments(originals: TADIR[]): Promise<void> {
     if (originals.length === 0) {
         return;
     }
@@ -89,6 +92,33 @@ async function restoreCleanupAssignments(context: InstallWorkflowContext, restor
     if (firstError) {
         throw firstError;
     }
+}
+
+/**
+ * Releases a transport of copies with the previous definition of the retained tables,
+ * so a rollback can restore them without dropping their data.
+ */
+async function backupRetainedTables(
+    context: InstallWorkflowContext,
+    retainedTables: Array<Pick<E071, 'pgmid' | 'object' | 'objName'>>
+): Promise<void> {
+    Logger.loading(`Backing up ${retainedTables.length} retained tables...`, true);
+    const backup = await Transport.createToc({
+        text: `@X1@TRM (BKP) ${context.rawInput.packageData.name} ${context.runtime.update.manifest.get().version}`,
+        target: SystemConnector.getDest()
+    });
+    context.revert.updateTablesBackupTransport = backup;
+    await backup.addObjects(retainedTables.map(object => ({
+        pgmid: object.pgmid,
+        object: object.object,
+        objName: object.objName
+    })), false);
+    await backup.release(false, true);
+    context.revert.retainedTables = {
+        trkorr: backup.trkorr,
+        entries: undefined,
+        binaries: (await backup.download()).binaries
+    };
 }
 
 /**
@@ -130,6 +160,14 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                 ? await context.runtime.update.getTransport().getE071()
                 : [];
             const incomingObjects = context.runtime.transports.tadir.binaries.entries.tadir || [];
+            // Tables shipped again by the new release are adjusted by its import instead of
+            // being dropped and re-created, which would lose their data.
+            const incomingKeys = new Set(incomingObjects.map(objectKey));
+            const retainedTables = previousTransportObjects.filter(object =>
+                normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'TABL'
+                && incomingKeys.has(objectKey(object)));
+            const retainedKeys = new Set(retainedTables.map(objectKey));
+            retainedTables.forEach(object => Logger.log(`Keeping table ${object.objName} (present in new release)`, true));
             const currentDevclasses = new Set(
                 (context.rawInput.installData.installDevclass.keepOriginal
                     ? flattenDevclasses(context.runtime.package.hierarchy)
@@ -282,7 +320,9 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                 objName: namespaceToDelete
             }] : [])];
             // Validate the complete deletion selection before adding anything to the transport.
-            const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects].map(object => [objectKey(object), object]));
+            const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects]
+                .filter(object => !retainedKeys.has(objectKey(object)))
+                .map(object => [objectKey(object), object]));
             await context.lockScope.acquire([
                 ...Array.from(deletionObjects.values(), objectLockResource),
                 ...Array.from(deletionObjects.values())
@@ -309,7 +349,8 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             // Cleanup exports the previous installation's objects, regardless of the new namespace.
             const needsStaging = normalize(context.runtime.update.getDevclass() || '').startsWith('$');
             let stagingDevclass: string;
-            if (needsStaging && objectsToTransport.length > 0) {
+            let retainedOriginalTadir: TADIR[] = [];
+            if (needsStaging && (objectsToTransport.length > 0 || retainedTables.length > 0)) {
                 // A short-lived, transportable package lets CTS export local objects.
                 do {
                     stagingDevclass = `ZTRM_DELE_${randomBytes(8).toString('hex').toUpperCase()}`; // 25 characters; DEVCLASS allows 30.
@@ -330,15 +371,23 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
                     devclass: stagingDevclass, srcsystem: 'TRM'
                 });
                 const existingObjects = await SystemConnector.getExistingObjects(
-                    objectsToTransport.map(object => ({
+                    [...objectsToTransport, ...retainedTables].map(object => ({
                         pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: ''
                     }))
                 );
                 context.revert.cleanupOriginalTadir = [];
                 for (const object of existingObjects) {
                     context.revert.cleanupOriginalTadir.push({ ...object });
+                    if (retainedKeys.has(objectKey(object))) {
+                        retainedOriginalTadir.push({ ...object });
+                    }
                     await SystemConnector.tadirInterface({ ...object, devclass: stagingDevclass, srcsystem: 'TRM' });
                 }
+            }
+            if (retainedTables.length > 0) {
+                await backupRetainedTables(context, retainedTables);
+                // Retained tables stay installed: move them out of the staging package before it is deleted.
+                await restoreTadirAssignments(retainedOriginalTadir);
             }
             if (objectsToTransport.length > 0) {
                 await dummy.addObjects(objectsToTransport, false);
@@ -406,6 +455,17 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             } else if (context.revert.updateCleanupTransport
                 && await context.revert.updateCleanupTransport.canBeDeleted()) {
                 await context.revert.updateCleanupTransport.delete();
+            }
+        } catch (error) {
+            firstError ||= error;
+        }
+        try {
+            if (context.revert.retainedTables) {
+                // Old table definitions are imported over the new ones: data is kept.
+                await restoreTransport(context.revert.retainedTables);
+            } else if (context.revert.updateTablesBackupTransport
+                && await context.revert.updateTablesBackupTransport.canBeDeleted()) {
+                await context.revert.updateTablesBackupTransport.delete();
             }
         } catch (error) {
             firstError ||= error;

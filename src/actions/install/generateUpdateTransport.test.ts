@@ -11,6 +11,10 @@ jest.mock('../../systemConnector', () => ({
         getExistingObjects: jest.fn(),
         tadirInterface: jest.fn(),
         deleteTemporaryPackage: jest.fn(),
+        getObjectsLocks: jest.fn(),
+        getSubpackages: jest.fn(),
+        getDevclassObjects: jest.fn(),
+        getDefaultTransportLayer: jest.fn(),
         getDest: jest.fn(() => 'TST')
     }
 }));
@@ -24,6 +28,11 @@ jest.mock('../../transport', () => {
         static deletable = false;
         canBeDeleted = jest.fn(async () => MockTransport.deletable);
         delete = jest.fn().mockResolvedValue(undefined);
+        addObjects = jest.fn().mockResolvedValue(undefined);
+        release = jest.fn().mockResolvedValue(undefined);
+        download = jest.fn(async () => ({ binaries: { header: Buffer.from(this.trkorr), data: Buffer.from('d') } }));
+        removeComments = jest.fn().mockResolvedValue(undefined);
+        addComment = jest.fn().mockResolvedValue(undefined);
         constructor(public trkorr: string) { MockTransport.instances.push(this); }
     }
     return { Transport: MockTransport };
@@ -206,5 +215,157 @@ describe('generateUpdateTransport revert', () => {
         ])).rejects.toThrow('first delete failed');
         expect(SystemConnector.deleteTemporaryPackage).toHaveBeenCalledTimes(2);
         expect(SystemConnector.deleteTemporaryPackage).toHaveBeenNthCalledWith(2, '$TWO');
+    });
+
+    function runContext(previous: any[], incoming: any[]) {
+        const dummy = new Transport('DEVK9DELE') as any;
+        const backup = new Transport('DEVK9BKP') as any;
+        // createToc is a factory jest.fn: drop queued values left by previous tests.
+        (Transport.createToc as jest.Mock).mockReset();
+        jest.spyOn(Transport, 'createToc')
+            .mockResolvedValueOnce(dummy)
+            .mockResolvedValueOnce(backup);
+        jest.spyOn(SystemConnector, 'getObjectsLocks').mockResolvedValue([]);
+        restored.import.mockResolvedValue(0);
+        const acquire = jest.fn().mockResolvedValue(undefined);
+        const ctx = {
+            lockScope: { acquire },
+            rawInput: {
+                packageData: { name: 'pkg', registry: { delete: jest.fn(async (binaries: any) => binaries) } },
+                installData: { installDevclass: { replacements: [] } },
+                contextData: { noInquirer: true }
+            },
+            runtime: {
+                stopWarningShown: true,
+                update: {
+                    manifest: { get: () => ({ version: '1.0.0' }) },
+                    getTransport: () => ({ getE071: async () => previous }),
+                    getDevclass: () => undefined
+                },
+                transports: { tadir: { binaries: { entries: { tadir: incoming } } } },
+                previousInstallPackages: [],
+                package: { hierarchy: { devclass: 'Z_ROOT', sub: [] }, data: { manifest: { name: 'pkg' } } }
+            },
+            revert: { sapPackages: [], cleanupTemporaryPackages: [], cleanupOriginalTadir: [] }
+        } as any;
+        return { ctx, dummy, backup, acquire };
+    }
+
+    test('tables still shipped by the new release are kept and backed up instead of deleted', async () => {
+        const { ctx, dummy, backup, acquire } = runContext([
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT' },
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_GONE' },
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }
+        ], [
+            { pgmid: 'R3TR', object: 'TABL', objName: 'z_kept', devclass: 'Z_ROOT' },
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS', devclass: 'Z_ROOT' }
+        ]);
+
+        await generateUpdateTransport.run(ctx);
+
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => o.objName));
+        expect(deleted).toEqual(['Z_GONE', 'Z_CLASS']);
+        expect(acquire.mock.calls[0][0].map((lock: any) => lock.name)).not.toContain('R3TR TABL Z_KEPT');
+        expect((SystemConnector.getObjectsLocks as jest.Mock).mock.calls[0][0].map((o: any) => o.OBJ_NAME)).not.toContain('Z_KEPT');
+        expect(backup.addObjects).toHaveBeenCalledWith([{ pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT' }], false);
+        expect(backup.release).toHaveBeenCalledWith(false, true);
+        expect(ctx.revert.updateTablesBackupTransport).toBe(backup);
+        expect(ctx.revert.retainedTables).toEqual({ trkorr: 'DEVK9BKP', entries: undefined, binaries: expect.any(Object) });
+    });
+
+    test('no backup transport is created when no table is retained', async () => {
+        const { ctx, backup } = runContext([
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_GONE' }
+        ], []);
+
+        await generateUpdateTransport.run(ctx);
+
+        expect(Transport.createToc).toHaveBeenCalledTimes(1);
+        expect(backup.addObjects).not.toHaveBeenCalled();
+        expect(ctx.revert.retainedTables).toBeUndefined();
+    });
+
+    test('tracks the table backup request before its release can fail', async () => {
+        const { ctx, backup } = runContext([
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT' }
+        ], [
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT', devclass: 'Z_ROOT' }
+        ]);
+        backup.release.mockRejectedValue(new Error('backup release failed'));
+        backup.canBeDeleted.mockResolvedValue(true);
+
+        await expect(generateUpdateTransport.run(ctx)).rejects.toThrow('backup release failed');
+        expect(ctx.revert.updateTablesBackupTransport).toBe(backup);
+        expect(ctx.revert.retainedTables).toBeUndefined();
+
+        await generateUpdateTransport.revert(ctx);
+        expect(backup.delete).toHaveBeenCalledTimes(1);
+        expect(Transport.upload).not.toHaveBeenCalledWith('DEVK9BKP', expect.anything());
+    });
+
+    test('retained tables restore failure does not skip deletion payload and TADIR restoration', async () => {
+        const ctx = context();
+        ctx.revert.retainedTables = {
+            trkorr: 'DEVK9BKP', entries: undefined,
+            binaries: { header: Buffer.from('h'), data: Buffer.from('d') }
+        };
+        restored.import
+            .mockResolvedValueOnce(undefined)
+            .mockRejectedValueOnce(new Error('tables restore failed'));
+
+        await expect(generateUpdateTransport.revert(ctx)).rejects.toThrow('tables restore failed');
+
+        expect(Transport.upload).toHaveBeenNthCalledWith(1, 'DEVK9DELE', expect.anything());
+        expect(Transport.upload).toHaveBeenNthCalledWith(2, 'DEVK9BKP', expect.anything());
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledTimes(2);
+    });
+
+    test('deletion payload restore failure still restores retained tables', async () => {
+        const ctx = context();
+        ctx.revert.retainedTables = {
+            trkorr: 'DEVK9BKP', entries: undefined,
+            binaries: { header: Buffer.from('h'), data: Buffer.from('d') }
+        };
+        restored.import
+            .mockRejectedValueOnce(new Error('payload restore failed'))
+            .mockResolvedValueOnce(undefined);
+
+        await expect(generateUpdateTransport.revert(ctx)).rejects.toThrow('payload restore failed');
+
+        expect(Transport.upload).toHaveBeenNthCalledWith(2, 'DEVK9BKP', expect.anything());
+        expect(restored.import).toHaveBeenCalledTimes(2);
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledTimes(2);
+    });
+
+    test('retained tables of a local package are staged for backup and moved back before cleanup', async () => {
+        const { ctx, dummy, backup } = runContext([
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT' },
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }
+        ], [
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT', devclass: 'Z_ROOT' }
+        ]);
+        ctx.runtime.update.getDevclass = () => '$OLD';
+        jest.spyOn(SystemConnector, 'getSubpackages').mockResolvedValue([]);
+        jest.spyOn(SystemConnector, 'getDevclassObjects').mockResolvedValue([]);
+        jest.spyOn(SystemConnector, 'getDefaultTransportLayer').mockResolvedValue('ZTRL');
+        jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects =>
+            objects.map(object => ({ ...object, devclass: '$OLD', srcsystem: 'OLD' })) as any);
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async devclass =>
+            devclass === '$OLD' ? { devclass: '$OLD', parentcl: '' } : undefined);
+
+        await generateUpdateTransport.run(ctx);
+
+        const staging = ctx.revert.sapPackages[0];
+        const assignments = (SystemConnector.tadirInterface as jest.Mock).mock.calls.map(([o]) => `${o.objName}:${o.devclass}`);
+        expect(assignments).toEqual([
+            `${staging}:${staging}`,
+            `Z_GONE:${staging}`,
+            `Z_KEPT:${staging}`,
+            'Z_KEPT:$OLD'
+        ]);
+        expect(backup.addObjects).toHaveBeenCalledWith([{ pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT' }], false);
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => o.objName));
+        expect(deleted).not.toContain('Z_KEPT');
+        expect(ctx.revert.cleanupOriginalTadir.map((o: any) => o.objName)).toEqual(['Z_GONE', 'Z_KEPT']);
     });
 });

@@ -250,6 +250,8 @@ type WorkflowRevert = {
     cleanupOriginalTadir?: TADIR[],
     cleanupTemporaryPackages?: TDEVC[],
     updateCleanupTransport?: Transport,
+    updateTablesBackupTransport?: Transport,
+    retainedTables?: TransportBinary,
     metadataWriteStarted?: boolean,
     metadataPackageRegistry?: string,
     metadataPackageRow?: TrmPackageUpdateData,
