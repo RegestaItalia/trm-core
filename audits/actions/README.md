@@ -34,9 +34,9 @@ feature, missing case).
 | `cg3y` | 2 | 0 | 0 | 0 | 1 | [CG3Y](cg3y.md) |
 | `cg3z` | 2 | 0 | 1 | 2 | 1 | [CG3Z](cg3z.md) |
 | `check-dependencies` | 3 | 0 | 0 | 1 | 1 | [Package dependency check](check-package-dependencies.md) |
-| `check-engines` | 2 | 0 | 0 | 1 | 2 | This file |
+| `check-engines` | 2 | 0 | 0 | 1 | 2 | [Engines check](check-engines.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 3 | 2 | [SAP-entry check](check-sap-entries.md) |
-| `delete` | 8 | 0 | 1 | 5 | 2 | This file |
+| `delete` | 8 | 0 | 1 | 5 | 2 | [Package delete](delete.md) |
 | `install-dependency` | 4 | 0 | 1 | 2 | 2 | [Dependency install](install-dependency.md) |
 | `install` | 23 | 1 | 7 | 11 | 6 | [Package install](install.md) |
 | `publish` | 15 | 1 | 2 | 6 | 5 | [Package publish](publish.md) |
@@ -88,20 +88,6 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 | 22 | `release-install-transports` | Released transport stays queued in the target after rollback (ACT-2026-29); unbounded release wait (ACT-2026-14). |
 | 23 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). |
 
-### `delete` (8 steps)
-
-| Order | Step | Result |
-|---:|---|---|
-| — | package lock (pre-workflow) | Lock lifecycle issues (ACT-2026-11). |
-| 1 | `check-server-auth` | Shared ACT-2026-12. |
-| 2 | `set-system-packages` | Local-registry dependants missed (ACT-2026-15); missing snapshot skips record removal (ACT-2026-51). |
-| 3 | `init` | Raw package name for mapping lookup (ACT-2026-16); dirty packages cannot be deleted non-interactively (ACT-2026-53). |
-| 4 | `check-dependants` | No additional issue beyond ACT-2026-15. |
-| 5 | `lock-resources` | No issue found. |
-| 6 | `generate-deletion-transport` | Highest-risk step: final import RC ignored (ACT-2026-04), shared namespace deleted (ACT-2026-05), foreign subpackages and moved objects deleted (ACT-2026-47, ACT-2026-52), customizing not covered (ACT-2026-48), rollback weaknesses (ACT-2026-06, ACT-2026-07, ACT-2026-49, ACT-2026-50). |
-| 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert (ACT-2026-13). |
-| 8 | `remove-package-data` | Atomic and reversible; silently skipped without a snapshot (ACT-2026-51). |
-
 ### `publish` (15 steps)
 
 | Order | Step | Result |
@@ -122,8 +108,6 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 
 | Workflow | Step | Result |
 |---|---|---|
-| `check-engines` | `init` | Unknown nested properties silently accepted (ACT-2026-74); key collisions (ACT-2026-75). |
-| `check-engines` | `analyze` | Main logic correct (read failures fail requirements, unknown top-level keys fail, `anyOf` handled); minor comparison gaps (ACT-2026-75). |
 | `check-sap-entries` | `init` | No issue found. |
 | `check-sap-entries` | `analyze` | Error handling dead (ACT-2026-69); unsafe where clause (ACT-2026-70); case-sensitive, TABL-only probe (ACT-2026-71); hidden and misaligned output (ACT-2026-72, ACT-2026-73). |
 | `check-dependencies` | `init`, `set-system-packages`, `analyze` | Prerelease handling (ACT-2026-77); invalid ranges silent (ACT-2026-78); local packages excluded (ACT-2026-15). |
@@ -135,6 +119,10 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 | `cg3z` | `check-server-auth`, `upload` | Upload/forward works for well-formed archives; rollback ineffective (ACT-2026-85); overwrite and entry-name gaps (ACT-2026-86, ACT-2026-87). |
 
 ## Findings
+
+Active findings for `delete` (ACT-2026-47 to ACT-2026-54) and `check-engines` (ACT-2026-74 to
+ACT-2026-76) are recorded in their workflow reports, [delete.md](delete.md) and
+[check-engines.md](check-engines.md), and are included in the index counts above.
 
 ### Shared steps and helpers
 
@@ -393,55 +381,6 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 - **Where:** deletion-TOC download failures in `prepare*` are debug-only; a failed reconnect at [`importBatch.ts#L197`](../../src/actions/install/importBatch.ts#L197) leaves every revert on a closed connection.
 - **Fix:** warn visibly and reconnect at the start of the revert.
 
-### `delete`
-
-#### ACT-2026-47 — High — Functional — Uninstall deletes objects outside the installation without confirmation
-
-- **Where:** [`packageCleanup.ts#L230`](../../src/actions/commons/utils/packageCleanup.ts#L230), [`#L292`](../../src/actions/commons/utils/packageCleanup.ts#L292).
-- **Failure:** every live subpackage not in the mappings is "locally added", including another TRM package installed underneath; its objects and DEVC are deleted while its record remains. With `noInquirer` extra objects are auto-confirmed (`deleteExtraObjects: true`), silently removing customer development.
-- **Fix:** exclude devclasses owned by other installed packages; default to keeping extra objects without prompts and add an explicit option.
-
-#### ACT-2026-48 — Medium — Functional — Customizing and translations are not reliably removed
-
-- **Where:** [`packageCleanup.ts#L200`](../../src/actions/commons/utils/packageCleanup.ts#L200); on final systems the stored transport is the TADIR transport ([`updatePackageData.ts#L71`](../../src/actions/install/updatePackageData.ts#L71)).
-- **Failure:** on final systems customizing is never deleted; on landscape systems TABU entries lack keys (ACT-2026-40).
-- **Fix:** define the customizing policy for delete and document or implement it.
-
-#### ACT-2026-49 — Medium — Technical — Revert re-imports the copy even when the deletion was never imported
-
-- **Where:** snapshot saved before `registry.delete` ([`releaseDeletionTransport.ts#L19`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L19)); revert decides only on `canBeDeleted()` ([`packageCleanup.ts#L518`](../../src/actions/commons/utils/packageCleanup.ts#L518)).
-- **Failure:** a registry 500 still triggers a full re-import over live objects; if it fails, staging cleanup is skipped.
-- **Fix:** set an "import started" flag before `import(false)` and re-import only when set.
-
-#### ACT-2026-50 — Medium — Technical — The only rollback copy lives in memory and its export is unchecked
-
-- **Where:** [`releaseDeletionTransport.ts#L14`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L14), [`#L42`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L42) (deletion binaries uploaded under the copy's number).
-- **Failure:** an interrupted process loses the pre-deletion copy, including dirty and extra objects that cannot be reinstalled; objects that failed to export are deleted but unrestorable.
-- **Fix:** persist the copy binaries locally and check the export log.
-
-#### ACT-2026-51 — Medium — Functional — Record removal is skipped when the snapshot is missing
-
-- **Where:** [`removePackageData.ts#L14`](../../src/actions/delete/removePackageData.ts#L14); backend failure falls back without snapshots ([`SystemConnectorBase.ts#L261`](../../src/systemConnector/SystemConnectorBase.ts#L261)).
-- **Failure:** objects are deleted and forwarded but the record and mappings remain; the action reports success with only a debug log.
-- **Fix:** re-read the record when no snapshot exists, or fail.
-
-#### ACT-2026-52 — Medium — Functional — Moved or reassigned objects are deleted anyway
-
-- **Where:** [`packageCleanup.ts#L359`](../../src/actions/commons/utils/packageCleanup.ts#L359).
-- **Failure:** every install-transport entry is deleted wherever it lives now, including objects moved to another package or now shipped by another TRM package.
-- **Fix:** compare current TADIR devclasses with the installation's and skip or confirm outsiders.
-
-#### ACT-2026-53 — Low — Functional — Dirty packages cannot be deleted non-interactively
-
-- **Where:** [`delete/init.ts#L55`](../../src/actions/delete/init.ts#L55).
-- **Failure:** with `noInquirer` the action always throws a bare "Delete aborted."
-- **Fix:** add an explicit override option and include the reason.
-
-#### ACT-2026-54 — Low — Functional — An empty deletion list still reports a successful delete
-
-- **Where:** [`packageCleanup.ts#L368`](../../src/actions/commons/utils/packageCleanup.ts#L368), [`#L427`](../../src/actions/commons/utils/packageCleanup.ts#L427).
-- **Fix:** warn or abort when nothing would be deleted.
-
 ### `publish`
 
 #### ACT-2026-55 — Critical — Functional — First publish to a new local file always fails
@@ -553,24 +492,6 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 - **Where:** good rows are emitted before bad rows ([`analyze.ts#L137`](../../src/actions/checkSapEntries/analyze.ts#L137)); unused imports in `index.ts`.
 - **Fix:** emit statuses in declaration order.
 
-### `check-engines`
-
-#### ACT-2026-74 — Medium — Functional — Unknown properties inside known engine checks pass silently
-
-- **Where:** non-strict validation in [`checkEngines/init.ts#L26`](../../src/actions/checkEngines/init.ts#L26); evaluators read only `release`/`sp`/`version`.
-- **Failure:** `{ release: '>=758', patch: '>=3' }` prints "patch >=3 … OK" without checking `patch`, unlike unknown top-level keys, which fail.
-- **Fix:** fail constraints with unsupported properties using the same "update TRM" reason.
-
-#### ACT-2026-75 — Low — Technical — Normalization collisions and comparison gaps
-
-- **Where:** `validateEngines.ts` normalization (`sap_basis`/`SAP_BASIS`, `0001234`/`1234` collapse silently); blank `EXTRELEASE` shown as SP 0 but fails `sp >=0`; failed CVERS/PRDVERS reads not cached ([`analyze.ts#L31`](../../src/actions/checkEngines/analyze.ts#L31)).
-- **Fix:** reject post-normalization duplicates, normalize blank SP, cache rejections.
-
-#### ACT-2026-76 — Low — Functional — `anyOf` failures are opaque
-
-- **Where:** [`install/checkEngines.ts#L39`](../../src/actions/install/checkEngines.ts#L39); notes validation message lists unsupported value kinds.
-- **Fix:** print each alternative's reason under a failed `anyOf`; use per-check validation messages.
-
 ### `check-dependencies`
 
 #### ACT-2026-77 — Medium — Functional — Prerelease versions are treated inconsistently
@@ -667,7 +588,7 @@ current source changes their context. They should be re-decided explicitly.
 1. **ACT-2026-22** — reset dependency install mappings so dependency installs stop failing with "Multiple roots".
 2. **ACT-2026-55** — restore first-time local publishing.
 3. **ACT-2026-04** and **ACT-2026-06**, together with re-deciding **INST-02** — enforce import return codes for deletion, restore, and batch imports.
-4. **ACT-2026-05** and **ACT-2026-47** — stop cleanup from deleting shared namespaces, foreign subpackages and unconfirmed extra objects.
+4. **ACT-2026-05** and **ACT-2026-47** ([delete](delete.md)) — stop cleanup from deleting shared namespaces, foreign subpackages and unconfirmed extra objects.
 5. **ACT-2026-28** — keep retained tables out of the rollback cleanup.
 6. **ACT-2026-23**, **ACT-2026-24**, **ACT-2026-79** — make dependency resolution consistent (major bumps, diamonds, partial lockfiles).
 7. **ACT-2026-25**, **ACT-2026-26**, **ACT-2026-27** — stale mappings and local-registry install/rollback.
