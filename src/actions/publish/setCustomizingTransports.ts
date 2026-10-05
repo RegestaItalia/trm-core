@@ -182,12 +182,12 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
                             validate: async (input: string) => {
                                 const normalizedInput = normalizeTrkorr(input);
 
-                                if (latestByTrkorr.has(normalizedInput)) {
-                                    return true;
-                                }
-
                                 if (enrichedCustomizing.some(transport => transport.trkorr === normalizedInput)) {
                                     return "Already added";
+                                }
+
+                                if (latestByTrkorr.has(normalizedInput)) {
+                                    return true;
                                 }
 
                                 Logger.loading(`Validating ${normalizedInput}...`);

@@ -64,11 +64,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Where:** [`setManifestValues.ts#L182`](../../src/actions/publish/setManifestValues.ts#L182).
 - **Fix:** apply the same limits before transport generation in non-interactive mode.
 
-### ACT-2026-66 — Low — Technical — A retained transport can be added twice
-
-- **Where:** [`setCustomizingTransports.ts#L185`](../../src/actions/publish/setCustomizingTransports.ts#L185).
-- **Fix:** check "already added" before the retained-transport branch.
-
 ### ACT-2026-67 — Low — Technical — Prompted version is not cleaned
 
 - **Where:** [`publish/init.ts#L204`](../../src/actions/publish/init.ts#L204).
@@ -87,7 +82,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
 | 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); non-interactive devclass unresolved (ACT-2026-61); prompted version not cleaned (ACT-2026-67). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
-| 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63); duplicate retained entry (ACT-2026-66). |
+| 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
 | 6 | `set-manifest-values` | Dead post-activity check (ACT-2026-58), non-strict engines (ACT-2026-59), union-only merge (ACT-2026-62), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). |
 | 7 | `set-optional-release-data` | No issue found. |
 | 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
@@ -97,6 +92,13 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-66 — Resolved — A retained transport can be added twice
+
+The CLI "add" prompt accepted any transport retained from the latest release before checking the
+current selection, so a retained transport could be added again and published twice. The prompt now
+rejects a transport already in the selection before accepting retained ones
+([source](../../src/actions/publish/setCustomizingTransports.ts#L182)).
+
 ### ACT-2026-55 — Resolved — First publish to a new local file always fails
 
 PUBL-05 made `init` rethrow every lookup failure except `RegistryPackageNotFoundError`, while the

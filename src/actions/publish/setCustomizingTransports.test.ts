@@ -22,6 +22,12 @@ jest.mock('../../transport', () => {
     };
 });
 
+jest.mock('trm-commons', () => ({
+    Inquirer: { isUi: jest.fn(() => false), prompt: jest.fn() },
+    Logger: { loading: jest.fn(), log: jest.fn(), forceStop: jest.fn() }
+}));
+
+import { Inquirer } from 'trm-commons';
 import { setCustomizingTransports } from './setCustomizingTransports';
 import { Transport } from '../../transport';
 
@@ -114,5 +120,28 @@ describe('validateCustomizingTransport (via setCustomizingTransports step)', () 
         const ctx = context(['TESTK900006']);
 
         await expect(setCustomizingTransports.run(ctx)).rejects.toThrow(/empty/);
+    });
+});
+
+describe('interactive customizing transport selection', () => {
+    test('rejects adding a retained transport that is already selected', async () => {
+        const ctx = context([]);
+        ctx.rawInput.contextData.noInquirer = false;
+        ctx.runtime.latest.data.transports = [{ trkorr: 'TESTK900010', type: 'CUST', description: 'retained' }];
+        let validation: unknown;
+        (Inquirer.prompt as jest.Mock).mockReset()
+            .mockResolvedValueOnce({ continue: true })
+            .mockResolvedValueOnce({ option: 'add' })
+            .mockImplementationOnce(async (question: any) => {
+                validation = await question.validate('testk900010');
+                return { trkorr: '' };
+            })
+            .mockResolvedValueOnce({ option: 'done' });
+
+        await setCustomizingTransports.run(ctx);
+
+        expect(validation).toBe('Already added');
+        expect(ctx.runtime.customizing.retained).toEqual([{ trkorr: 'TESTK900010', description: 'retained' }]);
+        expect(ctx.runtime.customizing.new).toHaveLength(0);
     });
 });

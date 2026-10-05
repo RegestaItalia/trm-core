@@ -39,9 +39,9 @@ feature, missing case).
 | `delete` | 9 | 0 | 0 | 1 | 0 | [Package delete](delete.md) |
 | `install-dependency` | 6 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 24 | 1 | 4 | 8 | 3 | [Package install](install.md) |
-| `publish` | 15 | 0 | 2 | 6 | 5 | [Package publish](publish.md) |
+| `publish` | 15 | 0 | 2 | 6 | 4 | [Package publish](publish.md) |
 | Shared steps/callbacks | 12 | 1 | 3 | 10 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **2** | **10** | **25** | **12** | |
+| **Total** | | **2** | **10** | **25** | **11** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
