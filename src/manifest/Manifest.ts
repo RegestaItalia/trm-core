@@ -325,6 +325,16 @@ export class Manifest {
         return new TrmPackage(manifest.name, registry, this);
     }
 
+    /**
+     * Checks whether a dependency version is an acceptable semantic-version range.
+     *
+     * Stricter than `semver.validRange`: an empty or blank range (which semver reads as `*`)
+     * is rejected, so every dependency must declare an explicit range.
+     */
+    public static isValidDependencyRange(range: unknown): boolean {
+        return typeof range === 'string' && range.trim().length > 0 && semver.validRange(range) !== null;
+    }
+
     public static normalize(manifest: TrmManifest): TrmManifest {
         //this function is also used for method get()
         //only keys will throw error

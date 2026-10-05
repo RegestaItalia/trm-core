@@ -1,7 +1,6 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
-import { validRange as semverValidRange } from "semver";
 import { validate as validateEmail } from "email-validator";
 import { RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency, validateEngines } from "../../manifest";
@@ -428,7 +427,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                         label: 'Version',
                         required: true,
                         placeholder: '^1.0.0',
-                        validate: (value) => semverValidRange(value) ? true : 'Invalid semver range'
+                        validate: (value) => Manifest.isValidDependencyRange(value) ? true : 'Invalid semver range'
                     }, {
                         name: 'registry',
                         label: 'Registry',
@@ -464,7 +463,8 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                     try {
                         const parsedInput = JSON.parse(input);
                         if (Array.isArray(parsedInput)) {
-                            return true;
+                            const invalid = parsedInput.find(o => !Manifest.isValidDependencyRange(o?.version));
+                            return invalid ? `Invalid semver range "${invalid?.version ?? ''}" for dependency "${invalid?.name ?? ''}"` : true;
                         } else {
                             return 'Invalid array';
                         }
@@ -636,6 +636,11 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         }
 
         //7- normalize manifest values
+        for (const dependency of (context.runtime.manifest.dependencies || [])) {
+            if (!Manifest.isValidDependencyRange(dependency?.version)) {
+                throw new Error(`Invalid version range "${dependency?.version ?? ''}" for dependency "${dependency?.name ?? ''}".`);
+            }
+        }
         context.runtime.manifest = Manifest.normalize(context.runtime.manifest);
 
         //8- transform into xml

@@ -13,21 +13,32 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** installed `1.3.0-beta.1` fails `>=1.0.0`, so `1.2.0` is installed over it with only a "Downgrading" warning.
 - **Fix:** adopt one prerelease policy and never auto-select a version below the installed one.
 
-### ACT-2026-78 — Low — Functional — Invalid ranges and unreadable manifests are not distinguished
-
-- **Where:** [`checkPackageDependencies/analyze.ts#L43`](../../src/actions/checkPackageDependencies/analyze.ts#L43).
-- **Failure:** an invalid range silently evaluates false (docs promise a throw); an installed package without a manifest is "Not found" and triggers a reinstall attempt.
-- **Fix:** validate ranges and report "installed, manifest unreadable" separately.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `init` | No issue found. It rejects duplicate `(name, registry)` keys and normalizes optional input. |
+| 1 | `init` | No issue found. It rejects duplicate `(name, registry)` keys and invalid or empty version ranges, and normalizes optional input. |
 | 2 | `set-system-packages` | Local-registry packages excluded from the snapshot ([ACT-2026-15](shared.md)). |
-| 3 | `analyze` | One ordered result per declaration; prerelease handling (ACT-2026-77); invalid ranges and unreadable manifests not distinguished (ACT-2026-78). |
+| 3 | `analyze` | One ordered result per declaration, each with a `status` (`ok`, `versionMismatch`, `notFound`, `manifestUnreadable`); prerelease handling (ACT-2026-77). |
 
 ## Resolved findings
+### ACT-2026-78 — Resolved — Low — Functional — Invalid ranges and unreadable manifests are not distinguished
+
+Previously an invalid range silently evaluated false, and an installed package without a readable
+manifest was reported as "Not found", so the install workflow tried to reinstall it. `init` now
+throws for any range rejected by
+[`Manifest.isValidDependencyRange`](../../src/manifest/Manifest.ts#L334). That check is stricter
+than `semver.validRange`: an empty or blank range, which semver reads as `*`, is also rejected
+([source](../../src/actions/checkPackageDependencies/init.ts#L39)). Publish applies the same check
+in both dependency editors and aborts before normalization, rather than letting normalization drop
+the dependency or publish an empty range
+([source](../../src/actions/publish/setManifestValues.ts#L638)). `analyze` reports an installed
+package whose manifest is missing, cannot be read, or has a non-semver version as
+`manifestUnreadable` ("Installed, manifest unreadable")
+([source](../../src/actions/checkPackageDependencies/analyze.ts#L44)). The install
+`check-dependencies` step aborts on that status instead of queuing a reinstall
+([source](../../src/actions/install/checkDependencies.ts#L50)).
+
 ### DEPCHK-01 — Resolved — Duplicate dependency keys are rejected
 
 Previously, results were aggregated by dependency name and registry, causing declarations with

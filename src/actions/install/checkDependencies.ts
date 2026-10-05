@@ -8,7 +8,9 @@ import { CheckPackageDependenciesActionInput, checkPackageDependencies as CheckP
  * 
  * 1- execute check dependencies workflow
  * 
- * 2- filter dependencies
+ * 2- reject installed dependencies with an unreadable manifest
+ * 
+ * 3- filter dependencies
  * 
 */
 export const checkDependencies: Step<InstallWorkflowContext> = {
@@ -45,7 +47,13 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
             }
         }
 
-        //2- filter dependencies
+        //2- reject installed dependencies with an unreadable manifest
+        const unreadable = result.dependencyStatus.filter(o => o.status === 'manifestUnreadable');
+        if(unreadable.length > 0){
+            throw new Error(`Cannot verify installed dependencies ${unreadable.map(o => `"${o.dependency.name}"`).join(', ')}: package is installed but its manifest is unreadable.`);
+        }
+
+        //3- filter dependencies
         context.runtime.dependencies = result.dependencyStatus.filter(o => !o.match).map(k => k.dependency);
     }
 }

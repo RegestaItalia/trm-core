@@ -1,9 +1,9 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { CheckPackageDependenciesWorkflowContext } from ".";
+import { CheckPackageDependenciesWorkflowContext, DependencyCheckStatus } from ".";
 import { Logger } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
 import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../../registry";
-import { satisfies } from "semver";
+import { satisfies, valid } from "semver";
 
 /**
  * Workflow step that compares manifest dependency ranges with installed package versions.
@@ -40,33 +40,38 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
             tableData = [dependency.name, dependency.registry || PUBLIC_RESERVED_KEYWORD, dependency.version];
             const dependencyTrmPackage = new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry));
             const systemInstalledPackage = context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, dependencyTrmPackage));
-            if(systemInstalledPackage && systemInstalledPackage.manifest){
-                const installedVersion = systemInstalledPackage.manifest.get().version;
-                tableData.push(installedVersion);
-                if(satisfies(installedVersion, dependency.version)){
-                    tableData.push('OK');
-                    context.runtime.dependenciesStatus.goodVersion.push(dependency);
-                    context.output.dependencyStatus.push({
-                        dependency,
-                        match: true
-                    });
-                }else{
-                    tableData.push('ERR!');
-                    context.runtime.dependenciesStatus.badVersion.push(dependency);
-                    context.output.dependencyStatus.push({
-                        dependency,
-                        match: false
-                    });
-                }
-            }else{
+            var status: DependencyCheckStatus;
+            if(!systemInstalledPackage){
+                status = 'notFound';
                 tableData.push('Not found');
-                tableData.push('ERR!');
-                context.runtime.dependenciesStatus.badVersion.push(dependency);
-                context.output.dependencyStatus.push({
-                    dependency,
-                    match: false
-                });
+            }else{
+                var installedVersion: string;
+                try{
+                    installedVersion = systemInstalledPackage.manifest?.get().version;
+                }catch(e){
+                    Logger.error(e.toString(), true);
+                    installedVersion = undefined;
+                }
+                if(typeof installedVersion !== 'string' || valid(installedVersion) === null){
+                    status = 'manifestUnreadable';
+                    tableData.push('Installed, manifest unreadable');
+                }else{
+                    tableData.push(installedVersion);
+                    status = satisfies(installedVersion, dependency.version) ? 'ok' : 'versionMismatch';
+                }
             }
+            const match = status === 'ok';
+            tableData.push(match ? 'OK' : 'ERR!');
+            if(match){
+                context.runtime.dependenciesStatus.goodVersion.push(dependency);
+            }else{
+                context.runtime.dependenciesStatus.badVersion.push(dependency);
+            }
+            context.output.dependencyStatus.push({
+                dependency,
+                match,
+                status
+            });
             table.data.push(tableData);
         }
 

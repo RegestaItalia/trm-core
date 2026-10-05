@@ -94,3 +94,9 @@ describe('Manifest engines', () => {
         expect(parsed.get().engines).toEqual(original.get().engines);
     });
 });
+
+describe('Manifest.isValidDependencyRange', () => {
+    test.each([['^1.0.0', true], ['>=1.0.0 <2.0.0', true], ['*', true], ['', false], ['   ', false], ['not a range', false], [undefined, false], [1, false]])('%p -> %p', (range, expected) => {
+        expect(Manifest.isValidDependencyRange(range)).toBe(expected);
+    });
+});

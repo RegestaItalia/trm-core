@@ -53,6 +53,16 @@ type WorkflowRuntime = {
     }
 }
 
+/**
+ * Outcome of a single dependency check.
+ *
+ * - `ok`: installed and its version satisfies the range.
+ * - `versionMismatch`: installed, but its version does not satisfy the range.
+ * - `notFound`: not installed on the system.
+ * - `manifestUnreadable`: installed, but its manifest or version could not be read.
+ */
+export type DependencyCheckStatus = 'ok' | 'versionMismatch' | 'notFound' | 'manifestUnreadable';
+
 /** Dependency compatibility report returned by {@link checkPackageDependencies}. */
 export type CheckPackageDependenciesActionOutput = {
     /** Dependencies copied from the supplied manifest, or an empty array. */
@@ -62,7 +72,9 @@ export type CheckPackageDependenciesActionOutput = {
         /** Manifest dependency that was evaluated. */
         dependency: TrmManifestDependency,
         /** Whether a matching installed package was found at a compatible version. */
-        match: boolean
+        match: boolean,
+        /** Detailed outcome; distinguishes a missing package from one whose manifest is unreadable. */
+        status: DependencyCheckStatus
     }[]
 }
 
@@ -86,7 +98,8 @@ const WORKFLOW_NAME = 'check-dependencies';
  *
  * @param inputData Manifest, optional installed-package snapshot, and print settings.
  * @returns The manifest dependencies and their installed-version match status.
- * @throws When installed packages cannot be read or a dependency version cannot be evaluated.
+ * @throws When installed packages cannot be read, a dependency is declared twice, or a dependency
+ * version range is not a valid semantic-version range.
  */
 export async function checkPackageDependencies(inputData: CheckPackageDependenciesActionInput): Promise<CheckPackageDependenciesActionOutput> {
     const workflow = [

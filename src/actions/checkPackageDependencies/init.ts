@@ -1,11 +1,14 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckPackageDependenciesWorkflowContext } from ".";
 import { PUBLIC_RESERVED_KEYWORD } from "../../registry";
+import { Manifest } from "../../manifest";
 
 /**
  * Workflow step that initializes dependency-check output and normalizes optional input.
  * 
  * 1- set dependencies (read manifest)
+ * 
+ * 2- fill missing input data
  * 
 */
 export const init: Step<CheckPackageDependenciesWorkflowContext> = {
@@ -32,6 +35,9 @@ export const init: Step<CheckPackageDependenciesWorkflowContext> = {
                 throw new Error(`Duplicate dependency "${dependency.name}" for registry "${registry}".`);
             }
             dependencyKeys.add(key);
+            if (!Manifest.isValidDependencyRange(dependency.version)) {
+                throw new Error(`Invalid version range "${dependency.version}" for dependency "${dependency.name}".`);
+            }
         }
 
         //2- fill missing input data
