@@ -11,7 +11,7 @@ import { setLandscapeTarget } from "../commons/prompts";
  *
  * 1- fill missing input data
  *
- * 2- find installed package
+ * 2- find installed package and its TRM packages table record
  *
  * 3- check if package can be deleted
  *
@@ -45,6 +45,17 @@ export const init: Step<DeleteWorkflowContext> = {
             && TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, registry)));
         if (!installed) {
             throw new Error(`Package ${context.rawInput.packageData.name} is not installed in ${SystemConnector.getDest()}.`);
+        }
+        // Without its TRM packages table row the record would survive the delete:
+        // the row is missing when the backend read failed, so read it again before changing anything.
+        if (!installed.getMetadataSnapshot()) {
+            Logger.loading(`Reading TRM data...`, true);
+            const snapshot = (await SystemConnector.getInstalledPackages(true)).find(o => o.manifest
+                && TrmPackage.compare(o, installed))?.getMetadataSnapshot();
+            if (!snapshot) {
+                throw new Error(`Delete aborted. The TRM packages table record of ${context.rawInput.packageData.name} could not be read from ${SystemConnector.getDest()}.`);
+            }
+            installed.setMetadataSnapshot(snapshot);
         }
 
         //3- check if package can be deleted

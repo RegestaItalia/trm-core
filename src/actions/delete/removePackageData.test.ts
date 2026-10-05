@@ -37,9 +37,15 @@ describe('removePackageData', () => {
         (SystemConnector.restoreInstallMetadata as jest.Mock).mockResolvedValue(undefined);
     });
 
-    test('is skipped when the package has no TRM packages table row', async () => {
-        expect(await removePackageData.filter(context(null))).toBe(false);
-        expect(await removePackageData.filter(context())).toBe(true);
+    test('fails instead of skipping when the package has no TRM packages table row', async () => {
+        const ctx = context(null);
+
+        await expect(removePackageData.run(ctx)).rejects.toThrow('TRM packages table record of pkg is missing');
+        expect(SystemConnector.restoreInstallMetadata).not.toHaveBeenCalled();
+
+        // Nothing was removed: revert must not recreate a row.
+        await removePackageData.revert(ctx);
+        expect(SystemConnector.restoreInstallMetadata).not.toHaveBeenCalled();
     });
 
     test('removes the package row and its install mappings atomically', async () => {

@@ -31,27 +31,27 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** an interrupted process loses the pre-deletion copy, including dirty and extra objects that cannot be reinstalled; objects that failed to export are deleted but unrestorable.
 - **Fix:** persist the copy binaries locally and check the export log.
 
-### ACT-2026-51 — Medium — Functional — Record removal is skipped when the snapshot is missing
-
-- **Where:** [`removePackageData.ts#L14`](../../src/actions/delete/removePackageData.ts#L14); backend failure falls back without snapshots ([`SystemConnectorBase.ts#L261`](../../src/systemConnector/SystemConnectorBase.ts#L261)).
-- **Failure:** objects are deleted and forwarded but the record and mappings remain; the action reports success with only a debug log.
-- **Fix:** re-read the record when no snapshot exists, or fail.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | — | package lock (pre-workflow) | Lock lifecycle issues ([ACT-2026-11](shared.md)). |
 | 1 | `check-server-auth` | Shared [ACT-2026-12](shared.md). |
-| 2 | `set-system-packages` | Local-registry dependants missed ([ACT-2026-15](shared.md)); missing snapshot skips record removal (ACT-2026-51). |
-| 3 | `init` | Raw package name for mapping lookup ([ACT-2026-16](shared.md)); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
+| 2 | `set-system-packages` | Local-registry dependants missed ([ACT-2026-15](shared.md)); a missing record snapshot (backend read failed) is re-read by `init` (ACT-2026-51, resolved). |
+| 3 | `init` | Raw package name for mapping lookup ([ACT-2026-16](shared.md)); re-reads a missing TRM packages table record and aborts before any change when it still can't be read (ACT-2026-51, resolved); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
 | 4 | `check-dependants` | No additional issue beyond [ACT-2026-15](shared.md). |
 | 5 | `lock-resources` | No issue found. |
 | 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages deleted (ACT-2026-47), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-49, ACT-2026-50). |
 | 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
-| 8 | `remove-package-data` | Atomic and reversible; silently skipped without a snapshot (ACT-2026-51). |
+| 8 | `remove-package-data` | Atomic and reversible; always runs, and fails instead of skipping without a snapshot (ACT-2026-51, resolved). |
 
 ## Resolved findings
+
+### ACT-2026-51 — Medium — Functional — Resolved — Record removal is skipped when the snapshot is missing
+
+- **Where:** [`delete/init.ts#L49`](../../src/actions/delete/init.ts#L51), [`removePackageData.ts#L14`](../../src/actions/delete/removePackageData.ts#L14); backend failure falls back without snapshots ([`SystemConnectorBase.ts#L261`](../../src/systemConnector/SystemConnectorBase.ts#L261)).
+- **Failure (before):** objects were deleted and forwarded but the record and mappings remained; the action reported success with only a debug log.
+- **Resolution:** delete requires the TRM server APIs, so a missing snapshot means the backend read failed. `init` reads the installed packages again; when the record still can't be read, the delete aborts before any change. `remove-package-data` no longer has a skip filter and throws if the snapshot is missing.
 
 ### ACT-2026-52 — Medium — Functional — Resolved — Moved or reassigned objects are deleted anyway
 

@@ -11,17 +11,14 @@ import { SystemConnector } from "../../systemConnector";
 */
 export const removePackageData: Step<DeleteWorkflowContext> = {
     name: 'remove-package-data',
-    filter: async (context: DeleteWorkflowContext): Promise<boolean> => {
-        if (context.runtime.update.getMetadataSnapshot()) {
-            return true;
-        } else {
-            Logger.log(`Skipping remove package data (package not in TRM packages table)`, true);
-            return false;
-        }
-    },
     run: async (context: DeleteWorkflowContext): Promise<void> => {
+        // init reads the record before anything is deleted: never skip its removal.
+        const snapshot = context.runtime.update.getMetadataSnapshot();
+        if (!snapshot) {
+            throw new Error(`TRM packages table record of ${context.runtime.update.packageName} is missing: it can't be removed.`);
+        }
         Logger.loading(`Updating TRM data...`);
-        context.revert.metadataPreviousPackageRow = context.runtime.update.getMetadataSnapshot();
+        context.revert.metadataPreviousPackageRow = snapshot;
         // Mark before the mutating await: SAP may commit the removal and still
         // fail while returning the response.
         context.revert.metadataRemoveStarted = true;

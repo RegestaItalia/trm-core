@@ -3,6 +3,7 @@ jest.mock('../../systemConnector', () => ({
     TRM_REST_PACKAGE_NAME: 'trm-rest',
     SystemConnector: {
         getInstallPackages: jest.fn(),
+        getInstalledPackages: jest.fn(),
         getTransportTargets: jest.fn(),
         getDest: jest.fn(() => 'TST')
     }
@@ -22,13 +23,20 @@ function registry(type: RegistryType = RegistryType.PUBLIC) {
     return { endpoint: 'local', getRegistryType: () => type, compare: (o: any) => o === RegistryProvider.getRegistry() } as any;
 }
 
-function installed(name: string, options: { dirty?: boolean, dependencies?: any[], devclass?: string } = {}) {
+function snapshot(name: string) {
+    return { package_name: name, package_registry: 'public', manifest: Buffer.from('<xml/>'), trkorr: 'DEVK9INST', integrity: 'sha', devclass: 'ZPKG' };
+}
+
+function installed(name: string, options: { dirty?: boolean, dependencies?: any[], devclass?: string, snapshot?: boolean } = {}) {
     const pkg = new TrmPackage(name, registry(), {
         get: () => ({ name, version: '1.0.0', dependencies: options.dependencies || [] })
     } as any);
     pkg.setDevclass(options.devclass || 'ZPKG');
     if (options.dirty) {
         pkg.setDirtyEntries([{} as any]);
+    }
+    if (options.snapshot !== false) {
+        pkg.setMetadataSnapshot(snapshot(name));
     }
     return pkg;
 }
@@ -111,6 +119,31 @@ describe('delete init', () => {
         const ctx = context('pkg', [installed('pkg', { dirty: true })], undefined, false);
         await init.run(ctx);
         expect(ctx.runtime.update.packageName).toBe('pkg');
+    });
+
+    test('a missing TRM packages table record is read again before any change', async () => {
+        const pkg = installed('pkg', { snapshot: false });
+        (SystemConnector.getInstalledPackages as jest.Mock).mockResolvedValue([installed('other'), installed('pkg')]);
+
+        const ctx = context('pkg', [pkg]);
+        await init.run(ctx);
+
+        expect(SystemConnector.getInstalledPackages).toHaveBeenCalledWith(true);
+        expect(ctx.runtime.update.getMetadataSnapshot()).toEqual(snapshot('pkg'));
+    });
+
+    test('aborts when the TRM packages table record still cannot be read', async () => {
+        (SystemConnector.getInstalledPackages as jest.Mock).mockResolvedValue([installed('pkg', { snapshot: false })]);
+
+        await expect(init.run(context('pkg', [installed('pkg', { snapshot: false })])))
+            .rejects.toThrow('Delete aborted. The TRM packages table record of pkg could not be read from TST.');
+        expect(SystemConnector.getInstallPackages).not.toHaveBeenCalled();
+    });
+
+    test('a record already read is not read again', async () => {
+        await init.run(context('pkg', [installed('pkg')]));
+
+        expect(SystemConnector.getInstalledPackages).not.toHaveBeenCalled();
     });
 
     test('dirty packages without prompts abort with the reason and the override', async () => {

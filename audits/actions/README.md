@@ -36,12 +36,12 @@ feature, missing case).
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-engines` | 2 | 0 | 0 | 0 | 0 | [Engines check](check-engines.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
-| `delete` | 8 | 0 | 1 | 4 | 0 | [Package delete](delete.md) |
+| `delete` | 8 | 0 | 1 | 3 | 0 | [Package delete](delete.md) |
 | `install-dependency` | 4 | 0 | 1 | 2 | 2 | [Dependency install](install-dependency.md) |
 | `install` | 23 | 1 | 7 | 11 | 6 | [Package install](install.md) |
 | `publish` | 15 | 1 | 2 | 6 | 5 | [Package publish](publish.md) |
 | Shared steps/callbacks | 12 | 1 | 3 | 10 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **3** | **15** | **33** | **17** | |
+| **Total** | | **3** | **15** | **32** | **17** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
