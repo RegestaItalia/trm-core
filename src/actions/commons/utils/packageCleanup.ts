@@ -674,14 +674,18 @@ export async function revertForwardedDeletionTransport(context: PackageCleanupCo
  * Rolls back {@link cleanupInstalledPackage}: recreates deleted temporary packages, deletes the
  * deletion transport or, once its import started, re-imports the copy of the deleted objects,
  * restores retained tables, and restores object assignments.
+ * With `restore` set to `false` (a later destructive cleanup failed), previous state is not
+ * restored over objects that were not deleted: only the unreleased transports are deleted.
  * Every independent operation is attempted; the first failure is thrown afterwards.
  */
-export async function revertInstalledPackageCleanup(context: PackageCleanupContext): Promise<void> {
+export async function revertInstalledPackageCleanup(context: PackageCleanupContext, restore = true): Promise<void> {
     let firstError: unknown;
-    try {
-        await restoreCleanupPackages(context);
-    } catch (error) {
-        firstError = error;
+    if (restore) {
+        try {
+            await restoreCleanupPackages(context);
+        } catch (error) {
+            firstError = error;
+        }
     }
     try {
         if (context.revert.dele) {
@@ -690,7 +694,11 @@ export async function revertInstalledPackageCleanup(context: PackageCleanupConte
             if (await (transport.canBeDeleted())) {
                 await transport.delete();
             } else if (context.revert.deleImportStarted) {
-                await restoreTransport(context.revert.dele);
+                if (restore) {
+                    await restoreTransport(context.revert.dele);
+                } else {
+                    Logger.warning(`Objects deleted by ${context.revert.dele.trkorr} were not restored, as the cleanup of the imported objects failed: manual restore might be necessary.`);
+                }
             } else {
                 // Released but never imported: the objects were not deleted, re-importing the copy would overwrite them.
                 Logger.log(`Deletion transport ${context.revert.dele.trkorr} was not imported, objects restore skipped`, true);
@@ -704,8 +712,12 @@ export async function revertInstalledPackageCleanup(context: PackageCleanupConte
     }
     try {
         if (context.revert.retainedTables) {
-            // Old table definitions are imported over the new ones: data is kept.
-            await restoreTransport(context.revert.retainedTables);
+            if (restore) {
+                // Old table definitions are imported over the new ones: data is kept.
+                await restoreTransport(context.revert.retainedTables);
+            } else {
+                Logger.warning(`Retained tables backup ${context.revert.retainedTables.trkorr} was not restored, as the cleanup of the imported objects failed: manual restore might be necessary.`);
+            }
         } else if (context.revert.updateTablesBackupTransport
             && await context.revert.updateTablesBackupTransport.canBeDeleted()) {
             await context.revert.updateTablesBackupTransport.delete();
@@ -713,10 +725,12 @@ export async function revertInstalledPackageCleanup(context: PackageCleanupConte
     } catch (error) {
         firstError ||= error;
     }
-    try {
-        await restoreCleanupAssignments(context, false);
-    } catch (error) {
-        firstError ||= error;
+    if (restore) {
+        try {
+            await restoreCleanupAssignments(context, false);
+        } catch (error) {
+            firstError ||= error;
+        }
     }
     if (firstError) {
         throw firstError;

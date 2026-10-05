@@ -62,6 +62,8 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
         });
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        await revertInstalledPackageCleanup(context);
+        // Rollback of the imported objects ran first: when it failed, they are still on the system
+        // and the previous release must not be restored over them.
+        await revertInstalledPackageCleanup(context, !(context.revert.cleanupImported && !context.revert.cleanupSucceeded));
     }
 }

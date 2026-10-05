@@ -132,6 +132,59 @@ describe('generateUpdateTransport revert', () => {
         expect(Transport.upload).not.toHaveBeenCalled();
     });
 
+    describe('after the cleanup of the imported objects failed', () => {
+        function failedCleanupContext() {
+            const ctx = context();
+            ctx.revert.cleanupImported = true;
+            ctx.revert.cleanupSucceeded = false;
+            ctx.revert.retainedTables = {
+                trkorr: 'DEVK9BKP', entries: undefined,
+                binaries: { header: Buffer.from('bh'), data: Buffer.from('bd') }
+            };
+            jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+            return ctx;
+        }
+
+        test('does not restore the previous release over objects that were not deleted', async () => {
+            const ctx = failedCleanupContext();
+
+            await generateUpdateTransport.revert(ctx);
+
+            expect(SystemConnector.createPackage).not.toHaveBeenCalled();
+            expect(Transport.upload).not.toHaveBeenCalled();
+            expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE were not restored'));
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9BKP was not restored'));
+        });
+
+        test('still deletes the unreleased cleanup transports', async () => {
+            const ctx = failedCleanupContext();
+            ctx.revert.retainedTables = undefined;
+            const backup = new Transport('DEVK9BKP') as any;
+            backup.canBeDeleted.mockResolvedValue(true);
+            ctx.revert.updateTablesBackupTransport = backup;
+            (Transport as any).deletable = true;
+
+            await generateUpdateTransport.revert(ctx);
+
+            const deletionTransport = (Transport as any).instances.find((t: any) => t.trkorr === 'DEVK9DELE');
+            expect(deletionTransport.delete).toHaveBeenCalledTimes(1);
+            expect(backup.delete).toHaveBeenCalledTimes(1);
+            expect(Transport.upload).not.toHaveBeenCalled();
+        });
+
+        test('restores everything when that cleanup succeeded', async () => {
+            const ctx = failedCleanupContext();
+            ctx.revert.cleanupSucceeded = true;
+
+            await generateUpdateTransport.revert(ctx);
+
+            expect(SystemConnector.createPackage).toHaveBeenCalledTimes(2);
+            expect((Transport.upload as jest.Mock).mock.calls.map(([trkorr]) => trkorr)).toEqual(['DEVK9DELE', 'DEVK9BKP']);
+            expect(SystemConnector.tadirInterface).toHaveBeenCalledTimes(2);
+        });
+    });
+
     test('old deletion payload restoration failure still attempts TADIR restoration', async () => {
         const ctx = context();
         restored.import.mockRejectedValue(new Error('payload restore failed'));

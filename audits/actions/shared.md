@@ -18,12 +18,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** re-importing the pre-deletion copy or the retained-table backup ends with RC 8/12, yet the revert logs "restored" and resolves. Staging cleanup then proceeds and the TRM record is restored over missing objects; the rollback looks clean.
 - **Fix:** throw when the restore RC exceeds the threshold so the best-effort pass reports it.
 
-### ACT-2026-08 — Medium — Technical — Upgrade-cleanup revert restores payloads after a failed cleanup
-
-- **Where:** [`packageCleanup.ts#L510`](../../src/actions/commons/utils/packageCleanup.ts#L510) vs the guards in [`install/init.ts#L214`](../../src/actions/install/init.ts#L214) and `prepare*.ts`.
-- **Failure:** the `generate-update-transport` revert always re-imports `dele`, retained tables and TADIR assignments, even when `cleanupImported && !cleanupSucceeded`, restoring old payloads over objects that were not deleted (violates the project revert rule).
-- **Fix:** skip the restore operations (not the independent deletes) when the destructive cleanup did not succeed.
-
 ### ACT-2026-09 — Medium — Functional — `ZTRM_DELE_*` staging package leaks on install upgrades
 
 - **Where:** created at [`packageCleanup.ts#L388`](../../src/actions/commons/utils/packageCleanup.ts#L388); install revert only calls `revertInstalledPackageCleanup` ([`generateUpdateTransport.ts#L59`](../../src/actions/install/generateUpdateTransport.ts#L59)); delete has `deleteStagingPackages`.
@@ -116,11 +110,22 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `withScopedPrefix` | No issue found; restores prefixes in `finally`. |
 | `restoreTransport` / `revertPreparedTransport` | Import return code ignored (ACT-2026-06). |
 | `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized deletion keeps the released transport, clears the rollback snapshot so it is neither restored nor forwarded, and rethrows the original authorization error (ACT-2026-07, resolved); context overwrite and dead assignment (ACT-2026-21). |
-| `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); restore without cleanup success (ACT-2026-08); staging package leak (ACT-2026-09). |
+| `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); the upgrade revert skips every restore (packages, deletion copy, retained tables, TADIR assignments) when the cleanup of the imported objects failed, and still deletes unreleased cleanup transports (ACT-2026-08, resolved); staging package leak (ACT-2026-09). |
 | `Transport` status cache (used by every revert) | Cached E070 never invalidated (ACT-2026-17); release and queue polling unbounded (ACT-2026-14). |
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-08 — Resolved — Medium — Technical — Upgrade-cleanup revert restores payloads after a failed cleanup
+
+`revertInstalledPackageCleanup` takes a `restore` flag. The `generate-update-transport` revert
+clears it when `cleanupImported && !cleanupSucceeded`, the same guard as `init` and `prepare*`.
+Then the revert does not recreate temporary packages, re-import the deletion copy or the
+retained-table backup, or restore TADIR assignments over objects that were not deleted. It warns
+that manual restore might be necessary. The independent deletes of unreleased cleanup and backup
+transports still run. The delete action keeps the default (always restore)
+([source](../../src/actions/commons/utils/packageCleanup.ts#L681),
+[caller](../../src/actions/install/generateUpdateTransport.ts#L67)).
+
 ### ACT-2026-07 — Resolved — High — Technical — Unauthorized deletion path is masked by deleting a released transport
 
 On `RegistryDeletionTransportUnauthorizedError`, `releaseDeletionTransport` no longer tries to delete
