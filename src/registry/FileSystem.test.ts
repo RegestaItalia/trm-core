@@ -6,6 +6,7 @@ import { join } from 'path';
 import { TrmArtifact, TRANSPORT_INDEX_FILE } from '../trmPackage';
 import { TrmTransportIdentifier } from '../transport';
 import { FileSystem } from './FileSystem';
+import { RegistryPackageNotFoundError } from './RegistryPackageNotFoundError';
 
 const entries = (name: string) => ({
     e071: [{ pgmid: 'R3TR', object: name === 'DEVC' ? 'DEVC' : 'PROG', objName: `Z${name}` }],
@@ -73,6 +74,11 @@ describe('FileSystem embedded transports', () => {
         const transports = (await new FileSystem(file).getPackage('offline', '1.0.0')).transports;
         expect(transports.some(item => item.type === 'LANG')).toBe(true);
         expect(transports.some(item => item.type === 'CUST')).toBe(true);
+    });
+
+    test('reports a missing artifact file as a package not found', async () => {
+        const missing = join(directory, 'new.trm');
+        await expect(new FileSystem(missing).getPackage('offline', 'latest')).rejects.toBeInstanceOf(RegistryPackageNotFoundError);
     });
 
     test('rejects unknown transport identifiers', async () => {

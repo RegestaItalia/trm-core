@@ -9,6 +9,7 @@ import { writeFile } from "fs/promises";
 import { BinaryTransport } from "../transport";
 import { createHash } from "crypto";
 import { TransportEntries } from "../client";
+import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
 
 export const LOCAL_RESERVED_KEYWORD = 'local';
 
@@ -93,6 +94,9 @@ export class FileSystem implements AbstractRegistry {
 
     public async getPackage(fullName: string, version: string): Promise<Package> {
         if (this._filePath) {
+            if (!existsSync(this._filePath)) {
+                throw new RegistryPackageNotFoundError(fullName, version, this._filePath, undefined);
+            }
             const artifact = await this.getArtifact();
             const manifest = artifact.getManifest();
             const transportIndex = artifact.getTransportIndex();

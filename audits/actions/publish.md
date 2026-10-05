@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-55 — Critical — Functional — First publish to a new local file always fails
-
-- **Where:** [`publish/init.ts#L156`](../../src/actions/publish/init.ts#L156); [`FileSystem.ts#L127`](../../src/registry/FileSystem.ts#L127) wraps the missing file in a generic `Error`.
-- **Failure:** PUBL-05 now rethrows anything but `RegistryPackageNotFoundError`, so publishing to a not-yet-existing artifact path aborts deterministically.
-- **Fix:** throw `RegistryPackageNotFoundError` when the file does not exist (or skip the lookup for LOCAL).
-
 ### ACT-2026-56 — High — Functional — Overwriting a local artifact treats it as the latest release
 
 - **Where:** [`FileSystem.ts#L94`](../../src/registry/FileSystem.ts#L94) returns `dist_tags.latest = 'latest'` and ignores the name; [`publish/init.ts#L169`](../../src/actions/publish/init.ts#L169).
@@ -91,7 +85,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Order | Step | Result |
 |---:|---|---|
 | 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
-| 3 | `init` | Local first publish fails (ACT-2026-55) and local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); non-interactive devclass unresolved (ACT-2026-61); prompted version not cleaned (ACT-2026-67). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
+| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); non-interactive devclass unresolved (ACT-2026-61); prompted version not cleaned (ACT-2026-67). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63); duplicate retained entry (ACT-2026-66). |
 | 6 | `set-manifest-values` | Dead post-activity check (ACT-2026-58), non-strict engines (ACT-2026-59), union-only merge (ACT-2026-62), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). |
@@ -103,6 +97,14 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-55 — Resolved — First publish to a new local file always fails
+
+PUBL-05 made `init` rethrow every lookup failure except `RegistryPackageNotFoundError`, while the
+local registry reported a missing artifact file as a generic read error, so publishing to a new file
+always aborted. `FileSystem.getPackage` now throws `RegistryPackageNotFoundError` when the target
+file does not exist; unreadable or corrupt existing files still abort
+([source](../../src/registry/FileSystem.ts#L94)).
+
 ### ACT-2026-89 — Resolved — Publish limits the package to one reserved namespace
 
 The manifest carries a single namespace and repair license, read from the root package only, so a
