@@ -3,7 +3,7 @@ import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
 import { validate as validateEmail } from "email-validator";
 import { RegistryType } from "../../registry";
-import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency, validateEngines } from "../../manifest";
+import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency, validateEngines, validateSapEntries } from "../../manifest";
 import { ENGINES_TEMPLATE, getSystemEngines } from "./getSystemEngines";
 import { ENGINES_UI_COLUMNS, EnginesUiSection, enginesToUiRows, uiRowsToEngines, validateEnginesUiSection } from "./enginesUi";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
@@ -502,8 +502,9 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 validate: (input) => {
                     try {
                         const parsedInput = JSON.parse(input);
-                        if (typeof (parsedInput) === 'object' && !Array.isArray(parsedInput)) {
-                            return true;
+                        if (typeof (parsedInput) === 'object' && parsedInput !== null && !Array.isArray(parsedInput)) {
+                            const errors = validateSapEntries(parsedInput);
+                            return errors.length === 0 ? true : errors[0];
                         } else {
                             return 'Invalid object';
                         }

@@ -1,6 +1,6 @@
 import { valid as semverValid } from "semver";
 import { inspect, Logger, ValueHelpContext, ValueHelpPage } from "trm-commons";
-import { Manifest, TrmManifestEngineTableCondition } from "../manifest";
+import { getSapEntryConditions, Manifest, TrmManifestEngineTableCondition } from "../manifest";
 import { TADIR, TDEVC } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
@@ -430,11 +430,9 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async checkSapEntryExists(table: string, sapEntry: any): Promise<boolean> {
+    //invalid entries are thrown, not reported as missing
+    const aQuery = getSapEntryConditions(sapEntry);
     try {
-      var aQuery = [];
-      Object.keys(sapEntry).forEach(k => {
-        aQuery.push(`${k.trim().toUpperCase()} EQ '${sapEntry[k]}'`);
-      });
       const entry: any[] = await this.readTable(table.trim().toUpperCase(),
         [{ fieldName: Object.keys(sapEntry)[0].trim().toUpperCase() }],
         aQuery.join(' AND '));

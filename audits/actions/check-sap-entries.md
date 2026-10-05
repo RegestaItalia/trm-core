@@ -9,25 +9,35 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ### ACT-2026-69 — Medium — Technical — Connector swallows every SAP-entry error (SAPCHK-02 ineffective)
 
-- **Where:** [`SystemConnectorBase.ts#L432`](../../src/systemConnector/SystemConnectorBase.ts#L432) returns `false` on any error, so the rethrow at [`analyze.ts#L70`](../../src/actions/checkSapEntries/analyze.ts#L70) and the "Unknown" branch are dead.
+- **Where:** [`SystemConnectorBase.ts#L441`](../../src/systemConnector/SystemConnectorBase.ts#L441) returns `false` on any read error, so the rethrow at [`analyze.ts#L77`](../../src/actions/checkSapEntries/analyze.ts#L77) and the "Unknown" branch are dead.
 - **Failure:** missing authorization or a dropped connection reports every table "not found" and aborts install with "requirements are not met" instead of the real cause.
 - **Fix:** propagate read errors; treat only true absence as `false`.
-
-### ACT-2026-70 — Medium — Technical — SAP-entry where clause is built unsafely
-
-- **Where:** [`SystemConnectorBase.ts#L435`](../../src/systemConnector/SystemConnectorBase.ts#L435).
-- **Failure:** values are not quote-escaped (`O'NEIL`), field names are unvalidated, an empty entry throws, and a single condition over the 72-character option line cannot be split; all surface as `NOT FOUND`.
-- **Fix:** escape `'`, validate fields and lengths, reject empty entries in `Manifest.normalize`.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. |
-| 2 | `analyze` | Error handling dead (ACT-2026-69); unsafe where clause (ACT-2026-70). The table probe uppercases the name and accepts tables and views. Printed rows stay aligned with the header and output statuses follow declaration order. |
+| 2 | `analyze` | Error handling dead (ACT-2026-69). Entry conditions are escaped and validated, and invalid entries are thrown rather than reported missing. The table probe uppercases the name and accepts tables and views. Printed rows stay aligned with the header and output statuses follow declaration order. |
 | — | install wrapper `check-sap-entries` | Skips on `noSapEntries`; logs each missing entry at error level, with its table and field values, before aborting. |
 
 ## Resolved findings
+### ACT-2026-70 — Resolved — Medium — Technical — SAP-entry where clause is built unsafely
+
+Previously `checkSapEntryExists` interpolated field names and values into the where clause without
+escaping or validation. A value such as `O'NEIL`, an invalid field name, an empty entry, a value
+containing " AND "/" OR " (which the read-table option splitter breaks on), or a condition longer
+than the 72-character option line all failed inside the swallowed read and surfaced as `NOT FOUND`.
+Conditions are now built by `getSapEntryConditions`
+([source](../../src/manifest/sapEntries.ts#L12)), which uppercases and validates field names,
+escapes `'` as `''`, accepts only string or number values, rejects " AND "/" OR " values and
+conditions over 72 characters, and rejects empty entries. The connector calls it before the read,
+outside the error-swallowing block, so an invalid entry throws instead of reading as missing
+([source](../../src/systemConnector/SystemConnectorBase.ts#L432)). `Manifest.normalize` validates
+the whole `sapEntries` map, including table names, and rejects an invalid declaration
+([source](../../src/manifest/Manifest.ts#L519)); the publish editor for SAP entries applies the same
+validation ([source](../../src/actions/publish/setManifestValues.ts#L506)).
+
 ### ACT-2026-71 — Resolved — Medium — Functional — Table probe is case-sensitive and TABL-only
 
 Previously the TADIR existence probe sent the manifest table key as written and matched only

@@ -13,6 +13,7 @@ import _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
 import { Logger } from "trm-commons";
 import { normalizeEngines, validateEngines } from "./engines";
+import { validateSapEntries } from "./sapEntries";
 
 
 function getManifestAuthor(sAuthor: string) {
@@ -515,15 +516,9 @@ export class Manifest {
         if (!manifestClone.sapEntries || typeof manifestClone.sapEntries !== 'object') {
             delete manifestClone.sapEntries;
         } else {
-            for (const key in manifestClone.sapEntries) {
-                if (!Array.isArray(manifestClone.sapEntries[key])) {
-                    throw new Error(`Invalid structure in SAP entries declaration.`);
-                }
-                for (const item of manifestClone.sapEntries[key]) {
-                    if (typeof item !== 'object' || item === null) {
-                        throw new Error(`Invalid structure in SAP entries declaration.`);
-                    }
-                }
+            const sapEntriesErrors = validateSapEntries(manifestClone.sapEntries);
+            if (sapEntriesErrors.length > 0) {
+                throw new Error(`Invalid SAP entries declaration: ${sapEntriesErrors[0]}`);
             }
         }
         if (!manifestClone.engines || typeof manifestClone.engines !== 'object' || Object.keys(manifestClone.engines).length === 0) {
