@@ -38,6 +38,12 @@ export type DeleteActionInputDeleteData = {
          * When the check runs and finds dependants, the delete requires confirmation (aborted without prompts).
          */
         noDependants?: boolean;
+        /**
+         * Delete the package even when it has changes made on the target system (dirty entries),
+         * without asking for confirmation. Defaults to `false`: dirty packages then require
+         * confirmation (aborted without prompts).
+         */
+        ignoreDirty?: boolean;
     };
 
     /**

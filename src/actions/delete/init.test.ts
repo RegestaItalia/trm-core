@@ -112,6 +112,29 @@ describe('delete init', () => {
         await init.run(ctx);
         expect(ctx.runtime.update.packageName).toBe('pkg');
     });
+
+    test('dirty packages without prompts abort with the reason and the override', async () => {
+        await expect(init.run(context('pkg', [installed('pkg', { dirty: true })])))
+            .rejects.toThrow('pkg has changes made on TST that will be deleted: set the ignoreDirty check');
+    });
+
+    test('declined dirty confirmation aborts with the reason', async () => {
+        jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ ignoreDirty: false });
+        await expect(init.run(context('pkg', [installed('pkg', { dirty: true })], undefined, false)))
+            .rejects.toThrow('Delete aborted. pkg has changes made on TST that will be deleted.');
+    });
+
+    test('ignoreDirty deletes dirty packages without prompts', async () => {
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+        const ctx = context('pkg', [installed('pkg', { dirty: true })]);
+        ctx.rawInput.deleteData = { checks: { ignoreDirty: true } };
+
+        await init.run(ctx);
+
+        expect(prompt).not.toHaveBeenCalled();
+        expect(Logger.warning).toHaveBeenCalledWith('pkg has changes made on TST that will be deleted!');
+        expect(ctx.runtime.update.packageName).toBe('pkg');
+    });
 });
 
 describe('delete checkDependants', () => {

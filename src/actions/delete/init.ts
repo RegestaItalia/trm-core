@@ -52,21 +52,24 @@ export const init: Step<DeleteWorkflowContext> = {
             && (installed.packageName === TRM_SERVER_PACKAGE_NAME || installed.packageName === TRM_REST_PACKAGE_NAME)) {
             throw new Error(`Delete aborted. ${installed.packageName} is required by TRM and can't be deleted.`);
         }
-        if (installed.isDirty()) {
-            let ignoreDirty = false;
-            Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted!`);
+        if (installed.isDirty() && !context.rawInput.deleteData.checks.ignoreDirty) {
+            const reason = `${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted`;
+            if (context.rawInput.contextData.noInquirer) {
+                throw new Error(`Delete aborted. ${reason}: set the ignoreDirty check to delete it without prompts.`);
+            }
+            Logger.warning(`${reason}!`);
             Logger.warning(`Consider analyzing dirty entries before delete.`);
-            if (!context.rawInput.contextData.noInquirer) {
-                ignoreDirty = (await Inquirer.prompt({
-                    message: `Continue with delete?`,
-                    type: 'confirm',
-                    default: false,
-                    name: 'ignoreDirty'
-                })).ignoreDirty;
-            }
+            const { ignoreDirty } = await Inquirer.prompt({
+                message: `Continue with delete?`,
+                type: 'confirm',
+                default: false,
+                name: 'ignoreDirty'
+            });
             if (!ignoreDirty) {
-                throw new Error(`Delete aborted.`);
+                throw new Error(`Delete aborted. ${reason}.`);
             }
+        } else if (installed.isDirty()) {
+            Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted!`);
         }
 
         //4- check/set system target
