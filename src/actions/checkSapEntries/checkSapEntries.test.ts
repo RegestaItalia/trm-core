@@ -47,6 +47,20 @@ describe('checkSapEntries', () => {
         );
     });
 
+    test('table probe uppercases the name', async () => {
+        connector.checkSapEntryExists.mockImplementation(async (table: string, entry: any) => table !== 'TADIR' || (entry.object === 'TABL' && entry.obj_name === 'ZTAB'));
+        const output = await run({ ' ztab ': [{ ID: 'A' }] });
+        expect(output.sapEntriesStatus[' ztab ']).toEqual([{ status: true, entry: { ID: 'A' } }]);
+    });
+
+    test('table probe falls back to database views', async () => {
+        connector.checkSapEntryExists.mockImplementation(async (table: string, entry: any) => table !== 'TADIR' || entry.object === 'VIEW');
+        const output = await run({ ZVIEW: [{ ID: 'A' }] });
+        expect(connector.checkSapEntryExists).toHaveBeenCalledWith('TADIR', { pgmid: 'R3TR', object: 'TABL', obj_name: 'ZVIEW' });
+        expect(connector.checkSapEntryExists).toHaveBeenCalledWith('TADIR', { pgmid: 'R3TR', object: 'VIEW', obj_name: 'ZVIEW' });
+        expect(output.sapEntriesStatus.ZVIEW).toEqual([{ status: true, entry: { ID: 'A' } }]);
+    });
+
     test('missing table marks every entry as failed', async () => {
         connector.checkSapEntryExists.mockResolvedValue(false);
         const output = await run({ ZTAB: [{ ID: 'A' }, { ID: 'B' }] });

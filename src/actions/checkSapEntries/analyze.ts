@@ -60,13 +60,18 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
 
         //2- check entries
         for (const table of Object.keys(context.output.sapEntries)) {
-            var tableExists: boolean;
+            var tableExists = false;
             try {
-                tableExists = await SystemConnector.checkSapEntryExists('TADIR', {
-                    pgmid: 'R3TR',
-                    object: 'TABL',
-                    obj_name: table
-                });
+                for (const object of ['TABL', 'VIEW']) {
+                    tableExists = await SystemConnector.checkSapEntryExists('TADIR', {
+                        pgmid: 'R3TR',
+                        object,
+                        obj_name: table.trim().toUpperCase()
+                    });
+                    if (tableExists) {
+                        break;
+                    }
+                }
             } catch (e) {
                 const reason = e instanceof Error ? e.message : String(e);
                 throw new Error(`Unable to check whether required SAP table "${table}" exists: ${reason}`);
@@ -79,7 +84,7 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
                         tableEntry
                     });
                 });
-                Logger.error(`Required ${context.output.sapEntries[table].length} entries in ${table}, but table was not found`, !context.rawInput.printOptions.information);
+                Logger.error(`Required ${context.output.sapEntries[table].length} entries in ${table}, but table or view was not found`, !context.rawInput.printOptions.information);
             } else {
                 var printTableHead: string[] = ['Table name'];
                 var printTableData: string[][] = [];

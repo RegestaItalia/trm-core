@@ -19,21 +19,24 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** values are not quote-escaped (`O'NEIL`), field names are unvalidated, an empty entry throws, and a single condition over the 72-character option line cannot be split; all surface as `NOT FOUND`.
 - **Fix:** escape `'`, validate fields and lengths, reject empty entries in `Manifest.normalize`.
 
-### ACT-2026-71 — Medium — Functional — Table probe is case-sensitive and TABL-only
-
-- **Where:** [`analyze.ts#L65`](../../src/actions/checkSapEntries/analyze.ts#L65).
-- **Failure:** a lowercase table key or a database view is reported "table was not found" and blocks install.
-- **Fix:** uppercase table names and probe DD02L (or TABL plus VIEW).
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. |
-| 2 | `analyze` | Error handling dead (ACT-2026-69); unsafe where clause (ACT-2026-70); case-sensitive, TABL-only probe (ACT-2026-71). Printed rows stay aligned with the header and output statuses follow declaration order. |
+| 2 | `analyze` | Error handling dead (ACT-2026-69); unsafe where clause (ACT-2026-70). The table probe uppercases the name and accepts tables and views. Printed rows stay aligned with the header and output statuses follow declaration order. |
 | — | install wrapper `check-sap-entries` | Skips on `noSapEntries`; logs each missing entry at error level, with its table and field values, before aborting. |
 
 ## Resolved findings
+### ACT-2026-71 — Resolved — Medium — Functional — Table probe is case-sensitive and TABL-only
+
+Previously the TADIR existence probe sent the manifest table key as written and matched only
+`OBJECT = 'TABL'`, so a lowercase key or a database view was reported "table was not found" and
+blocked install, although the entry read itself uppercases the table name. The probe now trims and
+uppercases the name and checks `TABL` and then `VIEW`
+([source](../../src/actions/checkSapEntries/analyze.ts#L65)). The missing-table message reads
+"table or view was not found". Statuses are still keyed by the table name as declared in the manifest.
+
 ### ACT-2026-72 — Resolved — Low — Functional — Missing entries are hidden and the status table is misaligned
 
 Previously the install wrapper printed the missing entries only in debug output, as a single JSON
