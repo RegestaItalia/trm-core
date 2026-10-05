@@ -25,20 +25,21 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** lowercase `k900001.npl` yields `nplK900001` and tp cannot find the cofile; any `R*`/`K*` entry (e.g. `README.txt`) or folder prefix triggers a misleading cardinality error.
 - **Fix:** use basenames, require `^[KR][A-Z0-9]{6,}\.[A-Z0-9]{3}$/i`, uppercase, ignore directories.
 
-### ACT-2026-88 — Low — Functional — Diagnostics and stop warning
-
-- **Where:** [`cg3z/upload.ts#L68`](../../src/actions/cg3z/upload.ts#L68).
-- **Failure:** the refresh-text error is discarded entirely (typo "Coudln't"); cg3z changes SAP data without the standard stop warning.
-- **Fix:** log the error message and call `stopWarning`.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `check-server-auth` | Fails open on non-`ClientError` failures ([ACT-2026-12](shared.md)). |
-| 2 | `upload` | Upload/forward works for well-formed archives; rollback ineffective (ACT-2026-85); overwrite and entry-name gaps (ACT-2026-86, ACT-2026-87). |
+| 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and a non-fatal text-refresh failure is logged with its error message. Rollback ineffective (ACT-2026-85); overwrite and entry-name gaps (ACT-2026-86, ACT-2026-87). |
 
 ## Resolved findings
+
+### ACT-2026-88 — Resolved — Diagnostics and stop warning
+
+- **Where:** [`cg3z/upload.ts`](../../src/actions/cg3z/upload.ts).
+- **Was:** the refresh-text error was discarded entirely (typo "Coudln't"); cg3z changed SAP data without the standard stop warning.
+- **Fix:** the step calls `stopWarning('cg3z')` after the archive is parsed and before the upload, and the refresh warning now includes the transport number and the error message. Covered by [`upload.test.ts`](../../src/actions/cg3z/upload.test.ts).
+
 ### CG3Z-01 — Resolved — Partial upload/forward is rolled back
 
 The upload step now registers the identified transport in workflow runtime state before writing its

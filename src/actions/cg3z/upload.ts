@@ -4,6 +4,7 @@ import { Transport } from "../../transport";
 import { Logger } from "trm-commons";
 import * as AdmZip from "adm-zip";
 import { SystemConnector } from "../../systemConnector";
+import { stopWarning } from "../stopWarning";
 
 export function parseTransportArchive(binaries: Buffer): {
     header: AdmZip.IZipEntry,
@@ -46,6 +47,7 @@ export const upload: Step<Cg3zWorkflowContext> = {
         };
 
         //2- upload
+        stopWarning('cg3z');
         Logger.loading(`Uploading transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
         context.runtime.transport = new Transport(context.output.trkorr, SystemConnector.getDest());
         await Transport.upload(
@@ -65,8 +67,8 @@ export const upload: Step<Cg3zWorkflowContext> = {
         try {
             Logger.loading(`Refreshing transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
             await SystemConnector.refreshTransportTmsTxt(context.output.trkorr);
-        } catch {
-            Logger.warning(`Coudln't refresh transport text!`);
+        } catch (e) {
+            Logger.warning(`Couldn't refresh transport ${context.output.trkorr} text: ${e?.message || e}`);
         }
     },
     revert: async (context: Cg3zWorkflowContext): Promise<void> => {

@@ -74,6 +74,17 @@ describe('cg3z upload rollback', () => {
 
         expect(Transport.upload).toHaveBeenCalledTimes(1);
         expect(SystemConnector.forwardTransport).toHaveBeenCalledTimes(1);
-        expect(Logger.warning).toHaveBeenCalledTimes(1);
+        expect(Logger.warning).toHaveBeenCalledTimes(2);
+        expect(Logger.warning).toHaveBeenLastCalledWith(expect.stringContaining('refresh failed'));
+    });
+
+    test('shows the stop warning before writing to SAP', async () => {
+        const ctx = context();
+        const order: string[] = [];
+        (Logger.warning as jest.Mock).mockImplementation((msg: string) => { order.push(`warning:${msg}`); });
+        jest.spyOn(Transport, 'upload').mockImplementation(async () => { order.push('upload'); return {} as Transport; });
+        await upload.run(ctx);
+        expect(order[0]).toMatch(/^warning:.*cg3z.*Do not interrupt/);
+        expect(order[1]).toBe('upload');
     });
 });

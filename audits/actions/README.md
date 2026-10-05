@@ -32,7 +32,7 @@ feature, missing case).
 | Workflow | Steps audited | Critical | High | Medium | Low | Report |
 |---|---:|---:|---:|---:|---:|---|
 | `cg3y` | 2 | 0 | 0 | 0 | 0 | [CG3Y](cg3y.md) |
-| `cg3z` | 2 | 0 | 1 | 2 | 1 | [CG3Z](cg3z.md) |
+| `cg3z` | 2 | 0 | 1 | 2 | 0 | [CG3Z](cg3z.md) |
 | `check-dependencies` | 3 | 0 | 0 | 1 | 1 | [Package dependency check](check-package-dependencies.md) |
 | `check-engines` | 2 | 0 | 0 | 1 | 2 | [Engines check](check-engines.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 3 | 2 | [SAP-entry check](check-sap-entries.md) |
@@ -41,7 +41,7 @@ feature, missing case).
 | `install` | 23 | 1 | 7 | 11 | 6 | [Package install](install.md) |
 | `publish` | 15 | 1 | 2 | 6 | 5 | [Package publish](publish.md) |
 | Shared steps/callbacks | 12 | 1 | 3 | 10 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **3** | **15** | **41** | **25** | |
+| **Total** | | **3** | **15** | **41** | **24** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
