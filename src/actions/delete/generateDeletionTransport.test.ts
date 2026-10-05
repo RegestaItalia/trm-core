@@ -139,6 +139,53 @@ describe('generateDeletionTransport', () => {
         expect(deleted).toEqual(['CLAS /NS/CLASS', 'DEVC /NS/ROOT', 'NSPC /NS/']);
     });
 
+    test('keeps a namespace shipped by the installed transport while other SAP packages use it', async () => {
+        const { ctx, dummy, acquire } = runContext([
+            { pgmid: 'R3TR', object: 'CLAS', objName: '/NS/CLASS' },
+            { pgmid: 'R3TR', object: 'NSPC', objName: '/NS/' }
+        ], '/NS/ROOT');
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ namespace: '/NS/' });
+        // /NS/OTHER is not a TRM package: TDEVC alone decides.
+        (SystemConnector.getNamespacePackages as jest.Mock).mockResolvedValue([{ devclass: '/NS/ROOT' }, { devclass: '/NS/OTHER' }]);
+
+        await generateDeletionTransport.run(ctx);
+
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted).toEqual(['CLAS /NS/CLASS', 'DEVC /NS/ROOT']);
+        expect(acquire.mock.calls[0][0].map((lock: any) => lock.name)).not.toContain('R3TR NSPC /NS/');
+        expect(SystemConnector.getNamespacePackages).toHaveBeenCalledWith('/NS/');
+    });
+
+    test('deletes a namespace shipped by the installed transport once, with its last package', async () => {
+        const { ctx, dummy } = runContext([
+            { pgmid: 'R3TR', object: 'NSPC', objName: '/NS/' },
+            { pgmid: 'R3TR', object: 'CLAS', objName: '/NS/CLASS' }
+        ], '/NS/ROOT');
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ namespace: '/NS/' });
+        (SystemConnector.getNamespacePackages as jest.Mock).mockResolvedValue([{ devclass: '/NS/ROOT' }]);
+
+        await generateDeletionTransport.run(ctx);
+
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted).toEqual(['CLAS /NS/CLASS', 'DEVC /NS/ROOT', 'NSPC /NS/']);
+        expect(SystemConnector.getNamespacePackages).toHaveBeenCalledTimes(1);
+    });
+
+    test('keeps the namespace when its usage cannot be checked', async () => {
+        const { ctx, dummy } = runContext([
+            { pgmid: 'R3TR', object: 'CLAS', objName: '/NS/CLASS' },
+            { pgmid: 'R3TR', object: 'NSPC', objName: '/NS/' }
+        ], '/NS/ROOT');
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ namespace: '/NS/' });
+        (SystemConnector.getNamespacePackages as jest.Mock).mockRejectedValue(new Error('RFC_READ_TABLE failed'));
+
+        await generateDeletionTransport.run(ctx);
+
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted).toEqual(['CLAS /NS/CLASS', 'DEVC /NS/ROOT']);
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Keeping namespace /NS/'));
+    });
+
     test('unauthorized deletion transport aborts the delete instead of only warning', async () => {
         const { ctx, registry } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
         registry.delete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401')));

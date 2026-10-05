@@ -12,12 +12,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** the test import only rejects RC > 8, and the real `import(false)` result is discarded. With RC 8/12/16/-1 the delete action logs "imported", forwards the deletion transport, removes the TRM record and reports success while the objects remain. The same helper drives upgrade cleanup and `import-batch` rollback cleanup.
 - **Fix:** check the real-import RC and throw above the accepted threshold (≤ 4), so the workflow rolls back.
 
-### ACT-2026-05 — High — Functional — Cleanup deletes a namespace still used by other packages
-
-- **Where:** [`packageCleanup.ts#L200`](../../src/actions/commons/utils/packageCleanup.ts#L200), [`#L359`](../../src/actions/commons/utils/packageCleanup.ts#L359); NSPC added to the landscape transport at [`generateLandscapeTransport.ts#L74`](../../src/actions/install/generateLandscapeTransport.ts#L74).
-- **Failure:** when an install generated a namespace, its landscape transport (the stored package transport) contains `R3TR NSPC`. Cleanup deletes every previous-transport entry except retained tables, bypassing the "last package in namespace" guard at L328–347. Deleting package A removes `/ABC/` even if package B lives there; upgrading A also puts the NSPC in the deletion transport (the incoming TADIR list never contains NSPC) and forwards it through the landscape. SAP-side effect of a namespace in a deletion transport was not reproduced.
-- **Fix:** drop `R3TR NSPC` from the previous-transport entries and add it only through the `namespaceToDelete` check.
-
 ### ACT-2026-06 — High — Technical — Rollback re-imports report success regardless of return code
 
 - **Where:** [`restoreTransport.ts#L14`](../../src/actions/commons/utils/restoreTransport.ts#L14); used by `revertInstalledPackageCleanup` and every `prepare-*` revert.
@@ -110,8 +104,8 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ### ACT-2026-21 — Low — Technical — Minor cleanup-helper state issues
 
-- **Where:** [`releaseDeletionTransport.ts#L42`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L42) overwrites `runtime.dele` even for helper calls; L56 is a dead assignment; [`packageCleanup.ts#L344`](../../src/actions/commons/utils/packageCleanup.ts#L344) swallows namespace connector errors as "no namespace".
-- **Fix:** return the uploaded transport instead of writing context; catch only the namespace parse error.
+- **Where:** [`releaseDeletionTransport.ts#L42`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L42) overwrites `runtime.dele` even for helper calls; L56 is a dead assignment. (The swallowed namespace connector errors in `packageCleanup` were fixed with ACT-2026-05.)
+- **Fix:** return the uploaded transport instead of writing context.
 
 ## Step review
 
@@ -128,11 +122,22 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `withScopedPrefix` | No issue found; restores prefixes in `finally`. |
 | `restoreTransport` / `revertPreparedTransport` | Import return code ignored (ACT-2026-06). |
 | `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized path deletes a released transport (ACT-2026-07); context overwrite and dead assignment (ACT-2026-21). |
-| `packageCleanup` | Shared namespace deleted (ACT-2026-05); restore without cleanup success (ACT-2026-08); staging package leak (ACT-2026-09); namespace errors swallowed (ACT-2026-21). |
+| `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); restore without cleanup success (ACT-2026-08); staging package leak (ACT-2026-09). |
 | `Transport` status cache (used by every revert) | Cached E070 never invalidated (ACT-2026-17); release and queue polling unbounded (ACT-2026-14). |
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-05 — Resolved — High — Functional — Cleanup deletes a namespace still used by other packages
+
+`R3TR NSPC` entries of the installed transport (e.g. the landscape transport of an install that
+generated the namespace) are no longer deletion candidates by themselves. Together with the
+namespace of the installed root package, each is deleted only when no SAP package outside the
+deletion remains in TDEVC with `NAMESPACE` = that namespace, whether installed by TRM or not, and
+the incoming release (upgrades) does not use it, as its packages may not be imported yet. A
+namespace is never treated as an extra package object, and a failed usage check now keeps the
+namespace with a warning instead of being swallowed
+([source](../../src/actions/commons/utils/packageCleanup.ts#L429)).
+
 ### SHARED-02 — Resolved — `trm-server` initialization failures propagate
 
 The per-activity `try/catch` was removed. Construction or execution failure now rejects the shared

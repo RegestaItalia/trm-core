@@ -92,6 +92,21 @@ function isDevclass(object: CleanupObject): boolean {
     return normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC';
 }
 
+function isNamespace(object: CleanupObject): boolean {
+    return normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'NSPC';
+}
+
+/** Custom (`/XXX/`) namespace of a SAP package, if any. */
+function getCustomNamespace(devclass: string): string | undefined {
+    try {
+        const namespace = getPackageNamespace(devclass);
+        return namespace.startsWith('/') ? namespace : undefined;
+    } catch (e) {
+        // devclass doesn't use a custom namespace
+        return undefined;
+    }
+}
+
 /**
  * TRM packages, other than `installed`, installed in one of `devclasses` (normalized SAP package
  * names, usually the live subtree of the installed release).
@@ -258,7 +273,10 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         const keyedObjects = new Set(installed.getTransport() && installedTransportObjects.length > 0
             ? (await installed.getTransport().getE071K()).map(objectKey)
             : []);
-        const previousTransportObjects = installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object)));
+        // A namespace may be used by packages outside this installation: it's only deleted
+        // through the usage check below, never because the installed transport carries it.
+        const previousNamespaces = installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object)) && isNamespace(object));
+        const previousTransportObjects = installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object)) && !isNamespace(object));
         const incomingObjects = target.incomingObjects;
         // Tables shipped again by the new release are adjusted by its import instead of
         // being dropped and re-created, which would lose their data.
@@ -352,8 +370,8 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             const objectsAfterImport = new Map<string, TADIR>();
             for (const member of group) {
                 for (const object of await SystemConnector.getDevclassObjects(previousDevclasses.get(member), false)) {
-                    // Package definitions follow the decision for the whole subtree.
-                    if (!isDevclass(object)) {
+                    // Package definitions follow the decision for the whole subtree; namespaces the usage check.
+                    if (!isDevclass(object) && !isNamespace(object)) {
                         objectsAfterImport.set(objectKey(object), object);
                     }
                 }
@@ -408,24 +426,36 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         }
         const packagesToDelete = changedDevclassesToDelete.filter(devclass => deletableDevclasses.has(normalize(devclass)));
 
-        // The namespace itself can only be cleaned up alongside its last remaining package.
-        let namespaceToDelete: string;
-        if (packagesToDelete.length > 0 && installed.getDevclass()) {
+        // A namespace can only be cleaned up alongside its last remaining package: any other SAP
+        // package in it (TDEVC NAMESPACE), installed by TRM or not, keeps it. Namespaces of the
+        // incoming release are kept, as its packages may not have been imported yet.
+        const incomingNamespaces = new Set(target.keptDevclasses.map(getCustomNamespace).filter(Boolean).map(normalize));
+        const namespaceCandidates = new Map<string, string>();
+        previousNamespaces.forEach(object => namespaceCandidates.set(normalize(object.objName), object.objName));
+        const rootNamespace = installed.getDevclass() ? getCustomNamespace(installed.getDevclass()) : undefined;
+        if (rootNamespace) {
+            namespaceCandidates.set(normalize(rootNamespace), rootNamespace);
+        }
+        const deletingDevclasses = new Set(packagesToDelete.map(normalize));
+        const namespacesToDelete: string[] = [];
+        for (const [key, namespace] of namespaceCandidates) {
+            if (incomingNamespaces.has(key)) {
+                Logger.log(`Keeping namespace ${namespace}: used by the incoming release`, true);
+                continue;
+            }
             try {
-                const namespace = getPackageNamespace(installed.getDevclass());
-                if (namespace.startsWith('/')) {
-                    const namespaceExists = await SystemConnector.getNamespace(namespace);
-                    if (namespaceExists) {
-                        const namespacePackages = await SystemConnector.getNamespacePackages(namespace);
-                        const deletingDevclasses = new Set(packagesToDelete.map(normalize));
-                        const remainingPackages = namespacePackages.filter(pkg => !deletingDevclasses.has(normalize(pkg.devclass)));
-                        if (remainingPackages.length === 0) {
-                            namespaceToDelete = namespace;
-                        }
-                    }
+                if (!(await SystemConnector.getNamespace(namespace))) {
+                    continue;
+                }
+                const remainingPackages = (await SystemConnector.getNamespacePackages(namespace))
+                    .filter(pkg => !deletingDevclasses.has(normalize(pkg.devclass)));
+                if (remainingPackages.length === 0) {
+                    namespacesToDelete.push(namespace);
+                } else {
+                    Logger.log(`Keeping namespace ${namespace}: still used by SAP packages ${remainingPackages.map(pkg => pkg.devclass).join(', ')}`, true);
                 }
             } catch (e) {
-                // devclass doesn't use a custom namespace, nothing to clean up
+                Logger.warning(`Keeping namespace ${namespace}: its usage could not be checked (${String(e)})`);
             }
         }
 
@@ -466,11 +496,11 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             pgmid: 'R3TR',
             object: 'DEVC',
             objName: devclass
-        })), ...(namespaceToDelete ? [{
+        })), ...namespacesToDelete.map(namespace => ({
             pgmid: 'R3TR',
             object: 'NSPC',
-            objName: namespaceToDelete
-        }] : [])];
+            objName: namespace
+        }))];
         // Validate the complete deletion selection before adding anything to the transport.
         const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects]
             .filter(object => !retainedKeys.has(objectKey(object)) && !movedKeys.has(objectKey(object)))

@@ -1,6 +1,7 @@
 jest.mock('../../commons', () => ({
     PackageHierarchy: class {},
-    packageDataFromTdevc: jest.fn((_source, overrides) => overrides)
+    packageDataFromTdevc: jest.fn((_source, overrides) => overrides),
+    getPackageNamespace: jest.fn((devclass: string) => devclass.startsWith('/') ? devclass.substring(0, devclass.indexOf('/', 1) + 1) : '')
 }));
 
 jest.mock('../../systemConnector', () => ({
@@ -15,6 +16,8 @@ jest.mock('../../systemConnector', () => ({
         getSubpackages: jest.fn(),
         getDevclassObjects: jest.fn(),
         getDefaultTransportLayer: jest.fn(),
+        getNamespace: jest.fn(),
+        getNamespacePackages: jest.fn(),
         getDest: jest.fn(() => 'TST')
     }
 }));
@@ -295,6 +298,44 @@ describe('generateUpdateTransport revert', () => {
             expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('customizing of the installed release is kept'));
         });
 
+    });
+
+    describe('namespace of the installed release', () => {
+        function nspcContext(keptDevclass: string) {
+            const run = runContext([
+                { pgmid: 'R3TR', object: 'CLAS', objName: '/NS/GONE' },
+                { pgmid: 'R3TR', object: 'NSPC', objName: '/NS/' }
+            ], []);
+            run.ctx.rawInput.installData.installDevclass.replacements = [{ installDevclass: keptDevclass }];
+            run.ctx.runtime.update.getDevclass = () => '/NS/ROOT';
+            run.ctx.runtime.previousInstallPackages = [{ originalDevclass: '/NS/ROOT', installDevclass: '/NS/ROOT' }];
+            jest.spyOn(SystemConnector, 'getSubpackages').mockResolvedValue([]);
+            jest.spyOn(SystemConnector, 'getDevclassObjects').mockResolvedValue([]);
+            jest.spyOn(SystemConnector, 'getNamespace').mockResolvedValue({ namespace: '/NS/' } as any);
+            jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
+            return run;
+        }
+
+        test('is kept when the incoming release uses it, even when no package is left in it yet', async () => {
+            const { ctx, dummy } = nspcContext('/NS/NEW_ROOT');
+            jest.spyOn(SystemConnector, 'getNamespacePackages').mockResolvedValue([{ devclass: '/NS/ROOT' }] as any);
+
+            await generateUpdateTransport.run(ctx);
+
+            const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+            expect(deleted).toEqual(['CLAS /NS/GONE', 'DEVC /NS/ROOT']);
+            expect(SystemConnector.getNamespacePackages).not.toHaveBeenCalled();
+        });
+
+        test('is deleted with its last package when the incoming release moves to another namespace', async () => {
+            const { ctx, dummy } = nspcContext('Z_NEW_ROOT');
+            jest.spyOn(SystemConnector, 'getNamespacePackages').mockResolvedValue([{ devclass: '/NS/ROOT' }] as any);
+
+            await generateUpdateTransport.run(ctx);
+
+            const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+            expect(deleted).toEqual(['CLAS /NS/GONE', 'DEVC /NS/ROOT', 'NSPC /NS/']);
+        });
     });
 
     test('tables still shipped by the new release are kept and backed up instead of deleted', async () => {
