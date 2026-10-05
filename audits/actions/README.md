@@ -37,11 +37,11 @@ feature, missing case).
 | `check-engines` | 2 | 0 | 0 | 0 | 0 | [Engines check](check-engines.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
 | `delete` | 9 | 0 | 0 | 1 | 0 | [Package delete](delete.md) |
-| `install-dependency` | 6 | 0 | 1 | 1 | 0 | [Dependency install](install-dependency.md) |
+| `install-dependency` | 6 | 0 | 0 | 1 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 24 | 1 | 7 | 11 | 6 | [Package install](install.md) |
 | `publish` | 15 | 1 | 2 | 6 | 5 | [Package publish](publish.md) |
 | Shared steps/callbacks | 12 | 1 | 3 | 10 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **3** | **14** | **29** | **15** | |
+| **Total** | | **3** | **13** | **29** | **15** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
@@ -69,7 +69,7 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 3. **[ACT-2026-04](shared.md)** and **[ACT-2026-06](shared.md)**, together with re-deciding **INST-02** ([install](install.md#reconsideration-of-accepted-findings)) — enforce import return codes for deletion, restore, and batch imports.
 4. **[ACT-2026-05](shared.md)** — stop cleanup from deleting shared namespaces.
 5. **[ACT-2026-28](install.md)** — keep retained tables out of the rollback cleanup.
-6. **[ACT-2026-23](install.md)**, **[ACT-2026-24](install.md)**, **[ACT-2026-79](install-dependency.md)** — make dependency resolution consistent (major bumps, diamonds, partial lockfiles).
+6. **[ACT-2026-23](install.md)**, **[ACT-2026-24](install.md)** — make dependency resolution consistent (major bumps, diamonds).
 7. **[ACT-2026-25](install.md)**, **[ACT-2026-26](install.md)**, **[ACT-2026-27](install.md)** — stale mappings and local-registry install/rollback.
 8. **[ACT-2026-07](shared.md)**, **[ACT-2026-29](install.md)**, **[ACT-2026-85](cg3z.md)** — unauthorized deletion path, queued landscape transport after rollback, cg3z rollback.
 9. **[ACT-2026-56](publish.md)**, **[ACT-2026-57](publish.md)** — local overwrite and async publish status.

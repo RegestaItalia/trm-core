@@ -18,6 +18,14 @@ describe('Lockfile.getLock', () => {
     });
 
     test('rejects a locked version outside the range', () => {
-        expect(() => lockfile('2.0.0-beta.1').getLock(dep, '^1.0.0')).toThrow('Lock for package "dep"');
+        expect(() => lockfile('2.0.0-beta.1').getLock(dep, '^1.0.0')).toThrow(/Lock for package "dep".*pins v2\.0\.0-beta\.1, which does not satisfy \^1\.0\.0/);
+    });
+
+    test('returns undefined when the lockfile has no entry for the package', () => {
+        expect(lockfile('1.0.0').getLock(new TrmPackage('other', RegistryProvider.getRegistry()), '^1.0.0')).toBeUndefined();
+    });
+
+    test('returns undefined when the lockfile has no packages', () => {
+        expect(Lockfile.fromJson({ lockfileVersion: 1, source: 'TRM' }).getLock(dep, '^1.0.0')).toBeUndefined();
     });
 });

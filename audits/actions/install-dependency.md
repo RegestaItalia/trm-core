@@ -7,15 +7,9 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-79 — High — Functional — A lockfile without the dependency aborts installation
-
-- **Where:** [`findInstallRelease.ts#L20`](../../src/actions/installDependency/findInstallRelease.ts#L20); [`Lockfile.getLock`](../../src/lockfile/Lockfile.ts#L87) throws instead of returning nothing.
-- **Failure:** the documented registry fallback runs only without a lockfile. Partial lockfiles (generation skips packages missing on the source) abort deterministically, and an out-of-range lock is reported as "not found".
-- **Fix:** return `undefined` for a missing entry and fall back; throw a distinct error for an out-of-range lock.
-
 ### ACT-2026-80 — Medium — Technical — Lock integrity is checked on a different download than the one imported
 
-- **Where:** [`Lockfile.ts#L95`](../../src/lockfile/Lockfile.ts#L95); the nested install re-fetches metadata and imports per-transport binaries verified only against registry checksums.
+- **Where:** [`Lockfile.ts#L103`](../../src/lockfile/Lockfile.ts#L103); the nested install re-fetches metadata and imports per-transport binaries verified only against registry checksums.
 - **Failure:** the lock does not protect what is imported; an empty integrity row (`getPackageIntegrity` returns `''`) produces a lockfile that always raises "SECURITY ISSUE".
 - **Fix:** pass the expected integrity into the nested install and compare it with the imported release; refuse empty integrity at generation.
 
@@ -26,11 +20,22 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 1 | `init` | No issue found. |
 | 2 | `set-system-packages` | No issue found; the snapshot is consulted by `check-installed-release`. |
 | 3 | `check-installed-release` | Keeps a compatible installed release (no-op output) unless a lockfile pins another version; rejects an unreadable installed manifest (ACT-2026-81, resolved). |
-| 4 | `find-install-release` | Lockfile fallback unreachable (ACT-2026-79); integrity check on a different download (ACT-2026-80). Skipped when the installed release is kept. |
+| 4 | `find-install-release` | Uses the lockfile entry when present and falls back to the newest release in range when the lockfile has none; a lock outside the range aborts with its own error (ACT-2026-79, resolved). Integrity check on a different download (ACT-2026-80). Skipped when the installed release is kept. |
 | 5 | `confirm-downgrade` | Requires confirmation (prompt defaulting to no, or `checks.allowDowngrade`) before replacing a newer installed release; aborts without a prompt (ACT-2026-81, resolved). |
 | 6 | `install-release` | Forwards options correctly; relies on `find-install-release` to set the version or throw. Skipped when the installed release is kept. |
 
 ## Resolved findings
+### ACT-2026-79 — Resolved — A lockfile without the dependency aborts installation
+
+[`Lockfile.getLock`](../../src/lockfile/Lockfile.ts#L92) now returns `undefined` when the lockfile
+has no entry for the package, so
+[`selectDependencyRelease`](../../src/actions/installDependency/findInstallRelease.ts#L16) falls back
+to the newest registry release in range, as documented. Partial lockfiles (generation skips
+dependencies missing on the source system) no longer abort the install, and `find-install-release`
+logs the fallback. A locked version outside the range throws a distinct error naming the pinned
+version and the range, instead of reporting the lock as "not found". The cycle walk and
+`check-installed-release` share the same lookup.
+
 ### ACT-2026-81 — Resolved — Installed versions are ignored: silent downgrade or "already installed" abort
 
 The dependency install now reads the system snapshot in
@@ -54,7 +59,7 @@ right after `check-dependencies`, before resources are locked or any dependency 
 walks the dependencies the install would recurse into: a dependency already installed in a
 compatible version is not installed again and ends that branch (for example a package installed
 with `noDependencies`), while any other dependency resolves to the release a dependency install
-would select ([`selectDependencyRelease`](../../src/actions/installDependency/findInstallRelease.ts#L14),
+would select ([`selectDependencyRelease`](../../src/actions/installDependency/findInstallRelease.ts#L16),
 shared with `find-install-release`) and is walked. A self or cyclic dependency on that path aborts
 the install with the cycle, for example `"A" -> "B" -> "A"`.
 

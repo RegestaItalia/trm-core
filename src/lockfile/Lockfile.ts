@@ -84,10 +84,18 @@ export class Lockfile {
         return jsonStringifyWithKeyOrder(this.lockfile, KEYS_ORDER, 2);
     }
 
-    public getLock(trmPackage: TrmPackage, versionRange: string): Lock {
+    /**
+     * Returns the lock of `trmPackage`, or `undefined` when the lockfile has no entry for it
+     * (a lockfile generated without the package installed on the source system).
+     * @throws When the locked version does not satisfy `versionRange`.
+     */
+    public getLock(trmPackage: TrmPackage, versionRange: string): Lock | undefined {
         const lock = this.lockfile.packages?.find(o => trmPackage.compareName(o.name) && trmPackage.compareRegistry(RegistryProvider.getRegistry(o.registry)));
-        if (!lock || !satisfies(lock.version, versionRange, { includePrerelease: true })) {
-            throw new Error(`Lock for package "${trmPackage.packageName}", registry "${trmPackage.registry.endpoint}" not found`);
+        if (!lock) {
+            return undefined;
+        }
+        if (!satisfies(lock.version, versionRange, { includePrerelease: true })) {
+            throw new Error(`Lock for package "${trmPackage.packageName}", registry "${trmPackage.registry.endpoint}" pins v${lock.version}, which does not satisfy ${versionRange}.`);
         }
         return lock;
     }

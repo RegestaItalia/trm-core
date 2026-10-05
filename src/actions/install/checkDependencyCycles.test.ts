@@ -122,6 +122,14 @@ describe('install checkDependencyCycles step', () => {
             .rejects.toThrow('"root" -> "a" -> "root"');
     });
 
+    test('a lockfile without the dependency walks the newest release in range', async () => {
+        release('a', '1.0.0');
+        release('a', '1.1.0', [['root', '*']]);
+        const lockfile = { getLock: jest.fn(() => undefined) };
+        await expect(checkDependencyCycles.run(context([['a', '^1.0.0']], [], { lockfile })))
+            .rejects.toThrow('"root" -> "a" -> "root"');
+    });
+
     test('a shared dependency (diamond) is not a cycle and is resolved once', async () => {
         release('a', '1.0.0', [['c', '^1.0.0']]);
         release('b', '1.0.0', [['c', '^1.0.0']]);

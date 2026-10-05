@@ -23,13 +23,13 @@ No active findings.
 Previously `semver.satisfies` ran without `includePrerelease`, so an installed `1.3.0-beta.1` failed
 `>=1.0.0` and the install workflow replaced it with `1.2.0` behind a "Downgrading" warning. One
 policy now applies: a version already on the system or pinned by a lockfile is matched with
-`includePrerelease` in [`analyze`](../../src/actions/checkPackageDependencies/analyze.ts#L60),
-[`Lockfile.getLock`](../../src/lockfile/Lockfile.ts#L89),
+`includePrerelease` in [`analyze`](../../src/actions/commons/utils/installedDependency.ts#L33),
+[`Lockfile.getLock`](../../src/lockfile/Lockfile.ts#L97),
 [`install` `check-dependants`](../../src/actions/install/checkDependants.ts#L52), and
 [`checkCoreTrmDependencies`](../../src/commons/checkCoreTrmDependencies.ts#L32). Because a satisfied
 installed prerelease is no longer queued for install, no lower release is auto-selected over it.
 Selection of a new registry release in
-[`find-install-release`](../../src/actions/installDependency/findInstallRelease.ts#L32) keeps the
+[`find-install-release`](../../src/actions/installDependency/findInstallRelease.ts#L27) keeps the
 semver default and picks a prerelease only when the range opts in. A prerelease outside the range,
 such as `2.0.0-beta.1` against `^1.0.0`, is still a `versionMismatch`.
 

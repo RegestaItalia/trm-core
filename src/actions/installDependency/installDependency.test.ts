@@ -30,11 +30,11 @@ function unreadable() {
     return new TrmPackage('dep', registry as any, { get: () => { throw new Error('bad manifest'); } } as any);
 }
 
-function lockfile(version: string) {
+function lockfile(version: string, name = 'dep') {
     return Lockfile.fromJson({
         lockfileVersion: 1,
         source: 'TRM',
-        packages: [{ name: 'dep', version, registry: 'public', integrity: 'sha' }]
+        packages: [{ name, version, registry: 'public', integrity: 'sha' }]
     } as any);
 }
 
@@ -162,6 +162,37 @@ describe('installDependency installed-release handling', () => {
         jest.spyOn(Lockfile, 'testReleaseByLock').mockResolvedValue(true);
         const ctx = context([installed('1.2.0')], '^1.0.0', { lockfile: lockfile('1.0.0') });
         await expect(run(ctx)).rejects.toThrow('"dep" v1.2.0 would be downgraded to v1.0.0');
+        expect(ctx.installRunner).not.toHaveBeenCalled();
+    });
+
+    test('a lockfile without the dependency falls back to the newest release in range', async () => {
+        const testLock = jest.spyOn(Lockfile, 'testReleaseByLock');
+        const ctx = context([], '^1.0.0', { lockfile: lockfile('1.0.0', 'other') });
+        await run(ctx);
+        expect(testLock).not.toHaveBeenCalled();
+        expect(Logger.info).toHaveBeenCalledWith('Dependency "dep" not in lockfile, using v1.2.0 (>=1.0.0 <2.0.0-0).');
+        expect(ctx.installRunner).toHaveBeenCalledWith(expect.objectContaining({
+            packageData: expect.objectContaining({ version: '1.2.0' })
+        }));
+    });
+
+    test('a lockfile without the dependency keeps a compatible installed release', async () => {
+        const ctx = context([installed('1.0.0')], '^1.0.0', { lockfile: lockfile('1.0.0', 'other') });
+        const result = await run(ctx);
+        expect(result.runtime.alreadyInstalled).toBe(true);
+        expect(ctx.installRunner).not.toHaveBeenCalled();
+    });
+
+    test('a lock outside the range aborts with a distinct error', async () => {
+        const ctx = context([], '^1.0.0', { lockfile: lockfile('2.0.0') });
+        await expect(run(ctx)).rejects.toThrow('pins v2.0.0, which does not satisfy');
+        expect(registry.getPackage).not.toHaveBeenCalled();
+        expect(ctx.installRunner).not.toHaveBeenCalled();
+    });
+
+    test('a lock outside the range aborts even with a compatible installed release', async () => {
+        const ctx = context([installed('1.0.0')], '^1.0.0', { lockfile: lockfile('2.0.0') });
+        await expect(run(ctx)).rejects.toThrow('pins v2.0.0, which does not satisfy');
         expect(ctx.installRunner).not.toHaveBeenCalled();
     });
 });

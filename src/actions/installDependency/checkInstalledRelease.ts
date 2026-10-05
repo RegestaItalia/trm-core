@@ -2,22 +2,12 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { eq } from "semver";
-import { Lock, Lockfile } from "../../lockfile";
-import { TrmPackage } from "../../trmPackage";
 import { getInstalledDependency } from "../commons/utils";
-
-function findLock(lockfile: Lockfile, trmPackage: TrmPackage, versionRange: string): Lock | undefined {
-    try {
-        return lockfile.getLock(trmPackage, versionRange);
-    } catch {
-        return undefined;
-    }
-}
 
 /**
  * Workflow step that compares the dependency installed on the system with the requested range.
  * A compatible installed release is kept and the dependency install becomes a no-op, unless a
- * lockfile pins the dependency to a different version.
+ * lockfile pins the dependency to a different version. A lock outside the range aborts.
  *
  * 1- find installed release
  *
@@ -41,7 +31,7 @@ export const checkInstalledRelease: Step<InstallDependencyWorkflowContext> = {
             return;
         }
         const lockfile = context.rawInput.installData.checks.lockfile;
-        const lock = lockfile ? findLock(lockfile, context.runtime.trmPackage, versionRange) : undefined;
+        const lock = lockfile?.getLock(context.runtime.trmPackage, versionRange);
         if (lock && !eq(lock.version, installed.installedVersion)) {
             Logger.info(`Dependency "${dependencyName}" v${installed.installedVersion} installed, lockfile requires v${lock.version}.`);
             return;
