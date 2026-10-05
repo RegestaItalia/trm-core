@@ -46,7 +46,7 @@ jest.mock('../../transport', () => {
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
-import { RegistryDeletionTransportUnauthorizedError } from '../../registry';
+import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
 import { generateDeletionTransport } from './generateDeletionTransport';
 
 function runContext(previous: any[], devclass = 'Z_ROOT', keyed: any[] = []) {
@@ -54,7 +54,7 @@ function runContext(previous: any[], devclass = 'Z_ROOT', keyed: any[] = []) {
     (Transport.createToc as jest.Mock).mockReset();
     (Transport.createToc as jest.Mock).mockResolvedValueOnce(dummy);
     const acquire = jest.fn().mockResolvedValue(undefined);
-    const registry = { delete: jest.fn(async (binaries: any) => binaries) };
+    const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn(async (binaries: any) => binaries) };
     const ctx = {
         lockScope: { acquire },
         rawInput: {

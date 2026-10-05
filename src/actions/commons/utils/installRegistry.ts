@@ -13,6 +13,17 @@ export async function resolveInstallPackage(registry: AbstractRegistry, name: st
 }
 
 /**
+ * Returns the registry an install is recorded under: the registry a local (.trm) artifact was
+ * published to, otherwise the registry itself.
+ */
+export async function resolveInstallRegistry(registry: AbstractRegistry): Promise<AbstractRegistry> {
+    if (registry.getRegistryType() !== RegistryType.LOCAL) {
+        return registry;
+    }
+    return (registry as FileSystem).getRealRegistry();
+}
+
+/**
  * Registry key stored in the TRM install tables for a resolved install registry.
  */
 export function installRegistryKey(registry: AbstractRegistry): string {

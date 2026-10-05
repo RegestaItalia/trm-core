@@ -44,6 +44,7 @@ jest.mock('../../transport', () => {
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
+import { RegistryType } from '../../registry';
 import { deleteTemporaryCleanupPackages, generateUpdateTransport } from './generateUpdateTransport';
 
 function context() {
@@ -157,7 +158,7 @@ describe('generateUpdateTransport revert', () => {
         dummy.canBeDeleted.mockResolvedValue(true);
         jest.spyOn(Transport, 'createToc').mockResolvedValue(dummy);
         const ctx = {
-            rawInput: { packageData: { name: 'pkg', registry: {} } },
+            rawInput: { packageData: { name: 'pkg', registry: { getRegistryType: () => RegistryType.PRIVATE } } },
             runtime: {
                 stopWarningShown: true,
                 update: {
@@ -236,7 +237,7 @@ describe('generateUpdateTransport revert', () => {
         const ctx = {
             lockScope: { acquire },
             rawInput: {
-                packageData: { name: 'pkg', registry: { delete: jest.fn(async (binaries: any) => binaries) } },
+                packageData: { name: 'pkg', registry: { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn(async (binaries: any) => binaries) } },
                 installData: { installDevclass: { replacements: [] } },
                 contextData: { noInquirer: true }
             },

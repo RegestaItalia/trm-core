@@ -31,6 +31,7 @@ jest.mock('../../transport', () => ({
 }));
 
 import { Logger } from 'trm-commons';
+import { RegistryType } from '../../registry';
 import { getPackageHierarchy, getParentFromHierarchy } from '../../commons';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
@@ -42,7 +43,7 @@ import { init } from './init';
 function context() {
     return {
         rawInput: {
-            packageData: { name: 'pkg', registry: { delete: jest.fn().mockResolvedValue({ header: Buffer.from('dh'), data: Buffer.from('dd') }) } },
+            packageData: { name: 'pkg', registry: { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue({ header: Buffer.from('dh'), data: Buffer.from('dd') }) } },
             contextData: { noInquirer: true },
             installData: {
                 installDevclass: {
@@ -194,6 +195,28 @@ describe('install mutation checkpoints', () => {
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_IMPORTED' }
         ], false);
         expect(ctx.rawInput.packageData.registry.delete).toHaveBeenCalledTimes(1);
+    });
+
+    test('local-registry rollback generates the cleanup deletion transport from the real registry', async () => {
+        const ctx = context();
+        const realRegistry = {
+            getRegistryType: () => RegistryType.PRIVATE,
+            delete: jest.fn().mockResolvedValue({ header: Buffer.from('dh'), data: Buffer.from('dd') })
+        };
+        const fileRegistry = {
+            getRegistryType: () => RegistryType.LOCAL,
+            getRealRegistry: jest.fn().mockResolvedValue(realRegistry),
+            delete: jest.fn().mockRejectedValue(new Error("File system can't generate deletion transports!"))
+        };
+        ctx.rawInput.packageData.registry = fileRegistry;
+        ctx.revert.importStarted = true;
+        ctx.revert.importedEntries = [{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_IMPORTED' }];
+
+        await init.revert(ctx);
+
+        expect(fileRegistry.delete).not.toHaveBeenCalled();
+        expect(realRegistry.delete).toHaveBeenCalledTimes(1);
+        expect(ctx.revert.cleanupSucceeded).toBe(true);
     });
 
     test('snapshots an existing target package before hierarchy edits', async () => {

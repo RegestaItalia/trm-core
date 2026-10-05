@@ -3,6 +3,7 @@ import { BinaryTransport, Transport } from "../../../transport";
 import { SystemConnector } from "../../../systemConnector";
 import { AbstractRegistry, RegistryDeletionTransportUnauthorizedError } from "../../../registry";
 import type { PackageCleanupContext } from "./packageCleanup";
+import { resolveInstallRegistry } from "./installRegistry";
 
 /** Releases and imports a deletion transport, retaining its original binaries for rollback. */
 export async function releaseDeletionTransport(
@@ -11,6 +12,9 @@ export async function releaseDeletionTransport(
     context: PackageCleanupContext,
     retainSnapshot = true
 ): Promise<void> {
+    //a local artifact can't generate deletion transports: the registry it was published to does.
+    //resolved before releasing, so an unreadable artifact leaves the transport untouched
+    const deletionRegistry = await resolveInstallRegistry(registry);
     await deletionTransport.release(false, true);
 
     const tocBinaries = (await deletionTransport.download()).binaries;
@@ -26,7 +30,7 @@ export async function releaseDeletionTransport(
 
     let deleBinaries: BinaryTransport;
     try {
-        deleBinaries = await registry.delete(tocBinaries);
+        deleBinaries = await deletionRegistry.delete(tocBinaries);
     } catch (e) {
         if (e instanceof RegistryDeletionTransportUnauthorizedError) {
             await deletionTransport.delete();

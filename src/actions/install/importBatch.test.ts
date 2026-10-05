@@ -22,6 +22,7 @@ jest.mock('../../transport', () => ({
 }));
 
 jest.mock('../../registry', () => ({
+    ...jest.requireActual('../../registry/RegistryType'),
     RegistryDeletionTransportUnauthorizedError: class RegistryDeletionTransportUnauthorizedError extends Error {
         constructor(public registryEndpoint: string, public originalError: unknown) {
             super(`Deletion denied by ${registryEndpoint}`);
@@ -31,7 +32,7 @@ jest.mock('../../registry', () => ({
 
 import execute from '@simonegaffurini/sammarksworkflow';
 import { Logger } from 'trm-commons';
-import { RegistryDeletionTransportUnauthorizedError } from '../../registry';
+import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
 import { deleteImportedEntries, importBatch } from './importBatch';
@@ -67,7 +68,7 @@ function makeContext(registryDelete: jest.Mock) {
         rawInput: {
             packageData: {
                 name: 'test-package',
-                registry: { delete: registryDelete }
+                registry: { getRegistryType: () => RegistryType.PRIVATE, delete: registryDelete }
             },
             installData: {
                 installDevclass: {
