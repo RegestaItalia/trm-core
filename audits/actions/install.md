@@ -121,11 +121,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** on install rollback, `R3TR TABU`/`VDAT` entries reach the cleanup deletion transport without their E071K keys and `OBJFUNC` `K`. The registry then treats them as repository objects and requests the deletion of the whole table object, or the add fails (blocking restores through `cleanupSucceeded = false`). SAP-side behavior not reproduced.
 - **Fix:** copy the imported CUST transports into the cleanup transport (`addObjectsFromTransport`, as the upgrade cleanup does) instead of adding their entries.
 
-### ACT-2026-41 — Low — Technical — TypeError when the installed root devclass is unknown
-
-- **Where:** [`setInstallDevclass.ts#L93`](../../src/actions/install/setInstallDevclass.ts#L93).
-- **Fix:** guard `undefined` and fall back to the stored root replacement.
-
 ### ACT-2026-44 — Low — Functional — Locked namespace is silently omitted from the landscape transport
 
 - **Where:** [`generateLandscapeTransport.ts#L81`](../../src/actions/install/generateLandscapeTransport.ts#L81).
@@ -154,7 +149,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
 | 8 | `check-dependencies` | Queues missing and incompatible dependencies separately, with the installed version; a downgrade must be confirmed by the dependency install ([ACT-2026-81](install-dependency.md), resolved). |
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
-| 10 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35), TypeError on unknown root (ACT-2026-41). |
+| 10 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). |
 | 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |
 | 12 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
 | 13 | `add-namespace` | Namespace taken from `replacements[0]` (ACT-2026-34). |
@@ -181,6 +176,13 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-41 — Resolved — Unknown installed root devclass no longer throws
+
+When an update has customized mappings but the installed package's root devclass is unknown,
+`set-install-devclass` falls back to the stored replacement of the release's root devclass. If neither
+is known, the namespace is not carried over and a debug message is logged, instead of failing with a
+`TypeError` in `getPackageNamespace` ([source](../../src/actions/install/setInstallDevclass.ts#L93)).
+
 ### ACT-2026-42 — Resolved — Transport layer is required only for generated transportable packages
 
 `init` now only validates an explicitly provided transport layer. The system default is resolved by

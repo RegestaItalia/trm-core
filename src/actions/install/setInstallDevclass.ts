@@ -91,7 +91,14 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         );
         let updateNamespace;
         if (context.runtime.update && hasCustomization) {
-            updateNamespace = getPackageNamespace(context.runtime.update.getDevclass());
+            //the installed root devclass can be unknown: fall back to the stored root replacement
+            const installedRootDevclass = context.runtime.update.getDevclass()
+                || context.runtime.previousInstallPackages?.find(o => o.originalDevclass === context.runtime.package.hierarchy.devclass)?.installDevclass;
+            if (installedRootDevclass) {
+                updateNamespace = getPackageNamespace(installedRootDevclass);
+            } else {
+                Logger.log(`Installed root devclass is unknown, namespace won't be carried over`, true);
+            }
         }
 
         const inq1Prompts: Question[] = [];
