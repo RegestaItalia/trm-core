@@ -7,21 +7,31 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-74 — Medium — Functional — Unknown properties inside known engine checks pass silently
-
-- **Where:** non-strict validation in [`checkEngines/init.ts#L26`](../../src/actions/checkEngines/init.ts#L26); evaluators read only `release`/`sp`/`version`.
-- **Failure:** `{ release: '>=758', patch: '>=3' }` prints "patch >=3 … OK" without checking `patch`, unlike unknown top-level keys, which fail.
-- **Fix:** fail constraints with unsupported properties using the same "update TRM" reason.
+No active findings.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `init` | Unknown nested properties silently accepted (ACT-2026-74). Component, product, and note keys that normalize to the same value are rejected. |
-| 2 | `analyze` | No issue found. Read failures fail requirements and are read once per run, unknown top-level keys fail, `anyOf` is handled, and a blank support package level is evaluated and shown as 0. |
+| 1 | `init` | No issue found. Validation is non-strict for forward compatibility; normalization keeps unknown properties, including those of table checks and conditions, so `analyze` can fail them. Component, product, and note keys that normalize to the same value are rejected. |
+| 2 | `analyze` | No issue found. Read failures fail requirements and are read once per run, unknown top-level keys and unknown properties inside known checks fail, `anyOf` is handled, and a blank support package level is evaluated and shown as 0. |
 | — | install wrapper `check-engines` | Skips on `noEngines` or when no engines are declared; prints each unmet requirement before aborting; under a failed `anyOf` it also prints each unmet requirement of every alternative, with its reason or actual value, skipping the contents of a satisfied nested `anyOf`. |
 
 ## Resolved findings
+### ACT-2026-74 — Resolved — Medium — Functional — Unknown properties inside known engine checks pass silently
+
+Previously validation in `init` was non-strict and the evaluators read only `release`, `sp`, and
+`version`, so `{ release: '>=758', patch: '>=3' }` was reported OK without checking `patch`.
+Normalization also dropped unknown properties of table checks and conditions. Each evaluator now
+compares a constraint with the supported properties shared with validation
+([source](../../src/manifest/engines/validateEngines.ts#L14)) and fails it with "Unsupported
+property … update TRM to verify it", the same wording used for unknown top-level keys
+([source](../../src/actions/checkEngines/analyze.ts#L23)). Notes and table checks with unknown
+properties fail without reading the system. In a list of component or product alternatives, an
+alternative with unknown properties never matches, but another supported alternative can still
+satisfy the requirement. Normalization now keeps unknown table properties
+([source](../../src/manifest/engines/validateEngines.ts#L251)).
+
 ### ACT-2026-75 — Resolved — Low — Technical — Normalization collisions and comparison gaps
 
 Previously normalization silently collapsed keys such as `sap_basis`/`SAP_BASIS` or note

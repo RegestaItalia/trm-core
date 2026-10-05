@@ -10,6 +10,12 @@ export const PRODUCT_NAME_REGEX = /^[A-Z0-9_\/\-. ]+$/;
 export const NOTE_REGEX = /^\d{1,10}$/;
 export const TABLE_NAME_REGEX = /^[A-Z0-9_\/]{1,30}$/;
 export const FIELD_NAME_REGEX = /^[A-Z0-9_\/]{1,30}$/;
+//supported properties of each engine check, with the range mode of versioned properties
+export const ENGINES_COMPONENT_PROPS: { [prop: string]: SapRangeMode } = { release: 'release', sp: 'number' };
+export const ENGINES_PRODUCT_PROPS: { [prop: string]: SapRangeMode } = { version: 'version' };
+export const ENGINES_NOTE_PROPS: { [prop: string]: SapRangeMode } = { version: 'number' };
+export const ENGINES_TABLE_PROPS = ['table', 'where'] as const;
+export const ENGINES_TABLE_CONDITION_PROPS = ['field', 'op', 'value'] as const;
 //RFC_READ_TABLE option lines are limited to 72 characters (field + operator + quoted value)
 export const TABLE_VALUE_MAX_LENGTH = 32;
 //read table options are split on AND/OR operators
@@ -108,7 +114,7 @@ function checkNotes(errors: string[], path: string, notes: any, strict: boolean)
         if (value === true) {
             return;
         }
-        checkConstraint(errors, itemPath, value, { version: 'number' }, strict, 'true or an object');
+        checkConstraint(errors, itemPath, value, ENGINES_NOTE_PROPS, strict, 'true or an object');
     });
 }
 
@@ -124,7 +130,7 @@ function checkTables(errors: string[], path: string, tables: any, strict: boolea
             return;
         }
         if (strict) {
-            Object.keys(check).filter(k => k !== 'table' && k !== 'where').forEach(k => errors.push(`${itemPath}: unknown property "${k}".`));
+            Object.keys(check).filter(k => !(ENGINES_TABLE_PROPS as readonly string[]).includes(k)).forEach(k => errors.push(`${itemPath}: unknown property "${k}".`));
         }
         if (typeof check.table !== 'string' || !TABLE_NAME_REGEX.test(check.table.trim().toUpperCase())) {
             errors.push(`${itemPath}.table: invalid table name.`);
@@ -140,7 +146,7 @@ function checkTables(errors: string[], path: string, tables: any, strict: boolea
                 return;
             }
             if (strict) {
-                Object.keys(condition).filter(k => !['field', 'op', 'value'].includes(k)).forEach(k => errors.push(`${conditionPath}: unknown property "${k}".`));
+                Object.keys(condition).filter(k => !(ENGINES_TABLE_CONDITION_PROPS as readonly string[]).includes(k)).forEach(k => errors.push(`${conditionPath}: unknown property "${k}".`));
             }
             if (typeof condition.field !== 'string' || !FIELD_NAME_REGEX.test(condition.field.trim().toUpperCase())) {
                 errors.push(`${conditionPath}.field: invalid field name.`);
@@ -166,10 +172,10 @@ function checkEngines(errors: string[], path: string, engines: any, depth: numbe
         const keyPath = `${path}.${key}`;
         switch (key) {
             case 'components':
-                checkVersionedMap(errors, keyPath, engines.components, COMPONENT_NAME_REGEX, { release: 'release', sp: 'number' }, true, strict);
+                checkVersionedMap(errors, keyPath, engines.components, COMPONENT_NAME_REGEX, ENGINES_COMPONENT_PROPS, true, strict);
                 break;
             case 'products':
-                checkVersionedMap(errors, keyPath, engines.products, PRODUCT_NAME_REGEX, { version: 'version' }, true, strict);
+                checkVersionedMap(errors, keyPath, engines.products, PRODUCT_NAME_REGEX, ENGINES_PRODUCT_PROPS, true, strict);
                 break;
             case 'notes':
                 checkNotes(errors, keyPath, engines.notes, strict);
@@ -240,9 +246,12 @@ export function normalizeEngines(engines: TrmManifestEngines): TrmManifestEngine
                 });
                 break;
             case 'tables':
+                //unknown properties are kept so the engines check can report them as unsupported
                 normalized.tables = engines.tables.map(check => ({
+                    ...check,
                     table: check.table.trim().toUpperCase(),
                     where: check.where.map(condition => ({
+                        ...condition,
                         field: condition.field.trim().toUpperCase(),
                         op: (condition.op || 'EQ').trim().toUpperCase() as any,
                         value: condition.value.toString()

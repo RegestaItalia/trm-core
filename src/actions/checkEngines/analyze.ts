@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckEnginesWorkflowContext, EngineCheckResult } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { normalizeSapValue, satisfiesSapRange, TrmManifestEngineComponentConstraint, TrmManifestEngineProductConstraint, TrmManifestEngines, TrmManifestEngineTableCheck } from "../../manifest";
+import { ENGINES_COMPONENT_PROPS, ENGINES_NOTE_PROPS, ENGINES_PRODUCT_PROPS, ENGINES_TABLE_CONDITION_PROPS, ENGINES_TABLE_PROPS, normalizeSapValue, satisfiesSapRange, TrmManifestEngineComponentConstraint, TrmManifestEngineProductConstraint, TrmManifestEngines, TrmManifestEngineTableCheck } from "../../manifest";
 import { CVERS, PRDVERS } from "../../client/struct";
 
 //note implementation statuses (CWBNTCUST-PRSTATUS)
@@ -18,6 +18,19 @@ type Requirement = {
 
 function errorMessage(e: any): string {
     return e instanceof Error ? e.message : String(e);
+}
+
+function getUnsupportedProps(o: object, supported: readonly string[]): string[] {
+    return Object.keys(o).filter(k => !supported.includes(k));
+}
+
+//a property this TRM version doesn't know can't be verified, so the constraint declaring it never matches
+function unsupportedReason(props: string[]): string | undefined {
+    const unique = Array.from(new Set(props));
+    if (unique.length === 0) {
+        return undefined;
+    }
+    return `Unsupported ${unique.length === 1 ? 'property' : 'properties'} ${unique.map(o => `"${o}"`).join(', ')}, update TRM to verify ${unique.length === 1 ? 'it' : 'them'}`;
 }
 
 function describeConstraints(constraints: object[]): string {
@@ -78,7 +91,9 @@ async function checkComponent(context: CheckEnginesWorkflowContext, name: string
         return { requirement, actual, ok: true };
     }
     const constraints: TrmManifestEngineComponentConstraint[] = Array.isArray(value) ? value : [value];
-    return { requirement, actual, ok: constraints.some(o => matchComponent(component, o)) };
+    const unsupported = constraints.map(o => getUnsupportedProps(o, Object.keys(ENGINES_COMPONENT_PROPS)));
+    const ok = constraints.some((o, i) => unsupported[i].length === 0 && matchComponent(component, o));
+    return { requirement, actual, ok, reason: ok ? undefined : unsupportedReason(unsupported.flat()) };
 }
 
 async function checkProduct(context: CheckEnginesWorkflowContext, name: string, value: any): Promise<Requirement> {
@@ -98,15 +113,17 @@ async function checkProduct(context: CheckEnginesWorkflowContext, name: string, 
         return { requirement, actual, ok: installed.length > 0 };
     }
     const constraints: TrmManifestEngineProductConstraint[] = Array.isArray(value) ? value : [value];
-    return {
-        requirement,
-        actual,
-        ok: installed.some(product => constraints.some(o => o.version === undefined || satisfiesSapRange(product.version, o.version, 'version')))
-    };
+    const unsupported = constraints.map(o => getUnsupportedProps(o, Object.keys(ENGINES_PRODUCT_PROPS)));
+    const ok = installed.some(product => constraints.some((o, i) => unsupported[i].length === 0 && (o.version === undefined || satisfiesSapRange(product.version, o.version, 'version'))));
+    return { requirement, actual, ok, reason: ok ? undefined : unsupportedReason(unsupported.flat()) };
 }
 
 async function checkNote(note: string, value: any): Promise<Requirement> {
     const requirement = value === true || value.version === undefined ? 'implemented' : `implemented, version ${value.version}`;
+    const unsupported = unsupportedReason(value === true ? [] : getUnsupportedProps(value, Object.keys(ENGINES_NOTE_PROPS)));
+    if (unsupported) {
+        return { requirement, ok: false, reason: unsupported };
+    }
     var status: { prstatus?: string, versno?: string };
     try {
         status = await SystemConnector.getNoteStatus(note);
@@ -128,6 +145,13 @@ async function checkNote(note: string, value: any): Promise<Requirement> {
 
 async function checkTable(check: TrmManifestEngineTableCheck): Promise<Requirement> {
     const requirement = `${check.table} where ${check.where.map(o => `${o.field} ${o.op || 'EQ'} '${o.value}'`).join(' AND ')}`;
+    const unsupported = unsupportedReason([
+        ...getUnsupportedProps(check, ENGINES_TABLE_PROPS),
+        ...check.where.flatMap(o => getUnsupportedProps(o, ENGINES_TABLE_CONDITION_PROPS))
+    ]);
+    if (unsupported) {
+        return { requirement, ok: false, reason: unsupported };
+    }
     try {
         const exists = await SystemConnector.checkTableCondition(check.table, check.where);
         return { requirement, actual: exists ? 'found' : 'not found', ok: exists };

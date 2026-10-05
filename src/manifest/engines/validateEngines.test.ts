@@ -196,6 +196,12 @@ describe('validateEngines', () => {
         expect(validateEngines({ anyOf: [{ notes: { '1234': true } }, { notes: { '0001234': true } }] })).toEqual([]);
     });
 
+    test('normalization keeps unknown table properties', () => {
+        expect(normalizeEngines({ tables: [{ table: 'tadir', mandt: '100', where: [{ field: 'pgmid', value: 'R3TR', client: '100' }] }] } as any)).toEqual({
+            tables: [{ table: 'TADIR', mandt: '100', where: [{ field: 'PGMID', op: 'EQ', value: 'R3TR', client: '100' }] }]
+        });
+    });
+
     test('rejects unsafe or malformed table checks', () => {
         expect(validateEngines({ tables: {} })).toHaveLength(1);
         expect(validateEngines({ tables: [{ table: 'TADIR' }] })).toHaveLength(1);

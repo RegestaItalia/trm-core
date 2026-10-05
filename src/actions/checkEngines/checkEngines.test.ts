@@ -171,6 +171,32 @@ describe('checkEngines', () => {
         expect(ko.results.filter(o => o.required && !o.ok).map(o => o.path)).toEqual(['anyOf']);
     });
 
+    test('unknown properties inside known engine checks fail (cannot be verified)', async () => {
+        const output = await run({
+            components: { SAP_BASIS: { release: '>=758', patch: '>=3' } },
+            products: { 'ABAP PLATFORM': { version: '>=2023', fps: '>=1' } },
+            notes: { '3284711': { version: '>=1', minor: '>=2' } },
+            tables: [{ table: 'TADIR', where: [{ field: 'PGMID', value: 'R3TR', client: '100' }], mandt: '100' }]
+        });
+        expect(output.passed).toBe(false);
+        expect(output.results.map(o => [o.path, o.ok, o.reason])).toEqual([
+            ['components.SAP_BASIS', false, 'Unsupported property "patch", update TRM to verify it'],
+            ['products.ABAP PLATFORM', false, 'Unsupported property "fps", update TRM to verify it'],
+            ['notes.3284711', false, 'Unsupported property "minor", update TRM to verify it'],
+            ['tables[0]', false, 'Unsupported properties "mandt", "client", update TRM to verify them']
+        ]);
+        expect(result(output, 'components.SAP_BASIS').requirement).toBe('release >=758, patch >=3');
+        expect(connector.getNoteStatus).not.toHaveBeenCalled();
+        expect(connector.checkTableCondition).not.toHaveBeenCalled();
+    });
+
+    test('an alternative with unknown properties does not match, other alternatives still can', async () => {
+        const ok = await run({ components: { SAP_BASIS: [{ release: '758', patch: '>=3' }, { release: '>=750' }] } });
+        expect(result(ok, 'components.SAP_BASIS')).toMatchObject({ ok: true, reason: undefined });
+        const ko = await run({ components: { SAP_BASIS: [{ release: '758', patch: '>=3' }, { release: '>=800' }] } });
+        expect(result(ko, 'components.SAP_BASIS')).toMatchObject({ ok: false, reason: 'Unsupported property "patch", update TRM to verify it' });
+    });
+
     test('unknown engine checks fail (cannot be verified)', async () => {
         const output = await run({ components: { SAP_BASIS: true }, kernel: { release: '>=793' } });
         expect(output.passed).toBe(false);
