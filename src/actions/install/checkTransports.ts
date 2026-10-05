@@ -272,8 +272,11 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                             throw new Error(`Cannot overwrite existing objects.`);
                         }
                     } else {
-                        if (context.rawInput.installData.checks.noExistingObjects || context.rawInput.contextData.noInquirer) {
+                        if (context.rawInput.installData.checks.noExistingObjects) {
                             Logger.warning(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
+                        } else if (context.rawInput.contextData.noInquirer) {
+                            //can't confirm the overwrite without a prompt: fail closed
+                            throw new Error(`Couldn't determine root SAP package for "${rootPackage.packageName}", ${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
                         } else {
                             const ow = (await Inquirer.prompt({
                                 message: `Couldn't determine root SAP package for "${rootPackage.packageName}", ${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}. Continue?`,

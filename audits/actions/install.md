@@ -91,12 +91,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** passing one replacement for a new subpackage makes every previously renamed devclass fall back to publisher names (non-interactive).
 - **Fix:** merge stored rows under the explicit rows.
 
-### ACT-2026-36 — Medium — Functional — Non-interactive upgrade overwrites objects when the root devclass is unknown
-
-- **Where:** [`checkTransports.ts#L275`](../../src/actions/install/checkTransports.ts#L275).
-- **Failure:** with `noInquirer` and no `noExistingObjects`, existing foreign objects only produce a warning, while the interactive path asks for confirmation.
-- **Fix:** fail closed in non-interactive mode unless `noExistingObjects` is set.
-
 ### ACT-2026-37 — Medium — Technical — Parent cleanup runs after dependency rollback for early failures
 
 - **Where:** [`install/init.ts#L207`](../../src/actions/install/init.ts#L207) runs after [`installDependencies.ts#L113`](../../src/actions/install/installDependencies.ts#L113).
@@ -144,7 +138,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 2 | `set-system-packages` | Snapshot excludes local-registry packages ([ACT-2026-15](shared.md)) and is never refreshed for transitive installs (ACT-2026-24). |
 | 3 | `init` | Raw package name used for lookups ([ACT-2026-16](shared.md)); local installs use the wrong registry key (ACT-2026-26). An explicit transport layer is validated; the system default is no longer looked up here ([ACT-2026-42](#act-2026-42--resolved--transport-layer-is-required-only-for-generated-transportable-packages), resolved). Revert is the only cleanup point for early failures (ACT-2026-37). |
 | 4 | `check-dependants` | Correct on its own, but blocks nested dependency upgrades against the parent's old manifest (ACT-2026-23). |
-| 5 | `check-transports` | Root package matched by raw name ([ACT-2026-16](shared.md)); non-interactive mode overwrites when the root devclass is unknown (ACT-2026-36). |
+| 5 | `check-transports` | Root package matched by raw name ([ACT-2026-16](shared.md)); when the installed root devclass is unknown, existing objects need confirmation interactively, and non-interactive mode fails unless `noExistingObjects` is set ([ACT-2026-36](#act-2026-36--resolved--non-interactive-upgrade-fails-closed-when-the-root-devclass-is-unknown), resolved). |
 | 6 | `check-sap-entries` | See [check-sap-entries findings](check-sap-entries.md); each missing entry is logged at error level before aborting. |
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
 | 8 | `check-dependencies` | Queues missing and incompatible dependencies separately, with the installed version; a downgrade must be confirmed by the dependency install ([ACT-2026-81](install-dependency.md), resolved). |
@@ -176,6 +170,13 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-36 — Resolved — Non-interactive upgrade fails closed when the root devclass is unknown
+
+When an update finds existing objects and the installed root devclass is unknown, `check-transports`
+can no longer ask for confirmation in non-interactive mode, so it now aborts unless
+`noExistingObjects` is set. The interactive confirmation and the `noExistingObjects` warning are
+unchanged ([source](../../src/actions/install/checkTransports.ts#L275)).
+
 ### ACT-2026-41 — Resolved — Unknown installed root devclass no longer throws
 
 When an update has customized mappings but the installed package's root devclass is unknown,
