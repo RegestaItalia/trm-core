@@ -63,7 +63,8 @@ export class Transport {
                 { fieldName: 'TRFUNCTION' },
                 { fieldName: 'TRSTATUS' },
                 { fieldName: 'AS4DATE' },
-                { fieldName: 'AS4TIME' }
+                { fieldName: 'AS4TIME' },
+                { fieldName: 'TARSYSTEM' }
             ];
             var e070: E070[];
             e070 = await SystemConnector.readTable('E070', fields,

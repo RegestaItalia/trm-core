@@ -43,7 +43,8 @@ const WORKFLOW_NAME = 'cg3y';
  *
  * @param inputData Transport export request.
  * @returns A ZIP archive containing one matching transport header/data pair.
- * @throws When authorization fails, the transport does not exist, is not released, or cannot be downloaded.
+ * @throws When authorization fails, the transport number is invalid, the transport does not exist, is a task,
+ * is not released, is a local request without target system, or its export files are missing or empty.
  */
 export async function cg3y(inputData: Cg3yActionInput): Promise<Cg3yActionOutput> {
     const workflow = [

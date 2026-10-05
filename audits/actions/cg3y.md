@@ -7,18 +7,22 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-84 — Low — Functional — Input and output validation gaps
-
-- **Where:** [`cg3y/download.ts#L21`](../../src/actions/cg3y/download.ts#L21).
-- **Failure:** released tasks or local requests without exports pass the checks and fail later with an unclear file error; empty buffers produce a ZIP of 0-byte entries reported as success.
-- **Fix:** validate the transport number and request type, and reject empty files.
+No active findings.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `check-server-auth` | Fails open on non-`ClientError` failures ([ACT-2026-12](shared.md)). |
-| 2 | `download` | Read-only and correct for released requests; validation gaps (ACT-2026-84). |
+| 2 | `download` | Read-only. Validates the transport number format, rejects tasks, unreleased and local (no target system) requests, and empty export files before building the ZIP. |
+
+## Resolved findings
+
+### ACT-2026-84 — Resolved — Input and output validation gaps
+
+- **Where:** [`cg3y/download.ts`](../../src/actions/cg3y/download.ts).
+- **Was:** released tasks or local requests without exports passed the checks and failed later with an unclear file error; empty buffers produced a ZIP of 0-byte entries reported as success.
+- **Fix:** the step now trims/uppercases the input and requires the `<SID>K<6 digits>` format (which also keeps it out of the `E070` `WHERE` clause unchecked), rejects tasks (`TRFUNCTION` `S`/`R`/`Q`/`X`), rejects requests with an empty `TARSYSTEM` (read by `Transport.getE070`), and fails when the header or data file is missing or empty. Covered by [`download.test.ts`](../../src/actions/cg3y/download.test.ts).
 
 ## Residual risk
 
