@@ -162,7 +162,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | Raw package name used for lookups ([ACT-2026-16](shared.md)); local installs use the wrong registry key (ACT-2026-26); transport layer always mandatory (ACT-2026-42). Revert is the only cleanup point for early failures (ACT-2026-37). |
 | 4 | `check-dependants` | Correct on its own, but blocks nested dependency upgrades against the parent's old manifest (ACT-2026-23). |
 | 5 | `check-transports` | Root package matched by raw name ([ACT-2026-16](shared.md)); non-interactive mode overwrites when the root devclass is unknown (ACT-2026-36). |
-| 6 | `check-sap-entries` | See check-sap-entries findings; install wrapper hides missing entries ([ACT-2026-72](check-sap-entries.md)). |
+| 6 | `check-sap-entries` | See [check-sap-entries findings](check-sap-entries.md); each missing entry is logged at error level before aborting. |
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
 | 8 | `check-dependencies` | Incompatible installed dependencies are labelled "missing" and may be downgraded ([ACT-2026-81](install-dependency.md)). |
 | 9 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35), TypeError on unknown root (ACT-2026-41). |

@@ -33,6 +33,20 @@ describe('checkSapEntries', () => {
         ]);
     });
 
+    test('printed rows stay aligned when an entry lacks a column', async () => {
+        connector.checkSapEntryExists.mockResolvedValue(true);
+        await run({ ZTAB: [{ ID: 'A', NAME: 'X' }, { NAME: 'Y' }, { NAME: 'Z', ID: 'C' }] });
+        expect(Logger.table).toHaveBeenCalledWith(
+            ['Table name', 'ID', 'NAME', 'Status'],
+            [
+                ['ZTAB', 'A', 'X', 'OK'],
+                ['ZTAB', '', 'Y', 'OK'],
+                ['ZTAB', 'C', 'Z', 'OK']
+            ],
+            true
+        );
+    });
+
     test('missing table marks every entry as failed', async () => {
         connector.checkSapEntryExists.mockResolvedValue(false);
         const output = await run({ ZTAB: [{ ID: 'A' }, { ID: 'B' }] });

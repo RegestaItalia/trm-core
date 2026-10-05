@@ -37,9 +37,12 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
 
         //2- check result
         const sapEntriesOutput = result.sapEntriesStatus;
-        const missingEntries = Object.values(sapEntriesOutput).flatMap(entries => entries.filter(o => !o.status));
+        const missingEntries = Object.entries(sapEntriesOutput).flatMap(([table, entries]) => entries.filter(o => !o.status).map(o => ({ table, entry: o.entry })));
         if(missingEntries.length > 0){
-            Logger.error(JSON.stringify(missingEntries), true);
+            missingEntries.forEach(o => {
+                const fields = Object.entries(o.entry).map(([field, value]) => `${field} = ${value}`).join(', ');
+                Logger.error(`Required entry not found in table ${o.table}: ${fields}`);
+            });
             if(missingEntries.length === 1){
                 throw new Error(`Install aborted. ${missingEntries.length} system requirement is not met!`);
             }else{

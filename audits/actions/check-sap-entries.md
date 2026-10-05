@@ -25,19 +25,25 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** a lowercase table key or a database view is reported "table was not found" and blocks install.
 - **Fix:** uppercase table names and probe DD02L (or TABL plus VIEW).
 
-### ACT-2026-72 — Low — Functional — Missing entries are hidden and the status table is misaligned
-
-- **Where:** [`install/checkSapEntries.ts#L30`](../../src/actions/install/checkSapEntries.ts#L30) prints entries only in debug; `splice` at [`analyze.ts#L118`](../../src/actions/checkSapEntries/analyze.ts#L118) shifts values when an entry lacks a column.
-- **Fix:** log each missing entry at error level; build rows as `header.map(h => entry[h] ?? '')`.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. |
-| 2 | `analyze` | Error handling dead (ACT-2026-69); unsafe where clause (ACT-2026-70); case-sensitive, TABL-only probe (ACT-2026-71); hidden and misaligned output (ACT-2026-72). Output statuses follow declaration order. |
+| 2 | `analyze` | Error handling dead (ACT-2026-69); unsafe where clause (ACT-2026-70); case-sensitive, TABL-only probe (ACT-2026-71). Printed rows stay aligned with the header and output statuses follow declaration order. |
+| — | install wrapper `check-sap-entries` | Skips on `noSapEntries`; logs each missing entry at error level, with its table and field values, before aborting. |
 
 ## Resolved findings
+### ACT-2026-72 — Resolved — Low — Functional — Missing entries are hidden and the status table is misaligned
+
+Previously the install wrapper printed the missing entries only in debug output, as a single JSON
+string without table names, so a user saw only "N system requirements are not met". It now logs
+each missing entry at error level as `Required entry not found in table <table>: <field> = <value>, …`
+([source](../../src/actions/install/checkSapEntries.ts#L42)). Printed table rows were built with
+`splice`, which shifted values into the wrong columns when an entry lacked one of the table's
+fields; each row is now built from the header, leaving missing fields blank
+([source](../../src/actions/checkSapEntries/analyze.ts#L116)).
+
 ### ACT-2026-73 — Resolved — Low — Technical — Output order and unused imports
 
 Previously `sapEntriesStatus` listed every found entry before every missing one, so its order no

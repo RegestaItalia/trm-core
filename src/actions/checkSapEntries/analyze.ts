@@ -113,10 +113,7 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
                             tableEntry
                         });
                     }
-                    Object.keys(tableEntry).forEach(field => {
-                        const pushIndex = printTableHead.findIndex(headerName => headerName === field);
-                        tableData.splice(pushIndex, 0, tableEntry[field]);
-                    });
+                    tableData = tableData.concat(printTableHead.slice(1, -1).map(field => tableEntry[field] ?? ''));
                     tableData.push(entryStatus);
                     printTableData.push(tableData);
                 }
