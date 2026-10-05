@@ -2,7 +2,32 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
 import { desc } from "semver-sort";
 import { satisfies } from "semver";
-import { Lockfile } from "../../lockfile";
+import { Lock, Lockfile } from "../../lockfile";
+import { AbstractRegistry } from "../../registry";
+import { TrmPackage } from "../../trmPackage";
+
+/**
+ * Selects the dependency release a dependency install would use: the lockfile entry when a
+ * lockfile is supplied, otherwise the newest registry release satisfying the range.
+ * The lock integrity is not verified here.
+ */
+export async function selectDependencyRelease(
+    trmPackage: TrmPackage,
+    registry: AbstractRegistry,
+    versionRange: string,
+    lockfile?: Lockfile
+): Promise<{ version: string, lock?: Lock }> {
+    const lock = lockfile ? lockfile.getLock(trmPackage, versionRange) : null;
+    if (lock) {
+        return { version: lock.version, lock };
+    }
+    const packageData = await registry.getPackage(trmPackage.packageName, 'latest');
+    const versions = packageData.versions.filter(v => satisfies(v, versionRange));
+    if (versions.length === 0) {
+        throw new Error(`Dependency "${trmPackage.packageName}": releases not found in range ${versionRange}.`);
+    }
+    return { version: desc(versions)[0] };
+}
 
 /**
  * Workflow step that selects the dependency release to install.
@@ -10,30 +35,23 @@ import { Lockfile } from "../../lockfile";
  * the newest registry release satisfying the requested semantic-version range is selected.
  * Registry prereleases are selected only when the range opts in (semver default); installed and
  * locked prereleases are matched with `includePrerelease`.
- * 
+ *
  * 1- find version
- * 
+ *
 */
 export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
     name: 'find-install-release',
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
         //1- find version
-        const lock = context.rawInput.installData.checks.lockfile ? context.rawInput.installData.checks.lockfile.getLock(context.runtime.trmPackage, context.rawInput.dependencyDataPackage.versionRange) : null;
-        if (lock) {
-            const testLock = await Lockfile.testReleaseByLock(lock);
-            if(!testLock){
-                throw new Error(`Cannot continue due to security issues.`);
-            }else{
-                context.runtime.installVersion = lock.version;
-            }
-        } else {
-            const packageData = await context.rawInput.dependencyDataPackage.registry.getPackage(context.rawInput.dependencyDataPackage.name, 'latest');
-            const versions = packageData.versions.filter(v => satisfies(v, context.rawInput.dependencyDataPackage.versionRange));
-            if (versions.length === 0) {
-                throw new Error(`Dependency "${context.rawInput.dependencyDataPackage.name}": releases not found in range ${context.rawInput.dependencyDataPackage.versionRange}.`);
-            } else {
-                context.runtime.installVersion = desc(versions)[0];
-            }
+        const release = await selectDependencyRelease(
+            context.runtime.trmPackage,
+            context.rawInput.dependencyDataPackage.registry,
+            context.rawInput.dependencyDataPackage.versionRange,
+            context.rawInput.installData.checks.lockfile
+        );
+        if (release.lock && !(await Lockfile.testReleaseByLock(release.lock))) {
+            throw new Error(`Cannot continue due to security issues.`);
         }
+        context.runtime.installVersion = release.version;
     }
 }

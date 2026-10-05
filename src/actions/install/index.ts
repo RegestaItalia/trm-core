@@ -12,6 +12,7 @@ import { checkTransports } from "./checkTransports";
 import { checkSapEntries } from "./checkSapEntries";
 import { checkEngines } from "./checkEngines";
 import { checkDependencies } from "./checkDependencies";
+import { checkDependencyCycles } from "./checkDependencyCycles";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { addNamespace } from "./addNamespace";
@@ -292,7 +293,7 @@ const WORKFLOW_NAME = 'install';
  * Installs a TRM package release into the currently connected SAP system.
  *
  * The workflow authorizes the user, fetches and validates the release, checks dependencies
- * and required SAP entries, maps ABAP packages, imports the artifact transports, executes
+ * (aborting on cyclic dependency graphs before anything is installed) and required SAP entries, maps ABAP packages, imports the artifact transports, executes
  * post-install activities, and records the installed package. Completed reversible steps are
  * rolled back when a later step fails.
  *
@@ -317,6 +318,7 @@ const installWorkflow = [
         checkSapEntries,
         checkEngines,
         checkDependencies,
+        checkDependencyCycles,
         setInstallDevclass,
         lockResources,
         installDependencies,

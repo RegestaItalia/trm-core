@@ -25,12 +25,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** X 2.0.0 installed and `^1.0.0` required: confirming "missing dependencies" downgrades X. Called directly when the newest in-range release is installed, it throws instead of returning a no-op.
 - **Fix:** skip compatible installed versions and require explicit confirmation for downgrades.
 
-### ACT-2026-82 — Low — Functional — Self and cyclic dependencies are not detected
-
-- **Where:** [`installDependencies.ts#L60`](../../src/actions/install/installDependencies.ts#L60).
-- **Failure:** A→B→A re-enters install and fails on the package lock with an unrelated message.
-- **Fix:** track ancestry and fail with an explicit cycle error.
-
 ## Step review
 
 | Order | Step | Result |
@@ -41,6 +35,17 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 4 | `install-release` | Forwards options correctly; relies on `find-install-release` to set the version or throw. |
 
 ## Resolved findings
+### ACT-2026-82 — Resolved — Self and cyclic dependencies are not detected
+
+The install workflow now runs [`check-dependency-cycles`](../../src/actions/install/checkDependencyCycles.ts)
+right after `check-dependencies`, before resources are locked or any dependency is installed. It
+walks the dependencies the install would recurse into: a dependency already installed in a
+compatible version is not installed again and ends that branch (for example a package installed
+with `noDependencies`), while any other dependency resolves to the release a dependency install
+would select ([`selectDependencyRelease`](../../src/actions/installDependency/findInstallRelease.ts#L14),
+shared with `find-install-release`) and is walked. A self or cyclic dependency on that path aborts
+the install with the cycle, for example `"A" -> "B" -> "A"`.
+
 ### ACT-2026-83 — Resolved — Dead guard and unused imports
 
 The `install-release` step no longer re-checks `installVersion`: `find-install-release` always sets

@@ -1,7 +1,7 @@
 # `install` workflow audit
 
 Audit date: 2026-10-04
-Entry point: [`install`](../../src/actions/install/index.ts#L301)
+Entry point: [`install`](../../src/actions/install/index.ts#L308)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 
@@ -165,18 +165,19 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 6 | `check-sap-entries` | See [check-sap-entries findings](check-sap-entries.md); each missing entry is logged at error level before aborting. |
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
 | 8 | `check-dependencies` | Incompatible installed dependencies are labelled "missing" and may be downgraded ([ACT-2026-81](install-dependency.md)). |
-| 9 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35), TypeError on unknown root (ACT-2026-41). |
-| 10 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |
-| 11 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
-| 12 | `add-namespace` | Namespace taken from `replacements[0]` (ACT-2026-34). |
-| 13 | `generate-devclass` | Fails with "Multiple roots" on inherited or stale mappings (ACT-2026-22, ACT-2026-25). |
-| 14 | `generate-update-transport` | Silently skipped for local registries (ACT-2026-32); revert restores without checking cleanup success ([ACT-2026-08](shared.md)) and leaks the staging package ([ACT-2026-09](shared.md)). Deletes the installed release's customizing by key, without asking, before the new customizing is imported, unless `noCust` ([ACT-2026-48](delete.md), resolved). |
-| 15–18 | `prepare-devc`, `prepare-tadir`, `prepare-lang`, `prepare-cust` | Forward flow correct; test-import RC is checked. `prepare-cust` revert is not best-effort (ACT-2026-39). |
-| 19 | `import-batch` | Batch RC ignored (see *Reconsideration of accepted findings*). Rollback drops retained tables (ACT-2026-28), deletes unsnapshotted pre-existing objects (ACT-2026-30), and always fails for local registries (ACT-2026-27). |
-| 20 | `generate-landscape-transport` | Locked namespace silently omitted (ACT-2026-44). |
-| 21 | `execute-post-activities` | Global prefix clobbered ([ACT-2026-18](shared.md)); empty `&LANDSCAPE_TRANSPORT&` (ACT-2026-43). |
-| 22 | `release-install-transports` | Released transport stays queued in the target after rollback (ACT-2026-29); unbounded release wait ([ACT-2026-14](shared.md)). |
-| 23 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). Records the imported CUST and LANG transports in `/ATRM/INSTALLTR` and restores the previous ones on revert ([ACT-2026-48](delete.md), resolved). |
+| 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
+| 10 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35), TypeError on unknown root (ACT-2026-41). |
+| 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |
+| 12 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
+| 13 | `add-namespace` | Namespace taken from `replacements[0]` (ACT-2026-34). |
+| 14 | `generate-devclass` | Fails with "Multiple roots" on inherited or stale mappings (ACT-2026-22, ACT-2026-25). |
+| 15 | `generate-update-transport` | Silently skipped for local registries (ACT-2026-32); revert restores without checking cleanup success ([ACT-2026-08](shared.md)) and leaks the staging package ([ACT-2026-09](shared.md)). Deletes the installed release's customizing by key, without asking, before the new customizing is imported, unless `noCust` ([ACT-2026-48](delete.md), resolved). |
+| 16–19 | `prepare-devc`, `prepare-tadir`, `prepare-lang`, `prepare-cust` | Forward flow correct; test-import RC is checked. `prepare-cust` revert is not best-effort (ACT-2026-39). |
+| 20 | `import-batch` | Batch RC ignored (see *Reconsideration of accepted findings*). Rollback drops retained tables (ACT-2026-28), deletes unsnapshotted pre-existing objects (ACT-2026-30), and always fails for local registries (ACT-2026-27). |
+| 21 | `generate-landscape-transport` | Locked namespace silently omitted (ACT-2026-44). |
+| 22 | `execute-post-activities` | Global prefix clobbered ([ACT-2026-18](shared.md)); empty `&LANDSCAPE_TRANSPORT&` (ACT-2026-43). |
+| 23 | `release-install-transports` | Released transport stays queued in the target after rollback (ACT-2026-29); unbounded release wait ([ACT-2026-14](shared.md)). |
+| 24 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). Records the imported CUST and LANG transports in `/ATRM/INSTALLTR` and restores the previous ones on revert ([ACT-2026-48](delete.md), resolved). |
 
 ## Reconsideration of accepted findings
 
