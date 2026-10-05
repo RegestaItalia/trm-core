@@ -129,7 +129,8 @@ export type InstallActionInputInstallData = {
         keepOriginal?: boolean;
 
         /**
-         * Transport layer assigned to generated target packages. The system default is used when omitted.
+         * Transport layer assigned to generated transportable target packages. When omitted, the system default
+         * is resolved only if such packages have to be created.
          */
         transportLayer?: string;
 

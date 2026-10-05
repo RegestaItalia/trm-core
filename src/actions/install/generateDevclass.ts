@@ -11,7 +11,7 @@ import { stopWarning } from "../stopWarning";
  * 
  * 1- find packages to generate
  * 
- * 2- generate missing packages
+ * 2- generate missing packages (the default transport layer is resolved only for transportable packages)
  * 
  * 3- build the package hierarchy, based on the original
  * 
@@ -64,11 +64,26 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
 
         //2- generate missing packages
         if (generate.length > 0) {
+            const dlvunit = context.runtime.namespace === '$' ? 'LOCAL' : 'HOME';
+            if (dlvunit !== 'LOCAL' && !context.rawInput.installData.installDevclass.transportLayer) {
+                Logger.loading(`Checking transport layer...`);
+                let defaultTransportLayer: string;
+                try {
+                    defaultTransportLayer = await SystemConnector.getDefaultTransportLayer();
+                } catch (e) {
+                    Logger.error(e.toString(), true);
+                    throw new Error(`Couldn't determine system's default transport layer.`);
+                }
+                if (!defaultTransportLayer) {
+                    throw new Error(`System has no default transport layer, specify one.`);
+                }
+                context.rawInput.installData.installDevclass.transportLayer = defaultTransportLayer;
+                Logger.log(`Setting transport layer to default: ${defaultTransportLayer}`, true);
+            }
             if (!context.runtime.stopWarningShown) {
                 context.runtime.stopWarningShown = true;
                 stopWarning('install');
             }
-            const dlvunit = context.runtime.namespace === '$' ? 'LOCAL' : 'HOME';
             for (const devclass of generate) {
                 Logger.loading(`Creating package ${devclass}...`);
                 const originalDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.installDevclass === devclass).originalDevclass;
@@ -87,7 +102,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                 }
                 await SystemConnector.createPackage(packageDataFromTdevc(originalPackageData, {
                     as4user: SystemConnector.getLogonUser(),
-                    pdevclass: context.rawInput.installData.installDevclass.transportLayer,
+                    pdevclass: context.rawInput.installData.installDevclass.transportLayer || '',
                     devclass,
                     ctext,
                     dlvunit

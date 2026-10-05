@@ -126,12 +126,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Where:** [`setInstallDevclass.ts#L93`](../../src/actions/install/setInstallDevclass.ts#L93).
 - **Fix:** guard `undefined` and fall back to the stored root replacement.
 
-### ACT-2026-42 — Low — Functional — Transport layer is mandatory even when unused
-
-- **Where:** [`install/init.ts#L136`](../../src/actions/install/init.ts#L136); only consumed by `generate-devclass`.
-- **Failure:** `keepOriginal` or `$` installs fail on systems without a default layer.
-- **Fix:** validate the layer only when packages are generated.
-
 ### ACT-2026-44 — Low — Functional — Locked namespace is silently omitted from the landscape transport
 
 - **Where:** [`generateLandscapeTransport.ts#L81`](../../src/actions/install/generateLandscapeTransport.ts#L81).
@@ -153,7 +147,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 |---:|---|---|
 | 1 | `check-server-auth` | Shared [ACT-2026-12](shared.md). |
 | 2 | `set-system-packages` | Snapshot excludes local-registry packages ([ACT-2026-15](shared.md)) and is never refreshed for transitive installs (ACT-2026-24). |
-| 3 | `init` | Raw package name used for lookups ([ACT-2026-16](shared.md)); local installs use the wrong registry key (ACT-2026-26); transport layer always mandatory (ACT-2026-42). Revert is the only cleanup point for early failures (ACT-2026-37). |
+| 3 | `init` | Raw package name used for lookups ([ACT-2026-16](shared.md)); local installs use the wrong registry key (ACT-2026-26). An explicit transport layer is validated; the system default is no longer looked up here ([ACT-2026-42](#act-2026-42--resolved--transport-layer-is-required-only-for-generated-transportable-packages), resolved). Revert is the only cleanup point for early failures (ACT-2026-37). |
 | 4 | `check-dependants` | Correct on its own, but blocks nested dependency upgrades against the parent's old manifest (ACT-2026-23). |
 | 5 | `check-transports` | Root package matched by raw name ([ACT-2026-16](shared.md)); non-interactive mode overwrites when the root devclass is unknown (ACT-2026-36). |
 | 6 | `check-sap-entries` | See [check-sap-entries findings](check-sap-entries.md); each missing entry is logged at error level before aborting. |
@@ -164,7 +158,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |
 | 12 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
 | 13 | `add-namespace` | Namespace taken from `replacements[0]` (ACT-2026-34). |
-| 14 | `generate-devclass` | Fails with "Multiple roots" on inherited or stale mappings (ACT-2026-22, ACT-2026-25). |
+| 14 | `generate-devclass` | Fails with "Multiple roots" on inherited or stale mappings (ACT-2026-22, ACT-2026-25). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
 | 15 | `generate-update-transport` | Silently skipped for local registries (ACT-2026-32); revert restores without checking cleanup success ([ACT-2026-08](shared.md)) and leaks the staging package ([ACT-2026-09](shared.md)). Deletes the installed release's customizing by key, without asking, before the new customizing is imported, unless `noCust` ([ACT-2026-48](delete.md), resolved). |
 | 16–19 | `prepare-devc`, `prepare-tadir`, `prepare-lang`, `prepare-cust` | Forward flow correct; test-import RC is checked. `prepare-cust` revert is not best-effort (ACT-2026-39). |
 | 20 | `import-batch` | Batch RC ignored (see *Reconsideration of accepted findings*). Rollback drops retained tables (ACT-2026-28), deletes unsnapshotted pre-existing objects (ACT-2026-30), and always fails for local registries (ACT-2026-27). |
@@ -187,6 +181,14 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-42 — Resolved — Transport layer is required only for generated transportable packages
+
+`init` now only validates an explicitly provided transport layer. The system default is resolved by
+`generate-devclass` when a transportable package has to be created, before the first package is
+created, so `keepOriginal` installs, installs into existing packages, and `$` installs no longer fail
+on systems without a default layer. Local packages are created with an empty layer
+([source](../../src/actions/install/generateDevclass.ts#L66)).
+
 ### INST-04 — Resolved — Rollback handlers restore captured transport state
 
 DEVC, TADIR, LANG, CUST, and deletion imports now share a compensating operation that uploads the

@@ -16,7 +16,7 @@ import { deleteImportedEntries } from "./importBatch";
  * 
  * 2- fill missing input data
  * 
- * 3- check/set install transport layer
+ * 3- check install transport layer
  * 
  * 4- check/set system target
  * 
@@ -143,20 +143,10 @@ export const init: Step<InstallWorkflowContext> = {
             context.rawInput.installData.installDevclass.keepOriginal = false;
         }
 
-        //3- check/set install transport layer
-        Logger.loading(`Checking transport layer...`);
-        if (!context.rawInput.installData.installDevclass.transportLayer) {
-            try {
-                context.rawInput.installData.installDevclass.transportLayer = await SystemConnector.getDefaultTransportLayer();
-            } catch (e) {
-                Logger.error(e.toString(), true);
-                throw new Error(`Couldn't determine system's default transport layer.`);
-            }
-            if (!context.rawInput.installData.installDevclass.transportLayer) {
-                throw new Error(`System has no default transport layer, specify one.`);
-            }
-            Logger.log(`Setting transport layer to default: ${context.rawInput.installData.installDevclass.transportLayer}`, true);
-        } else {
+        //3- check install transport layer
+        //the system default is resolved by generate-devclass, only when transportable packages are created
+        if (context.rawInput.installData.installDevclass.transportLayer) {
+            Logger.loading(`Checking transport layer...`);
             if (!(await SystemConnector.isTransportLayerExist(context.rawInput.installData.installDevclass.transportLayer))) {
                 throw new Error(`Transport layer "${context.rawInput.installData.installDevclass.transportLayer}" doesn't exist.`);
             }
