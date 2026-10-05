@@ -7,11 +7,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-80 — Medium — Technical — Lock integrity is checked on a different download than the one imported
-
-- **Where:** [`Lockfile.ts#L103`](../../src/lockfile/Lockfile.ts#L103); the nested install re-fetches metadata and imports per-transport binaries verified only against registry checksums.
-- **Failure:** the lock does not protect what is imported; an empty integrity row (`getPackageIntegrity` returns `''`) produces a lockfile that always raises "SECURITY ISSUE".
-- **Fix:** pass the expected integrity into the nested install and compare it with the imported release; refuse empty integrity at generation.
+No active findings.
 
 ## Step review
 
@@ -20,11 +16,26 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 1 | `init` | No issue found. |
 | 2 | `set-system-packages` | No issue found; the snapshot is consulted by `check-installed-release`. |
 | 3 | `check-installed-release` | Keeps a compatible installed release (no-op output) unless a lockfile pins another version; rejects an unreadable installed manifest (ACT-2026-81, resolved). |
-| 4 | `find-install-release` | Uses the lockfile entry when present and falls back to the newest release in range when the lockfile has none; a lock outside the range aborts with its own error (ACT-2026-79, resolved). Integrity check on a different download (ACT-2026-80). Skipped when the installed release is kept. |
+| 4 | `find-install-release` | Uses the lockfile entry when present and falls back to the newest release in range when the lockfile has none; a lock outside the range aborts with its own error (ACT-2026-79, resolved). Verifies a locked release's metadata and artifact against the lock integrity and passes that integrity to the nested install (ACT-2026-80, resolved). Skipped when the installed release is kept. |
 | 5 | `confirm-downgrade` | Requires confirmation (prompt defaulting to no, or `checks.allowDowngrade`) before replacing a newer installed release; aborts without a prompt (ACT-2026-81, resolved). |
-| 6 | `install-release` | Forwards options correctly; relies on `find-install-release` to set the version or throw. Skipped when the installed release is kept. |
+| 6 | `install-release` | Forwards options correctly, including the locked integrity; relies on `find-install-release` to set the version or throw. Skipped when the installed release is kept. |
 
 ## Resolved findings
+### ACT-2026-80 — Resolved — Lock integrity is checked on a different download than the one imported
+
+`find-install-release` still checks the locked release with
+[`Lockfile.testReleaseByLock`](../../src/lockfile/Lockfile.ts#L106), and now also passes the lock
+integrity to the nested install as `packageData.integrity`. The install
+[`init`](../../src/actions/install/init.ts#L91) step compares it with the checksum of the release
+metadata it fetches, and aborts with a security error before any system change if they differ. That
+metadata supplies the manifest and the transport list that are imported, so the lock now covers the
+release that is actually installed. The transport binaries are still verified against the
+checksums the registry reports for each download: registries rebuild them for the target request,
+so they cannot be compared with the locked artifact. An empty integrity is refused on both sides:
+[`Lockfile.generate`](../../src/lockfile/Lockfile.ts#L53) throws when a dependency has no
+integrity row on the source system, and `testReleaseByLock` throws, asking to regenerate the
+lockfile, when a lock has an empty integrity.
+
 ### ACT-2026-79 — Resolved — A lockfile without the dependency aborts installation
 
 [`Lockfile.getLock`](../../src/lockfile/Lockfile.ts#L92) now returns `undefined` when the lockfile

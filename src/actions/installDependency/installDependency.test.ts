@@ -154,7 +154,7 @@ describe('installDependency installed-release handling', () => {
         const result = await run(ctx);
         expect(result.runtime.alreadyInstalled).toBe(false);
         expect(ctx.installRunner).toHaveBeenCalledWith(expect.objectContaining({
-            packageData: expect.objectContaining({ version: '1.0.0' })
+            packageData: expect.objectContaining({ version: '1.0.0', integrity: 'sha' })
         }));
     });
 
@@ -172,7 +172,7 @@ describe('installDependency installed-release handling', () => {
         expect(testLock).not.toHaveBeenCalled();
         expect(Logger.info).toHaveBeenCalledWith('Dependency "dep" not in lockfile, using v1.2.0 (>=1.0.0 <2.0.0-0).');
         expect(ctx.installRunner).toHaveBeenCalledWith(expect.objectContaining({
-            packageData: expect.objectContaining({ version: '1.2.0' })
+            packageData: expect.objectContaining({ version: '1.2.0', integrity: undefined })
         }));
     });
 

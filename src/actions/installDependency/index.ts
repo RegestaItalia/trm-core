@@ -40,6 +40,8 @@ export interface InstallDependencyActionInput {
 type WorkflowRuntime = {
     trmPackage: TrmPackage,
     installVersion: string,
+    /** Integrity of the locked release; the nested install verifies the release it fetches against it. */
+    installIntegrity?: string,
     /** Version on the system before the install, if the dependency is installed. */
     installedVersion?: string,
     /** True when the installed release is kept and nothing is installed. */

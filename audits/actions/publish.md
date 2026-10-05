@@ -21,8 +21,8 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ### ACT-2026-57 — High — Technical — Async registry publish failures are reported as success
 
-- **Where:** [`RegistryV2.ts#L547`](../../src/registry/RegistryV2.ts#L547).
-- **Failure:** on 202, polling errors are logged as "check manually" and `publish` resolves; the workflow reports success and records the release on the origin system even if the server job failed. Polling is unbounded.
+- **Where:** [`RegistryV2.ts#L556`](../../src/registry/RegistryV2.ts#L556).
+- **Failure:** on 202, polling errors are logged as "check manually" and `publish` resolves; the workflow reports success and records the release on the origin system even if the server job failed. Polling is unbounded. A rejection the registry reports in the final status (`data.error`) now fails the publish, but a status without `data` or a failed poll is still treated as success.
 - **Fix:** fail (or return an explicit unknown state that blocks success) and bound polling.
 
 ### ACT-2026-58 — Medium — Technical — Post-activity existence check is dead

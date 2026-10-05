@@ -192,6 +192,12 @@ export interface InstallActionInput {
          * require interactive confirmation and therefore abort when prompts are disabled.
          */
         overwrite?: boolean;
+
+        /**
+         * Expected release integrity (SHA-512, base64), for example from a lockfile. When set, the
+         * install aborts before any change unless the release fetched from the registry matches it.
+         */
+        integrity?: string;
     };
 
     /** Optional validation, import, package-mapping, and post-activity settings. */

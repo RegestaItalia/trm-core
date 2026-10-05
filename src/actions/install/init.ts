@@ -88,6 +88,15 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.package.data = await registry.getPackage(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
         context.output.manifest = context.runtime.package.data.manifest;
 
+        //the release whose transports are imported must be the expected one (e.g. locked)
+        const expectedIntegrity = context.rawInput.packageData.integrity;
+        if (expectedIntegrity !== undefined && context.runtime.package.data.checksum !== expectedIntegrity) {
+            Logger.error(`SECURITY ISSUE! Release "${context.rawInput.packageData.name}", registry "${registry.name}", integrity does NOT match!`);
+            Logger.error(`SECURITY ISSUE! Registry SHA is ${context.runtime.package.data.checksum}`);
+            Logger.error(`SECURITY ISSUE! Expected SHA is ${expectedIntegrity}`);
+            throw new Error(`Cannot continue due to security issues.`);
+        }
+
         //only used to validate manifest
         try {
             Manifest.normalize(context.runtime.package.data.manifest);

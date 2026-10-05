@@ -60,5 +60,6 @@ export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
             throw new Error(`Cannot continue due to security issues.`);
         }
         context.runtime.installVersion = release.version;
+        context.runtime.installIntegrity = release.lock?.integrity;
     }
 }

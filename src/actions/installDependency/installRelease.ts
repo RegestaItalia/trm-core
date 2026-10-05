@@ -18,6 +18,7 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
                 name: context.rawInput.dependencyDataPackage.name,
                 registry: context.rawInput.dependencyDataPackage.registry,
                 version: context.runtime.installVersion,
+                integrity: context.runtime.installIntegrity,
                 overwrite: false
             },
             contextData: context.rawInput.contextData,

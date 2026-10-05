@@ -51,6 +51,9 @@ export class Lockfile {
                     if (depPackage) {
                         const depManifest = depPackage.manifest.get();
                         const depIntegrity = await SystemConnector.getPackageIntegrity(depPackage);
+                        if (!depIntegrity) {
+                            throw new Error(`Cannot generate lockfile: integrity of dependency "${dep.name}", registry "${depRegistry.endpoint}" is missing in system ${SystemConnector.getDest()}. Reinstall it to restore its package data.`);
+                        }
                         lock.packages.push({
                             name: dep.name,
                             version: depManifest.version,
@@ -101,6 +104,9 @@ export class Lockfile {
     }
 
     public static async testReleaseByLock(lock: Lock): Promise<boolean> {
+        if (!lock.integrity) {
+            throw new Error(`Lock for package "${lock.name}", registry "${lock.registry}" has no integrity: regenerate the lockfile.`);
+        }
         const registry = RegistryProvider.getRegistry(lock.registry);
         const ping = await registry.ping();
         const release = await registry.getPackage(lock.name, lock.version);
