@@ -8,6 +8,7 @@ import { Manifest } from "../../manifest";
 import chalk from "chalk";
 import { setLandscapeTarget } from "../commons/prompts";
 import { deleteImportedEntries } from "./importBatch";
+import { resolveInstallPackage } from "../commons/utils";
 
 /**
  * Workflow step that fetches the release, validates install settings, and initializes rollback state.
@@ -50,6 +51,7 @@ export const init: Step<InstallWorkflowContext> = {
             },
             dependencies: [],
             namespace: undefined, //will be calculated from either origin devclass or target devclass later
+            installRegistry: undefined,
             previousInstallPackages: [],
             previousInstallTransports: [],
             dependencyRollbacks: [],
@@ -109,6 +111,8 @@ export const init: Step<InstallWorkflowContext> = {
             // guard and replace input name with actual name in manifest
             context.rawInput.packageData.name = context.runtime.package.data.manifest.name;
         }
+        //install mappings, transports and locks are recorded under the real registry of a local artifact
+        context.runtime.installRegistry = (await resolveInstallPackage(registry, context.rawInput.packageData.name)).registry;
 
         context.runtime.isTrmServer = context.runtime.package.data.name === TRM_SERVER_PACKAGE_NAME && registry.getRegistryType() === RegistryType.PUBLIC;
         context.runtime.isTrmRest = context.runtime.package.data.name === TRM_REST_PACKAGE_NAME && registry.getRegistryType() === RegistryType.PUBLIC;
@@ -165,11 +169,11 @@ export const init: Step<InstallWorkflowContext> = {
         if (context.runtime.update) {
             context.runtime.previousInstallPackages = await SystemConnector.getInstallPackages(
                 context.rawInput.packageData.name,
-                context.rawInput.packageData.registry
+                context.runtime.installRegistry
             );
             context.runtime.previousInstallTransports = await SystemConnector.getInstallTransports(
                 context.rawInput.packageData.name,
-                context.rawInput.packageData.registry
+                context.runtime.installRegistry
             );
             const installVersion = context.runtime.package.data.manifest.version;
             const installedVersion = context.runtime.update.manifest.get().version;

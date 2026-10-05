@@ -25,12 +25,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** A→B, A→C, B→D, C→D with D missing: B installs D in its clone only; C reinstalls D, failing on D's package lock (held until the root finishes) or on "object(s) already exist". The whole install rolls back.
 - **Fix:** return every package a nested install installed (or share one snapshot) and treat compatible installed dependencies as no-ops.
 
-### ACT-2026-26 — High — Functional — Local (`.trm`) installs use the wrong registry key
-
-- **Where:** [`install/init.ts#L166`](../../src/actions/install/init.ts#L166), [`setInstallDevclass.ts#L56`](../../src/actions/install/setInstallDevclass.ts#L56) and [`actionLocks.ts#L23`](../../src/actions/commons/utils/actionLocks.ts#L23) use the file directory as endpoint; [`updatePackageData.ts#L45`](../../src/actions/install/updatePackageData.ts#L45) stores the real registry.
-- **Failure:** upgrading a renamed package from a `.trm` file finds no mappings; non-interactive mode falls back to identity mappings and imports into the publisher's package names. Previous packages are not locked and local/remote installs of the same package do not block each other.
-- **Fix:** resolve the real registry once in `init` and use it for mapping lookups and lock keys.
-
 ### ACT-2026-27 — High — Functional — Rollback cleanup always fails for local-registry installs
 
 - **Where:** [`importBatch.ts#L111`](../../src/actions/install/importBatch.ts#L111) passes the `FileSystem` registry; [`FileSystem.ts#L188`](../../src/registry/FileSystem.ts#L188) always throws.
@@ -124,7 +118,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 |---:|---|---|
 | 1 | `check-server-auth` | Shared [ACT-2026-12](shared.md). |
 | 2 | `set-system-packages` | Snapshot excludes local-registry packages ([ACT-2026-15](shared.md)) and is never refreshed for transitive installs (ACT-2026-24). |
-| 3 | `init` | Raw package name used for lookups ([ACT-2026-16](shared.md)); local installs use the wrong registry key (ACT-2026-26). An explicit transport layer is validated; the system default is no longer looked up here ([ACT-2026-42](#act-2026-42--resolved--transport-layer-is-required-only-for-generated-transportable-packages), resolved). Revert is the only cleanup point for early failures (ACT-2026-37). |
+| 3 | `init` | Raw package name used for lookups ([ACT-2026-16](shared.md)); a local (`.trm`) artifact is resolved to the registry it was published to (`runtime.installRegistry`), used for the mapping and transport lookups ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). An explicit transport layer is validated; the system default is no longer looked up here ([ACT-2026-42](#act-2026-42--resolved--transport-layer-is-required-only-for-generated-transportable-packages), resolved). Revert is the only cleanup point for early failures (ACT-2026-37). |
 | 4 | `check-dependants` | Correct on its own, but blocks nested dependency upgrades against the parent's old manifest (ACT-2026-23). |
 | 5 | `check-transports` | Root package matched by raw name ([ACT-2026-16](shared.md)); when the installed root devclass is unknown, existing objects need confirmation interactively, and non-interactive mode fails unless `noExistingObjects` is set ([ACT-2026-36](#act-2026-36--resolved--non-interactive-upgrade-fails-closed-when-the-root-devclass-is-unknown), resolved). |
 | 6 | `check-sap-entries` | See [check-sap-entries findings](check-sap-entries.md); each missing entry is logged at error level before aborting. |
@@ -132,7 +126,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 8 | `check-dependencies` | Queues missing and incompatible dependencies separately, with the installed version; a downgrade must be confirmed by the dependency install ([ACT-2026-81](install-dependency.md), resolved). |
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
 | 10 | `set-install-devclass` | Stored and explicit mappings of devclasses not in the release are dropped before use ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved); wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
-| 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |
+| 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). The package lock uses the resolved install registry, so local and remote installs of the same package block each other ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). |
 | 12 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
 | 13 | `add-namespace` | Namespace derived from the target root package, or from the only reserved namespace used by a subpackage; more than one reserved namespace is rejected before any system change ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 14 | `generate-devclass` | Fails with "Multiple roots" on inherited mappings (ACT-2026-22); stale stored mappings no longer reach it ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
@@ -158,6 +152,18 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-26 — Resolved — Local (`.trm`) installs are recorded under the real registry
+
+`init` now resolves the registry the package is recorded under once (`runtime.installRegistry`):
+for a local artifact, the registry in its manifest, through `FileSystem.getRealPackage`; otherwise the
+input registry. The stored mapping and transport lookups (`init`, `set-install-devclass`), the package
+lock (`lock-resources`), and the metadata write (`update-package-data`, through `installRegistryKey`)
+all use it, so upgrading a renamed package from a `.trm` file finds its stored mappings, and the
+ACT-2026-25 filter and ACT-2026-90 deletion apply to local installs too. The workflow-level package
+lock taken before `init` resolves the artifact's real name and registry the same way, so local and
+remote installs of the same package block each other
+([source](../../src/actions/install/init.ts#L115)).
+
 ### ACT-2026-90 — Resolved — Mappings of removed devclasses are deleted
 
 trm-server now provides `/ATRM/DELETE_INSTALL_DEVC` (RFC) and the `delete_install_devc` REST route

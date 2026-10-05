@@ -10,6 +10,7 @@ jest.mock('../../systemConnector', () => ({
 
 import { Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
+import { RegistryType } from '../../registry';
 import { init } from './init';
 
 describe('install release integrity', () => {
@@ -77,5 +78,15 @@ describe('install release integrity', () => {
         await expect(init.run(ctx)).rejects.toThrow('past layer check');
         expect(SystemConnector.isTransportLayerExist).not.toHaveBeenCalled();
         expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
+    });
+
+    test('a local artifact is recorded under the registry it was published to', async () => {
+        const ctx = context();
+        const realRegistry = { getRegistryType: () => 'PRIVATE', endpoint: 'https://private.example' };
+        ctx.rawInput.packageData.registry.getRegistryType = () => RegistryType.LOCAL;
+        ctx.rawInput.packageData.registry.getRealPackage = jest.fn(async () => ({ packageName: 'dep', registry: realRegistry }));
+        ctx.rawInput.packageData.integrity = undefined;
+        await expect(init.run(ctx)).rejects.toThrow('past integrity check');
+        expect(ctx.runtime.installRegistry).toBe(realRegistry);
     });
 });

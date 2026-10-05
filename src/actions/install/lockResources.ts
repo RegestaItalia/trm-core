@@ -11,7 +11,7 @@ export const lockResources: Step<InstallWorkflowContext> = {
                 .map(row => [row.originalDevclass.trim().toUpperCase(), row.installDevclass.trim().toUpperCase()])
         );
         const resources: LockResource[] = [];
-        resources.push(packageLockResource(context.rawInput.packageData.registry, context.runtime.package.data.manifest.name));
+        resources.push(packageLockResource(context.runtime.installRegistry, context.runtime.package.data.manifest.name));
         for (const target of replacements.values()) {
             resources.push({ type: "DEVCLASS", name: target });
         }

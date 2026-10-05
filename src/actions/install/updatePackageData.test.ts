@@ -25,6 +25,7 @@ function context() {
             }
         },
         runtime: {
+            installRegistry: { getRegistryType: () => RegistryType.PUBLIC },
             package: {
                 data: { manifest: { name: 'pkg', version: '1.0.0' }, checksum: 'sha' },
                 hierarchy: { devclass: 'ZROOT' }
@@ -252,15 +253,9 @@ describe('install package metadata writes', () => {
 
     test('local-registry rollback reuses the resolved registry marker from forward write', async () => {
         const ctx = context();
-        const registry = {
-            getRegistryType: () => RegistryType.LOCAL,
-            getRealRegistry: jest.fn().mockResolvedValue({
-                getRegistryType: () => RegistryType.PRIVATE,
-                endpoint: 'https://registry.example'
-            }),
-            endpoint: '/tmp/local-registry'
-        };
-        ctx.rawInput.packageData.registry = registry;
+        ctx.rawInput.packageData.registry = { getRegistryType: () => RegistryType.LOCAL, endpoint: '/tmp/local-registry' };
+        //resolved by init from the local artifact
+        ctx.runtime.installRegistry = { getRegistryType: () => RegistryType.PRIVATE, endpoint: 'https://registry.example' };
         ctx.runtime.update = {};
         ctx.runtime.previousInstallPackages = [
             { originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }

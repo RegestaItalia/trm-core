@@ -89,6 +89,7 @@ describe('set-install-devclass stored mappings', () => {
                 isTrmServer: false,
                 isTrmRest: false,
                 update: { getDevclass: () => 'ZFOO_INST' },
+                installRegistry: { endpoint: 'https://private.example' },
                 previousInstallPackages: stored,
                 package: {
                     //v2 dropped ZFOO_OLD
@@ -118,6 +119,7 @@ describe('set-install-devclass stored mappings', () => {
         (SystemConnector.getInstallPackages as jest.Mock).mockResolvedValue([...stored]);
         const ctx = context(stored);
         await setInstallDevclass.run(ctx);
+        expect(SystemConnector.getInstallPackages).toHaveBeenCalledWith('pkg', ctx.runtime.installRegistry);
         expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
             { originalDevclass: 'ZFOO', installDevclass: 'ZFOO_INST' },
             { originalDevclass: 'ZFOO_SUB', installDevclass: 'ZFOO_SUB_INST' }

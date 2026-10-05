@@ -1,7 +1,7 @@
 import { AuthenticationType, BatchCompareResponse, MessageType, Package, Ping, WhoAmI } from "trm-registry-types";
 import { AbstractRegistry } from "./AbstractRegistry";
 import { RegistryType } from "./RegistryType";
-import { TrmArtifact } from "../trmPackage";
+import { TrmArtifact, TrmPackage } from "../trmPackage";
 import { userInfo } from "os";
 import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync } from "fs";
 import { parse as parsePath } from "path";
@@ -189,16 +189,23 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system can't generate deletion transports!`);
     }
 
-    public async getRealRegistry(): Promise<AbstractRegistry> {
+    /**
+     * Returns the package of the local artifact, with the registry it was published to.
+     */
+    public async getRealPackage(): Promise<TrmPackage> {
         if (this._filePath) {
             try {
                 const artifact = await this.getArtifact();
-                return artifact.getManifest().getPackage().registry;
+                return artifact.getManifest().getPackage();
             } catch (e) {
                 throw new Error(`File system couldn't read package`);
             }
         }
         throw new Error(`Missing file path!`);
+    }
+
+    public async getRealRegistry(): Promise<AbstractRegistry> {
+        return (await this.getRealPackage()).registry;
     }
 
 }

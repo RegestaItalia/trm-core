@@ -47,7 +47,7 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         if (context.rawInput.installData.installDevclass.replacements.length <= 0) {
             //no input replacements = get from the trm table devclass replacements the corresponding name
             Logger.loading(`Checking package replacements...`);
-            context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.rawInput.packageData.registry);
+            context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.runtime.installRegistry);
         }
         //drop replacements of devclasses that are not part of the release (e.g. removed in this version)
         const originalDevclasses = flattenDevclasses(context.runtime.package.hierarchy);

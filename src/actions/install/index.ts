@@ -31,7 +31,7 @@ import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
 import { generateUpdateTransport } from "./generateUpdateTransport";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
-import { ActionLockScope, packageLockResource } from "../commons/utils";
+import { ActionLockScope, packageLockResource, resolveInstallPackage } from "../commons/utils";
 import { lockResources } from "./lockResources";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
@@ -231,6 +231,8 @@ type WorkflowRuntime = {
     },
     dependencies: InstallDependencyEntry[],
     namespace: string,
+    /** Registry the package is recorded under: the real registry of a local (.trm) artifact. */
+    installRegistry: AbstractRegistry,
     previousInstallPackages: InstallPackageReplacements[],
     /** Transports recorded for the installed release being updated. */
     previousInstallTransports: InstallTransport[],
@@ -367,7 +369,9 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
 }> {
     const lockScope = new ActionLockScope(WORKFLOW_NAME);
     const context: InstallWorkflowContext = { rawInput: inputData, lockScope };
-    await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
+    //a local artifact is locked under the package it installs, as a remote install of it would be
+    const lockPackage = await resolveInstallPackage(inputData.packageData.registry, inputData.packageData.name);
+    await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);
     const release = async (): Promise<void> => {
         let firstError: unknown;
         for (const releaseDependency of [...(context.runtime?.dependencyReleases || [])].reverse()) {

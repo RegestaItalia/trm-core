@@ -6,7 +6,7 @@ describe("install lock coverage", () => {
         const context = {
             lockScope: { acquire },
             rawInput: {
-                packageData: { registry: { endpoint: "registry" } },
+                packageData: { registry: { endpoint: "/tmp/local-artifacts" } },
                 installData: {
                     installDevclass: {
                         replacements: [{ originalDevclass: "Z_SOURCE", installDevclass: "Z_TARGET" }]
@@ -14,6 +14,7 @@ describe("install lock coverage", () => {
                 }
             },
             runtime: {
+                installRegistry: { endpoint: "registry" },
                 package: { data: { manifest: { name: "package-a" } }, hierarchy: { devclass: "Z_SOURCE" } },
                 previousInstallPackages: [],
                 transports: {

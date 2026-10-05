@@ -5,3 +5,4 @@ export * from "./withScopedPrefix";
 export * from "./actionLocks";
 export * from "./packageCleanup";
 export * from "./installedDependency";
+export * from "./installRegistry";

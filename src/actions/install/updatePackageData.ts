@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallPackageReplacements, InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { FileSystem, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
+import { installRegistryKey } from "../commons/utils";
 import { Manifest } from "../../manifest";
 import { ZTRM_INSTALLDEVC, ZTRM_INSTALLTR } from "../../client";
 import { TrmTransportIdentifier } from "../../transport";
@@ -54,22 +54,7 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
             }
             devclass = rootReplacement.installDevclass;
         }
-        let packageRegistry;
-        switch (context.rawInput.packageData.registry.getRegistryType()) {
-            case RegistryType.PUBLIC:
-                packageRegistry = PUBLIC_RESERVED_KEYWORD;
-                break;
-            case RegistryType.PRIVATE:
-                packageRegistry = context.rawInput.packageData.registry.endpoint;
-                break;
-            case RegistryType.LOCAL:
-                const realRegistry = await (context.rawInput.packageData.registry as FileSystem).getRealRegistry();
-                packageRegistry = realRegistry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : realRegistry.endpoint;
-                break;
-            default:
-                packageRegistry = PUBLIC_RESERVED_KEYWORD;
-                break;
-        }
+        const packageRegistry = installRegistryKey(context.runtime.installRegistry);
 
         const installDevc = installDevcRows(context.rawInput.packageData.name, packageRegistry, context.rawInput.installData.installDevclass.replacements);
         // Only transports imported on this system: uninstall and update delete their customizing.
