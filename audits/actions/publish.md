@@ -37,12 +37,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** with the version omitted on an existing package, a stable version is published instead of a prerelease.
 - **Fix:** apply the prerelease computation after the automatic increment.
 
-### ACT-2026-62 — Medium — Functional — Merging with the latest release cannot remove or replace entries
-
-- **Where:** [`setManifestValues.ts#L52`](../../src/actions/publish/setManifestValues.ts#L52).
-- **Failure:** authors, keywords and post-activities are unioned; changing a post-activity's parameters publishes both versions, so it runs twice at install.
-- **Fix:** treat caller-supplied arrays as authoritative, or merge post-activities by class.
-
 ### ACT-2026-63 — Medium — Functional — Retained customizing transports cannot be dropped non-interactively
 
 - **Where:** [`setCustomizingTransports.ts#L55`](../../src/actions/publish/setCustomizingTransports.ts#L55).
@@ -77,7 +71,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
-| 6 | `set-manifest-values` | Dead post-activity check (ACT-2026-58), non-strict engines (ACT-2026-59), union-only merge (ACT-2026-62), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). |
+| 6 | `set-manifest-values` | Dead post-activity check (ACT-2026-58), non-strict engines (ACT-2026-59), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). |
 | 7 | `set-optional-release-data` | No issue found. |
 | 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
 | 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts hit cached status ([ACT-2026-17](shared.md)). |
@@ -86,6 +80,15 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-62 — Resolved — Merging with the latest release cannot remove or replace entries
+
+Post activities of the latest release were merged with the input ones by deep equality, so changing a
+post activity's parameters published both versions and it ran twice at install. They are now merged
+by class, compared trimmed and uppercased: an input post activity replaces the latest release one of
+the same class, and latest release post activities of other classes are kept. Authors and keywords
+remain an additive union with the latest release
+([source](../../src/actions/publish/setManifestValues.ts#L92)).
+
 ### ACT-2026-61 — Resolved — Non-interactive devclass may stay unresolved
 
 With `noInquirer`, no devclass and no matching system package, the package objects were read with an
