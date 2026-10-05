@@ -137,6 +137,23 @@ describe('checkEngines', () => {
         expect(output.results[0].reason).toMatch(/not authorized/);
     });
 
+    test('a failed system read is not retried for every requirement', async () => {
+        connector.getSoftwareComponents.mockRejectedValue(new Error('RFC_READ_TABLE not authorized'));
+        connector.getInstalledProducts.mockRejectedValue(new Error('RFC_READ_TABLE not authorized'));
+        const output = await run({ components: { SAP_BASIS: true, SAP_UI: true }, products: { 'ABAP PLATFORM': true, 'S4HANA': true } });
+        expect(output.results.map(o => o.ok)).toEqual([false, false, false, false]);
+        expect(connector.getSoftwareComponents).toHaveBeenCalledTimes(1);
+        expect(connector.getInstalledProducts).toHaveBeenCalledTimes(1);
+    });
+
+    test('a blank support package level is level 0', async () => {
+        connector.getSoftwareComponents.mockResolvedValue([{ component: 'ZCOMP', release: '100', extrelease: '  ', compType: 'A' }]);
+        const output = await run({ components: { ZCOMP: { sp: '>=0' } } });
+        expect(result(output, 'components.ZCOMP')).toMatchObject({ ok: true, actual: 'release 100, sp 0' });
+        const ko = await run({ components: { ZCOMP: { sp: '>=1' } } });
+        expect(result(ko, 'components.ZCOMP')).toMatchObject({ ok: false, actual: 'release 100, sp 0' });
+    });
+
     test('anyOf: passes when one alternative passes, alternatives are not required', async () => {
         const output = await run({
             anyOf: [

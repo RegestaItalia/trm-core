@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckEnginesWorkflowContext, EngineCheckResult } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { satisfiesSapRange, TrmManifestEngineComponentConstraint, TrmManifestEngineProductConstraint, TrmManifestEngines, TrmManifestEngineTableCheck } from "../../manifest";
+import { normalizeSapValue, satisfiesSapRange, TrmManifestEngineComponentConstraint, TrmManifestEngineProductConstraint, TrmManifestEngines, TrmManifestEngineTableCheck } from "../../manifest";
 import { CVERS, PRDVERS } from "../../client/struct";
 
 //note implementation statuses (CWBNTCUST-PRSTATUS)
@@ -27,25 +27,32 @@ function describeConstraints(constraints: object[]): string {
     }).join(' || ');
 }
 
-async function getComponents(context: CheckEnginesWorkflowContext): Promise<CVERS[]> {
+//the read is cached as a promise, so a failed read is not retried for every requirement
+function getComponents(context: CheckEnginesWorkflowContext): Promise<CVERS[]> {
     if (!context.runtime.components) {
-        context.runtime.components = await SystemConnector.getSoftwareComponents();
+        context.runtime.components = SystemConnector.getSoftwareComponents();
     }
     return context.runtime.components;
 }
 
-async function getProducts(context: CheckEnginesWorkflowContext): Promise<PRDVERS[]> {
+function getProducts(context: CheckEnginesWorkflowContext): Promise<PRDVERS[]> {
     if (!context.runtime.products) {
-        context.runtime.products = await SystemConnector.getInstalledProducts();
+        context.runtime.products = SystemConnector.getInstalledProducts();
     }
     return context.runtime.products;
+}
+
+//a blank CVERS-EXTRELEASE means no support package is installed (level 0)
+function getComponentSp(component: CVERS): string {
+    const extrelease = (component.extrelease || '').trim() || '0';
+    return normalizeSapValue(extrelease, 'number') ?? extrelease;
 }
 
 function matchComponent(component: CVERS, constraint: TrmManifestEngineComponentConstraint): boolean {
     if (constraint.release !== undefined && !satisfiesSapRange(component.release, constraint.release, 'release')) {
         return false;
     }
-    if (constraint.sp !== undefined && !satisfiesSapRange(component.extrelease, constraint.sp, 'number')) {
+    if (constraint.sp !== undefined && !satisfiesSapRange(getComponentSp(component), constraint.sp, 'number')) {
         return false;
     }
     return true;
@@ -60,7 +67,7 @@ async function checkComponent(context: CheckEnginesWorkflowContext, name: string
         return { requirement, ok: false, reason: `Cannot read software components: ${errorMessage(e)}` };
     }
     const component = components.find(o => o.component.trim().toUpperCase() === name);
-    const actual = component ? `release ${component.release}, sp ${parseInt(component.extrelease, 10) || 0}` : 'not installed';
+    const actual = component ? `release ${component.release}, sp ${getComponentSp(component)}` : 'not installed';
     if (value === false) {
         return { requirement, actual, ok: !component };
     }

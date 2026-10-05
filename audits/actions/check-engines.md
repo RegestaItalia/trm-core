@@ -13,20 +13,27 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** `{ release: '>=758', patch: '>=3' }` prints "patch >=3 … OK" without checking `patch`, unlike unknown top-level keys, which fail.
 - **Fix:** fail constraints with unsupported properties using the same "update TRM" reason.
 
-### ACT-2026-75 — Low — Technical — Normalization collisions and comparison gaps
-
-- **Where:** `validateEngines.ts` normalization (`sap_basis`/`SAP_BASIS`, `0001234`/`1234` collapse silently); blank `EXTRELEASE` shown as SP 0 but fails `sp >=0`; failed CVERS/PRDVERS reads not cached ([`analyze.ts#L31`](../../src/actions/checkEngines/analyze.ts#L31)).
-- **Fix:** reject post-normalization duplicates, normalize blank SP, cache rejections.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `init` | Unknown nested properties silently accepted (ACT-2026-74); key collisions (ACT-2026-75). |
-| 2 | `analyze` | Main logic correct (read failures fail requirements, unknown top-level keys fail, `anyOf` handled); minor comparison gaps (ACT-2026-75). |
+| 1 | `init` | Unknown nested properties silently accepted (ACT-2026-74). Component, product, and note keys that normalize to the same value are rejected. |
+| 2 | `analyze` | No issue found. Read failures fail requirements and are read once per run, unknown top-level keys fail, `anyOf` is handled, and a blank support package level is evaluated and shown as 0. |
 | — | install wrapper `check-engines` | Skips on `noEngines` or when no engines are declared; prints each unmet requirement before aborting; under a failed `anyOf` it also prints each unmet requirement of every alternative, with its reason or actual value, skipping the contents of a satisfied nested `anyOf`. |
 
 ## Resolved findings
+### ACT-2026-75 — Resolved — Low — Technical — Normalization collisions and comparison gaps
+
+Previously normalization silently collapsed keys such as `sap_basis`/`SAP_BASIS` or note
+`0001234`/`1234`, keeping only the last declaration. `validateEngines` now rejects a component,
+product, or note key that normalizes to the same value as an earlier key in the same map
+([source](../../src/manifest/engines/validateEngines.ts#L58)). Because publish, manifest parsing,
+and `init` share this validation, a colliding declaration is rejected everywhere. A blank
+`EXTRELEASE` was shown as SP 0 but failed `sp >=0`; it is now evaluated and displayed as level 0
+([source](../../src/actions/checkEngines/analyze.ts#L46)). The CVERS and PRDVERS reads are cached as
+promises, so a failed read is attempted once per run rather than once per requirement
+([source](../../src/actions/checkEngines/analyze.ts#L31)).
+
 ### ACT-2026-76 — Resolved — Low — Functional — `anyOf` failures are opaque
 
 Previously the install `check-engines` step printed only "expected at least 1 of N alternatives"

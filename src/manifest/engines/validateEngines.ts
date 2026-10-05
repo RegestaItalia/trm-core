@@ -54,15 +54,27 @@ function checkConstraint(errors: string[], path: string, constraint: any, props:
     });
 }
 
+//keys are case and whitespace (names) or leading-zero (notes) insensitive: two keys normalizing to the same value would collapse
+function checkDuplicate(errors: string[], path: string, seen: Map<string, string>, key: string, normalized: string) {
+    if (seen.has(normalized)) {
+        errors.push(`${path}: "${key}" duplicates "${seen.get(normalized)}".`);
+    } else {
+        seen.set(normalized, key);
+    }
+}
+
 function checkVersionedMap(errors: string[], path: string, map: any, nameRegex: RegExp, props: { [prop: string]: SapRangeMode }, allowFalse: boolean, strict: boolean) {
     if (!isPlainObject(map)) {
         errors.push(`${path}: expected an object.`);
         return;
     }
+    const seen = new Map<string, string>();
     Object.keys(map).forEach(name => {
         const itemPath = `${path}.${name}`;
         if (!nameRegex.test(normalizeEngineName(name))) {
             errors.push(`${itemPath}: invalid name.`);
+        } else {
+            checkDuplicate(errors, path, seen, name, normalizeEngineName(name));
         }
         const value = map[name];
         if (value === true || (value === false && allowFalse)) {
@@ -84,10 +96,13 @@ function checkNotes(errors: string[], path: string, notes: any, strict: boolean)
         errors.push(`${path}: expected an object.`);
         return;
     }
+    const seen = new Map<string, string>();
     Object.keys(notes).forEach(note => {
         const itemPath = `${path}.${note}`;
         if (!NOTE_REGEX.test(note.trim()) || parseInt(note, 10) === 0) {
             errors.push(`${itemPath}: invalid SAP Note number.`);
+        } else {
+            checkDuplicate(errors, path, seen, note, normalizeNoteNumber(note));
         }
         const value = notes[note];
         if (value === true) {

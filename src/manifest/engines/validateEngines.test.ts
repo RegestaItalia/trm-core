@@ -189,6 +189,13 @@ describe('validateEngines', () => {
         expect(validateEngines({ products: { 'S4HANA': [true] } })).toEqual(['engines.products.S4HANA[0]: expected an object.']);
     });
 
+    test('rejects keys that collapse after normalization', () => {
+        expect(validateEngines({ components: { sap_basis: true, SAP_BASIS: { release: '>=750' } } })).toEqual(['engines.components: "SAP_BASIS" duplicates "sap_basis".']);
+        expect(validateEngines({ products: { 'ABAP PLATFORM': true, 'abap  platform ': true } })).toEqual(['engines.products: "abap  platform " duplicates "ABAP PLATFORM".']);
+        expect(validateEngines({ notes: { '1234': true, '0001234': { version: '>=2' } } })).toEqual(['engines.notes: "0001234" duplicates "1234".']);
+        expect(validateEngines({ anyOf: [{ notes: { '1234': true } }, { notes: { '0001234': true } }] })).toEqual([]);
+    });
+
     test('rejects unsafe or malformed table checks', () => {
         expect(validateEngines({ tables: {} })).toHaveLength(1);
         expect(validateEngines({ tables: [{ table: 'TADIR' }] })).toHaveLength(1);

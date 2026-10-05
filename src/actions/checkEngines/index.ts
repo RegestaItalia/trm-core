@@ -60,8 +60,8 @@ export type CheckEnginesActionOutput = {
 }
 
 type WorkflowRuntime = {
-    components?: CVERS[],
-    products?: PRDVERS[]
+    components?: Promise<CVERS[]>,
+    products?: Promise<PRDVERS[]>
 }
 
 /** Internal state shared by the engines-check workflow steps. */
