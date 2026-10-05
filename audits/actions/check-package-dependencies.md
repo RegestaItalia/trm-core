@@ -7,11 +7,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-77 — Medium — Functional — Prerelease versions are treated inconsistently
-
-- **Where:** `semver.satisfies` without `includePrerelease` in [`checkPackageDependencies/analyze.ts#L46`](../../src/actions/checkPackageDependencies/analyze.ts#L46), [`findInstallRelease.ts#L30`](../../src/actions/installDependency/findInstallRelease.ts#L30), [`Lockfile.ts#L89`](../../src/lockfile/Lockfile.ts#L89), [`checkDependants.ts#L52`](../../src/actions/install/checkDependants.ts#L52).
-- **Failure:** installed `1.3.0-beta.1` fails `>=1.0.0`, so `1.2.0` is installed over it with only a "Downgrading" warning.
-- **Fix:** adopt one prerelease policy and never auto-select a version below the installed one.
+No active findings.
 
 ## Step review
 
@@ -19,9 +15,24 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 |---:|---|---|
 | 1 | `init` | No issue found. It rejects duplicate `(name, registry)` keys and invalid or empty version ranges, and normalizes optional input. |
 | 2 | `set-system-packages` | Local-registry packages excluded from the snapshot ([ACT-2026-15](shared.md)). |
-| 3 | `analyze` | One ordered result per declaration, each with a `status` (`ok`, `versionMismatch`, `notFound`, `manifestUnreadable`); prerelease handling (ACT-2026-77). |
+| 3 | `analyze` | One ordered result per declaration, each with a `status` (`ok`, `versionMismatch`, `notFound`, `manifestUnreadable`). Installed prerelease versions are matched with `includePrerelease`, so `1.3.0-beta.1` satisfies `>=1.0.0`. |
 
 ## Resolved findings
+### ACT-2026-77 — Resolved — Medium — Functional — Prerelease versions are treated inconsistently
+
+Previously `semver.satisfies` ran without `includePrerelease`, so an installed `1.3.0-beta.1` failed
+`>=1.0.0` and the install workflow replaced it with `1.2.0` behind a "Downgrading" warning. One
+policy now applies: a version already on the system or pinned by a lockfile is matched with
+`includePrerelease` in [`analyze`](../../src/actions/checkPackageDependencies/analyze.ts#L60),
+[`Lockfile.getLock`](../../src/lockfile/Lockfile.ts#L89),
+[`install` `check-dependants`](../../src/actions/install/checkDependants.ts#L52), and
+[`checkCoreTrmDependencies`](../../src/commons/checkCoreTrmDependencies.ts#L32). Because a satisfied
+installed prerelease is no longer queued for install, no lower release is auto-selected over it.
+Selection of a new registry release in
+[`find-install-release`](../../src/actions/installDependency/findInstallRelease.ts#L32) keeps the
+semver default and picks a prerelease only when the range opts in. A prerelease outside the range,
+such as `2.0.0-beta.1` against `^1.0.0`, is still a `versionMismatch`.
+
 ### ACT-2026-78 — Resolved — Low — Functional — Invalid ranges and unreadable manifests are not distinguished
 
 Previously an invalid range silently evaluated false, and an installed package without a readable

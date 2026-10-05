@@ -46,6 +46,26 @@ describe('checkPackageDependencies', () => {
         ]);
     });
 
+    test('an installed prerelease is matched against the range', async () => {
+        const output = await run([
+            { name: 'beta', version: '>=1.0.0' },
+            { name: 'caret', version: '^1.0.0' },
+            { name: 'below', version: '>=1.3.0' },
+            { name: 'nextMajor', version: '^1.0.0' }
+        ], [
+            installed('beta', withVersion('1.3.0-beta.1')),
+            installed('caret', withVersion('1.3.0-beta.1')),
+            installed('below', withVersion('1.3.0-beta.1')),
+            installed('nextMajor', withVersion('2.0.0-beta.1'))
+        ]);
+        expect(output.dependencyStatus.map(o => [o.dependency.name, o.status])).toEqual([
+            ['beta', 'ok'],
+            ['caret', 'ok'],
+            ['below', 'versionMismatch'],
+            ['nextMajor', 'versionMismatch']
+        ]);
+    });
+
     test('an installed package without a readable manifest is not reported as not found', async () => {
         const throwing = { get: () => { throw new Error('bad manifest'); } };
         const output = await run([

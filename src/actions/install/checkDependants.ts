@@ -49,7 +49,7 @@ export const checkDependants: Step<InstallWorkflowContext> = {
         const upgradedVersion = context.runtime.package.data.manifest.version;
         const dependants = getDependants(context.rawInput.contextData.systemPackages, upgradedPackage).map(dependant => ({
             ...dependant,
-            compatible: satisfies(upgradedVersion, dependant.range)
+            compatible: satisfies(upgradedVersion, dependant.range, { includePrerelease: true })
         }));
 
         if (dependants.length === 0) {

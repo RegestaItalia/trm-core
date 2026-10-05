@@ -57,7 +57,7 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
                     tableData.push('Installed, manifest unreadable');
                 }else{
                     tableData.push(installedVersion);
-                    status = satisfies(installedVersion, dependency.version) ? 'ok' : 'versionMismatch';
+                    status = satisfies(installedVersion, dependency.version, { includePrerelease: true }) ? 'ok' : 'versionMismatch';
                 }
             }
             const match = status === 'ok';

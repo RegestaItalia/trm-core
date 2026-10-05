@@ -86,7 +86,7 @@ export class Lockfile {
 
     public getLock(trmPackage: TrmPackage, versionRange: string): Lock {
         const lock = this.lockfile.packages?.find(o => trmPackage.compareName(o.name) && trmPackage.compareRegistry(RegistryProvider.getRegistry(o.registry)));
-        if (!lock || !satisfies(lock.version, versionRange)) {
+        if (!lock || !satisfies(lock.version, versionRange, { includePrerelease: true })) {
             throw new Error(`Lock for package "${trmPackage.packageName}", registry "${trmPackage.registry.endpoint}" not found`);
         }
         return lock;

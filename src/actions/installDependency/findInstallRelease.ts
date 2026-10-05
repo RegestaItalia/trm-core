@@ -9,6 +9,8 @@ import { Lockfile } from "../../lockfile";
  * Workflow step that selects the dependency release to install.
  * If a lockfile entry exists, its integrity is verified and its version is used; otherwise
  * the newest registry release satisfying the requested semantic-version range is selected.
+ * Registry prereleases are selected only when the range opts in (semver default); installed and
+ * locked prereleases are matched with `includePrerelease`.
  * 
  * 1- find version
  * 
