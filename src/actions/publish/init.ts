@@ -264,7 +264,9 @@ export const init: Step<PublishWorkflowContext> = {
         await context.rawInput.packageData.registry.validatePublish(context.rawInput.packageData.name, context.rawInput.packageData.version, isPrivate);
 
         //7- set sap package
-        var packageNeedsValidation: boolean = false;
+        //if not provided, derive it from the system package (previous publish), then prompt (if allowed)
+        //supplied or derived values are normalized and validated, prompted values are validated by the prompt
+        var packageNeedsValidation: boolean = true;
         if (!context.rawInput.packageData.devclass) {
             const trmPackage = context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry)));
             if (trmPackage) {
@@ -280,12 +282,14 @@ export const init: Step<PublishWorkflowContext> = {
                     validate: async (input: string) => {
                         return await validateDevclass(input, false);
                     }
-                })).devclass.trim().toUpperCase();
-                Logger.log(`Publish devclass set to "${context.rawInput.packageData.devclass}"`, true);
+                })).devclass;
+                packageNeedsValidation = false;
+            } else if (!context.rawInput.packageData.devclass) {
+                throw new Error(`packageData.devclass is required when it cannot be derived from a previous publish and interactive prompts are disabled.`);
             }
-        } else {
-            packageNeedsValidation = true;
         }
+        context.rawInput.packageData.devclass = context.rawInput.packageData.devclass.trim().toUpperCase();
+        Logger.log(`Publish devclass set to "${context.rawInput.packageData.devclass}"`, true);
 
         if (packageNeedsValidation) {
             Logger.loading(`Validating...`);

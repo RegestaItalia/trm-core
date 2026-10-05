@@ -37,12 +37,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** with the version omitted on an existing package, a stable version is published instead of a prerelease.
 - **Fix:** apply the prerelease computation after the automatic increment.
 
-### ACT-2026-61 — Medium — Technical — Non-interactive devclass may stay unresolved
-
-- **Where:** [`publish/init.ts#L268`](../../src/actions/publish/init.ts#L268), [`#L300`](../../src/actions/publish/init.ts#L300).
-- **Failure:** with `noInquirer`, no devclass and no matching system package, reading the package objects with an `undefined` devclass throws a `TypeError`; a devclass derived from the snapshot is never validated or normalized.
-- **Fix:** require the devclass explicitly in non-interactive mode and always validate/normalize it.
-
 ### ACT-2026-62 — Medium — Functional — Merging with the latest release cannot remove or replace entries
 
 - **Where:** [`setManifestValues.ts#L52`](../../src/actions/publish/setManifestValues.ts#L52).
@@ -80,7 +74,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Order | Step | Result |
 |---:|---|---|
 | 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
-| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); non-interactive devclass unresolved (ACT-2026-61); prompted version not cleaned (ACT-2026-67). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
+| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
 | 6 | `set-manifest-values` | Dead post-activity check (ACT-2026-58), non-strict engines (ACT-2026-59), union-only merge (ACT-2026-62), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). |
@@ -92,6 +86,15 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-61 — Resolved — Non-interactive devclass may stay unresolved
+
+With `noInquirer`, no devclass and no matching system package, the package objects were read with an
+`undefined` devclass and failed with a `TypeError`; a devclass derived from the system package was
+neither validated nor normalized. `init` still derives the devclass from the matching system package,
+so a republish needs no explicit devclass, but now fails with a clear error when none is supplied and
+none can be derived. Supplied and derived devclasses are normalized and validated; prompted ones are
+validated by the prompt ([source](../../src/actions/publish/init.ts#L266)).
+
 ### ACT-2026-66 — Resolved — A retained transport can be added twice
 
 The CLI "add" prompt accepted any transport retained from the latest release before checking the
