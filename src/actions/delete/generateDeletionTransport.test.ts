@@ -187,12 +187,28 @@ describe('generateDeletionTransport', () => {
     });
 
     test('unauthorized deletion transport aborts the delete instead of only warning', async () => {
-        const { ctx, registry } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
+        const { ctx, dummy, registry } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
         registry.delete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401')));
 
         await expect(generateDeletionTransport.run(ctx)).rejects.toBeInstanceOf(RegistryDeletionTransportUnauthorizedError);
         expect(imported.import).not.toHaveBeenCalled();
         expect(ctx.output.transport).toBeUndefined();
+        // Released: it can't be deleted, and it's neither restored nor forwarded.
+        expect(dummy.delete).not.toHaveBeenCalled();
+        expect(ctx.revert.dele).toBeUndefined();
+    });
+
+    test('unauthorized deletion is reported even when the released transport could not be deleted', async () => {
+        const { ctx, dummy, registry } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
+        const authorizationError = new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401'));
+        registry.delete.mockRejectedValue(authorizationError);
+        dummy.delete.mockRejectedValue(new Error('Request DEVK9DELE is released'));
+
+        await expect(generateDeletionTransport.run(ctx)).rejects.toBe(authorizationError);
+
+        await generateDeletionTransport.revert(ctx);
+        expect(dummy.delete).not.toHaveBeenCalled();
+        expect(Transport.upload).not.toHaveBeenCalled();
     });
 
     test('lock conflicts abort before any object is changed', async () => {

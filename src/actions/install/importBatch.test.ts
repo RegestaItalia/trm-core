@@ -418,6 +418,8 @@ describe('importBatch rollback checkpoint', () => {
 
         await expect(deleteImportedEntries(context)).rejects.toBe(authorizationError);
 
+        // The released cleanup transport can't be deleted: the authorization error is reported as is.
+        expect(cleanupTransport.delete).not.toHaveBeenCalled();
         expect(SystemConnector.deleteTemporaryPackage).toHaveBeenNthCalledWith(1, '$TMP');
         expect(SystemConnector.deleteTemporaryPackage).toHaveBeenNthCalledWith(2, '$OTHER');
         expect(context.revert.cleanupImported).toBe(true);

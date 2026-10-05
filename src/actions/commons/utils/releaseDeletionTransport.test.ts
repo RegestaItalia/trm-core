@@ -11,7 +11,7 @@ jest.mock('../../../transport', () => ({
 }));
 
 import { Logger } from 'trm-commons';
-import { RegistryType } from '../../../registry';
+import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../../registry';
 import { Transport } from '../../../transport';
 import { releaseDeletionTransport } from './releaseDeletionTransport';
 
@@ -66,6 +66,33 @@ describe('releaseDeletionTransport registry', () => {
         expect(fileRegistry.delete).not.toHaveBeenCalled();
         expect(realRegistry.delete).toHaveBeenCalledWith(toc);
         expect(Transport.upload).toHaveBeenCalledWith('DEVK9DELE', expect.objectContaining({ binary: dele }));
+    });
+
+    test('an unauthorized deletion rethrows the original error without deleting the released transport', async () => {
+        const transport = deletionTransport();
+        const authorizationError = new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401'));
+        const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockRejectedValue(authorizationError) } as any;
+        const ctx = cleanupContext();
+
+        await expect(releaseDeletionTransport(transport, registry, ctx)).rejects.toBe(authorizationError);
+
+        expect(transport.release).toHaveBeenCalled();
+        expect(transport.delete).not.toHaveBeenCalled();
+        // Nothing was imported: nothing to restore or forward.
+        expect(ctx.revert.dele).toBeUndefined();
+        expect(Transport.upload).not.toHaveBeenCalled();
+    });
+
+    test('an unauthorized helper deletion keeps the snapshot of the caller', async () => {
+        const authorizationError = new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401'));
+        const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockRejectedValue(authorizationError) } as any;
+        const ctx = cleanupContext();
+        const snapshot = { trkorr: 'DEVK9UPGRADE', entries: undefined, binaries: toc };
+        ctx.revert.dele = snapshot;
+
+        await expect(releaseDeletionTransport(deletionTransport(), registry, ctx, false)).rejects.toBe(authorizationError);
+
+        expect(ctx.revert.dele).toBe(snapshot);
     });
 
     test('an unreadable local artifact fails before the transport is released', async () => {

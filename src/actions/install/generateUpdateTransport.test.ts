@@ -47,7 +47,8 @@ jest.mock('../../transport', () => {
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
-import { RegistryType } from '../../registry';
+import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
+import { isDeletionForwardable } from '../commons/utils';
 import { deleteTemporaryCleanupPackages, generateUpdateTransport } from './generateUpdateTransport';
 
 function context() {
@@ -298,6 +299,32 @@ describe('generateUpdateTransport revert', () => {
             expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('customizing of the installed release is kept'));
         });
 
+    });
+
+    test('an unauthorized deletion transport only warns: the upgrade continues without forwarding it', async () => {
+        const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+        ctx.runtime.update.getDevclass = () => 'Z_ROOT';
+        jest.spyOn(SystemConnector, 'getSubpackages').mockResolvedValue([]);
+        jest.spyOn(SystemConnector, 'getDevclassObjects').mockResolvedValue([]);
+        ctx.rawInput.packageData.registry.delete = jest.fn().mockRejectedValue(
+            new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401')));
+        // Deleting the released transport would fail: it must not be attempted.
+        dummy.delete.mockRejectedValue(new Error('Request DEVK9DELE is released'));
+        const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+
+        await expect(generateUpdateTransport.run(ctx)).resolves.toBeUndefined();
+
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('not authorized to generate cleanup transports'));
+        expect(dummy.release).toHaveBeenCalled();
+        expect(dummy.delete).not.toHaveBeenCalled();
+        expect(Transport.upload).not.toHaveBeenCalled();
+        expect(ctx.revert.dele).toBeUndefined();
+        expect(isDeletionForwardable(ctx)).toBe(false);
+
+        // A later rollback has nothing to restore from the never-imported transport.
+        await generateUpdateTransport.revert(ctx);
+        expect(dummy.delete).not.toHaveBeenCalled();
+        expect(Transport.upload).not.toHaveBeenCalled();
     });
 
     describe('namespace of the installed release', () => {

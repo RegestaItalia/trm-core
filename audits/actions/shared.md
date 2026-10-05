@@ -18,12 +18,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** re-importing the pre-deletion copy or the retained-table backup ends with RC 8/12, yet the revert logs "restored" and resolves. Staging cleanup then proceeds and the TRM record is restored over missing objects; the rollback looks clean.
 - **Fix:** throw when the restore RC exceeds the threshold so the best-effort pass reports it.
 
-### ACT-2026-07 — High — Technical — Unauthorized deletion path is masked by deleting a released transport
-
-- **Where:** [`releaseDeletionTransport.ts#L31`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L31); callers branch on the error type at [`packageCleanup.ts#L464`](../../src/actions/commons/utils/packageCleanup.ts#L464) and [`importBatch.ts#L117`](../../src/actions/install/importBatch.ts#L117).
-- **Failure:** the transport is released at L14, then on `RegistryDeletionTransportUnauthorizedError` it is deleted (the caller's own comment states it cannot be). The delete error replaces the authorization error, so the intended "warn and continue" upgrade path (`requireDeletion: false`) is unreachable and upgrades fail hard for users without deletion rights. If SAP does delete it, `revert.dele` is cleared and the revert later calls `canBeDeleted()` on a missing request (see ACT-2026-17).
-- **Fix:** do not delete a released transport; always rethrow the original authorization error.
-
 ### ACT-2026-08 — Medium — Technical — Upgrade-cleanup revert restores payloads after a failed cleanup
 
 - **Where:** [`packageCleanup.ts#L510`](../../src/actions/commons/utils/packageCleanup.ts#L510) vs the guards in [`install/init.ts#L214`](../../src/actions/install/init.ts#L214) and `prepare*.ts`.
@@ -121,12 +115,23 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `retainedWorkflow` | Run/revert tracking correct; rollback loses diagnostics and cannot be retried (ACT-2026-19). |
 | `withScopedPrefix` | No issue found; restores prefixes in `finally`. |
 | `restoreTransport` / `revertPreparedTransport` | Import return code ignored (ACT-2026-06). |
-| `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized path deletes a released transport (ACT-2026-07); context overwrite and dead assignment (ACT-2026-21). |
+| `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized deletion keeps the released transport, clears the rollback snapshot so it is neither restored nor forwarded, and rethrows the original authorization error (ACT-2026-07, resolved); context overwrite and dead assignment (ACT-2026-21). |
 | `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); restore without cleanup success (ACT-2026-08); staging package leak (ACT-2026-09). |
 | `Transport` status cache (used by every revert) | Cached E070 never invalidated (ACT-2026-17); release and queue polling unbounded (ACT-2026-14). |
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-07 — Resolved — High — Technical — Unauthorized deletion path is masked by deleting a released transport
+
+On `RegistryDeletionTransportUnauthorizedError`, `releaseDeletionTransport` no longer tries to delete
+the already released transport of copies. It clears the `revert.dele` snapshot of its own call, so
+the never-imported transport is neither restored nor forwarded through the landscape. A helper
+call keeps the snapshot of its caller. Then it always rethrows the original authorization error.
+Callers branch on that error type again. The upgrade `requireDeletion: false` path restores the
+cleanup assignments, warns and continues. Delete and `import-batch` rollback cleanup report the
+authorization error itself
+([source](../../src/actions/commons/utils/releaseDeletionTransport.ts#L34)).
+
 ### ACT-2026-05 — Resolved — High — Functional — Cleanup deletes a namespace still used by other packages
 
 `R3TR NSPC` entries of the installed transport (e.g. the landscape transport of an install that

@@ -32,11 +32,10 @@ export async function releaseDeletionTransport(
     try {
         deleBinaries = await deletionRegistry.delete(tocBinaries);
     } catch (e) {
-        if (e instanceof RegistryDeletionTransportUnauthorizedError) {
-            await deletionTransport.delete();
-            if (retainSnapshot) {
-                context.revert.dele = undefined;
-            }
+        // The transport is already released and can't be deleted: it's a harmless transport of copies.
+        // Nothing was imported, so there is nothing to restore and nothing to forward.
+        if (e instanceof RegistryDeletionTransportUnauthorizedError && retainSnapshot) {
+            context.revert.dele = undefined;
         }
         throw e;
     }
