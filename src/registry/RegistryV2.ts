@@ -23,6 +23,12 @@ const AXIOS_CTX = "RegistryV2";
 
 export const PUBLIC_RESERVED_KEYWORD = 'public';
 
+const PUBLISH_POLL_INTERVAL_MS = 5000;
+const PUBLISH_POLL_TIMEOUT_MS = 30 * 60 * 1000;
+const PUBLISH_POLL_MAX_FAILURES = 3;
+
+const isPublishStatus = (status: Publish): boolean => !!status && Number.isInteger(status.steps) && Number.isInteger(status.current_step);
+
 export class RegistryV2 implements AbstractRegistry {
     private _cache: NodeCache = new NodeCache({ stdTTL: 60, useClones: false });
     private _registryType: RegistryType;
@@ -544,19 +550,39 @@ export class RegistryV2 implements AbstractRegistry {
                 lastRefresh: new Date().toLocaleTimeString()
             });
 
+            //the outcome of a publish that can't be followed is unknown: never report it as a success
+            const unknownOutcome = (reason: string) => new Error(`${reason}; the outcome of publishing ${fullName} ${version} is unknown, check the registry before publishing again.`);
+            const deadline = Date.now() + PUBLISH_POLL_TIMEOUT_MS;
+            let pollFailures = 0;
             try {
+                if (!isPublishStatus(publishStatus)) {
+                    throw unknownOutcome(`Registry returned an invalid publish status`);
+                }
                 while (publishStatus.current_step < publishStatus.steps) {
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                    publishStatus = (await this._axiosInstance.get<Publish>(progressPoolUrl)).data;
+                    if (Date.now() >= deadline) {
+                        throw unknownOutcome(`Registry publish did not complete within ${PUBLISH_POLL_TIMEOUT_MS / 60000} minutes`);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, PUBLISH_POLL_INTERVAL_MS));
+                    try {
+                        publishStatus = (await this._axiosInstance.get<Publish>(progressPoolUrl)).data;
+                        pollFailures = 0;
+                    } catch (e) {
+                        //tolerate transient failures
+                        pollFailures++;
+                        Logger.error(e.toString(), true);
+                        if (pollFailures >= PUBLISH_POLL_MAX_FAILURES) {
+                            throw unknownOutcome(`Unable to check publish status on registry (${e.message || e})`);
+                        }
+                        continue;
+                    }
+                    if (!isPublishStatus(publishStatus)) {
+                        throw unknownOutcome(`Registry returned an invalid publish status`);
+                    }
                     logProgress.update(publishStatus.current_step, {
                         message: publishStatus.current_step_message || '',
                         lastRefresh: new Date().toLocaleTimeString()
                     });
                 }
-            } catch (e) {
-                Logger.error(e.toString());
-                Logger.warning(`Unable to check status on registry, check manually`);
-                return;
             } finally {
                 logProgress.stop();
             }

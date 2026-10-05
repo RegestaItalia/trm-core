@@ -13,12 +13,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** `inc('latest')` is `null` (non-interactive fails later with "Package version missing"); the file's manifest is merged regardless of package name; its CUST transports are classified as retained, skipped by generation, and ignored by `FileSystem.publish`, so customizing silently disappears.
 - **Fix:** do not treat the target file as latest for LOCAL, or validate its name and return the real version.
 
-### ACT-2026-57 — High — Technical — Async registry publish failures are reported as success
-
-- **Where:** [`RegistryV2.ts#L556`](../../src/registry/RegistryV2.ts#L556).
-- **Failure:** on 202, polling errors are logged as "check manually" and `publish` resolves; the workflow reports success and records the release on the origin system even if the server job failed. Polling is unbounded. A rejection the registry reports in the final status (`data.error`) now fails the publish, but a status without `data` or a failed poll is still treated as success.
-- **Fix:** fail (or return an explicit unknown state that blocks success) and bound polling.
-
 ### ACT-2026-58 — Medium — Technical — Post-activity existence check is dead
 
 - **Where:** [`PostActivity.ts#L117`](../../src/manifest/PostActivity.ts#L117) does not await `getObject`; used at [`setManifestValues.ts#L391`](../../src/actions/publish/setManifestValues.ts#L391) and [`PostActivity.ts#L22`](../../src/manifest/PostActivity.ts#L22).
@@ -76,10 +70,21 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
 | 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts hit cached status ([ACT-2026-17](shared.md)). |
 | 13 | `release-transport` | Prefixes restored, revert best-effort; unbounded release wait ([ACT-2026-14](shared.md)). |
-| 14 | `publish-to-registry` | Async status failures reported as success (ACT-2026-57). |
+| 14 | `publish-to-registry` | An async publish whose status cannot be followed fails with an unknown outcome; polling is bounded (ACT-2026-57, resolved). |
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-57 — Resolved — Async registry publish failures are reported as success
+
+On 202, a failed status poll was logged as "check manually" and `publish` resolved, so the workflow
+reported success and recorded the release even if the registry job failed; polling was unbounded.
+Polling now tolerates up to three consecutive poll failures and stops after 30 minutes. An exhausted
+poll, a timeout, or a malformed status (non-integer `steps`/`current_step`) fails the publish with an
+error stating the outcome is unknown and the registry must be checked before publishing again. A
+completed status still fails on `data.error`; a completed status without `data` is success, since
+completion is reported by the steps. Released transports are not deleted by the rollback
+([source](../../src/registry/RegistryV2.ts#L553)).
+
 ### ACT-2026-62 — Resolved — Merging with the latest release cannot remove or replace entries
 
 Post activities of the latest release were merged with the input ones by deep equality, so changing a

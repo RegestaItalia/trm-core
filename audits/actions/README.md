@@ -39,9 +39,9 @@ feature, missing case).
 | `delete` | 9 | 0 | 0 | 1 | 0 | [Package delete](delete.md) |
 | `install-dependency` | 6 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 24 | 1 | 4 | 8 | 3 | [Package install](install.md) |
-| `publish` | 15 | 0 | 2 | 4 | 4 | [Package publish](publish.md) |
+| `publish` | 15 | 0 | 1 | 4 | 4 | [Package publish](publish.md) |
 | Shared steps/callbacks | 12 | 1 | 3 | 10 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **2** | **10** | **23** | **11** | |
+| **Total** | | **2** | **9** | **23** | **11** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
@@ -70,6 +70,6 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 4. **[ACT-2026-28](install.md)** — keep retained tables out of the rollback cleanup.
 5. **[ACT-2026-23](install.md)**, **[ACT-2026-24](install.md)** — make dependency resolution consistent (major bumps, diamonds).
 6. **[ACT-2026-07](shared.md)**, **[ACT-2026-29](install.md)**, **[ACT-2026-85](cg3z.md)** — unauthorized deletion path, queued landscape transport after rollback, cg3z rollback.
-7. **[ACT-2026-56](publish.md)**, **[ACT-2026-57](publish.md)** — local overwrite and async publish status.
+7. **[ACT-2026-56](publish.md)** — local overwrite.
 
 These findings were identified by static review and were not reproduced against SAP or a registry.

@@ -58,12 +58,50 @@ describe('registry publish status', () => {
         await expect(registry().publish('pkg', '1.0.0', artifact)).rejects.toThrow('Registry rejected publish: Invalid package manifest');
     });
 
-    test('only warns when the status cannot be polled', async () => {
+    test('tolerates transient status polling failures', async () => {
+        accepted();
+        get.mockRejectedValueOnce(new Error('network down'))
+            .mockRejectedValueOnce(new Error('network down'))
+            .mockResolvedValue({ data: { progress_pool_url: '', steps: 5, current_step: 5, data: { integrity: 'registry-sha' } } });
+
+        await expect(registry().publish('pkg', '1.0.0', artifact)).resolves.toEqual({ integrity: 'registry-sha' });
+        expect(get).toHaveBeenCalledTimes(3);
+    });
+
+    test('fails with an unknown outcome when the status cannot be polled', async () => {
         accepted();
         get.mockRejectedValue(new Error('network down'));
 
-        await expect(registry().publish('pkg', '1.0.0', artifact)).resolves.toBeUndefined();
-        expect(warning).toHaveBeenCalledWith(expect.stringContaining('check manually'));
+        await expect(registry().publish('pkg', '1.0.0', artifact)).rejects.toThrow(/Unable to check publish status on registry \(network down\).*outcome of publishing pkg 1\.0\.0 is unknown/);
+        expect(get).toHaveBeenCalledTimes(3);
+        expect(warning).not.toHaveBeenCalled();
+    });
+
+    test('fails with an unknown outcome on an invalid status', async () => {
+        accepted();
+        get.mockResolvedValue({ data: {} });
+
+        await expect(registry().publish('pkg', '1.0.0', artifact)).rejects.toThrow(/invalid publish status.*unknown/);
+    });
+
+    test('fails with an unknown outcome on an invalid accepted status', async () => {
+        post.mockResolvedValue({ status: 202, data: { progress_pool_url: 'http://localhost/status/1' } });
+
+        await expect(registry().publish('pkg', '1.0.0', artifact)).rejects.toThrow(/invalid publish status.*unknown/);
+        expect(get).not.toHaveBeenCalled();
+    });
+
+    test('stops polling when the publish does not complete in time', async () => {
+        accepted();
+        let now = 0;
+        jest.spyOn(Date, 'now').mockImplementation(() => now);
+        get.mockImplementation(async () => {
+            now += 10 * 60 * 1000;
+            return { data: { progress_pool_url: '', steps: 5, current_step: 2 } };
+        });
+
+        await expect(registry().publish('pkg', '1.0.0', artifact)).rejects.toThrow(/did not complete within 30 minutes.*unknown/);
+        expect(get).toHaveBeenCalledTimes(3);
     });
 
     test('returns no integrity for a sync publish', async () => {
