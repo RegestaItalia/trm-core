@@ -563,6 +563,12 @@ export class RFCClient implements IClient {
         });
     }
 
+    public async deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        await this._call("/ATRM/DELETE_INSTALL_DEVC", {
+            installdevc: installDevc
+        });
+    }
+
     public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
         await this._call("/ATRM/SET_INSTALL_DEVC", {
             package: data.package,

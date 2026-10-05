@@ -16,7 +16,7 @@ import { checkDependencyCycles } from "./checkDependencyCycles";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { addNamespace } from "./addNamespace";
-import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT } from "../../client";
+import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../../client";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { generateDevclass } from "./generateDevclass";
 import { prepareDevc } from "./prepareDevc";
@@ -283,6 +283,8 @@ type WorkflowRevert = {
     /** Set before the install transports are written, as SAP may commit them and still fail. */
     metadataTransportsWriteStarted?: boolean,
     metadataPackageRegistry?: string,
+    /** Install package mappings written by this install. */
+    metadataInstallDevc?: ZTRM_INSTALLDEVC[],
     metadataPackageRow?: TrmPackageUpdateData,
     metadataPreviousPackageRow?: TrmPackageUpdateData,
     namespace?: string

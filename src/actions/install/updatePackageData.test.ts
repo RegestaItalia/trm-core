@@ -1,6 +1,7 @@
 jest.mock('../../systemConnector', () => ({
     SystemConnector: {
         setInstallDevc: jest.fn(),
+        deleteInstallDevc: jest.fn(),
         restoreInstallMetadata: jest.fn(),
         setInstallTransports: jest.fn(),
         updateTrmPackageData: jest.fn()
@@ -47,6 +48,7 @@ describe('install package metadata writes', () => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
         jest.spyOn(SystemConnector, 'setInstallDevc').mockResolvedValue(undefined);
+        jest.spyOn(SystemConnector, 'deleteInstallDevc').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'restoreInstallMetadata').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'setInstallTransports').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'updateTrmPackageData').mockResolvedValue(undefined);
@@ -305,6 +307,107 @@ describe('install package metadata writes', () => {
             packageExists: false,
             installDevc: [],
             installTr: []
+        });
+    });
+
+    describe('stored mappings of removed devclasses', () => {
+        const row = (original: string, install: string) => ({
+            package_name: 'pkg', package_registry: 'public', original_devclass: original, install_devclass: install
+        });
+
+        function upgrade() {
+            const ctx = context();
+            ctx.runtime.update = {};
+            ctx.rawInput.installData.installDevclass.keepOriginal = false;
+            ctx.rawInput.installData.installDevclass.replacements = [
+                { originalDevclass: 'ZROOT', installDevclass: 'ZROOT_NEW' },
+                { originalDevclass: 'ZADDED', installDevclass: 'ZADDED_T' }
+            ];
+            ctx.runtime.previousInstallPackages = [
+                { originalDevclass: 'ZROOT', installDevclass: 'ZROOT_T' },
+                { originalDevclass: 'ZREMOVED', installDevclass: 'ZREMOVED_T' }
+            ];
+            return ctx;
+        }
+
+        test('deletes them after writing the new mappings', async () => {
+            await updatePackageData.run(upgrade());
+
+            expect(SystemConnector.deleteInstallDevc).toHaveBeenCalledWith([row('ZREMOVED', 'ZREMOVED_T')]);
+            expect((SystemConnector.deleteInstallDevc as jest.Mock).mock.invocationCallOrder[0])
+                .toBeGreaterThan((SystemConnector.setInstallDevc as jest.Mock).mock.invocationCallOrder[0]);
+        });
+
+        test('nothing is deleted when every stored mapping is rewritten', async () => {
+            const ctx = upgrade();
+            ctx.runtime.previousInstallPackages = [{ originalDevclass: 'ZROOT', installDevclass: 'ZROOT_T' }];
+            await updatePackageData.run(ctx);
+
+            expect(SystemConnector.deleteInstallDevc).not.toHaveBeenCalled();
+        });
+
+        test('keep-original upgrades delete mappings of the previously renamed install', async () => {
+            const ctx = upgrade();
+            ctx.rawInput.installData.installDevclass.keepOriginal = true;
+            ctx.rawInput.installData.installDevclass.replacements = [];
+            await updatePackageData.run(ctx);
+
+            expect(SystemConnector.deleteInstallDevc).toHaveBeenCalledWith([row('ZROOT', 'ZROOT_T'), row('ZREMOVED', 'ZREMOVED_T')]);
+        });
+
+        test('a failed deletion is rolled back: added mappings removed and previous mappings restored', async () => {
+            const ctx = upgrade();
+            const failure = new Error('delete response lost');
+            (SystemConnector.deleteInstallDevc as jest.Mock).mockRejectedValueOnce(failure);
+
+            await expect(updatePackageData.run(ctx)).rejects.toBe(failure);
+            expect(SystemConnector.setInstallTransports).not.toHaveBeenCalled();
+            await updatePackageData.revert(ctx);
+
+            expect(SystemConnector.deleteInstallDevc).toHaveBeenLastCalledWith([row('ZADDED', 'ZADDED_T')]);
+            expect(SystemConnector.setInstallDevc).toHaveBeenLastCalledWith([row('ZROOT', 'ZROOT_T'), row('ZREMOVED', 'ZREMOVED_T')]);
+            expect(SystemConnector.setInstallTransports).not.toHaveBeenCalled();
+        });
+
+        test('revert keeps restoring after the added-mapping deletion fails and surfaces that failure', async () => {
+            const ctx = upgrade();
+            jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
+            await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
+            (SystemConnector.deleteInstallDevc as jest.Mock).mockRejectedValueOnce(new Error('cleanup failed'));
+            (SystemConnector.setInstallDevc as jest.Mock).mockRejectedValueOnce(new Error('restore failed'));
+
+            await expect(updatePackageData.revert(ctx)).rejects.toThrow('cleanup failed');
+
+            expect(SystemConnector.setInstallDevc).toHaveBeenLastCalledWith([row('ZROOT', 'ZROOT_T'), row('ZREMOVED', 'ZREMOVED_T')]);
+            expect(SystemConnector.setInstallTransports).toHaveBeenLastCalledWith('pkg', 'public', []);
+        });
+
+        test('revert deletes added mappings even without previous mappings', async () => {
+            const ctx = upgrade();
+            ctx.runtime.previousInstallPackages = [];
+            jest.spyOn(SystemConnector, 'setInstallTransports').mockRejectedValueOnce(new Error('transports failed'));
+            await expect(updatePackageData.run(ctx)).rejects.toThrow('transports failed');
+            (SystemConnector.deleteInstallDevc as jest.Mock).mockClear();
+
+            await updatePackageData.revert(ctx);
+
+            expect(SystemConnector.deleteInstallDevc).toHaveBeenCalledWith([row('ZROOT', 'ZROOT_NEW'), row('ZADDED', 'ZADDED_T')]);
+        });
+
+        test('upgrade rollback with a snapshot replaces the mappings atomically', async () => {
+            const ctx = upgrade();
+            const previousRow = { package_name: 'pkg', package_registry: 'public', devclass: 'ZROOT_T' };
+            ctx.runtime.update = { getMetadataSnapshot: () => previousRow };
+            jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
+            await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
+            (SystemConnector.deleteInstallDevc as jest.Mock).mockClear();
+
+            await updatePackageData.revert(ctx);
+
+            expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith(expect.objectContaining({
+                installDevc: [row('ZROOT', 'ZROOT_T'), row('ZREMOVED', 'ZREMOVED_T')]
+            }));
+            expect(SystemConnector.deleteInstallDevc).not.toHaveBeenCalled();
         });
     });
 });

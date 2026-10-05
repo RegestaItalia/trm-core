@@ -49,6 +49,15 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             Logger.loading(`Checking package replacements...`);
             context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.rawInput.packageData.registry);
         }
+        //drop replacements of devclasses that are not part of the release (e.g. removed in this version)
+        const originalDevclasses = flattenDevclasses(context.runtime.package.hierarchy);
+        context.rawInput.installData.installDevclass.replacements = context.rawInput.installData.installDevclass.replacements.filter(replacement => {
+            if (originalDevclasses.includes(replacement.originalDevclass)) {
+                return true;
+            }
+            Logger.log(`Ignoring package replacement ${replacement.originalDevclass} -> ${replacement.installDevclass}: devclass is not part of the release`, true);
+            return false;
+        });
         //if there are replacements and they all equal to original ask if you should continue
         const replacementsKeepOriginal = context.rawInput.installData.installDevclass.replacements.length > 0
             && context.rawInput.installData.installDevclass.replacements.every(replacement => replacement.installDevclass === replacement.originalDevclass);
@@ -97,8 +106,7 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
 
         const inq1Prompts: Question[] = [];
         Logger.loading(`Analyzing package replacements...`);
-        const originalDevclassFlat = flattenDevclasses(context.runtime.package.hierarchy);
-        for (const originalDevclass of originalDevclassFlat) {
+        for (const originalDevclass of originalDevclasses) {
             let adaptDevclassName = originalDevclass;
             const replacement = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalDevclass);
             if (updateNamespace) {

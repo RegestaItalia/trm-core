@@ -322,6 +322,11 @@ export namespace SystemConnector {
         return systemConnector.setInstallDevc(installDevc);
     }
 
+    export async function deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.deleteInstallDevc(installDevc);
+    }
+
     export async function restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
         await checkSystemConnector();
         return systemConnector.restoreInstallMetadata(data);

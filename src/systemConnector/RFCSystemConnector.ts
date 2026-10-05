@@ -224,6 +224,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.setInstallDevc(installDevc);
     }
 
+    public async deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        return this._client.deleteInstallDevc(installDevc);
+    }
+
     public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
         return this._client.restoreInstallMetadata(data);
     }

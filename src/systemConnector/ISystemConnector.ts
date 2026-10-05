@@ -60,6 +60,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     importTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean) => Promise<struct.STMS_TP_IMPORT | void>,
     importTransportMultiple: (trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean) => Promise<struct.STMS_TP_IMPORT | void>,
     setInstallDevc: (installDevc: struct.ZTRM_INSTALLDEVC[]) => Promise<void>,
+    deleteInstallDevc: (installDevc: struct.ZTRM_INSTALLDEVC[]) => Promise<void>,
     restoreInstallMetadata: (data: TrmPackageMetadataRestoreData) => Promise<void>,
     setInstallTransports: (packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]) => Promise<void>,
     getObjectsList: () => Promise<struct.KO100[]>,

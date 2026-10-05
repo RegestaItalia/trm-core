@@ -25,12 +25,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** A→B, A→C, B→D, C→D with D missing: B installs D in its clone only; C reinstalls D, failing on D's package lock (held until the root finishes) or on "object(s) already exist". The whole install rolls back.
 - **Fix:** return every package a nested install installed (or share one snapshot) and treat compatible installed dependencies as no-ops.
 
-### ACT-2026-25 — High — Functional — Stored mappings for removed devclasses break upgrades
-
-- **Where:** [`setInstallDevclass.ts#L53`](../../src/actions/install/setInstallDevclass.ts#L53) keeps all stored rows; [`generateDevclass.ts#L111`](../../src/actions/install/generateDevclass.ts#L111).
-- **Failure:** v1 had ZFOO and ZFOO_OLD (renamed); v2 drops ZFOO_OLD. Its stored row has no parent in the new hierarchy, becomes a second root, and every upgrade fails with "Multiple roots found"; the stale row is also written back.
-- **Fix:** filter replacements to the devclasses of the incoming hierarchy.
-
 ### ACT-2026-26 — High — Functional — Local (`.trm`) installs use the wrong registry key
 
 - **Where:** [`install/init.ts#L166`](../../src/actions/install/init.ts#L166), [`setInstallDevclass.ts#L56`](../../src/actions/install/setInstallDevclass.ts#L56) and [`actionLocks.ts#L23`](../../src/actions/commons/utils/actionLocks.ts#L23) use the file directory as endpoint; [`updatePackageData.ts#L45`](../../src/actions/install/updatePackageData.ts#L45) stores the real registry.
@@ -137,18 +131,18 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
 | 8 | `check-dependencies` | Queues missing and incompatible dependencies separately, with the installed version; a downgrade must be confirmed by the dependency install ([ACT-2026-81](install-dependency.md), resolved). |
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
-| 10 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
+| 10 | `set-install-devclass` | Stored and explicit mappings of devclasses not in the release are dropped before use ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved); wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |
 | 12 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
 | 13 | `add-namespace` | Namespace derived from the target root package, or from the only reserved namespace used by a subpackage; more than one reserved namespace is rejected before any system change ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
-| 14 | `generate-devclass` | Fails with "Multiple roots" on inherited or stale mappings (ACT-2026-22, ACT-2026-25). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
+| 14 | `generate-devclass` | Fails with "Multiple roots" on inherited mappings (ACT-2026-22); stale stored mappings no longer reach it ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
 | 15 | `generate-update-transport` | Silently skipped for local registries (ACT-2026-32); revert restores without checking cleanup success ([ACT-2026-08](shared.md)) and leaks the staging package ([ACT-2026-09](shared.md)). Deletes the installed release's customizing by key, without asking, before the new customizing is imported, unless `noCust` ([ACT-2026-48](delete.md), resolved). |
 | 16–19 | `prepare-devc`, `prepare-tadir`, `prepare-lang`, `prepare-cust` | Forward flow correct; test-import RC is checked. `prepare-cust` revert is not best-effort (ACT-2026-39). |
 | 20 | `import-batch` | Batch RC ignored (see *Reconsideration of accepted findings*). Rollback drops retained tables (ACT-2026-28), deletes unsnapshotted pre-existing objects (ACT-2026-30), and always fails for local registries (ACT-2026-27). |
 | 21 | `generate-landscape-transport` | Locked namespace silently omitted (ACT-2026-44). |
 | 22 | `execute-post-activities` | Global prefix clobbered ([ACT-2026-18](shared.md)). `&LANDSCAPE_TRANSPORT&` intentionally resolves to an empty string without a landscape transport (ACT-2026-43, non-relevant). |
 | 23 | `release-install-transports` | Released transport stays queued in the target after rollback (ACT-2026-29); unbounded release wait ([ACT-2026-14](shared.md)). |
-| 24 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). Records the imported CUST and LANG transports in `/ATRM/INSTALLTR` and restores the previous ones on revert ([ACT-2026-48](delete.md), resolved). |
+| 24 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). After writing the new mappings, deletes the stored rows of devclasses no longer installed through `deleteInstallDevc`; without a metadata snapshot, the revert deletes the mappings this install added and re-upserts the previous ones, attempting each and surfacing the first failure ([ACT-2026-90](#act-2026-90--resolved--mappings-of-removed-devclasses-are-deleted), resolved). Records the imported CUST and LANG transports in `/ATRM/INSTALLTR` and restores the previous ones on revert ([ACT-2026-48](delete.md), resolved). |
 
 ## Reconsideration of accepted findings
 
@@ -164,6 +158,28 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-90 — Resolved — Mappings of removed devclasses are deleted
+
+trm-server now provides `/ATRM/DELETE_INSTALL_DEVC` (RFC) and the `delete_install_devc` REST route
+(`DELETE`, body `{ installdevc }`), both calling `/ATRM/CL_UTILITIES=>delete_install_devclass`, which
+deletes the given `/ATRM/INSTDEVC` keys. trm-core exposes it as `SystemConnector.deleteInstallDevc`.
+After writing the new mappings, `update-package-data` deletes the stored rows whose original devclass
+is not rewritten (removed devclasses, or every renamed mapping when the upgrade keeps the original
+names), so the update and delete cleanups no longer see them. Without a metadata snapshot, the revert
+deletes the mappings this install added before re-upserting the previous ones (which also restores the
+deleted rows), attempts each operation, and surfaces the first failure; with a snapshot,
+`restoreInstallMetadata` replaces them atomically
+([source](../../src/actions/install/updatePackageData.ts#L97)).
+
+### ACT-2026-25 — Resolved — Stored mappings of removed devclasses are ignored
+
+`set-install-devclass` now drops replacements, stored or explicit, whose original devclass is not part
+of the incoming release before anything else uses them, including the keep-original shortcut. A
+devclass removed in the new version therefore no longer becomes a second root in `generate-devclass`,
+is no longer counted as kept by the update cleanup (so the upgrade removes it as obsolete), and is no
+longer written back. Its existing row in `/ATRM/INSTDEVC` is not deleted, because that write only
+upserts: it is deleted by `update-package-data`, see [ACT-2026-90](#act-2026-90--resolved--mappings-of-removed-devclasses-are-deleted) ([source](../../src/actions/install/setInstallDevclass.ts#L54)).
+
 ### ACT-2026-34 — Resolved — Install namespace is derived from the root and limited to one
 
 `add-namespace` now derives the install namespace from the target root package instead of

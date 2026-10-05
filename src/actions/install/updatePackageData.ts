@@ -1,5 +1,5 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { InstallWorkflowContext } from ".";
+import { InstallPackageReplacements, InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { FileSystem, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
@@ -13,6 +13,15 @@ function installTransportRows(packageName: string, packageRegistry: string, tran
         package_registry: packageRegistry,
         trkorr: transport.trkorr,
         trm_type: transport.trmType
+    }));
+}
+
+function installDevcRows(packageName: string, packageRegistry: string, replacements: InstallPackageReplacements[]): ZTRM_INSTALLDEVC[] {
+    return replacements.map(replacement => ({
+        package_name: packageName,
+        package_registry: packageRegistry,
+        original_devclass: replacement.originalDevclass,
+        install_devclass: replacement.installDevclass
     }));
 }
 
@@ -62,15 +71,7 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
                 break;
         }
 
-        const installDevc: ZTRM_INSTALLDEVC[] = [];
-        context.rawInput.installData.installDevclass.replacements.forEach(o => {
-            installDevc.push({
-                package_name: context.rawInput.packageData.name,
-                package_registry: packageRegistry,
-                original_devclass: o.originalDevclass,
-                install_devclass: o.installDevclass
-            });
-        });
+        const installDevc = installDevcRows(context.rawInput.packageData.name, packageRegistry, context.rawInput.installData.installDevclass.replacements);
         // Only transports imported on this system: uninstall and update delete their customizing.
         const installTr = installTransportRows(context.rawInput.packageData.name, packageRegistry, [
             ...(context.runtime.transports.cust || [])
@@ -92,10 +93,17 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
             integrity: context.runtime.package.data.checksum,
             devclass
         };
+        // Mappings stored for devclasses that are no longer installed: the write only upserts.
+        const staleInstallDevc = installDevcRows(context.rawInput.packageData.name, packageRegistry,
+            context.runtime.previousInstallPackages.filter(previous => !installDevc.some(o => o.original_devclass === previous.originalDevclass)));
+        context.revert.metadataInstallDevc = installDevc;
         // Mark before the mutating await: SAP may commit the mapping and still
         // fail while returning the response.
         context.revert.metadataWriteStarted = true;
         await SystemConnector.setInstallDevc(installDevc);
+        if (staleInstallDevc.length > 0) {
+            await SystemConnector.deleteInstallDevc(staleInstallDevc);
+        }
         context.revert.metadataTransportsWriteStarted = true;
         await SystemConnector.setInstallTransports(context.rawInput.packageData.name, packageRegistry, installTr);
         await SystemConnector.updateTrmPackageData(context.revert.metadataPackageRow);
@@ -118,8 +126,12 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
             return;
         }
         const previousInstallTransports = context.runtime.previousInstallTransports || [];
-        if (context.runtime.previousInstallPackages.length === 0 && !context.revert.metadataPreviousPackageRow
-            && !context.revert.metadataTransportsWriteStarted) {
+        // Mappings this install added: the previous rows don't overwrite them on restore.
+        const addedInstallDevc = (context.revert.metadataInstallDevc || []).filter(
+            o => !context.runtime.previousInstallPackages.some(previous => previous.originalDevclass === o.original_devclass)
+        );
+        if (context.runtime.previousInstallPackages.length === 0 && addedInstallDevc.length === 0
+            && !context.revert.metadataPreviousPackageRow && !context.revert.metadataTransportsWriteStarted) {
             return;
         }
         const packageRegistry = context.revert.metadataPreviousPackageRow?.package_registry
@@ -127,12 +139,7 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
         if (!packageRegistry) {
             return;
         }
-        const previousInstallDevc = context.runtime.previousInstallPackages.map(replacement => ({
-            package_name: context.rawInput.packageData.name,
-            package_registry: packageRegistry,
-            original_devclass: replacement.originalDevclass,
-            install_devclass: replacement.installDevclass
-        }));
+        const previousInstallDevc = installDevcRows(context.rawInput.packageData.name, packageRegistry, context.runtime.previousInstallPackages);
         const previousInstallTr = installTransportRows(context.rawInput.packageData.name, packageRegistry, previousInstallTransports);
         if (context.revert.metadataPreviousPackageRow) {
             await SystemConnector.restoreInstallMetadata({
@@ -143,13 +150,20 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
             });
             return;
         }
-        // Without a snapshot the two writes are restored separately: attempt both.
+        // Without a snapshot the writes are restored separately: attempt each.
         let firstError: unknown;
+        if (addedInstallDevc.length > 0) {
+            try {
+                await SystemConnector.deleteInstallDevc(addedInstallDevc);
+            } catch (error) {
+                firstError = error;
+            }
+        }
         if (previousInstallDevc.length > 0) {
             try {
                 await SystemConnector.setInstallDevc(previousInstallDevc);
             } catch (error) {
-                firstError = error;
+                firstError ||= error;
             }
         }
         if (context.revert.metadataTransportsWriteStarted) {

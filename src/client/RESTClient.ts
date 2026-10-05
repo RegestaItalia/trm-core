@@ -455,6 +455,14 @@ export class RESTClient implements IClient {
         });
     }
 
+    public async deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        await this._axiosInstance.delete('/delete_install_devc', {
+            data: {
+                installdevc: installDevc
+            }
+        });
+    }
+
     public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
         await this._axiosInstance.put('/set_install_devc', {
             package: data.package,
