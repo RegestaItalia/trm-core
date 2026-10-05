@@ -5,6 +5,7 @@ import { TADIR, TDEVC } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
+import { InstallTransport } from "./InstallTransport";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
@@ -19,6 +20,7 @@ export const TRM_REST_PACKAGE_NAME: string = 'trm-rest';
 export const SRC_TRKORR_TABL = '/ATRM/SRC_TRKORR';
 export const SKIP_TRKORR_TABL = '/ATRM/SKIPTRKORR';
 export const INSTALL_DEVCLASS_VIEW = '/ATRM/V_INSTDEVC';
+export const INSTALL_TRANSPORTS_TABLE = '/ATRM/INSTALLTR';
 export const POST_ACTIVITY_ATTRIBUTE = 'TRM_PA';
 export const POST_ACTIVITY_METHOD = 'EXECUTE';
 
@@ -413,6 +415,14 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
     return await this.readTable(INSTALL_DEVCLASS_VIEW,
       [{ fieldName: 'ORIGINAL_DEVCLASS' }, { fieldName: 'INSTALL_DEVCLASS' }],
+      `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
+    );
+  }
+
+  public async getInstallTransports(packageName: string, registry: AbstractRegistry): Promise<InstallTransport[]> {
+    const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
+    return await this.readTable(INSTALL_TRANSPORTS_TABLE,
+      [{ fieldName: 'TRKORR' }, { fieldName: 'TRM_TYPE' }],
       `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
     );
   }

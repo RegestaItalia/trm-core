@@ -16,11 +16,13 @@ export interface TrmPackageUpdateData {
     devclass: string
 }
 
-/** Atomic rollback payload for the TRM package row and install mappings. */
+/** Atomic rollback payload for the TRM package row, install mappings and install transports. */
 export interface TrmPackageMetadataRestoreData {
     package: TrmPackageUpdateData,
     packageExists: boolean,
-    installDevc: struct.ZTRM_INSTALLDEVC[]
+    installDevc: struct.ZTRM_INSTALLDEVC[],
+    /** Install transports replacing the recorded ones; omitted or empty removes them. */
+    installTr?: struct.ZTRM_INSTALLTR[]
 }
 
 export interface ISystemConnector extends ISystemConnectorBase {
@@ -59,6 +61,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     importTransportMultiple: (trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean) => Promise<struct.STMS_TP_IMPORT | void>,
     setInstallDevc: (installDevc: struct.ZTRM_INSTALLDEVC[]) => Promise<void>,
     restoreInstallMetadata: (data: TrmPackageMetadataRestoreData) => Promise<void>,
+    setInstallTransports: (packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]) => Promise<void>,
     getObjectsList: () => Promise<struct.KO100[]>,
     renameTransportRequest: (trkorr: components.TRKORR, as4text: components.AS4TEXT) => Promise<void>,
     addTranslationToTr: (trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]) => Promise<void>,

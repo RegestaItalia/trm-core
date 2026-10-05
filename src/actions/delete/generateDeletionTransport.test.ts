@@ -28,6 +28,9 @@ jest.mock('../../transport', () => {
         static createToc = jest.fn();
         static getTransportIcon = jest.fn(() => 'TR');
         static instances: MockTransport[] = [];
+        static existing = new Set<string>();
+        getE070 = jest.fn(async () => MockTransport.existing.has(this.trkorr) ? { trkorr: this.trkorr } : undefined);
+        addObjectsFromTransport = jest.fn().mockResolvedValue(undefined);
         canBeDeleted = jest.fn(async () => false);
         delete = jest.fn().mockResolvedValue(undefined);
         addObjects = jest.fn().mockResolvedValue(undefined);
@@ -37,7 +40,7 @@ jest.mock('../../transport', () => {
         addComment = jest.fn().mockResolvedValue(undefined);
         constructor(public trkorr: string) { MockTransport.instances.push(this); }
     }
-    return { Transport: MockTransport };
+    return { Transport: MockTransport, TrmTransportIdentifier: { CUST: 'CUST', LANG: 'LANG' } };
 });
 
 import { Inquirer, Logger } from 'trm-commons';
@@ -46,7 +49,7 @@ import { Transport } from '../../transport';
 import { RegistryDeletionTransportUnauthorizedError } from '../../registry';
 import { generateDeletionTransport } from './generateDeletionTransport';
 
-function runContext(previous: any[], devclass = 'Z_ROOT') {
+function runContext(previous: any[], devclass = 'Z_ROOT', keyed: any[] = []) {
     const dummy = new Transport('DEVK9DELE') as any;
     (Transport.createToc as jest.Mock).mockReset();
     (Transport.createToc as jest.Mock).mockResolvedValueOnce(dummy);
@@ -63,10 +66,11 @@ function runContext(previous: any[], devclass = 'Z_ROOT') {
             stopWarningShown: true,
             update: {
                 manifest: { get: () => ({ name: 'pkg', version: '1.0.0' }) },
-                getTransport: () => ({ getE071: async () => previous }),
+                getTransport: () => ({ getE071: async () => previous, getE071K: async () => keyed }),
                 getDevclass: () => devclass
             },
-            previousInstallPackages: [{ originalDevclass: 'Z_ORIG', installDevclass: devclass }]
+            previousInstallPackages: [{ originalDevclass: 'Z_ORIG', installDevclass: devclass }],
+            previousInstallTransports: []
         },
         revert: { sapPackages: [] },
         output: { manifest: { name: 'pkg' } }
@@ -81,6 +85,7 @@ describe('generateDeletionTransport', () => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
         (Transport as any).instances.length = 0;
+        (Transport as any).existing.clear();
         jest.spyOn(Logger, 'loading').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'success').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
@@ -184,6 +189,117 @@ describe('generateDeletionTransport', () => {
 
         test('a failed import re-imports the copy', async () => {
             const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
+            imported.import.mockResolvedValueOnce(0).mockRejectedValueOnce(new Error('import failed'));
+
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('import failed');
+            expect(ctx.revert.deleImportStarted).toBe(true);
+
+            (Transport.upload as jest.Mock).mockClear();
+            await generateDeletionTransport.revert(ctx);
+            expect(Transport.upload).toHaveBeenCalledWith('DEVK9DELE', expect.anything());
+        });
+    });
+
+    describe('customizing', () => {
+        const objects = [
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' },
+            // Landscape transport: CUST entries copied with their keys.
+            { pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' }
+        ];
+        const keys = [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' }];
+        const deletedOf = (dummy: any) => dummy.addObjects.mock.calls.flatMap(([entries]: any[]) => entries.map((o: any) => `${o.object} ${o.objName}`));
+
+        function custContext() {
+            const run = runContext(objects, 'Z_ROOT', keys);
+            run.ctx.runtime.previousInstallTransports = [
+                { trkorr: 'DEVK9CUST1', trmType: 'CUST' },
+                { trkorr: 'DEVK9LANG', trmType: 'LANG' }
+            ];
+            (Transport as any).existing.add('DEVK9CUST1');
+            (Transport as any).existing.add('DEVK9LANG');
+            return run;
+        }
+
+        test('rows of the recorded customizing transports are copied with their keys', async () => {
+            const { ctx, dummy } = custContext();
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(dummy.addObjectsFromTransport).toHaveBeenCalledTimes(1);
+            expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
+            expect(ctx.revert.cleanupCustomizingSources).toEqual(['DEVK9CUST1']);
+            // Keyed entries are never added without their keys.
+            expect(deletedOf(dummy)).toEqual(['CLAS Z_CLASS', 'DEVC Z_ROOT']);
+            expect(SystemConnector.getObjectsLocks).toHaveBeenCalledWith(expect.not.arrayContaining([
+                expect.objectContaining({ OBJ_NAME: 'ZCUST_TABLE' })
+            ]));
+            // Copied TRM comment rows are rebuilt after the copy.
+            const copyOrder = dummy.addObjectsFromTransport.mock.invocationCallOrder[0];
+            expect(copyOrder).toBeLessThan(dummy.removeComments.mock.invocationCallOrder[0]);
+            expect(imported.import).toHaveBeenCalledWith(false);
+        });
+
+        test('no recorded customizing transports: nothing is copied', async () => {
+            const { ctx, dummy } = runContext(objects, 'Z_ROOT', keys);
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
+            expect(deletedOf(dummy)).toEqual(['CLAS Z_CLASS', 'DEVC Z_ROOT']);
+        });
+
+        test('a recorded transport no longer on the system is skipped with a warning', async () => {
+            const { ctx, dummy } = custContext();
+            (Transport as any).existing.delete('DEVK9CUST1');
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9CUST1 is no longer on TST'));
+        });
+
+        test('the rows are deleted without asking, even when prompts are enabled', async () => {
+            const { ctx, dummy } = custContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            const prompt = jest.spyOn(Inquirer, 'prompt');
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(prompt).not.toHaveBeenCalled();
+            expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
+        });
+
+        test('customizing alone still generates the deletion transport', async () => {
+            const { ctx, dummy } = runContext([
+                { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' },
+                { pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' }
+            ], '', keys);
+            ctx.runtime.previousInstallPackages = [];
+            ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }];
+            (Transport as any).existing.add('DEVK9CUST1');
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
+            expect(dummy.release).toHaveBeenCalled();
+        });
+
+        test('a failed copy aborts before release and rollback deletes the transport', async () => {
+            const { ctx, dummy, registry } = custContext();
+            dummy.addObjectsFromTransport.mockRejectedValue(new Error('copy failed'));
+
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('copy failed');
+            expect(dummy.release).not.toHaveBeenCalled();
+            expect(registry.delete).not.toHaveBeenCalled();
+
+            dummy.canBeDeleted.mockResolvedValue(true);
+            await generateDeletionTransport.revert(ctx);
+            expect(dummy.delete).toHaveBeenCalledTimes(1);
+            expect(Transport.upload).not.toHaveBeenCalled();
+        });
+
+        test('a failed import re-imports the copy holding the customizing rows', async () => {
+            const { ctx } = custContext();
             imported.import.mockResolvedValueOnce(0).mockRejectedValueOnce(new Error('import failed'));
 
             await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('import failed');

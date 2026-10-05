@@ -26,6 +26,9 @@ jest.mock('../../transport', () => {
         static getTransportIcon = jest.fn(() => 'TR');
         static instances: MockTransport[] = [];
         static deletable = false;
+        static existing = new Set<string>();
+        getE070 = jest.fn(async () => MockTransport.existing.has(this.trkorr) ? { trkorr: this.trkorr } : undefined);
+        addObjectsFromTransport = jest.fn().mockResolvedValue(undefined);
         canBeDeleted = jest.fn(async () => MockTransport.deletable);
         delete = jest.fn().mockResolvedValue(undefined);
         addObjects = jest.fn().mockResolvedValue(undefined);
@@ -35,7 +38,7 @@ jest.mock('../../transport', () => {
         addComment = jest.fn().mockResolvedValue(undefined);
         constructor(public trkorr: string) { MockTransport.instances.push(this); }
     }
-    return { Transport: MockTransport };
+    return { Transport: MockTransport, TrmTransportIdentifier: { CUST: 'CUST', LANG: 'LANG' } };
 });
 
 import { Inquirer, Logger } from 'trm-commons';
@@ -71,6 +74,7 @@ describe('generateUpdateTransport revert', () => {
         jest.clearAllMocks();
         (Transport as any).instances.length = 0;
         (Transport as any).deletable = false;
+        (Transport as any).existing.clear();
         jest.spyOn(Logger, 'loading').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'success').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'getPrefix').mockReturnValue(undefined);
@@ -187,7 +191,7 @@ describe('generateUpdateTransport revert', () => {
                 stopWarningShown: true,
                 update: {
                     manifest: { get: () => ({ version: '1.0.0' }) },
-                    getTransport: () => ({ getE071: async () => [{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_OLD' }] }),
+                    getTransport: () => ({ getE071: async () => [{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_OLD' }], getE071K: async () => [] }),
                     getDevclass: () => undefined
                 },
                 transports: { tadir: { binaries: { entries: { tadir: [] } } } },
@@ -240,7 +244,7 @@ describe('generateUpdateTransport revert', () => {
                 stopWarningShown: true,
                 update: {
                     manifest: { get: () => ({ version: '1.0.0' }) },
-                    getTransport: () => ({ getE071: async () => previous }),
+                    getTransport: () => ({ getE071: async () => previous, getE071K: async () => [] }),
                     getDevclass: () => undefined
                 },
                 transports: { tadir: { binaries: { entries: { tadir: incoming } } } },
@@ -251,6 +255,46 @@ describe('generateUpdateTransport revert', () => {
         } as any;
         return { ctx, dummy, backup, acquire };
     }
+
+    describe('customizing of the installed release', () => {
+        function custContext(importData?: any) {
+            const run = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }], []);
+            run.ctx.rawInput.installData.import = importData;
+            run.ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }];
+            (Transport as any).existing.add('DEVK9CUST1');
+            jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+            return run;
+        }
+
+        test('is deleted before the new customizing is imported', async () => {
+            const { ctx, dummy } = custContext();
+
+            await generateUpdateTransport.run(ctx);
+
+            expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
+        });
+
+        test('is deleted without asking, even when prompts are enabled', async () => {
+            const { ctx, dummy } = custContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            const prompt = jest.spyOn(Inquirer, 'prompt');
+
+            await generateUpdateTransport.run(ctx);
+
+            expect(prompt).not.toHaveBeenCalled();
+            expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
+        });
+
+        test('is kept when the new customizing is not imported', async () => {
+            const { ctx, dummy } = custContext({ noCust: true });
+
+            await generateUpdateTransport.run(ctx);
+
+            expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('customizing of the installed release is kept'));
+        });
+
+    });
 
     test('tables still shipped by the new release are kept and backed up instead of deleted', async () => {
         const { ctx, dummy, backup, acquire } = runContext([

@@ -101,6 +101,10 @@ export const init: Step<DeleteWorkflowContext> = {
                 context.rawInput.packageData.name,
                 registry
             ),
+            previousInstallTransports: await SystemConnector.getInstallTransports(
+                context.rawInput.packageData.name,
+                registry
+            ),
             dele: undefined,
             stopWarningShown: false
         };

@@ -3,6 +3,7 @@ import { AbstractRegistry } from "../registry";
 import { TrmPackage } from "../trmPackage";
 import { ISystemConnector, TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "./ISystemConnector";
 import { InstallPackage } from "./InstallPackage";
+import { InstallTransport } from "./InstallTransport";
 import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
@@ -171,6 +172,11 @@ export namespace SystemConnector {
         return systemConnector.getInstallPackages(packageName, registry);
     }
 
+    export async function getInstallTransports(packageName: string, registry: AbstractRegistry): Promise<InstallTransport[]> {
+        await checkSystemConnector();
+        return systemConnector.getInstallTransports(packageName, registry);
+    }
+
     export async function setPackageSuperpackage(devclass: DEVCLASS, superpackage: DEVCLASS): Promise<void> {
         await checkSystemConnector();
         return systemConnector.setPackageSuperpackage(devclass, superpackage);
@@ -319,6 +325,11 @@ export namespace SystemConnector {
     export async function restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
         await checkSystemConnector();
         return systemConnector.restoreInstallMetadata(data);
+    }
+
+    export async function setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.setInstallTransports(packageName, packageRegistry, installTr);
     }
 
     export async function getObjectsList(): Promise<struct.KO100[]> {

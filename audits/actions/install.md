@@ -115,11 +115,11 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** one failing `revertPreparedTransport` skips the remaining customizing transports (violates the best-effort revert rule).
 - **Fix:** catch per transport and throw the first error after the loop.
 
-### ACT-2026-40 — Medium — Functional — Customizing keys are dropped from cleanup transports
+### ACT-2026-40 — Medium — Functional — Customizing keys are dropped from the rollback cleanup transport
 
-- **Where:** `cleanupEntries`/`addObjects` pass only PGMID/OBJECT/OBJ_NAME ([`importBatch.ts#L36`](../../src/actions/install/importBatch.ts#L36), [`packageCleanup.ts#L200`](../../src/actions/commons/utils/packageCleanup.ts#L200)).
-- **Failure:** `R3TR TABU`/`VDAT` entries reach deletion transports without their E071K keys; the add fails (blocking restores through `cleanupSucceeded = false`) or the deletion scope is undefined. SAP-side behavior not reproduced.
-- **Fix:** carry E071K keys, or exclude customizing explicitly with a warning.
+- **Where:** `cleanupEntries`/`addObjects` pass only PGMID/OBJECT/OBJ_NAME ([`importBatch.ts#L36`](../../src/actions/install/importBatch.ts#L36)). The upgrade and delete cleanup ([`packageCleanup.ts`](../../src/actions/commons/utils/packageCleanup.ts)) no longer does: it drops keyed entries and copies the recorded CUST transports with their keys ([ACT-2026-48](delete.md), resolved).
+- **Failure:** on install rollback, `R3TR TABU`/`VDAT` entries reach the cleanup deletion transport without their E071K keys and `OBJFUNC` `K`. The registry then treats them as repository objects and requests the deletion of the whole table object, or the add fails (blocking restores through `cleanupSucceeded = false`). SAP-side behavior not reproduced.
+- **Fix:** copy the imported CUST transports into the cleanup transport (`addObjectsFromTransport`, as the upgrade cleanup does) instead of adding their entries.
 
 ### ACT-2026-41 — Low — Technical — TypeError when the installed root devclass is unknown
 
@@ -170,13 +170,13 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 11 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
 | 12 | `add-namespace` | Namespace taken from `replacements[0]` (ACT-2026-34). |
 | 13 | `generate-devclass` | Fails with "Multiple roots" on inherited or stale mappings (ACT-2026-22, ACT-2026-25). |
-| 14 | `generate-update-transport` | Silently skipped for local registries (ACT-2026-32); revert restores without checking cleanup success ([ACT-2026-08](shared.md)) and leaks the staging package ([ACT-2026-09](shared.md)). |
+| 14 | `generate-update-transport` | Silently skipped for local registries (ACT-2026-32); revert restores without checking cleanup success ([ACT-2026-08](shared.md)) and leaks the staging package ([ACT-2026-09](shared.md)). Deletes the installed release's customizing by key, without asking, before the new customizing is imported, unless `noCust` ([ACT-2026-48](delete.md), resolved). |
 | 15–18 | `prepare-devc`, `prepare-tadir`, `prepare-lang`, `prepare-cust` | Forward flow correct; test-import RC is checked. `prepare-cust` revert is not best-effort (ACT-2026-39). |
 | 19 | `import-batch` | Batch RC ignored (see *Reconsideration of accepted findings*). Rollback drops retained tables (ACT-2026-28), deletes unsnapshotted pre-existing objects (ACT-2026-30), and always fails for local registries (ACT-2026-27). |
 | 20 | `generate-landscape-transport` | Locked namespace silently omitted (ACT-2026-44). |
 | 21 | `execute-post-activities` | Global prefix clobbered ([ACT-2026-18](shared.md)); empty `&LANDSCAPE_TRANSPORT&` (ACT-2026-43). |
 | 22 | `release-install-transports` | Released transport stays queued in the target after rollback (ACT-2026-29); unbounded release wait ([ACT-2026-14](shared.md)). |
-| 23 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). |
+| 23 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). Records the imported CUST and LANG transports in `/ATRM/INSTALLTR` and restores the previous ones on revert ([ACT-2026-48](delete.md), resolved). |
 
 ## Reconsideration of accepted findings
 

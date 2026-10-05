@@ -14,6 +14,7 @@ export * from "./SENVI";
 export * from "./STMSIQREQ"
 export * from "./SCOMPKDTLN";
 export * from "./ZTRM_INSTALLDEVC";
+export * from "./ZTRM_INSTALLTR";
 export * from "./KO100";
 export * from "./T100";
 export * from "./LXE_TT_PACKG_LINE";

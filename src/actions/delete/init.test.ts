@@ -3,6 +3,7 @@ jest.mock('../../systemConnector', () => ({
     TRM_REST_PACKAGE_NAME: 'trm-rest',
     SystemConnector: {
         getInstallPackages: jest.fn(),
+        getInstallTransports: jest.fn(),
         getInstalledPackages: jest.fn(),
         getTransportTargets: jest.fn(),
         getDest: jest.fn(() => 'TST')
@@ -60,9 +61,10 @@ describe('delete init', () => {
         jest.spyOn(Logger, 'loading').mockImplementation(() => undefined as never);
         (SystemConnector.getTransportTargets as jest.Mock).mockResolvedValue(['QAS']);
         (SystemConnector.getInstallPackages as jest.Mock).mockResolvedValue([{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }]);
+        (SystemConnector.getInstallTransports as jest.Mock).mockResolvedValue([{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }]);
     });
 
-    test('finds the installed package and its install mappings', async () => {
+    test('finds the installed package, its install mappings and install transports', async () => {
         const pkg = installed('pkg');
         const ctx = context('pkg', [installed('other'), pkg]);
 
@@ -70,6 +72,7 @@ describe('delete init', () => {
 
         expect(ctx.runtime.update).toBe(pkg);
         expect(ctx.runtime.previousInstallPackages).toEqual([{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }]);
+        expect(ctx.runtime.previousInstallTransports).toEqual([{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }]);
         expect(ctx.output.manifest.version).toBe('1.0.0');
         expect(ctx.revert.sapPackages).toEqual([]);
     });

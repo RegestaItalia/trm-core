@@ -42,6 +42,10 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
         }
         // Read the target lazily: a failure reading the previous release must still be tracked first.
         const installDevclass = context.rawInput.installData?.installDevclass;
+        const importData = context.rawInput.installData?.import;
+        if (importData?.noCust) {
+            Logger.warning(`Customizing transports are skipped: the customizing of the installed release is kept.`);
+        }
         await cleanupInstalledPackage(context, {
             get incomingObjects() {
                 return context.runtime.transports.tadir.binaries.entries.tadir || [];
@@ -53,7 +57,10 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             },
             prefix: `(${Transport.getTransportIcon()}  Upgrade cleanup) `,
             actionName: 'Update',
-            requireDeletion: false
+            requireDeletion: false,
+            // Old customizing is deleted before the new customizing is imported: rows the new
+            // release still ships are written again. Without that import, nothing would restore them.
+            keepCustomizing: !!importData?.noCust
         });
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {

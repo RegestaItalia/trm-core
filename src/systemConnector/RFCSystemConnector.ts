@@ -228,6 +228,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.restoreInstallMetadata(data);
     }
 
+    public async setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        return this._client.setInstallTransports(packageName, packageRegistry, installTr);
+    }
+
     public async getObjectsList(): Promise<struct.KO100[]> {
         return this._client.getObjectsList();
     }

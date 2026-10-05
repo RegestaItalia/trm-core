@@ -567,7 +567,16 @@ export class RFCClient implements IClient {
         await this._call("/ATRM/SET_INSTALL_DEVC", {
             package: data.package,
             package_exists: data.packageExists ? 'X' : ' ',
-            installdevc: data.installDevc
+            installdevc: data.installDevc,
+            installtr: data.installTr || []
+        });
+    }
+
+    public async setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        await this._call("/ATRM/SET_INSTALL_TR", {
+            package_name: packageName,
+            package_registry: packageRegistry,
+            installtr: installTr
         });
     }
 

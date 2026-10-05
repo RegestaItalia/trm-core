@@ -1,6 +1,6 @@
 # `delete` workflow audit
 
-Audit date: 2026-10-04
+Audit date: 2026-10-05
 Entry point: [`deletePackage`](../../src/actions/delete/index.ts#L139)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared findings ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are listed in the README.
@@ -12,12 +12,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Where:** [`packageCleanup.ts#L230`](../../src/actions/commons/utils/packageCleanup.ts#L230), [`#L292`](../../src/actions/commons/utils/packageCleanup.ts#L292).
 - **Failure:** every live subpackage not in the mappings is "locally added", including another TRM package installed underneath; its objects and DEVC are deleted while its record remains. With `noInquirer` extra objects are auto-confirmed (`deleteExtraObjects: true`), silently removing customer development.
 - **Fix:** exclude devclasses owned by other installed packages; default to keeping extra objects without prompts and add an explicit option.
-
-### ACT-2026-48 — Medium — Functional — Customizing and translations are not reliably removed
-
-- **Where:** [`packageCleanup.ts#L200`](../../src/actions/commons/utils/packageCleanup.ts#L200); on final systems the stored transport is the TADIR transport ([`updatePackageData.ts#L71`](../../src/actions/install/updatePackageData.ts#L71)).
-- **Failure:** on final systems customizing is never deleted; on landscape systems TABU entries lack keys ([ACT-2026-40](install.md)).
-- **Fix:** define the customizing policy for delete and document or implement it.
 
 ### ACT-2026-50 — Medium — Technical — The only rollback copy lives in memory and its export is unchecked
 
@@ -32,14 +26,28 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | — | package lock (pre-workflow) | Lock lifecycle issues ([ACT-2026-11](shared.md)). |
 | 1 | `check-server-auth` | Shared [ACT-2026-12](shared.md). |
 | 2 | `set-system-packages` | Local-registry dependants missed ([ACT-2026-15](shared.md)); a missing record snapshot (backend read failed) is re-read by `init` (ACT-2026-51, resolved). |
-| 3 | `init` | Raw package name for mapping lookup ([ACT-2026-16](shared.md)); re-reads a missing TRM packages table record and aborts before any change when it still can't be read (ACT-2026-51, resolved); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
+| 3 | `init` | Reads the install mappings and the recorded install transports; raw package name for mapping lookup ([ACT-2026-16](shared.md)); re-reads a missing TRM packages table record and aborts before any change when it still can't be read (ACT-2026-51, resolved); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
 | 4 | `check-dependants` | No additional issue beyond [ACT-2026-15](shared.md). |
 | 5 | `lock-resources` | No issue found. |
-| 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages deleted (ACT-2026-47), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-50); the copy is re-imported only once the deletion import started (ACT-2026-49, resolved). |
+| 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages deleted (ACT-2026-47); customizing rows of the recorded CUST transports are always deleted by key (ACT-2026-48, resolved); rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-50); the copy is re-imported only once the deletion import started (ACT-2026-49, resolved). |
 | 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
-| 8 | `remove-package-data` | Atomic and reversible; always runs, and fails instead of skipping without a snapshot (ACT-2026-51, resolved). |
+| 8 | `remove-package-data` | Atomic and reversible, install transports included; always runs, and fails instead of skipping without a snapshot (ACT-2026-51, resolved). |
 
 ## Resolved findings
+
+### ACT-2026-48 — Medium — Functional — Resolved — Customizing and translations are not reliably removed
+
+- **Where:** [`packageCleanup.ts`](../../src/actions/commons/utils/packageCleanup.ts) (`getCustomizingSources`); [`install/updatePackageData.ts`](../../src/actions/install/updatePackageData.ts); `/ATRM/INSTALLTR`.
+- **Failure (before):** the cleanup only read the single stored transport. On final systems that is the TADIR transport, so customizing was never deleted. On landscape systems the landscape transport carries the CUST entries, but they were re-added without E071K keys, so the registry requested the deletion of the whole table object ([ACT-2026-40](install.md)).
+- **Resolution:**
+  - Install records the CUST and LANG transports imported on the system in `/ATRM/INSTALLTR` (`setInstallTransports`). Delete and both rollbacks restore or remove these rows in the same LUW as the package row.
+  - The cleanup drops entries that have E071K keys from the object selection. It copies each recorded CUST transport still on the system into the deletion transport with `TR_COPY_COMM`, which keeps the keys and `OBJFUNC` `K`. The registry turns those entries into deletions by key, and the rollback copy holds the current rows.
+  - Customizing is always deleted, without asking.
+  - On update, the old customizing is deleted before the new customizing is imported, so rows the new release still ships are written again. With `noCust` it is kept, because nothing would write it again.
+  - The registry accepts customizing-only deletion transports.
+  - Installations recorded before this change have no recorded transports, so their customizing is kept.
+  - Translations are not deleted separately: they belong to the shipped objects and go with them. LANG transports are only recorded.
+  - Not yet validated on SAP: TABU/TDAT/VDAT/CDAT deletions are still `AWAITING_VARIANTS` in the registry deletion campaign.
 
 ### ACT-2026-49 — Medium — Technical — Resolved — Revert re-imports the copy even when the deletion was never imported
 

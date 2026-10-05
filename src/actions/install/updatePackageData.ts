@@ -4,12 +4,23 @@ import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { FileSystem, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 import { Manifest } from "../../manifest";
-import { ZTRM_INSTALLDEVC } from "../../client";
+import { ZTRM_INSTALLDEVC, ZTRM_INSTALLTR } from "../../client";
+import { TrmTransportIdentifier } from "../../transport";
+
+function installTransportRows(packageName: string, packageRegistry: string, transports: { trkorr: string, trmType: string }[]): ZTRM_INSTALLTR[] {
+    return transports.map(transport => ({
+        package_name: packageName,
+        package_registry: packageRegistry,
+        trkorr: transport.trkorr,
+        trm_type: transport.trmType
+    }));
+}
 
 /**
  * Workflow step that records the installed release in the target system's TRM package table.
  * 
- * Creates/update record in TRM packages table
+ * Creates/update record in TRM packages table, with its install packages and the
+ * customizing and translation transports imported on this system
  * 
  * 1- commit new values
  * 
@@ -60,6 +71,15 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
                 install_devclass: o.installDevclass
             });
         });
+        // Only transports imported on this system: uninstall and update delete their customizing.
+        const installTr = installTransportRows(context.rawInput.packageData.name, packageRegistry, [
+            ...(context.runtime.transports.cust || [])
+                .filter(cust => cust.instance)
+                .map(cust => ({ trkorr: cust.instance.trkorr, trmType: TrmTransportIdentifier.CUST })),
+            ...(context.runtime.transports.lang?.instance
+                ? [{ trkorr: context.runtime.transports.lang.instance.trkorr, trmType: TrmTransportIdentifier.LANG }]
+                : [])
+        ]);
         context.revert.metadataPackageRegistry = packageRegistry;
         if (context.runtime.update && typeof context.runtime.update.getMetadataSnapshot === 'function') {
             context.revert.metadataPreviousPackageRow = context.runtime.update.getMetadataSnapshot();
@@ -76,6 +96,8 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
         // fail while returning the response.
         context.revert.metadataWriteStarted = true;
         await SystemConnector.setInstallDevc(installDevc);
+        context.revert.metadataTransportsWriteStarted = true;
+        await SystemConnector.setInstallTransports(context.rawInput.packageData.name, packageRegistry, installTr);
         await SystemConnector.updateTrmPackageData(context.revert.metadataPackageRow);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
@@ -89,12 +111,15 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
                 await SystemConnector.restoreInstallMetadata({
                     package: context.revert.metadataPackageRow,
                     packageExists: false,
-                    installDevc: []
+                    installDevc: [],
+                    installTr: []
                 });
             }
             return;
         }
-        if (context.runtime.previousInstallPackages.length === 0 && !context.revert.metadataPreviousPackageRow) {
+        const previousInstallTransports = context.runtime.previousInstallTransports || [];
+        if (context.runtime.previousInstallPackages.length === 0 && !context.revert.metadataPreviousPackageRow
+            && !context.revert.metadataTransportsWriteStarted) {
             return;
         }
         const packageRegistry = context.revert.metadataPreviousPackageRow?.package_registry
@@ -108,14 +133,34 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
             original_devclass: replacement.originalDevclass,
             install_devclass: replacement.installDevclass
         }));
+        const previousInstallTr = installTransportRows(context.rawInput.packageData.name, packageRegistry, previousInstallTransports);
         if (context.revert.metadataPreviousPackageRow) {
             await SystemConnector.restoreInstallMetadata({
                 package: context.revert.metadataPreviousPackageRow,
                 packageExists: true,
-                installDevc: previousInstallDevc
+                installDevc: previousInstallDevc,
+                installTr: previousInstallTr
             });
             return;
         }
-        await SystemConnector.setInstallDevc(previousInstallDevc);
+        // Without a snapshot the two writes are restored separately: attempt both.
+        let firstError: unknown;
+        if (previousInstallDevc.length > 0) {
+            try {
+                await SystemConnector.setInstallDevc(previousInstallDevc);
+            } catch (error) {
+                firstError = error;
+            }
+        }
+        if (context.revert.metadataTransportsWriteStarted) {
+            try {
+                await SystemConnector.setInstallTransports(context.rawInput.packageData.name, packageRegistry, previousInstallTr);
+            } catch (error) {
+                firstError ||= error;
+            }
+        }
+        if (firstError) {
+            throw firstError;
+        }
     }
 }

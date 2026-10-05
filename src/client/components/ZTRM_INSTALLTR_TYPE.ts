@@ -1,0 +1,1 @@
+export type ZTRM_INSTALLTR_TYPE = string;

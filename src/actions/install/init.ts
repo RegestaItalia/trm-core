@@ -51,6 +51,7 @@ export const init: Step<InstallWorkflowContext> = {
             dependencies: [],
             namespace: undefined, //will be calculated from either origin devclass or target devclass later
             previousInstallPackages: [],
+            previousInstallTransports: [],
             dependencyRollbacks: [],
             dependencyReleases: [],
             stopWarningShown: false
@@ -164,6 +165,10 @@ export const init: Step<InstallWorkflowContext> = {
         context.runtime.update = context.rawInput.contextData.systemPackages.find(o => Manifest.compare(o.manifest, new Manifest(context.runtime.package.data.manifest), false));
         if (context.runtime.update) {
             context.runtime.previousInstallPackages = await SystemConnector.getInstallPackages(
+                context.rawInput.packageData.name,
+                context.rawInput.packageData.registry
+            );
+            context.runtime.previousInstallTransports = await SystemConnector.getInstallTransports(
                 context.rawInput.packageData.name,
                 context.rawInput.packageData.registry
             );

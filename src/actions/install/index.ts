@@ -16,7 +16,7 @@ import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { addNamespace } from "./addNamespace";
 import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT } from "../../client";
-import { TrmPackageUpdateData } from "../../systemConnector";
+import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { generateDevclass } from "./generateDevclass";
 import { prepareDevc } from "./prepareDevc";
 import { prepareTadir } from "./prepareTadir";
@@ -77,6 +77,7 @@ export type InstallActionInputInstallData = {
 
         /**
          * Skip all customizing transports. Defaults to `false`.
+         * On update, the customizing of the installed release is then kept.
          */
         noCust?: boolean;
     };
@@ -217,6 +218,8 @@ type WorkflowRuntime = {
     dependencies: TrmManifestDependency[],
     namespace: string,
     previousInstallPackages: InstallPackageReplacements[],
+    /** Transports recorded for the installed release being updated. */
+    previousInstallTransports: InstallTransport[],
     dependencyRollbacks: Array<() => Promise<void>>,
     dependencyReleases: Array<() => Promise<void>>,
     rootDevclassBeforeImport?: TDEVC,
@@ -254,6 +257,8 @@ type WorkflowRevert = {
     updateTablesBackupTransport?: Transport,
     retainedTables?: TransportBinary,
     metadataWriteStarted?: boolean,
+    /** Set before the install transports are written, as SAP may commit them and still fail. */
+    metadataTransportsWriteStarted?: boolean,
     metadataPackageRegistry?: string,
     metadataPackageRow?: TrmPackageUpdateData,
     metadataPreviousPackageRow?: TrmPackageUpdateData,

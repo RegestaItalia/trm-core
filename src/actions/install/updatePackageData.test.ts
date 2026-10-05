@@ -2,6 +2,7 @@ jest.mock('../../systemConnector', () => ({
     SystemConnector: {
         setInstallDevc: jest.fn(),
         restoreInstallMetadata: jest.fn(),
+        setInstallTransports: jest.fn(),
         updateTrmPackageData: jest.fn()
     }
 }));
@@ -27,7 +28,14 @@ function context() {
                 data: { manifest: { name: 'pkg', version: '1.0.0' }, checksum: 'sha' },
                 hierarchy: { devclass: 'ZROOT' }
             },
-            transports: { tadir: { instance: { trkorr: 'DEVK900001' } } }
+            transports: {
+                tadir: { instance: { trkorr: 'DEVK900001' } },
+                lang: { instance: { trkorr: 'DEVK900002' } },
+                // A customizing transport skipped by the import has no instance.
+                cust: [{ instance: { trkorr: 'DEVK900003' } }, {}]
+            },
+            previousInstallPackages: [],
+            previousInstallTransports: []
         },
         output: {},
         revert: {}
@@ -40,7 +48,69 @@ describe('install package metadata writes', () => {
         jest.clearAllMocks();
         jest.spyOn(SystemConnector, 'setInstallDevc').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'restoreInstallMetadata').mockResolvedValue(undefined);
+        jest.spyOn(SystemConnector, 'setInstallTransports').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'updateTrmPackageData').mockResolvedValue(undefined);
+    });
+
+    test('records the customizing and translation transports imported on this system', async () => {
+        await updatePackageData.run(context());
+
+        expect(SystemConnector.setInstallTransports).toHaveBeenCalledWith('pkg', 'public', [
+            { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK900003', trm_type: 'CUST' },
+            { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK900002', trm_type: 'LANG' }
+        ]);
+        const transportsOrder = (SystemConnector.setInstallTransports as jest.Mock).mock.invocationCallOrder[0];
+        expect(transportsOrder).toBeGreaterThan((SystemConnector.setInstallDevc as jest.Mock).mock.invocationCallOrder[0]);
+        expect(transportsOrder).toBeLessThan((SystemConnector.updateTrmPackageData as jest.Mock).mock.invocationCallOrder[0]);
+    });
+
+    test('upgrade rollback restores the previous install transports with the package row', async () => {
+        const ctx = context();
+        const previousRow = {
+            package_name: 'pkg', package_registry: 'public', manifest: Buffer.from('<old/>'),
+            trkorr: 'DEVK900000', integrity: 'old-sha', devclass: 'ZROOT'
+        };
+        ctx.runtime.update = { getMetadataSnapshot: () => previousRow };
+        ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9OLDC', trmType: 'CUST' }];
+        jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
+
+        await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
+        await updatePackageData.revert(ctx);
+
+        expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith(expect.objectContaining({
+            package: previousRow,
+            packageExists: true,
+            installTr: [{ package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK9OLDC', trm_type: 'CUST' }]
+        }));
+    });
+
+    test('rollback without a previous row restores transports even when mappings fail', async () => {
+        const ctx = context();
+        ctx.runtime.update = {};
+        ctx.runtime.previousInstallPackages = [{ originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }];
+        ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9OLDC', trmType: 'CUST' }];
+        jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
+        await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
+        (SystemConnector.setInstallDevc as jest.Mock).mockRejectedValueOnce(new Error('mapping restore failed'));
+
+        await expect(updatePackageData.revert(ctx)).rejects.toThrow('mapping restore failed');
+
+        expect(SystemConnector.setInstallTransports).toHaveBeenLastCalledWith('pkg', 'public', [
+            { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK9OLDC', trm_type: 'CUST' }
+        ]);
+    });
+
+    test('a transports write failure is reverted even without previous mappings', async () => {
+        const ctx = context();
+        ctx.runtime.update = {};
+        const failure = new Error('transports response lost');
+        (SystemConnector.setInstallTransports as jest.Mock).mockRejectedValueOnce(failure);
+
+        await expect(updatePackageData.run(ctx)).rejects.toBe(failure);
+        expect(SystemConnector.updateTrmPackageData).not.toHaveBeenCalled();
+        await updatePackageData.revert(ctx);
+
+        expect(SystemConnector.setInstallTransports).toHaveBeenLastCalledWith('pkg', 'public', []);
     });
 
     test('propagates mapping-write failure before package-row write', async () => {
@@ -117,7 +187,8 @@ describe('install package metadata writes', () => {
                 package_registry: 'public',
                 original_devclass: 'ZOLD',
                 install_devclass: 'ZOLD_TARGET'
-            }]
+            }],
+            installTr: []
         });
         expect(SystemConnector.setInstallDevc).toHaveBeenCalledTimes(1);
     });
@@ -138,7 +209,8 @@ describe('install package metadata writes', () => {
         expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith({
             package: previousRow,
             packageExists: true,
-            installDevc: []
+            installDevc: [],
+            installTr: []
         });
     });
 
@@ -231,7 +303,8 @@ describe('install package metadata writes', () => {
         expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith({
             package: ctx.revert.metadataPackageRow,
             packageExists: false,
-            installDevc: []
+            installDevc: [],
+            installTr: []
         });
     });
 });

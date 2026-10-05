@@ -80,3 +80,4 @@ export * from "./CWBNTNUMM";
 export * from "./CWBNTSTAT";
 export * from "./CWBPRSTAT";
 export * from "./CWBNTVERS";
+export * from "./ZTRM_INSTALLTR_TYPE";

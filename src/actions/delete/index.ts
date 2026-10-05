@@ -2,7 +2,7 @@ import { AbstractRegistry } from "../../registry";
 import { Transport } from "../../transport";
 import { TrmPackage } from "../../trmPackage";
 import { TrmManifest } from "../../manifest";
-import { TrmPackageUpdateData } from "../../systemConnector";
+import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { checkServerAuth, IActionContext, setSystemPackages, workflowCallbacks } from "../commons";
 import execute from "@simonegaffurini/sammarksworkflow";
 import { ActionLockScope, PackageCleanupRevert, packageLockResource } from "../commons/utils";
@@ -89,6 +89,8 @@ type WorkflowRuntime = {
     /** Installed release being deleted (same role as the release replaced by an install update). */
     update: TrmPackage,
     previousInstallPackages: InstallPackageReplacements[],
+    /** Transports recorded for the installed release. */
+    previousInstallTransports: InstallTransport[],
     dele?: Transport,
     stopWarningShown: boolean
 }

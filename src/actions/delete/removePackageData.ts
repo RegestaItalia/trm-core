@@ -6,7 +6,7 @@ import { SystemConnector } from "../../systemConnector";
 /**
  * Workflow step that removes the deleted package from the target system's TRM package table.
  * 
- * Removes the record in TRM packages table and its install devclass mappings
+ * Removes the record in TRM packages table, its install devclass mappings and install transports
  * 
 */
 export const removePackageData: Step<DeleteWorkflowContext> = {
@@ -25,7 +25,8 @@ export const removePackageData: Step<DeleteWorkflowContext> = {
         await SystemConnector.restoreInstallMetadata({
             package: context.revert.metadataPreviousPackageRow,
             packageExists: false,
-            installDevc: []
+            installDevc: [],
+            installTr: []
         });
         Logger.success(`${context.runtime.update.packageName} deleted from ${SystemConnector.getDest()}.`);
     },
@@ -42,6 +43,12 @@ export const removePackageData: Step<DeleteWorkflowContext> = {
                 package_registry: previousRow.package_registry,
                 original_devclass: replacement.originalDevclass,
                 install_devclass: replacement.installDevclass
+            })),
+            installTr: (context.runtime.previousInstallTransports || []).map(transport => ({
+                package_name: previousRow.package_name,
+                package_registry: previousRow.package_registry,
+                trkorr: transport.trkorr,
+                trm_type: transport.trmType
             }))
         });
     }

@@ -1,6 +1,7 @@
 export * from "./RFCConnection";
 export * from "../client/Login";
 export * from "./InstallPackage";
+export * from "./InstallTransport";
 export * from "../client/SapMessage";
 export * from "./ISystemConnector";
 export * from "./ActionLock";

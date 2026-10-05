@@ -3,6 +3,7 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
+import { InstallTransport } from "./InstallTransport";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { TrmManifestEngineTableCondition } from "../manifest";
@@ -18,6 +19,7 @@ export interface ISystemConnectorBase {
     getNamespacePackages: (namespace: components.NAMESPACE) => Promise<struct.TDEVC[]>,
     getDevclassObjects: (devclass: components.DEVCLASS, includeSubpackages: boolean) => Promise<struct.TADIR[]>,
     getInstallPackages: (packageName: string, registry: AbstractRegistry) => Promise<InstallPackage[]>,
+    getInstallTransports: (packageName: string, registry: AbstractRegistry) => Promise<InstallTransport[]>,
     setPackageSuperpackage: (devclass: components.DEVCLASS, superpackage: components.DEVCLASS) => Promise<void>,
     clearPackageSuperpackage: (devclass: components.DEVCLASS) => Promise<void>,
     setPackageTransportLayer: (devclass: components.DEVCLASS, devlayer: components.DEVLAYER) => Promise<void>,

@@ -459,7 +459,16 @@ export class RESTClient implements IClient {
         await this._axiosInstance.put('/set_install_devc', {
             package: data.package,
             package_exists: data.packageExists ? 'X' : ' ',
-            installdevc: data.installDevc
+            installdevc: data.installDevc,
+            installtr: data.installTr || []
+        });
+    }
+
+    public async setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        await this._axiosInstance.put('/set_install_tr', {
+            package_name: packageName,
+            package_registry: packageRegistry,
+            installtr: installTr
         });
     }
 

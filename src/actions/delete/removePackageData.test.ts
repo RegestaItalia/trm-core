@@ -22,7 +22,8 @@ function context(snapshot: any = row) {
     return {
         runtime: {
             update: { packageName: 'pkg', getMetadataSnapshot: () => snapshot },
-            previousInstallPackages: [{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }]
+            previousInstallPackages: [{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }],
+            previousInstallTransports: [{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }]
         },
         revert: { sapPackages: [], metadataRemoveStarted: false }
     } as any;
@@ -48,17 +49,18 @@ describe('removePackageData', () => {
         expect(SystemConnector.restoreInstallMetadata).not.toHaveBeenCalled();
     });
 
-    test('removes the package row and its install mappings atomically', async () => {
+    test('removes the package row, its install mappings and install transports atomically', async () => {
         await removePackageData.run(context());
 
         expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith({
             package: row,
             packageExists: false,
-            installDevc: []
+            installDevc: [],
+            installTr: []
         });
     });
 
-    test('revert restores the exact row and install mappings', async () => {
+    test('revert restores the exact row, install mappings and install transports', async () => {
         const ctx = context();
         await removePackageData.run(ctx);
 
@@ -72,6 +74,12 @@ describe('removePackageData', () => {
                 package_registry: 'public',
                 original_devclass: 'ZORIG',
                 install_devclass: 'ZPKG'
+            }],
+            installTr: [{
+                package_name: 'pkg',
+                package_registry: 'public',
+                trkorr: 'DEVK9CUST1',
+                trm_type: 'CUST'
             }]
         });
     });
