@@ -164,7 +164,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 5 | `check-transports` | Root package matched by raw name ([ACT-2026-16](shared.md)); non-interactive mode overwrites when the root devclass is unknown (ACT-2026-36). |
 | 6 | `check-sap-entries` | See [check-sap-entries findings](check-sap-entries.md); each missing entry is logged at error level before aborting. |
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
-| 8 | `check-dependencies` | Incompatible installed dependencies are labelled "missing" and may be downgraded ([ACT-2026-81](install-dependency.md)). |
+| 8 | `check-dependencies` | Queues missing and incompatible dependencies separately, with the installed version; a downgrade must be confirmed by the dependency install ([ACT-2026-81](install-dependency.md), resolved). |
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
 | 10 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35), TypeError on unknown root (ACT-2026-41). |
 | 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |

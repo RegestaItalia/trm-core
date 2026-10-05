@@ -44,6 +44,7 @@ describe('checkPackageDependencies', () => {
             ['old', 'versionMismatch', false],
             ['missing', 'notFound', false]
         ]);
+        expect(output.dependencyStatus.map(o => o.installedVersion)).toEqual(['1.2.0', '1.0.0', undefined]);
     });
 
     test('an installed prerelease is matched against the range', async () => {

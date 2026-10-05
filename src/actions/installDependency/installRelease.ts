@@ -10,6 +10,7 @@ import { InstallActionInput, install as InstallWkf } from "..";
 */
 export const installRelease: Step<InstallDependencyWorkflowContext> = {
     name: 'install-release',
+    filter: async (context: InstallDependencyWorkflowContext): Promise<boolean> => !context.runtime.alreadyInstalled,
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
         //1- run install workflow
         const inputData: InstallActionInput = {

@@ -42,7 +42,7 @@ function context(dependencies: [string, string][], systemPackages: TrmPackage[] 
         },
         runtime: {
             package: { data: { manifest } },
-            dependencies: manifest.dependencies,
+            dependencies: manifest.dependencies.map(dependency => ({ dependency, status: 'notFound' })),
             dependencyRollbacks: [],
             dependencyReleases: []
         }

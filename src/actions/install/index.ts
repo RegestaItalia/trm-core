@@ -108,6 +108,12 @@ export type InstallActionInputInstallData = {
         noDependencies?: boolean;
 
         /**
+         * Allow a dependency install to replace a newer installed release without confirmation.
+         * Defaults to `false`: the user is prompted, and without a prompt the install is aborted.
+         */
+        allowDowngrade?: boolean;
+
+        /**
          * Skip the safety check for repository objects that would be overwritten. Defaults to `false`.
          */
         noExistingObjects?: boolean;
@@ -216,7 +222,7 @@ type WorkflowRuntime = {
     transportEntries: {
         tdevct: TDEVCT[]
     },
-    dependencies: TrmManifestDependency[],
+    dependencies: InstallDependencyEntry[],
     namespace: string,
     previousInstallPackages: InstallPackageReplacements[],
     /** Transports recorded for the installed release being updated. */
@@ -225,6 +231,15 @@ type WorkflowRuntime = {
     dependencyReleases: Array<() => Promise<void>>,
     rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean
+}
+
+
+/** Dependency queued for install: missing from the system, or installed in an incompatible version. */
+export type InstallDependencyEntry = {
+    dependency: TrmManifestDependency,
+    status: 'notFound' | 'versionMismatch',
+    /** Version on the system; set for `versionMismatch`. */
+    installedVersion?: string
 }
 
 

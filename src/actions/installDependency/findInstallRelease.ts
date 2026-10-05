@@ -41,6 +41,7 @@ export async function selectDependencyRelease(
 */
 export const findInstallRelease: Step<InstallDependencyWorkflowContext> = {
     name: 'find-install-release',
+    filter: async (context: InstallDependencyWorkflowContext): Promise<boolean> => !context.runtime.alreadyInstalled,
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
         //1- find version
         const release = await selectDependencyRelease(

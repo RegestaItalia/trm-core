@@ -31,12 +31,16 @@ describe('install checkDependencies step', () => {
             dependencyStatus: [
                 { dependency: ok, match: true, status: 'ok' },
                 { dependency: missing, match: false, status: 'notFound' },
-                { dependency: old, match: false, status: 'versionMismatch' }
+                { dependency: old, match: false, status: 'versionMismatch', installedVersion: '1.0.0' }
             ]
         });
         const ctx = context();
         await checkDependencies.run(ctx);
-        expect(ctx.runtime.dependencies).toEqual([missing, old]);
+        expect(ctx.runtime.dependencies).toEqual([
+            { dependency: missing, status: 'notFound', installedVersion: undefined },
+            { dependency: old, status: 'versionMismatch', installedVersion: '1.0.0' }
+        ]);
+        expect(Logger.info).toHaveBeenCalledWith('"test" has 3 dependencies: 1 installed, 1 missing, 1 incompatible.');
     });
 
     test('aborts instead of reinstalling a dependency whose manifest is unreadable', async () => {

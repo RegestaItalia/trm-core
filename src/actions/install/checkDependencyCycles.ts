@@ -1,11 +1,11 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
-import { satisfies } from "semver";
 import { TrmManifest } from "../../manifest";
 import { RegistryProvider } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { selectDependencyRelease } from "../installDependency/findInstallRelease";
+import { getInstalledDependency } from "../commons/utils";
 
 /**
  * Workflow step that rejects dependency cycles the install would recurse into, before anything
@@ -33,17 +33,6 @@ export const checkDependencyCycles: Step<InstallWorkflowContext> = {
         const lockfile = context.rawInput.installData.checks.lockfile;
         const resolved: TrmPackage[] = [];
 
-        const isInstalledCompatible = (trmPackage: TrmPackage, versionRange: string): boolean => {
-            const installed = systemPackages.find(o => TrmPackage.compare(o, trmPackage));
-            try {
-                const version = installed?.manifest?.get().version;
-                return typeof version === 'string' && satisfies(version, versionRange, { includePrerelease: true });
-            } catch {
-                // Unreadable installed manifest: the dependency would be installed.
-                return false;
-            }
-        };
-
         const getManifest = async (trmPackage: TrmPackage, versionRange: string): Promise<TrmManifest> => {
             const release = await selectDependencyRelease(trmPackage, trmPackage.registry, versionRange, lockfile);
             return (await trmPackage.registry.getPackage(trmPackage.packageName, release.version)).manifest;
@@ -52,7 +41,7 @@ export const checkDependencyCycles: Step<InstallWorkflowContext> = {
         const visit = async (manifest: TrmManifest, path: TrmPackage[]): Promise<void> => {
             for (const dependency of manifest.dependencies || []) {
                 const trmPackage = new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry));
-                if (isInstalledCompatible(trmPackage, dependency.version)) {
+                if (getInstalledDependency(systemPackages, trmPackage, dependency.version).status === 'ok') {
                     continue;
                 }
                 const cycleStart = path.findIndex(o => TrmPackage.compare(o, trmPackage));

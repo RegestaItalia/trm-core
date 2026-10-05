@@ -1,10 +1,11 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { InstallWorkflowContext } from ".";
+import { InstallDependencyEntry, InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { CheckPackageDependenciesActionInput, checkPackageDependencies as CheckPackageDependenciesWkf } from "../checkPackageDependencies";
 
 /**
  * Workflow step that identifies missing or incompatible dependencies on the target system.
+ * Incompatible dependencies are queued with their installed version, so they are not reported as missing.
  * 
  * 1- execute check dependencies workflow
  * 
@@ -40,11 +41,11 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
         Logger.loading(`Checking package dependencies...`);
         const result = await CheckPackageDependenciesWkf(inputData);
         if(result.dependencies.length > 0){
-            if(result.dependencies.length === 1){
-                Logger.info(`"${context.rawInput.packageData.name}" has ${result.dependencies.length} dependency: ${result.dependencyStatus.filter(o => o.match).length} installed, ${result.dependencyStatus.filter(o => !o.match).length} missing.`);
-            }else{
-                Logger.info(`"${context.rawInput.packageData.name}" has ${result.dependencies.length} dependencies: ${result.dependencyStatus.filter(o => o.match).length} installed, ${result.dependencyStatus.filter(o => !o.match).length} missing.`);
-            }
+            const installed = result.dependencyStatus.filter(o => o.status === 'ok').length;
+            const missing = result.dependencyStatus.filter(o => o.status === 'notFound').length;
+            const incompatible = result.dependencyStatus.filter(o => o.status === 'versionMismatch').length;
+            const noun = result.dependencies.length === 1 ? 'dependency' : 'dependencies';
+            Logger.info(`"${context.rawInput.packageData.name}" has ${result.dependencies.length} ${noun}: ${installed} installed, ${missing} missing, ${incompatible} incompatible.`);
         }
 
         //2- reject installed dependencies with an unreadable manifest
@@ -54,6 +55,12 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
         }
 
         //3- filter dependencies
-        context.runtime.dependencies = result.dependencyStatus.filter(o => !o.match).map(k => k.dependency);
+        context.runtime.dependencies = result.dependencyStatus
+            .filter(o => o.status === 'notFound' || o.status === 'versionMismatch')
+            .map(o => ({
+                dependency: o.dependency,
+                status: o.status as InstallDependencyEntry['status'],
+                installedVersion: o.installedVersion
+            }));
     }
 }

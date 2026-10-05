@@ -74,7 +74,9 @@ export type CheckPackageDependenciesActionOutput = {
         /** Whether a matching installed package was found at a compatible version. */
         match: boolean,
         /** Detailed outcome; distinguishes a missing package from one whose manifest is unreadable. */
-        status: DependencyCheckStatus
+        status: DependencyCheckStatus,
+        /** Version on the system; set for `ok` and `versionMismatch`. */
+        installedVersion?: string
     }[]
 }
 

@@ -1,9 +1,9 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { CheckPackageDependenciesWorkflowContext, DependencyCheckStatus } from ".";
+import { CheckPackageDependenciesWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
 import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../../registry";
-import { satisfies, valid } from "semver";
+import { getInstalledDependency } from "../commons/utils";
 
 /**
  * Workflow step that compares manifest dependency ranges with installed package versions.
@@ -39,26 +39,17 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
         for(const dependency of context.output.dependencies){
             tableData = [dependency.name, dependency.registry || PUBLIC_RESERVED_KEYWORD, dependency.version];
             const dependencyTrmPackage = new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry));
-            const systemInstalledPackage = context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, dependencyTrmPackage));
-            var status: DependencyCheckStatus;
-            if(!systemInstalledPackage){
-                status = 'notFound';
+            const installed = getInstalledDependency(context.rawInput.contextData.systemPackages, dependencyTrmPackage, dependency.version);
+            const status = installed.status;
+            if(status === 'notFound'){
                 tableData.push('Not found');
+            }else if(status === 'manifestUnreadable'){
+                if(installed.error){
+                    Logger.error(installed.error.toString(), true);
+                }
+                tableData.push('Installed, manifest unreadable');
             }else{
-                var installedVersion: string;
-                try{
-                    installedVersion = systemInstalledPackage.manifest?.get().version;
-                }catch(e){
-                    Logger.error(e.toString(), true);
-                    installedVersion = undefined;
-                }
-                if(typeof installedVersion !== 'string' || valid(installedVersion) === null){
-                    status = 'manifestUnreadable';
-                    tableData.push('Installed, manifest unreadable');
-                }else{
-                    tableData.push(installedVersion);
-                    status = satisfies(installedVersion, dependency.version, { includePrerelease: true }) ? 'ok' : 'versionMismatch';
-                }
+                tableData.push(installed.installedVersion);
             }
             const match = status === 'ok';
             tableData.push(match ? 'OK' : 'ERR!');
@@ -70,7 +61,8 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
             context.output.dependencyStatus.push({
                 dependency,
                 match,
-                status
+                status,
+                installedVersion: installed.installedVersion
             });
             table.data.push(tableData);
         }

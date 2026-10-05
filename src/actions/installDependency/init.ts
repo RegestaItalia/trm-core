@@ -42,7 +42,8 @@ export const init: Step<InstallDependencyWorkflowContext> = {
         context.runtime = {
             trmPackage: new TrmPackage(context.rawInput.dependencyDataPackage.name, context.rawInput.dependencyDataPackage.registry),
             installOutput: undefined,
-            installVersion: undefined
+            installVersion: undefined,
+            alreadyInstalled: false
         }
 
         //5- fill input values

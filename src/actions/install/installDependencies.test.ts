@@ -24,8 +24,8 @@ function context() {
         },
         runtime: {
             dependencies: [
-                { name: 'dep-one', version: '^1.0.0' },
-                { name: 'dep-two', version: '^2.0.0' }
+                { dependency: { name: 'dep-one', version: '^1.0.0' }, status: 'notFound' },
+                { dependency: { name: 'dep-two', version: '^2.0.0' }, status: 'versionMismatch', installedVersion: '3.0.0' }
             ],
             dependencyRollbacks: [],
             dependencyReleases: []
@@ -72,6 +72,46 @@ describe('nested dependency rollback ownership', () => {
         await expect(execute('test', [installDependencies, failLater], ctx)).rejects.toThrow();
 
         expect(order).toEqual(['second', 'first']);
+    });
+
+    test('lists incompatible dependencies separately from missing ones', async () => {
+        const ctx = context();
+        (installDependency as jest.Mock)
+            .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-one' } }, rollback: jest.fn() })
+            .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-two' } }, rollback: jest.fn() });
+
+        await execute('test', [installDependencies], ctx);
+
+        expect(Logger.info).toHaveBeenCalledWith('  1/2 dep-one ^1.0.0 (missing)');
+        expect(Logger.info).toHaveBeenCalledWith('  2/2 dep-two ^2.0.0 (incompatible: v3.0.0 installed)');
+    });
+
+    test('asks to replace dependencies when one is installed in an incompatible version', async () => {
+        const ctx = context();
+        ctx.rawInput.contextData.noInquirer = false;
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ confirmInstall: false } as never);
+
+        await expect(execute('test', [installDependencies], ctx)).rejects.toThrow('Install aborted.');
+
+        expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ message: 'Install or replace dependencies?' }));
+        expect(installDependency).not.toHaveBeenCalled();
+    });
+
+    test('a dependency already installed adds no rollback, and earlier dependencies still roll back on a later failure', async () => {
+        const ctx = context();
+        ctx.runtime.dependencies.push({ dependency: { name: 'dep-three', version: '^1.0.0' }, status: 'notFound' });
+        const rollbackFirst = jest.fn().mockResolvedValue(undefined);
+        (installDependency as jest.Mock)
+            .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-one' } }, alreadyInstalled: false, rollback: rollbackFirst })
+            .mockResolvedValueOnce({ alreadyInstalled: true, installedVersion: '2.1.0' })
+            .mockRejectedValueOnce(new Error('third dependency failed'));
+
+        await expect(execute('test', [installDependencies], ctx)).rejects.toThrow();
+
+        expect(installDependency).toHaveBeenCalledTimes(3);
+        expect(ctx.runtime.dependencyRollbacks).toEqual([rollbackFirst]);
+        expect(rollbackFirst).toHaveBeenCalledTimes(1);
+        expect(Logger.setPrefix).toHaveBeenLastCalledWith(undefined);
     });
 
     test('one dependency rollback failure does not skip earlier dependencies', async () => {

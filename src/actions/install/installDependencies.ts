@@ -9,13 +9,15 @@ import * as _ from "lodash";
 import { installWithRollback } from ".";
 
 /**
- * Workflow step that installs each dependency missing from the target system.
+ * Workflow step that installs each dependency missing from the target system or installed in an
+ * incompatible version. A downgrade is confirmed by the dependency install; a dependency found
+ * already installed there is skipped without a rollback.
  * 
  * 1- list dependencies to install
  * 
  * 2- prompt install
  * 
- * 3- run install workflow for each missing dependency
+ * 3- run install workflow for each dependency
  * 
 */
 export const installDependencies: Step<InstallWorkflowContext> = {
@@ -30,13 +32,14 @@ export const installDependencies: Step<InstallWorkflowContext> = {
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- list dependencies to install
-        if(context.runtime.dependencies.length === 1){
-            Logger.info(`There is ${context.runtime.dependencies.length} missing dependency to install:`);
-        }else{
-            Logger.info(`There are ${context.runtime.dependencies.length} missing dependencies to install:`);
-        }
-        context.runtime.dependencies.forEach((o, i)=> {
-            Logger.info(`  ${i+1}/${context.runtime.dependencies.length} ${o.name} ${o.version}`);
+        const total = context.runtime.dependencies.length;
+        Logger.info(total === 1 ? `There is 1 dependency to install:` : `There are ${total} dependencies to install:`);
+        context.runtime.dependencies.forEach((o, i) => {
+            if(o.status === 'versionMismatch'){
+                Logger.info(`  ${i+1}/${total} ${o.dependency.name} ${o.dependency.version} (incompatible: v${o.installedVersion} installed)`);
+            }else{
+                Logger.info(`  ${i+1}/${total} ${o.dependency.name} ${o.dependency.version} (missing)`);
+            }
         });
 
         //2- prompt install
@@ -45,7 +48,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             confirmInstall = (await Inquirer.prompt({
                 type: 'confirm',
                 default: true,
-                message: `Install missing dependencies?`,
+                message: context.runtime.dependencies.some(o => o.status === 'versionMismatch') ? `Install or replace dependencies?` : `Install missing dependencies?`,
                 name: 'confirmInstall'
             })).confirmInstall;
         }
@@ -53,13 +56,13 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             throw new Error(`Install aborted.`);
         }
 
-        //3- run install workflow for each missing dependency
+        //3- run install workflow for each dependency
         let counter = 0;
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
-        for(const dependency of context.runtime.dependencies){
+        for(const { dependency } of context.runtime.dependencies){
             counter++;
-            Logger.loading(`Getting ready to install missing dependency "${dependency.name}"...`);
+            Logger.loading(`Getting ready to install dependency "${dependency.name}"...`);
             const prefix = `(${counter}/${context.runtime.dependencies.length}) `;
             try {
                 if(originalLPrefix){
@@ -84,6 +87,9 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 };
                 delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
                 const result = await InstallDependencyWkf(inputData, installWithRollback);
+                if (result.alreadyInstalled) {
+                    continue;
+                }
                 if (!result.rollback) {
                     throw new Error(`Dependency install did not return its rollback journal.`);
                 }

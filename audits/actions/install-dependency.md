@@ -1,7 +1,7 @@
 # `install-dependency` workflow audit
 
-Audit date: 2026-10-04
-Entry point: [`installDependency`](../../src/actions/installDependency/index.ts#L83)
+Audit date: 2026-10-05
+Entry point: [`installDependency`](../../src/actions/installDependency/index.ts#L95)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 
@@ -19,22 +19,34 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** the lock does not protect what is imported; an empty integrity row (`getPackageIntegrity` returns `''`) produces a lockfile that always raises "SECURITY ISSUE".
 - **Fix:** pass the expected integrity into the nested install and compare it with the imported release; refuse empty integrity at generation.
 
-### ACT-2026-81 — Medium — Functional — Installed versions are ignored: silent downgrade or "already installed" abort
-
-- **Where:** snapshot never read by `installDependency`; wrapper labels incompatible dependencies "missing" ([`install/checkDependencies.ts#L42`](../../src/actions/install/checkDependencies.ts#L42)).
-- **Failure:** X 2.0.0 installed and `^1.0.0` required: confirming "missing dependencies" downgrades X. Called directly when the newest in-range release is installed, it throws instead of returning a no-op.
-- **Fix:** skip compatible installed versions and require explicit confirmation for downgrades.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. |
-| 2 | `set-system-packages` | Snapshot loaded but never consulted (ACT-2026-81). |
-| 3 | `find-install-release` | Lockfile fallback unreachable (ACT-2026-79); integrity check on a different download (ACT-2026-80). |
-| 4 | `install-release` | Forwards options correctly; relies on `find-install-release` to set the version or throw. |
+| 2 | `set-system-packages` | No issue found; the snapshot is consulted by `check-installed-release`. |
+| 3 | `check-installed-release` | Keeps a compatible installed release (no-op output) unless a lockfile pins another version; rejects an unreadable installed manifest (ACT-2026-81, resolved). |
+| 4 | `find-install-release` | Lockfile fallback unreachable (ACT-2026-79); integrity check on a different download (ACT-2026-80). Skipped when the installed release is kept. |
+| 5 | `confirm-downgrade` | Requires confirmation (prompt defaulting to no, or `checks.allowDowngrade`) before replacing a newer installed release; aborts without a prompt (ACT-2026-81, resolved). |
+| 6 | `install-release` | Forwards options correctly; relies on `find-install-release` to set the version or throw. Skipped when the installed release is kept. |
 
 ## Resolved findings
+### ACT-2026-81 — Resolved — Installed versions are ignored: silent downgrade or "already installed" abort
+
+The dependency install now reads the system snapshot in
+[`check-installed-release`](../../src/actions/installDependency/checkInstalledRelease.ts): a release
+already installed that satisfies the range is kept and the action returns `alreadyInstalled`
+without installing anything, so a direct call with the newest in-range release installed no longer
+throws. With a lockfile, the installed release is kept only when it equals the locked version;
+otherwise the lock is honoured. Replacing a newer installed release goes through
+[`confirm-downgrade`](../../src/actions/installDependency/confirmDowngrade.ts), which prompts with
+a default of no, accepts `installData.checks.allowDowngrade`, and aborts without a prompt. In the
+install workflow, [`check-dependencies`](../../src/actions/install/checkDependencies.ts) now
+reports incompatible dependencies with their installed version instead of labelling them
+"missing", and `install-dependencies` lists them separately. The installed-version check is shared
+by the dependency check, the cycle walk and the dependency install
+([`getInstalledDependency`](../../src/actions/commons/utils/installedDependency.ts)).
+
 ### ACT-2026-82 — Resolved — Self and cyclic dependencies are not detected
 
 The install workflow now runs [`check-dependency-cycles`](../../src/actions/install/checkDependencyCycles.ts)
