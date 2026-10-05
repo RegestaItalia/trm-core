@@ -132,12 +132,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** `keepOriginal` or `$` installs fail on systems without a default layer.
 - **Fix:** validate the layer only when packages are generated.
 
-### ACT-2026-43 — Low — Functional — `&LANDSCAPE_TRANSPORT&` resolves to an empty string
-
-- **Where:** [`executePostActivities.ts#L37`](../../src/actions/install/executePostActivities.ts#L37).
-- **Failure:** on a final system or `$` package the placeholder silently becomes `''`.
-- **Fix:** warn or fail when used without a landscape transport.
-
 ### ACT-2026-44 — Low — Functional — Locked namespace is silently omitted from the landscape transport
 
 - **Where:** [`generateLandscapeTransport.ts#L81`](../../src/actions/install/generateLandscapeTransport.ts#L81).
@@ -175,7 +169,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 16–19 | `prepare-devc`, `prepare-tadir`, `prepare-lang`, `prepare-cust` | Forward flow correct; test-import RC is checked. `prepare-cust` revert is not best-effort (ACT-2026-39). |
 | 20 | `import-batch` | Batch RC ignored (see *Reconsideration of accepted findings*). Rollback drops retained tables (ACT-2026-28), deletes unsnapshotted pre-existing objects (ACT-2026-30), and always fails for local registries (ACT-2026-27). |
 | 21 | `generate-landscape-transport` | Locked namespace silently omitted (ACT-2026-44). |
-| 22 | `execute-post-activities` | Global prefix clobbered ([ACT-2026-18](shared.md)); empty `&LANDSCAPE_TRANSPORT&` (ACT-2026-43). |
+| 22 | `execute-post-activities` | Global prefix clobbered ([ACT-2026-18](shared.md)). `&LANDSCAPE_TRANSPORT&` intentionally resolves to an empty string without a landscape transport (ACT-2026-43, non-relevant). |
 | 23 | `release-install-transports` | Released transport stays queued in the target after rollback (ACT-2026-29); unbounded release wait ([ACT-2026-14](shared.md)). |
 | 24 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). Records the imported CUST and LANG transports in `/ATRM/INSTALLTR` and restores the previous ones on revert ([ACT-2026-48](delete.md), resolved). |
 
@@ -262,6 +256,13 @@ previous version instead of leaving a stale duplicate
 ([source](../../src/actions/install/installDependencies.ts#L84)).
 
 ## Non-relevant findings
+### ACT-2026-43 — Non-relevant — `&LANDSCAPE_TRANSPORT&` intentionally resolves to an empty string
+
+On a final system or a `$` package no landscape transport exists, so the placeholder resolves to
+`''`. This is expected: a post-activity that requires a landscape transport is responsible for
+rejecting the empty value itself, and post-activity failures are already handled as best-effort
+(INST-07) ([source](../../src/actions/install/executePostActivities.ts#L37)).
+
 ### INST-14 — Non-relevant — Non-interactive mode intentionally skips unspecified optional transports
 
 When prompts are disabled and `noLang` or `noCust` is unspecified, optional language and
