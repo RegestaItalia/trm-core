@@ -6,26 +6,47 @@ import * as AdmZip from "adm-zip";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 
+const TRANSPORT_FILE_PATTERN = /^([KR])([A-Z0-9]{6,})\.([A-Z0-9]{3})$/;
+
+/**
+ * Parses a transport file name (`K900001.TST` / `R900001.TST`), ignoring any folder prefix and case.
+ *
+ * @returns The file kind and transport number, or `undefined` when the name is not a transport file.
+ */
+function parseTransportFileName(entryName: string): { kind: 'K' | 'R', trkorr: string } | undefined {
+    const baseName = entryName.split(/[\\/]/).pop().trim().toUpperCase();
+    const match = TRANSPORT_FILE_PATTERN.exec(baseName);
+    if (!match) {
+        return undefined;
+    }
+    return {
+        kind: match[1] as 'K' | 'R',
+        trkorr: `${match[3]}K${match[2]}`
+    };
+}
+
 export function parseTransportArchive(binaries: Buffer): {
     header: AdmZip.IZipEntry,
     data: AdmZip.IZipEntry,
     trkorr: string
 } {
     const zip = new AdmZip.default(binaries);
-    const headers: AdmZip.IZipEntry[] = [];
-    const data: AdmZip.IZipEntry[] = [];
+    const headers: { entry: AdmZip.IZipEntry, trkorr: string }[] = [];
+    const data: { entry: AdmZip.IZipEntry, trkorr: string }[] = [];
     zip.forEach(entry => {
-        if (entry.entryName.startsWith("K")) headers.push(entry);
-        if (entry.entryName.startsWith("R")) data.push(entry);
+        if (entry.isDirectory) return;
+        const file = parseTransportFileName(entry.entryName);
+        if (!file) return;
+        (file.kind === 'K' ? headers : data).push({ entry, trkorr: file.trkorr });
     });
     if (headers.length !== 1 || data.length !== 1) {
-        throw new Error("Transport archive must contain exactly one header and one data file.");
+        throw new Error(`Transport archive must contain exactly one header (K<number>.<SID>) and one data (R<number>.<SID>) file, found ${headers.length} header(s) and ${data.length} data file(s).`);
     }
-    const trkorr = Transport.getTrkorrFromFileName(data[0].entryName);
-    if (Transport.getTrkorrFromFileName(headers[0].entryName) !== trkorr) {
-        throw new Error("Transport header and data don't match!");
+    const trkorr = data[0].trkorr;
+    if (headers[0].trkorr !== trkorr) {
+        throw new Error(`Transport header (${headers[0].trkorr}) and data (${trkorr}) don't match!`);
     }
-    return { header: headers[0], data: data[0], trkorr };
+    return { header: headers[0].entry, data: data[0].entry, trkorr };
 }
 
 /**

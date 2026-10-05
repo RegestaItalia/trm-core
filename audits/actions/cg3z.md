@@ -19,20 +19,21 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** a colliding transport number (shared trial SIDs, re-upload to the source) overwrites cofile/data, losing import history; a forward failure may then delete an unrelated modifiable request with the same number.
 - **Fix:** refuse (or require an overwrite flag) when E070 or files exist, and snapshot them for rollback.
 
-### ACT-2026-87 — Medium — Functional — Archive entry-name handling is fragile
-
-- **Where:** [`cg3z/upload.ts#L16`](../../src/actions/cg3z/upload.ts#L16).
-- **Failure:** lowercase `k900001.npl` yields `nplK900001` and tp cannot find the cofile; any `R*`/`K*` entry (e.g. `README.txt`) or folder prefix triggers a misleading cardinality error.
-- **Fix:** use basenames, require `^[KR][A-Z0-9]{6,}\.[A-Z0-9]{3}$/i`, uppercase, ignore directories.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `check-server-auth` | Fails open on non-`ClientError` failures ([ACT-2026-12](shared.md)). |
-| 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and a non-fatal text-refresh failure is logged with its error message. Rollback ineffective (ACT-2026-85); overwrite and entry-name gaps (ACT-2026-86, ACT-2026-87). |
+| 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and a non-fatal text-refresh failure is logged with its error message. Archive entries are matched by case-insensitive basename (`K`/`R` + number + `.` + 3-character SID), directories and unrelated files are ignored, and the transport number is uppercased. Rollback ineffective (ACT-2026-85); overwrite gap (ACT-2026-86). |
 
 ## Resolved findings
+
+### ACT-2026-87 — Resolved — Archive entry-name handling is fragile
+
+- **Where:** [`cg3z/upload.ts`](../../src/actions/cg3z/upload.ts).
+- **Was:** lowercase `k900001.npl` yielded `nplK900001` and tp could not find the cofile; any `R*`/`K*` entry (e.g. `README.txt`) or folder prefix triggered a misleading cardinality error.
+- **Fix:** `parseTransportArchive` skips directory entries, takes each entry's basename (`/` or `\` separators), uppercases it and accepts only `^[KR][A-Z0-9]{6,}\.[A-Z0-9]{3}$`; other files are ignored. The cardinality error reports how many header and data files were found, and the mismatch error names both transport numbers. Covered by [`upload.test.ts`](../../src/actions/cg3z/upload.test.ts).
+
 
 ### ACT-2026-88 — Resolved — Diagnostics and stop warning
 
