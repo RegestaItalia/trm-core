@@ -30,19 +30,23 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Where:** [`install/checkSapEntries.ts#L30`](../../src/actions/install/checkSapEntries.ts#L30) prints entries only in debug; `splice` at [`analyze.ts#L118`](../../src/actions/checkSapEntries/analyze.ts#L118) shifts values when an entry lacks a column.
 - **Fix:** log each missing entry at error level; build rows as `header.map(h => entry[h] ?? '')`.
 
-### ACT-2026-73 — Low — Technical — Output order and unused imports
-
-- **Where:** good rows are emitted before bad rows ([`analyze.ts#L137`](../../src/actions/checkSapEntries/analyze.ts#L137)); unused imports in `index.ts`.
-- **Fix:** emit statuses in declaration order.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. |
-| 2 | `analyze` | Error handling dead (ACT-2026-69); unsafe where clause (ACT-2026-70); case-sensitive, TABL-only probe (ACT-2026-71); hidden and misaligned output (ACT-2026-72, ACT-2026-73). |
+| 2 | `analyze` | Error handling dead (ACT-2026-69); unsafe where clause (ACT-2026-70); case-sensitive, TABL-only probe (ACT-2026-71); hidden and misaligned output (ACT-2026-72). Output statuses follow declaration order. |
 
 ## Resolved findings
+### ACT-2026-73 — Resolved — Low — Technical — Output order and unused imports
+
+Previously `sapEntriesStatus` listed every found entry before every missing one, so its order no
+longer matched the manifest. The grouping did not make failures more visible in the CLI: printed
+tables are built row by row in declaration order, and the install wrapper filters failed entries
+itself. Statuses are now emitted per table in declaration order
+([source](../../src/actions/checkSapEntries/analyze.ts#L135)), and the unused `inspect` and
+`Logger` imports were removed from `index.ts`.
+
 ### SAPCHK-01 — Resolved — Missing tables produce failed statuses for every required row
 
 When a required table is absent, every declared row is now added to the failed-entry collection.

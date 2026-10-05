@@ -132,25 +132,20 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
             Logger.table(t.header, t.data, !context.rawInput.printOptions.entriesStatus);
         });
 
-        //4- build output data
-        context.output.sapEntriesStatus = {};
-        context.runtime.entriesStatus.good.forEach(o => {
-            if(!context.output.sapEntriesStatus[o.table]){
-                context.output.sapEntriesStatus[o.table] = [];
-            }
-            context.output.sapEntriesStatus[o.table].push({
-                status: true,
-                entry: o.tableEntry
-            });
-        });
+        //4- build output data (declaration order)
+        const badEntries = new Map<string, Set<any>>();
         context.runtime.entriesStatus.bad.forEach(o => {
-            if(!context.output.sapEntriesStatus[o.table]){
-                context.output.sapEntriesStatus[o.table] = [];
+            if(!badEntries.has(o.table)){
+                badEntries.set(o.table, new Set());
             }
-            context.output.sapEntriesStatus[o.table].push({
-                status: false,
-                entry: o.tableEntry
-            });
+            badEntries.get(o.table).add(o.tableEntry);
+        });
+        context.output.sapEntriesStatus = {};
+        Object.keys(context.output.sapEntries).forEach(table => {
+            context.output.sapEntriesStatus[table] = context.output.sapEntries[table].map(entry => ({
+                status: !badEntries.get(table)?.has(entry),
+                entry
+            }));
         });
     }
 }
