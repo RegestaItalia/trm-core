@@ -10,23 +10,26 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 ### ACT-2026-85 — High — Technical — Upload rollback is ineffective (CG3Z-01 ineffective)
 
 - **Where:** [`cg3z/upload.ts#L72`](../../src/actions/cg3z/upload.ts#L72); the unit test mocks `Transport` entirely.
-- **Failure:** uploaded foreign transports have no E070 row in the target, so `canBeDeleted()` throws `TypeError`; cofile/data files and any TMS buffer entry remain. Even with E070, `deleteTrkorr` removes neither.
+- **Failure:** uploaded foreign transports have no E070 row in the target, so the revert (which since ACT-2026-86 skips deletion without an E070 row) cleans up nothing for a new transport: its cofile/data files and any TMS buffer entry remain. Even with E070, `deleteTrkorr` removes neither. Overwritten files are restored (ACT-2026-86).
 - **Fix:** track header/data/forward progress, remove the buffer entry with `deleteTmsTransport`, restore or delete only files written by this run, and never call `deleteTrkorr` here.
-
-### ACT-2026-86 — Medium — Functional — Existing transport files are overwritten
-
-- **Where:** [`cg3z/upload.ts#L51`](../../src/actions/cg3z/upload.ts#L51); `Transport.upload` writes without an existence check.
-- **Failure:** a colliding transport number (shared trial SIDs, re-upload to the source) overwrites cofile/data, losing import history; a forward failure may then delete an unrelated modifiable request with the same number.
-- **Fix:** refuse (or require an overwrite flag) when E070 or files exist, and snapshot them for rollback.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `check-server-auth` | Fails open on non-`ClientError` failures ([ACT-2026-12](shared.md)). |
-| 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and a non-fatal text-refresh failure is logged with its error message. Archive entries are matched by case-insensitive basename (`K`/`R` + number + `.` + 3-character SID), directories and unrelated files are ignored, and the transport number is uppercased. Rollback ineffective (ACT-2026-85); overwrite gap (ACT-2026-86). |
+| 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and the TMS text is refreshed only for an overwritten transport (a non-fatal refresh failure is logged with its error message). Archive entries are matched by case-insensitive basename (`K`/`R` + number + `.` + 3-character SID), directories and unrelated files are ignored, and the transport number is uppercased. Before writing, an existing transport (E070 entry, header or data file) is detected and overwritten only per `uploadData.overwrite`, after a confirmation prompt, or never with `noInquirer`; overwritten files are snapshotted and restored on rollback, and a request that existed before the run is never deleted. Rollback of newly uploaded transports is still ineffective (ACT-2026-85). |
 
 ## Resolved findings
+
+### ACT-2026-86 — Resolved — Existing transport files are overwritten
+
+- **Where:** [`cg3z/upload.ts`](../../src/actions/cg3z/upload.ts), [`cg3z/index.ts`](../../src/actions/cg3z/index.ts).
+- **Was:** a colliding transport number (shared trial SIDs, re-upload to the source) overwrote cofile/data, losing import history; a forward failure could then delete an unrelated modifiable request with the same number.
+- **Fix:** the action input gained `contextData.noInquirer` and `uploadData.overwrite`. Before writing, the step checks E070 and reads the existing header/data files (`Transport.readBinaryFiles`). If anything exists, a boolean `overwrite` is applied as given; otherwise the user is asked (default *no*), and with `noInquirer` the upload is aborted. The previous files are kept in `runtime.overwritten`; the revert never deletes a request that had an E070 entry before the run, deletes a request created by the run only if it now has a modifiable E070 entry, and restores the snapshotted files only after that cleanup succeeded, continuing past a failed file and rethrowing the first error. Covered by [`upload.test.ts`](../../src/actions/cg3z/upload.test.ts).
+- **Missing-file detection:** `Transport.readBinaryFiles` treats only a `NOT_FOUND` failure (RFC exception key, or the REST reason carried in the HTTP status text) and an empty file as absent; any other read error aborts the upload before anything is written. [`Transport.readBinaryFiles.test.ts`](../../src/transport/Transport.readBinaryFiles.test.ts) covers both.
+- **Backend dependency:** `/ATRM/CL_UTILITIES=>get_binary_file` raises `NOT_FOUND` with the path and OS message and wraps `CX_SY_FILE_ACCESS_ERROR`, and `/ATRM/GET_BINARY_FILE` declares the `NOT_FOUND` exception (REST already reported it as the HTTP reason). On trm-server ≤ 6.4.1 a missing file over RFC ends in a runtime error, so every new upload aborts at the existence check; `trmDependencies` must be raised to the trm-server release that contains this change.
+
 
 ### ACT-2026-87 — Resolved — Archive entry-name handling is fragile
 

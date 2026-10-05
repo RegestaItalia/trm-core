@@ -5,8 +5,32 @@ import { ActionLockScope, withActionLockScope } from "../commons/utils";
 import { TRKORR } from "../../client";
 import { Transport } from "../../transport";
 
+/** Shared execution settings for the CG3Z action. */
+export type Cg3zActionInputContextData = {
+    /**
+     * Disable interactive prompts. Any required choice without an explicit value then causes an error.
+     */
+    noInquirer?: boolean;
+}
+
+/** Options controlling the transport upload. */
+export type Cg3zActionInputUploadData = {
+    /**
+     * Whether to overwrite a transport that already exists in the target system (E070 entry,
+     * header or data file). `true` overwrites and `false` aborts. When omitted, the user is asked;
+     * with `noInquirer` the upload is aborted.
+     */
+    overwrite?: boolean;
+}
+
 /** Input required to upload a transport to the connected SAP system. */
 export interface Cg3zActionInput {
+    /** Optional shared execution settings. */
+    contextData?: Cg3zActionInputContextData,
+
+    /** Optional upload settings. */
+    uploadData?: Cg3zActionInputUploadData,
+
     /**
     * ZIP archive containing exactly one matching `K` header file and `R` data file.
     */
@@ -15,7 +39,16 @@ export interface Cg3zActionInput {
 
 type WorkflowRuntime = {
     /** Uploaded transport tracked before file writes so failures can be rolled back. */
-    transport?: Transport
+    transport?: Transport,
+    /** State of an existing transport that is being overwritten, restored on rollback. */
+    overwritten?: {
+        /** The transport already had an E070 entry: rollback must never delete it. */
+        e070: boolean,
+        /** Previous header (cofile) content. */
+        header?: Buffer,
+        /** Previous data file content. */
+        data?: Buffer
+    }
 }
 
 /** Result of a successful {@link cg3z} upload. */
@@ -39,13 +72,15 @@ export interface Cg3zWorkflowContext {
 const WORKFLOW_NAME = 'cg3z';
 
 /**
- * Uploads, forwards, and refreshes one SAP transport from an in-memory ZIP archive.
+ * Uploads and forwards one SAP transport from an in-memory ZIP archive. When an existing transport
+ * is overwritten, its TMS text is refreshed too.
  *
  * @param inputData Transport archive and optional upload settings.
  * @returns The uploaded transport request number.
  * @throws When authorization fails, the archive is malformed, the header/data files do
- * not identify the same transport, or the upload/forward operation fails. A transport-text
- * refresh failure is logged as a warning and does not reject the action.
+ * not identify the same transport, the transport already exists and overwriting is refused
+ * (or cannot be confirmed with `noInquirer`), or the upload/forward operation fails. A transport-text
+ * refresh failure (overwrite only) is logged as a warning and does not reject the action.
  */
 export async function cg3z(inputData: Cg3zActionInput): Promise<Cg3zActionOutput> {
     const trkorr = parseTransportArchive(inputData.binaries).trkorr;
@@ -55,6 +90,8 @@ export async function cg3z(inputData: Cg3zActionInput): Promise<Cg3zActionOutput
         checkServerAuth,
         upload
     ];
+    inputData.contextData ??= {};
+    inputData.uploadData ??= {};
     return withActionLockScope(lockScope, async () => {
         const result = await execute<Cg3zWorkflowContext>(WORKFLOW_NAME, workflow, {
             rawInput: inputData,

@@ -731,6 +731,40 @@ export class Transport {
         return new Transport(trkorr, data.trTarget);
     }
 
+    /**
+     * Reads the transport's header (cofile) and data files from the transport directory, if present.
+     *
+     * A missing (`NOT_FOUND`) or empty file is returned as `undefined`; any other read error is rethrown.
+     */
+    public static async readBinaryFiles(trkorr: TRKORR): Promise<Partial<BinaryTransport>> {
+        const filePaths = await Transport._getFilePaths(Transport._getFileNames(trkorr, SystemConnector.getDest()));
+        const read = async (filePath: string): Promise<Buffer | undefined> => {
+            try {
+                const file = await SystemConnector.getBinaryFile(filePath);
+                return file && file.length > 0 ? file : undefined;
+            } catch (e) {
+                //RFC: exception key, REST: HTTP reason (wrapped in exceptionType or raw error message)
+                if (e?.exceptionType === 'NOT_FOUND' || e?.message === 'NOT_FOUND') {
+                    Logger.log(`File "${filePath}" not found.`, true);
+                    return undefined;
+                }
+                throw e;
+            }
+        };
+        return {
+            header: await read(filePaths.header),
+            data: await read(filePaths.data)
+        };
+    }
+
+    /**
+     * Writes one of the transport's files (header/cofile or data) to the transport directory.
+     */
+    public static async writeBinaryFile(trkorr: TRKORR, kind: keyof BinaryTransport, binary: Buffer): Promise<void> {
+        const filePaths = await Transport._getFilePaths(Transport._getFileNames(trkorr, SystemConnector.getDest()));
+        await SystemConnector.writeBinaryFile(filePaths[kind], binary);
+    }
+
     public static async getTransportsFromObject(objectKeys: {
         pgmid: PGMID,
         object: TROBJTYPE,

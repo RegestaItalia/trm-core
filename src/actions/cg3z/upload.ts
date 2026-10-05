@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { Cg3zWorkflowContext } from ".";
 import { Transport } from "../../transport";
-import { Logger } from "trm-commons";
+import { Inquirer, Logger } from "trm-commons";
 import * as AdmZip from "adm-zip";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
@@ -50,11 +50,17 @@ export function parseTransportArchive(binaries: Buffer): {
 }
 
 /**
- * Workflow step that validates, uploads, forwards, and refreshes a transport archive.
+ * Workflow step that validates, uploads, and forwards a transport archive, refreshing the TMS text of an overwritten transport.
  * 
  * 1- identifying transport
  * 
- * 2- upload
+ * 2- check existing transport (overwrite confirmation)
+ * 
+ * 3- upload
+ * 
+ * 4- forward
+ * 
+ * 5- refresh text, if overwritten
  * 
 */
 export const upload: Step<Cg3zWorkflowContext> = {
@@ -67,7 +73,42 @@ export const upload: Step<Cg3zWorkflowContext> = {
             trkorr: archive.trkorr
         };
 
-        //2- upload
+        //2- check existing transport
+        const trkorr = context.output.trkorr;
+        const dest = SystemConnector.getDest();
+        const existingE070 = !!(await new Transport(trkorr).getE070());
+        const existingFiles = await Transport.readBinaryFiles(trkorr);
+        const existing = [
+            existingE070 ? 'request (E070)' : undefined,
+            existingFiles.header ? 'header file' : undefined,
+            existingFiles.data ? 'data file' : undefined
+        ].filter(Boolean);
+        if (existing.length > 0) {
+            const existingText = `Transport ${Transport.getTransportIcon()}  ${trkorr} already exists in ${dest} (${existing.join(', ')})`;
+            let overwrite = context.rawInput.uploadData?.overwrite;
+            if (typeof overwrite !== 'boolean') {
+                if (context.rawInput.contextData?.noInquirer) {
+                    throw new Error(`${existingText}. Set overwrite to replace it.`);
+                }
+                overwrite = (await Inquirer.prompt({
+                    type: 'confirm',
+                    name: 'overwrite',
+                    default: false,
+                    message: `${existingText}. Overwrite?`
+                })).overwrite;
+            }
+            if (!overwrite) {
+                throw new Error(`${existingText}. Upload aborted.`);
+            }
+            Logger.warning(`${existingText}, overwriting.`);
+            context.runtime.overwritten = {
+                e070: existingE070,
+                header: existingFiles.header,
+                data: existingFiles.data
+            };
+        }
+
+        //3- upload
         stopWarning('cg3z');
         Logger.loading(`Uploading transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
         context.runtime.transport = new Transport(context.output.trkorr, SystemConnector.getDest());
@@ -80,21 +121,56 @@ export const upload: Step<Cg3zWorkflowContext> = {
                 trTarget: SystemConnector.getDest()
         });
 
-        //3- forward
+        //4- forward
         Logger.loading(`Forwarding transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
         await SystemConnector.forwardTransport(context.output.trkorr, SystemConnector.getDest(), SystemConnector.getDest(), true);
 
-        //4- refresh text
-        try {
-            Logger.loading(`Refreshing transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
-            await SystemConnector.refreshTransportTmsTxt(context.output.trkorr);
-        } catch (e) {
-            Logger.warning(`Couldn't refresh transport ${context.output.trkorr} text: ${e?.message || e}`);
+        //5- refresh text (only an overwritten transport can have a stale TMS text)
+        if (context.runtime.overwritten) {
+            try {
+                Logger.loading(`Refreshing transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
+                await SystemConnector.refreshTransportTmsTxt(context.output.trkorr);
+            } catch (e) {
+                Logger.warning(`Couldn't refresh transport ${context.output.trkorr} text: ${e?.message || e}`);
+            }
         }
     },
     revert: async (context: Cg3zWorkflowContext): Promise<void> => {
-        if (context.runtime?.transport && await context.runtime.transport.canBeDeleted()) {
-            await context.runtime.transport.delete();
+        const transport = context.runtime?.transport;
+        if (!transport) {
+            return;
+        }
+        const overwritten = context.runtime.overwritten;
+        let firstError: any;
+
+        //a request that existed before this run is never deleted
+        if (!overwritten?.e070) {
+            try {
+                if (await transport.getE070() && await transport.canBeDeleted()) {
+                    await transport.delete();
+                }
+            } catch (e) {
+                firstError = e;
+            }
+        }
+
+        //restore overwritten files only after the destructive cleanup succeeded
+        if (!firstError && overwritten) {
+            for (const kind of ['header', 'data'] as const) {
+                if (!overwritten[kind]) {
+                    continue;
+                }
+                try {
+                    Logger.loading(`Restoring previous ${transport.trkorr} ${kind} file...`, true);
+                    await Transport.writeBinaryFile(transport.trkorr, kind, overwritten[kind]);
+                } catch (e) {
+                    firstError ??= e;
+                }
+            }
+        }
+
+        if (firstError) {
+            throw firstError;
         }
     }
 }
