@@ -25,10 +25,8 @@ function flattenDevclasses(pkg: PackageHierarchy): string[] {
 export const generateUpdateTransport: Step<InstallWorkflowContext> = {
     name: 'generate-update-transport',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if (context.runtime.isLocal) {
-            Logger.log(`Skipping generate deletion transport (local registry)`, true);
-            return false;
-        } else if (context.runtime.update) {
+        //a local (.trm) upgrade generates its deletion transport through the registry the artifact was published to
+        if (context.runtime.update) {
             return true;
         } else {
             Logger.log(`Skipping generate deletion transport (first install?)`, true);

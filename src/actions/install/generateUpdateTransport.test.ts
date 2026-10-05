@@ -319,6 +319,42 @@ describe('generateUpdateTransport revert', () => {
         expect(ctx.revert.retainedTables).toEqual({ trkorr: 'DEVK9BKP', entries: undefined, binaries: expect.any(Object) });
     });
 
+    describe('local (.trm) upgrades', () => {
+        test('are not skipped', async () => {
+            const { ctx } = runContext([], []);
+            ctx.runtime.isLocal = true;
+
+            await expect(generateUpdateTransport.filter(ctx)).resolves.toBe(true);
+        });
+
+        test('first installs are still skipped', async () => {
+            const { ctx } = runContext([], []);
+            ctx.runtime.isLocal = true;
+            ctx.runtime.update = undefined;
+
+            await expect(generateUpdateTransport.filter(ctx)).resolves.toBe(false);
+        });
+
+        test('remove obsolete objects through the registry the artifact was published to', async () => {
+            const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+            const realRegistry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn(async (binaries: any) => binaries) };
+            const fileRegistry = {
+                getRegistryType: () => RegistryType.LOCAL,
+                getRealRegistry: jest.fn().mockResolvedValue(realRegistry),
+                delete: jest.fn().mockRejectedValue(new Error("File system can't generate deletion transports!"))
+            };
+            ctx.runtime.isLocal = true;
+            ctx.rawInput.packageData.registry = fileRegistry;
+
+            await generateUpdateTransport.run(ctx);
+
+            const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => o.objName));
+            expect(deleted).toEqual(['Z_GONE']);
+            expect(fileRegistry.delete).not.toHaveBeenCalled();
+            expect(realRegistry.delete).toHaveBeenCalledTimes(1);
+        });
+    });
+
     test('no backup transport is created when no table is retained', async () => {
         const { ctx, backup } = runContext([
             { pgmid: 'R3TR', object: 'TABL', objName: 'Z_GONE' }
