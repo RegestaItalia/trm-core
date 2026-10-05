@@ -21,6 +21,7 @@ export class TrmPackage {
     private _dirtyEntries: ZTRM_DIRTY[] = [];
     private _transport: Transport;
     private _metadataSnapshot?: TrmPackageMetadataSnapshot;
+    private _publishedIntegrity?: string;
 
     constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
     }
@@ -65,6 +66,11 @@ export class TrmPackage {
         return this._metadataSnapshot;
     }
 
+    /** Release integrity reported by the registry on publish, if any. */
+    public getPublishedIntegrity(): string | undefined {
+        return this._publishedIntegrity;
+    }
+
     public async publish(data: {
         artifact: TrmArtifact
         readme?: string,
@@ -84,12 +90,13 @@ export class TrmPackage {
             tags = data.tags.join(',');
         }
         Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
-        await this.registry.publish(packageName, packageVersion, artifact, {
+        const result = await this.registry.publish(packageName, packageVersion, artifact, {
             readme: data.readme,
             retainedCustomizing: data.retainedCustomizing,
             changelog: data.changelog,
             tags
         });
+        this._publishedIntegrity = result ? result.integrity : undefined;
 
         //set
         this.manifest = new Manifest(trmManifest);

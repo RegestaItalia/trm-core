@@ -51,6 +51,7 @@ import { generateTadirTransport } from './generateTadirTransport';
 import { generateLangTransport } from './generateLangTransport';
 import { generateCustTransport } from './generateCustTransport';
 import { releaseTransports } from './releaseTransports';
+import { TrmArtifact } from '../../trmPackage';
 
 function context() {
     return {
@@ -188,6 +189,21 @@ describe('publish transport rollback chain', () => {
         await expect(execute('publish-test', [...steps(), publishToRegistry], ctx)).rejects.toThrow('failure at getEntries.1');
 
         expect(ctx.output.trmPackage.publish).not.toHaveBeenCalled();
+        for (const generated of (Transport as any).created) {
+            expect(generated.canBeDeleted).toHaveBeenCalled();
+        }
+    });
+
+    test('registry rejection after publication request rolls back generated transports', async () => {
+        const ctx = context();
+        ctx.output.trmPackage.publish.mockRejectedValue(new Error('Registry rejected publish: Invalid package manifest'));
+        jest.spyOn(TrmArtifact, 'create').mockResolvedValue({ binary: Buffer.from('artifact') } as any);
+
+        const { publishToRegistry } = await import('./publishToRegistry');
+        await expect(execute('publish-test', [...steps(), publishToRegistry], ctx)).rejects.toThrow('Registry rejected publish');
+
+        expect(ctx.output.trmPackage.publish).toHaveBeenCalledTimes(1);
+        expect((Transport as any).created.length).toBeGreaterThan(0);
         for (const generated of (Transport as any).created) {
             expect(generated.canBeDeleted).toHaveBeenCalled();
         }

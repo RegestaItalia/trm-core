@@ -11,7 +11,7 @@ import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
 import _, { add } from 'lodash';
 import { getAxiosInstance, getNodePackage, normalize } from "../commons";
-import { AbstractRegistry, PublishAdditionalData } from "./AbstractRegistry";
+import { AbstractRegistry, PublishAdditionalData, PublishResult } from "./AbstractRegistry";
 import NodeCache from "node-cache";
 import { TransportEntries } from "../client";
 import { BinaryTransport } from "../transport";
@@ -501,7 +501,7 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, additionalData?: PublishAdditionalData): Promise<void> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, additionalData?: PublishAdditionalData): Promise<PublishResult | void> {
         const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, {
@@ -556,8 +556,19 @@ export class RegistryV2 implements AbstractRegistry {
             } catch (e) {
                 Logger.error(e.toString());
                 Logger.warning(`Unable to check status on registry, check manually`);
+                return;
             } finally {
                 logProgress.stop();
+            }
+
+            //registry may report the outcome: a rejection or the integrity of the stored release (artifact may have been modified)
+            const error = publishStatus.data?.error;
+            if (typeof error === 'string' && error.trim()) {
+                throw new Error(`Registry rejected publish: ${error}`);
+            }
+            const integrity = publishStatus.data?.integrity;
+            if (typeof integrity === 'string' && integrity.trim()) {
+                return { integrity };
             }
         }
     }

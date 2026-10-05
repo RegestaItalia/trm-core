@@ -143,12 +143,12 @@ export class FileSystem implements AbstractRegistry {
         //always valid, already checked in contructor
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact): Promise<Package> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact): Promise<void> {
         if (this._filePath) {
             await writeFile(this._filePath, artifact.binary, {
                 flag: 'w'
             });
-            return this.getPackage(fullName, version);
+            return;
         }
         throw new Error(`Missing file path!`);
     }

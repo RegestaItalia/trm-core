@@ -11,6 +11,12 @@ export interface PublishAdditionalData {
     retainedCustomizing?: string[]
 }
 
+/** Release data returned by a registry after publication. */
+export interface PublishResult {
+    /** Integrity of the release as stored by the registry, when it can differ from the uploaded artifact. */
+    integrity?: string
+}
+
 export abstract class AbstractRegistry {
     endpoint: string;
     name: string;
@@ -23,7 +29,7 @@ export abstract class AbstractRegistry {
     abstract getPackage: (fullName: string, version: string) => Promise<Package>;
     abstract downloadArtifact: (fullName: string, version: string) => Promise<TrmArtifact>;
     abstract validatePublish: (fullName: string, version: string, isPrivate: boolean) => Promise<void>;
-    abstract publish: (fullName: string, version: string, artifact: TrmArtifact, additionalData?: PublishAdditionalData) => Promise<Package | void>;
+    abstract publish: (fullName: string, version: string, artifact: TrmArtifact, additionalData?: PublishAdditionalData) => Promise<PublishResult | void>;
     abstract unpublish: (fullName: string, version: string) => Promise<void>;
     abstract deprecate: (fullName: string, version: string, deprecate: Deprecate) => Promise<void>;
     abstract addDistTag: (fullName: string, distTag: DistTagAdd) => Promise<void>;
