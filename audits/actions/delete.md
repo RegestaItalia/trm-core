@@ -37,12 +37,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** objects are deleted and forwarded but the record and mappings remain; the action reports success with only a debug log.
 - **Fix:** re-read the record when no snapshot exists, or fail.
 
-### ACT-2026-52 — Medium — Functional — Moved or reassigned objects are deleted anyway
-
-- **Where:** [`packageCleanup.ts#L359`](../../src/actions/commons/utils/packageCleanup.ts#L359).
-- **Failure:** every install-transport entry is deleted wherever it lives now, including objects moved to another package or now shipped by another TRM package.
-- **Fix:** compare current TADIR devclasses with the installation's and skip or confirm outsiders.
-
 ## Step review
 
 | Order | Step | Result |
@@ -53,11 +47,17 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | Raw package name for mapping lookup ([ACT-2026-16](shared.md)); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
 | 4 | `check-dependants` | No additional issue beyond [ACT-2026-15](shared.md). |
 | 5 | `lock-resources` | No issue found. |
-| 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages and moved objects deleted (ACT-2026-47, ACT-2026-52), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-49, ACT-2026-50). |
+| 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages deleted (ACT-2026-47), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-49, ACT-2026-50). |
 | 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
 | 8 | `remove-package-data` | Atomic and reversible; silently skipped without a snapshot (ACT-2026-51). |
 
 ## Resolved findings
+
+### ACT-2026-52 — Medium — Functional — Resolved — Moved or reassigned objects are deleted anyway
+
+- **Where:** [`packageCleanup.ts#L349`](../../src/actions/commons/utils/packageCleanup.ts#L349).
+- **Failure (before):** every install-transport entry was deleted wherever it lived, including objects moved to another package or now shipped by another TRM package.
+- **Resolution:** before locking or changing anything, the current TADIR package of every installed `R3TR` object is compared with the installation's packages (including live subpackages). Objects now outside are listed and kept, unless the user confirms the prompt (default no); without prompts they are always kept. `LIMU` entries and package definitions are not checked: package definitions follow the subtree decision ([ACT-2026-47](#act-2026-47--high--functional--uninstall-deletes-objects-outside-the-installation-without-confirmation)).
 
 ### ACT-2026-53 — Low — Functional — Resolved — Dirty packages cannot be deleted non-interactively
 

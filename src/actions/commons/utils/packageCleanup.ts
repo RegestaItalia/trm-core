@@ -346,6 +346,29 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             }
         }
 
+        // Installed objects moved to a package outside this installation (another TRM package,
+        // customer development) are kept unless confirmed.
+        const movedObjects = (await SystemConnector.getExistingObjects(previousTransportObjects
+            .filter(object => normalize(object.pgmid) === 'R3TR' && !isDevclass(object) && !retainedKeys.has(objectKey(object)))
+            .map(object => ({ pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: '' }))))
+            .filter(object => object.devclass && !previousDevclasses.has(normalize(object.devclass)));
+        const movedKeys = new Set<string>();
+        if (movedObjects.length > 0) {
+            movedObjects.forEach(object => Logger.warning(`${object.pgmid} ${object.object} ${object.objName} was moved to SAP package ${object.devclass}, outside this installation`));
+            const { deleteMovedObjects } = context.rawInput.contextData.noInquirer
+                ? { deleteMovedObjects: false }
+                : await Inquirer.prompt({
+                    name: 'deleteMovedObjects',
+                    type: 'confirm',
+                    message: `Delete ${movedObjects.length} installed objects moved outside this installation too?`,
+                    default: false
+                });
+            if (!deleteMovedObjects) {
+                movedObjects.forEach(object => movedKeys.add(objectKey(object)));
+                Logger.warning(`Keeping ${movedObjects.length} objects moved outside this installation.`);
+            }
+        }
+
         const additionalObjects = [...extraObjectsToDelete.values(), ...packagesToDelete.map(devclass => ({
             pgmid: 'R3TR',
             object: 'DEVC',
@@ -357,7 +380,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         }] : [])];
         // Validate the complete deletion selection before adding anything to the transport.
         const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects]
-            .filter(object => !retainedKeys.has(objectKey(object)))
+            .filter(object => !retainedKeys.has(objectKey(object)) && !movedKeys.has(objectKey(object)))
             .map(object => [objectKey(object), object]));
         // TRM comment rows of the installed transport are not objects to delete.
         const hasObjectsToDelete = Array.from(deletionObjects.values()).some(object => normalize(object.pgmid) !== '*');

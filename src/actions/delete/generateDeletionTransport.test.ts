@@ -157,6 +157,60 @@ describe('generateDeletionTransport', () => {
         expect(dummy.delete).toHaveBeenCalledTimes(1);
     });
 
+    describe('objects moved outside the installation', () => {
+        function movedContext() {
+            const run = runContext([
+                { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' },
+                { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' },
+                { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SUB' }
+            ]);
+            const devclasses: Record<string, string> = { Z_CLASS: 'Z_ROOT', Z_MOVED: 'Z_OTHER', Z_SUB: 'Z_ROOT_SUB' };
+            (SystemConnector.getSubpackages as jest.Mock).mockImplementation(async devclass =>
+                devclass === 'Z_ROOT' ? [{ devclass: 'Z_ROOT_SUB', parentcl: 'Z_ROOT' }] : []);
+            (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async objects =>
+                objects.map((object: any) => ({ ...object, devclass: devclasses[object.objName] })));
+            return run;
+        }
+        const deletedOf = (dummy: any) => dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+
+        test('are kept without prompts', async () => {
+            const { ctx, dummy } = movedContext();
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(deletedOf(dummy)).toEqual(['CLAS Z_CLASS', 'PROG Z_SUB', 'DEVC Z_ROOT', 'DEVC Z_ROOT_SUB']);
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('PROG Z_MOVED was moved to SAP package Z_OTHER'));
+            expect(SystemConnector.getObjectsLocks).toHaveBeenCalledWith(expect.not.arrayContaining([
+                expect.objectContaining({ OBJ_NAME: 'Z_MOVED' })
+            ]));
+        });
+
+        test('are deleted only when confirmed', async () => {
+            const { ctx, dummy } = movedContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteMovedObjects: true });
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ name: 'deleteMovedObjects', default: false }));
+            expect(deletedOf(dummy)).toContain('PROG Z_MOVED');
+        });
+
+        test('a failed lookup aborts before any change and rollback deletes the transport', async () => {
+            const { ctx, dummy, acquire } = movedContext();
+            (SystemConnector.getExistingObjects as jest.Mock).mockRejectedValue(new Error('TADIR read failed'));
+
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('TADIR read failed');
+            expect(acquire).not.toHaveBeenCalled();
+            expect(dummy.addObjects).not.toHaveBeenCalled();
+
+            (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async objects => objects);
+            dummy.canBeDeleted.mockResolvedValue(true);
+            await generateDeletionTransport.revert(ctx);
+            expect(dummy.delete).toHaveBeenCalledTimes(1);
+        });
+    });
+
     test('nothing to delete only warns and does not generate a deletion transport', async () => {
         const { ctx, dummy, registry } = runContext([
             { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' }
