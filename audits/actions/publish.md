@@ -46,7 +46,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 ### ACT-2026-61 — Medium — Technical — Non-interactive devclass may stay unresolved
 
 - **Where:** [`publish/init.ts#L268`](../../src/actions/publish/init.ts#L268), [`#L300`](../../src/actions/publish/init.ts#L300).
-- **Failure:** with `noInquirer`, no devclass and no matching system package, `getPackageNamespace(undefined)` throws a `TypeError`; a devclass derived from the snapshot is never validated or normalized.
+- **Failure:** with `noInquirer`, no devclass and no matching system package, reading the package objects with an `undefined` devclass throws a `TypeError`; a devclass derived from the snapshot is never validated or normalized.
 - **Fix:** require the devclass explicitly in non-interactive mode and always validate/normalize it.
 
 ### ACT-2026-62 — Medium — Functional — Merging with the latest release cannot remove or replace entries
@@ -91,7 +91,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Order | Step | Result |
 |---:|---|---|
 | 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
-| 3 | `init` | Local first publish fails (ACT-2026-55) and local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); non-interactive devclass unresolved (ACT-2026-61); prompted version not cleaned (ACT-2026-67). |
+| 3 | `init` | Local first publish fails (ACT-2026-55) and local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); non-interactive devclass unresolved (ACT-2026-61); prompted version not cleaned (ACT-2026-67). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63); duplicate retained entry (ACT-2026-66). |
 | 6 | `set-manifest-values` | Dead post-activity check (ACT-2026-58), non-strict engines (ACT-2026-59), union-only merge (ACT-2026-62), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). |
@@ -103,6 +103,16 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-89 — Resolved — Publish limits the package to one reserved namespace
+
+The manifest carries a single namespace and repair license, read from the root package only, so a
+package whose subpackages used another reserved `/NAMESPACE/` was published with a namespace the
+install could not create. `init` now reads the package objects first, then derives the namespace with
+the same rule as the install (`getPackagesNamespace`): the root namespace, or the only reserved
+namespace used by a subpackage when the root uses `Z` or `Y`. More than one reserved namespace is
+rejected; `Z` and `Y` need no namespace object and can be mixed with it
+([source](../../src/actions/publish/init.ts#L305)).
+
 ### PUBL-05 — Resolved — Registry failures are distinct from first publication
 
 Registry HTTP 404 responses are now represented by `RegistryPackageNotFoundError`, including the

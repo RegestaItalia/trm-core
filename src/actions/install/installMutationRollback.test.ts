@@ -1,5 +1,6 @@
 jest.mock('../../commons', () => ({
     getPackageNamespace: jest.fn(() => '/TEST/'),
+    getPackagesNamespace: jest.fn(() => '/TEST/'),
     getPackageHierarchy: jest.fn(() => ({ devclass: 'ZNEW', sub: [] })),
     getParentFromHierarchy: jest.fn(() => undefined),
     packageDataFromTdevc: jest.fn((_source, overrides) => overrides)

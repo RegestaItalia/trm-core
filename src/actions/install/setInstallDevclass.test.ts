@@ -64,4 +64,13 @@ describe('set-install-devclass namespace carry-over', () => {
             originalDevclass: 'ZORIG_NEW', installDevclass: 'ZORIG_NEW'
         });
     });
+
+    test('rejects more than one reserved namespace before locks and dependency installs', async () => {
+        const ctx = context('/INST/ROOT', []);
+        ctx.rawInput.installData.installDevclass.replacements = [
+            { originalDevclass: 'ZORIG', installDevclass: '/ACME/ROOT' },
+            { originalDevclass: 'ZORIG_NEW', installDevclass: '/OTHER/SUB' }
+        ];
+        await expect(setInstallDevclass.run(ctx)).rejects.toThrow('SAP packages must use at most one namespace, found: /ACME/, /OTHER/.');
+    });
 });

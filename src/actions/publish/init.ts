@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
-import { getPackageNamespace, parsePackageName } from "../../commons";
+import { getPackagesNamespace, parsePackageName } from "../../commons";
 import { TrmPackage } from "../../trmPackage";
 import { clean, inc, parse, prerelease, rcompare, valid } from "semver";
 import { SystemConnector } from "../../systemConnector";
@@ -296,8 +296,17 @@ export const init: Step<PublishWorkflowContext> = {
             Logger.info(`ABAP package: "${context.rawInput.packageData.devclass}"`);
         }
 
+        Logger.loading(`Reading ${context.rawInput.packageData.devclass} objects...`);
+        context.runtime.sapPackage.objects = await SystemConnector.getDevclassObjects(context.rawInput.packageData.devclass, true);
+        if (context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC')).length === 0) {
+            throw new Error(`ABAP package "${context.rawInput.packageData.devclass}" doesn't contain any object!`);
+        }
+
         //8- read namespace
-        const packageNamespace = getPackageNamespace(context.rawInput.packageData.devclass);
+        //the package and its subpackages must use at most one reserved namespace
+        const packageNamespace = getPackagesNamespace(context.rawInput.packageData.devclass, context.runtime.sapPackage.objects.flatMap(o =>
+            o.pgmid === 'R3TR' && o.object === 'DEVC' ? [o.devclass, o.objName] : [o.devclass]
+        ).filter(Boolean));
         if (packageNamespace[0] === '/') {
             Logger.loading(`Reading namespace ${packageNamespace}...`);
             const namespace = await SystemConnector.getNamespace(packageNamespace);
@@ -309,12 +318,6 @@ export const init: Step<PublishWorkflowContext> = {
             } else {
                 throw new Error(`Namespace ${packageNamespace} couldn't be validated.`);
             }
-        }
-
-        Logger.loading(`Reading ${context.rawInput.packageData.devclass} objects...`);
-        context.runtime.sapPackage.objects = await SystemConnector.getDevclassObjects(context.rawInput.packageData.devclass, true);
-        if (context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC')).length === 0) {
-            throw new Error(`ABAP package "${context.rawInput.packageData.devclass}" doesn't contain any object!`);
         }
 
         //9- read abapGit source code (if abapgit installed)

@@ -1,8 +1,9 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { adjustTrmServerRestDevclass, getPackageNamespace, PackageHierarchy } from "../../commons";
+import { adjustTrmServerRestDevclass, getPackageNamespace } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import { Logger, Inquirer, Question } from "trm-commons";
+import { flattenDevclasses, getInstallNamespace } from "./addNamespace";
 
 function _validateDevclass(input: string, namespaces?: string[]): string | true {
     const sInput: string = input.trim().toUpperCase();
@@ -19,13 +20,6 @@ function _validateDevclass(input: string, namespaces?: string[]): string | true 
     } else {
         return true;
     }
-}
-
-function flattenDevclasses(pkg: PackageHierarchy): string[] {
-    return [
-        pkg.devclass,
-        ...pkg.sub.flatMap(flattenDevclasses),
-    ];
 }
 
 /**
@@ -173,6 +167,8 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         if (hasTemp && !context.rawInput.installData.installDevclass.replacements.every(x => x.installDevclass.startsWith('$'))) {
             throw new Error(`All packages must start with prefix $ if one (or more) packages are temporary!`);
         }
+        //fail before locks and dependency installs (add-namespace checks again for original package names)
+        getInstallNamespace(context);
 
         //3- if all package names like origin, import devc transport
         context.rawInput.installData.installDevclass.keepOriginal = true;

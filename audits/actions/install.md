@@ -79,12 +79,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** the pattern is taken from the root's *install* devclass but applied to *original* names (and `^$` is unescaped). With ZFOO installed as /ACME/FOO, a new ZFOO_B stays ZFOO_B under the /ACME/ root in non-interactive mode.
 - **Fix:** use the original root's namespace as pattern and escape it.
 
-### ACT-2026-34 — Medium — Functional — `add-namespace` uses the first replacement instead of the root
-
-- **Where:** [`addNamespace.ts#L26`](../../src/actions/install/addNamespace.ts#L26).
-- **Failure:** with root mapped to /ACME/FOO and a subpackage to ZSUB listed first, the namespace becomes `Z`, /ACME/ is not created and `generate-devclass` fails.
-- **Fix:** derive it from the root replacement and validate every target namespace.
-
 ### ACT-2026-35 — Medium — Functional — Partial explicit replacements discard stored mappings on update
 
 - **Where:** [`setInstallDevclass.ts#L53`](../../src/actions/install/setInstallDevclass.ts#L53).
@@ -143,10 +137,10 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
 | 8 | `check-dependencies` | Queues missing and incompatible dependencies separately, with the installed version; a downgrade must be confirmed by the dependency install ([ACT-2026-81](install-dependency.md), resolved). |
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
-| 10 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). |
+| 10 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |
 | 12 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
-| 13 | `add-namespace` | Namespace taken from `replacements[0]` (ACT-2026-34). |
+| 13 | `add-namespace` | Namespace derived from the target root package, or from the only reserved namespace used by a subpackage; more than one reserved namespace is rejected before any system change ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 14 | `generate-devclass` | Fails with "Multiple roots" on inherited or stale mappings (ACT-2026-22, ACT-2026-25). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
 | 15 | `generate-update-transport` | Silently skipped for local registries (ACT-2026-32); revert restores without checking cleanup success ([ACT-2026-08](shared.md)) and leaks the staging package ([ACT-2026-09](shared.md)). Deletes the installed release's customizing by key, without asking, before the new customizing is imported, unless `noCust` ([ACT-2026-48](delete.md), resolved). |
 | 16–19 | `prepare-devc`, `prepare-tadir`, `prepare-lang`, `prepare-cust` | Forward flow correct; test-import RC is checked. `prepare-cust` revert is not best-effort (ACT-2026-39). |
@@ -170,6 +164,24 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-34 — Resolved — Install namespace is derived from the root and limited to one
+
+`add-namespace` now derives the install namespace from the target root package instead of
+`replacements[0]`, using the rule shared with publish (`getPackagesNamespace`, see
+[ACT-2026-89](publish.md)): the root namespace, or the only reserved `/NAMESPACE/` used by a
+subpackage when the root uses `Z` or `Y`. The target namespace does not have to match the manifest
+namespace: a `/X/` package can be installed into an existing `/N/` namespace. The original namespace,
+which decides whether the manifest's repair license is used to create the namespace, is derived the
+same way from the original package names. Stored mappings of devclasses no longer in the release are
+ignored.
+
+More than one reserved namespace is rejected: the manifest carries one namespace and repair license,
+and the install checks, creates, adds to the landscape transport, and rolls back only one
+(`runtime.namespace`, `revert.namespace`). Supporting several would require reworking those steps.
+`set-install-devclass` runs the same check after resolving the target names, so renamed installs
+fail before locks and dependency installs; `add-namespace` checks again for original package names
+([source](../../src/actions/install/addNamespace.ts#L20)).
+
 ### ACT-2026-36 — Resolved — Non-interactive upgrade fails closed when the root devclass is unknown
 
 When an update finds existing objects and the installed root devclass is unknown, `check-transports`

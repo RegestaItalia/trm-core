@@ -1,10 +1,36 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
-import { getPackageNamespace } from "../../commons";
+import { getPackagesNamespace, PackageHierarchy } from "../../commons";
 import { SystemConnector } from "../../systemConnector";
 import type { TRNLICENSE, TRNSPACETT } from "../../client";
 import { stopWarning } from "../stopWarning";
+
+export function flattenDevclasses(pkg: PackageHierarchy): string[] {
+    return [
+        pkg.devclass,
+        ...pkg.sub.flatMap(flattenDevclasses),
+    ];
+}
+
+/**
+ * Returns the namespace packages are installed into: the target names, or the original names when
+ * `original` is set or `keepOriginal` is used. See getPackagesNamespace.
+ */
+export function getInstallNamespace(context: InstallWorkflowContext, original: boolean = false): string {
+    const hierarchy = context.runtime.package.hierarchy;
+    const originalDevclasses = flattenDevclasses(hierarchy);
+    if (original || context.rawInput.installData.installDevclass.keepOriginal) {
+        return getPackagesNamespace(hierarchy.devclass, originalDevclasses);
+    }
+    //ignore stored mappings of devclasses that are no longer part of the release
+    const replacements = context.rawInput.installData.installDevclass.replacements.filter(o => originalDevclasses.includes(o.originalDevclass));
+    if (replacements.length === 0) {
+        return getPackagesNamespace(hierarchy.devclass, originalDevclasses);
+    }
+    const rootDevclass = replacements.find(o => o.originalDevclass === hierarchy.devclass)?.installDevclass || hierarchy.devclass;
+    return getPackagesNamespace(rootDevclass, replacements.map(o => o.installDevclass));
+}
 
 /**
  * Workflow step that registers the package namespace for repair when required.
@@ -21,13 +47,9 @@ export const addNamespace: Step<InstallWorkflowContext> = {
     name: 'add-namespace',
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- set namespace
-        const originalNamespace = getPackageNamespace(context.runtime.package.hierarchy.devclass);
+        const originalNamespace = getInstallNamespace(context, true);
         Logger.log(`Package original namespace is ${originalNamespace}`, true);
-        if (!context.rawInput.installData.installDevclass.keepOriginal && context.rawInput.installData.installDevclass.replacements.length > 0) {
-            context.runtime.namespace = getPackageNamespace(context.rawInput.installData.installDevclass.replacements[0].installDevclass);
-        } else {
-            context.runtime.namespace = originalNamespace
-        }
+        context.runtime.namespace = getInstallNamespace(context);
         if (context.runtime.namespace[0] !== '/') {
             Logger.log(`Package install namespace is ${context.runtime.namespace}, continue`, true);
             return;
