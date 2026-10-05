@@ -3,7 +3,7 @@
 Audit date: 2026-10-04
 Entry point: [`checkEngines`](../../src/actions/checkEngines/index.ts#L88)
 
-The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared findings (ACT-2026-04 to ACT-2026-21) are listed in the README.
+The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared findings ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are listed in the README.
 
 ## Findings
 

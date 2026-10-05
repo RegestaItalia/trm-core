@@ -3,7 +3,7 @@
 Audit date: 2026-10-04
 Entry point: [`deletePackage`](../../src/actions/delete/index.ts#L139)
 
-The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared findings (ACT-2026-04 to ACT-2026-21) are listed in the README.
+The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared findings ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are listed in the README.
 
 ## Findings
 
@@ -16,7 +16,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 ### ACT-2026-48 — Medium — Functional — Customizing and translations are not reliably removed
 
 - **Where:** [`packageCleanup.ts#L200`](../../src/actions/commons/utils/packageCleanup.ts#L200); on final systems the stored transport is the TADIR transport ([`updatePackageData.ts#L71`](../../src/actions/install/updatePackageData.ts#L71)).
-- **Failure:** on final systems customizing is never deleted; on landscape systems TABU entries lack keys (ACT-2026-40).
+- **Failure:** on final systems customizing is never deleted; on landscape systems TABU entries lack keys ([ACT-2026-40](install.md)).
 - **Fix:** define the customizing policy for delete and document or implement it.
 
 ### ACT-2026-49 — Medium — Technical — Revert re-imports the copy even when the deletion was never imported
@@ -58,14 +58,14 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 | Order | Step | Result |
 |---:|---|---|
-| — | package lock (pre-workflow) | Lock lifecycle issues (ACT-2026-11). |
-| 1 | `check-server-auth` | Shared ACT-2026-12. |
-| 2 | `set-system-packages` | Local-registry dependants missed (ACT-2026-15); missing snapshot skips record removal (ACT-2026-51). |
-| 3 | `init` | Raw package name for mapping lookup (ACT-2026-16); dirty packages cannot be deleted non-interactively (ACT-2026-53). |
-| 4 | `check-dependants` | No additional issue beyond ACT-2026-15. |
+| — | package lock (pre-workflow) | Lock lifecycle issues ([ACT-2026-11](shared.md)). |
+| 1 | `check-server-auth` | Shared [ACT-2026-12](shared.md). |
+| 2 | `set-system-packages` | Local-registry dependants missed ([ACT-2026-15](shared.md)); missing snapshot skips record removal (ACT-2026-51). |
+| 3 | `init` | Raw package name for mapping lookup ([ACT-2026-16](shared.md)); dirty packages cannot be deleted non-interactively (ACT-2026-53). |
+| 4 | `check-dependants` | No additional issue beyond [ACT-2026-15](shared.md). |
 | 5 | `lock-resources` | No issue found. |
-| 6 | `generate-deletion-transport` | Highest-risk step: final import RC ignored (ACT-2026-04), shared namespace deleted (ACT-2026-05), foreign subpackages and moved objects deleted (ACT-2026-47, ACT-2026-52), customizing not covered (ACT-2026-48), rollback weaknesses (ACT-2026-06, ACT-2026-07, ACT-2026-49, ACT-2026-50). |
-| 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert (ACT-2026-13). |
+| 6 | `generate-deletion-transport` | Highest-risk step: final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages and moved objects deleted (ACT-2026-47, ACT-2026-52), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-49, ACT-2026-50). |
+| 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
 | 8 | `remove-package-data` | Atomic and reversible; silently skipped without a snapshot (ACT-2026-51). |
 
 ## Resolved findings

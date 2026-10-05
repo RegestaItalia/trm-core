@@ -1,21 +1,44 @@
 # `cg3z` workflow audit
 
-Audit date: 2026-08-27
-Entry point: [`cg3z`](../../src/actions/cg3z/index.ts#L56)
+Audit date: 2026-10-04
+Entry point: [`cg3z`](../../src/actions/cg3z/index.ts#L50)
+
+The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 
 ## Findings
 
-No active CG3Z-specific findings.
+### ACT-2026-85 — High — Technical — Upload rollback is ineffective (CG3Z-01 ineffective)
+
+- **Where:** [`cg3z/upload.ts#L72`](../../src/actions/cg3z/upload.ts#L72); the unit test mocks `Transport` entirely.
+- **Failure:** uploaded foreign transports have no E070 row in the target, so `canBeDeleted()` throws `TypeError`; cofile/data files and any TMS buffer entry remain. Even with E070, `deleteTrkorr` removes neither.
+- **Fix:** track header/data/forward progress, remove the buffer entry with `deleteTmsTransport`, restore or delete only files written by this run, and never call `deleteTrkorr` here.
+
+### ACT-2026-86 — Medium — Functional — Existing transport files are overwritten
+
+- **Where:** [`cg3z/upload.ts#L51`](../../src/actions/cg3z/upload.ts#L51); `Transport.upload` writes without an existence check.
+- **Failure:** a colliding transport number (shared trial SIDs, re-upload to the source) overwrites cofile/data, losing import history; a forward failure may then delete an unrelated modifiable request with the same number.
+- **Fix:** refuse (or require an overwrite flag) when E070 or files exist, and snapshot them for rollback.
+
+### ACT-2026-87 — Medium — Functional — Archive entry-name handling is fragile
+
+- **Where:** [`cg3z/upload.ts#L16`](../../src/actions/cg3z/upload.ts#L16).
+- **Failure:** lowercase `k900001.npl` yields `nplK900001` and tp cannot find the cofile; any `R*`/`K*` entry (e.g. `README.txt`) or folder prefix triggers a misleading cardinality error.
+- **Fix:** use basenames, require `^[KR][A-Z0-9]{6,}\.[A-Z0-9]{3}$/i`, uppercase, ignore directories.
+
+### ACT-2026-88 — Low — Functional — Diagnostics and stop warning
+
+- **Where:** [`cg3z/upload.ts#L68`](../../src/actions/cg3z/upload.ts#L68).
+- **Failure:** the refresh-text error is discarded entirely (typo "Coudln't"); cg3z changes SAP data without the standard stop warning.
+- **Fix:** log the error message and call `stopWarning`.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `check-server-auth` | No workflow-specific issue found. See the [shared audit](shared.md). |
-| 2 | `upload` | No issue found. Archive cardinality and header/data identity are checked before mutation. The transport is tracked before upload and deleted on rollback when SAP reports it as modifiable. The intentionally tolerated TMS-text refresh failure is logged. |
+| 1 | `check-server-auth` | Fails open on non-`ClientError` failures ([ACT-2026-12](shared.md)). |
+| 2 | `upload` | Upload/forward works for well-formed archives; rollback ineffective (ACT-2026-85); overwrite and entry-name gaps (ACT-2026-86, ACT-2026-87). |
 
 ## Resolved findings
-
 ### CG3Z-01 — Resolved — Partial upload/forward is rolled back
 
 The upload step now registers the identified transport in workflow runtime state before writing its

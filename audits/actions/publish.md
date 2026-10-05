@@ -1,34 +1,108 @@
 # `publish` workflow audit
 
-Audit date: 2026-08-27
-Entry point: [`publish`](../../src/actions/publish/index.ts#L242)
+Audit date: 2026-10-04
+Entry point: [`publish`](../../src/actions/publish/index.ts#L241)
+
+The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 
 ## Findings
 
-No active publish-specific findings.
+### ACT-2026-55 — Critical — Functional — First publish to a new local file always fails
+
+- **Where:** [`publish/init.ts#L156`](../../src/actions/publish/init.ts#L156); [`FileSystem.ts#L127`](../../src/registry/FileSystem.ts#L127) wraps the missing file in a generic `Error`.
+- **Failure:** PUBL-05 now rethrows anything but `RegistryPackageNotFoundError`, so publishing to a not-yet-existing artifact path aborts deterministically.
+- **Fix:** throw `RegistryPackageNotFoundError` when the file does not exist (or skip the lookup for LOCAL).
+
+### ACT-2026-56 — High — Functional — Overwriting a local artifact treats it as the latest release
+
+- **Where:** [`FileSystem.ts#L94`](../../src/registry/FileSystem.ts#L94) returns `dist_tags.latest = 'latest'` and ignores the name; [`publish/init.ts#L169`](../../src/actions/publish/init.ts#L169).
+- **Failure:** `inc('latest')` is `null` (non-interactive fails later with "Package version missing"); the file's manifest is merged regardless of package name; its CUST transports are classified as retained, skipped by generation, and ignored by `FileSystem.publish`, so customizing silently disappears.
+- **Fix:** do not treat the target file as latest for LOCAL, or validate its name and return the real version.
+
+### ACT-2026-57 — High — Technical — Async registry publish failures are reported as success
+
+- **Where:** [`RegistryV2.ts#L547`](../../src/registry/RegistryV2.ts#L547).
+- **Failure:** on 202, polling errors are logged as "check manually" and `publish` resolves; the workflow reports success and records the release on the origin system even if the server job failed. Polling is unbounded.
+- **Fix:** fail (or return an explicit unknown state that blocks success) and bound polling.
+
+### ACT-2026-58 — Medium — Technical — Post-activity existence check is dead
+
+- **Where:** [`PostActivity.ts#L117`](../../src/manifest/PostActivity.ts#L117) does not await `getObject`; used at [`setManifestValues.ts#L391`](../../src/actions/publish/setManifestValues.ts#L391) and [`PostActivity.ts#L22`](../../src/manifest/PostActivity.ts#L22).
+- **Failure:** a Promise is always truthy, so non-existent classes are published and the install-time guard never fires; a rejected lookup becomes an unhandled rejection.
+- **Fix:** await `getObject` (and `exists` at L22).
+
+### ACT-2026-59 — Medium — Functional — Non-interactive engines are validated non-strictly
+
+- **Where:** [`setManifestValues.ts#L49`](../../src/actions/publish/setManifestValues.ts#L49); strict validation only in prompt branches.
+- **Failure:** an unknown top-level key is published and makes every install fail "update TRM"; an unknown constraint property (typo) is dropped and never enforced.
+- **Fix:** validate caller-supplied engines strictly in non-interactive mode.
+
+### ACT-2026-60 — Medium — Functional — `preRelease` is ignored on automatic versions
+
+- **Where:** [`publish/init.ts#L169`](../../src/actions/publish/init.ts#L169) vs L176–183.
+- **Failure:** with the version omitted on an existing package, a stable version is published instead of a prerelease.
+- **Fix:** apply the prerelease computation after the automatic increment.
+
+### ACT-2026-61 — Medium — Technical — Non-interactive devclass may stay unresolved
+
+- **Where:** [`publish/init.ts#L268`](../../src/actions/publish/init.ts#L268), [`#L300`](../../src/actions/publish/init.ts#L300).
+- **Failure:** with `noInquirer`, no devclass and no matching system package, `getPackageNamespace(undefined)` throws a `TypeError`; a devclass derived from the snapshot is never validated or normalized.
+- **Fix:** require the devclass explicitly in non-interactive mode and always validate/normalize it.
+
+### ACT-2026-62 — Medium — Functional — Merging with the latest release cannot remove or replace entries
+
+- **Where:** [`setManifestValues.ts#L52`](../../src/actions/publish/setManifestValues.ts#L52).
+- **Failure:** authors, keywords and post-activities are unioned; changing a post-activity's parameters publishes both versions, so it runs twice at install.
+- **Fix:** treat caller-supplied arrays as authoritative, or merge post-activities by class.
+
+### ACT-2026-63 — Medium — Functional — Retained customizing transports cannot be dropped non-interactively
+
+- **Where:** [`setCustomizingTransports.ts#L55`](../../src/actions/publish/setCustomizingTransports.ts#L55).
+- **Fix:** let an explicit `customizingTransports` list replace the retained set, or add an exclusion input.
+
+### ACT-2026-64 — Low — Technical — Object locks are not re-checked after TRM locks are taken
+
+- **Where:** check in `init`, locks in [`publish/lockResources.ts#L8`](../../src/actions/publish/lockResources.ts#L8) after the prompt steps.
+- **Fix:** re-read objects and SAP locks in `lock-resources`.
+
+### ACT-2026-65 — Low — Functional — Public-registry metadata limits are enforced only in prompts
+
+- **Where:** [`setManifestValues.ts#L182`](../../src/actions/publish/setManifestValues.ts#L182).
+- **Fix:** apply the same limits before transport generation in non-interactive mode.
+
+### ACT-2026-66 — Low — Technical — A retained transport can be added twice
+
+- **Where:** [`setCustomizingTransports.ts#L185`](../../src/actions/publish/setCustomizingTransports.ts#L185).
+- **Fix:** check "already added" before the retained-transport branch.
+
+### ACT-2026-67 — Low — Technical — Prompted version is not cleaned
+
+- **Where:** [`publish/init.ts#L204`](../../src/actions/publish/init.ts#L204).
+- **Failure:** `v1.2.4` is stored raw (duplicate check, transport text and comment disagree with the manifest).
+- **Fix:** store `clean(v)`.
+
+### ACT-2026-68 — Low — Functional — Derived manifest fields and engine prefill are brittle
+
+- **Where:** [`setManifestValues.ts#L274`](../../src/actions/publish/setManifestValues.ts#L274) (caller `registry`/`namespace` survive), [`getSystemEngines.ts#L32`](../../src/actions/publish/getSystemEngines.ts#L32) (one malformed row discards the whole prefill), [`setManifestValues.ts#L380`](../../src/actions/publish/setManifestValues.ts#L380) (logs `[object Object]`).
+- **Fix:** reset derived fields, skip malformed rows individually, log JSON strings.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `check-server-auth` | No publish-specific issue; see [shared audit](shared.md). |
-| 2 | `set-system-packages` | No publish-specific issue. |
-| 3 | `trm-server-pa` | SHARED-02. |
-| 4 | `init` | Version/name/lock validation rejects failures. Only a registry HTTP 404 enters the first-publication flow. First remote non-interactive publication requires explicit visibility. Publishing without abapGit source or `.abapgit.xml` is intentionally allowed. |
-| 5 | `find-dependencies` | No issue found. Customer/local packages and TRM dependencies without manifests correctly block publication. |
-| 6 | `set-customizing-transports` | No confirmed logic defect found. Invalid new requests reject; retained requests deliberately reuse prior metadata. Connector errors propagate, although a missing E070 currently surfaces as a generic `TypeError` before being wrapped. |
-| 7 | `set-manifest-values` | No issue found. Missing dependencies from the latest release can be retained with a multi-select prompt. Final manifest normalization provides a last validation boundary. |
-| 8 | `set-optional-release-data` | No issue found. Omitted optional text remains undefined in non-interactive mode. |
-| 9 | `generate-devc-transport` | No issue found. The transport is registered in context before object addition, allowing deletion on failure while still modifiable. |
-| 10 | `generate-tadir-transport` | No issue found for the same reason as DEVC generation. |
-| 11 | `generate-lang-transport` | No issue found. Translation content is optional; an empty generated transport is deleted and publication continues without it. |
-| 12 | `generate-cust-transport` | No issue found. A created TOC is tracked before it is populated, allowing rollback on copy or content-check failure. |
-| 13 | `release-transport` | No issue found. Generated transports are transports of copies, so releasing them does not modify source objects and requires no rollback. Logger and prompt prefixes are restored after success or failure. |
-| 14 | `publish-to-registry` | No issue found; failures propagate and released transports of copies can safely remain released. |
-| 15 | `update-package-data` | No issue found. Updating the origin-system package record is best-effort and does not invalidate a successful registry publication. |
+| 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
+| 3 | `init` | Local first publish fails (ACT-2026-55) and local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); non-interactive devclass unresolved (ACT-2026-61); prompted version not cleaned (ACT-2026-67). |
+| 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
+| 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63); duplicate retained entry (ACT-2026-66). |
+| 6 | `set-manifest-values` | Dead post-activity check (ACT-2026-58), non-strict engines (ACT-2026-59), union-only merge (ACT-2026-62), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). |
+| 7 | `set-optional-release-data` | No issue found. |
+| 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
+| 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts hit cached status ([ACT-2026-17](shared.md)). |
+| 13 | `release-transport` | Prefixes restored, revert best-effort; unbounded release wait ([ACT-2026-14](shared.md)). |
+| 14 | `publish-to-registry` | Async status failures reported as success (ACT-2026-57). |
+| 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
-
 ### PUBL-05 — Resolved — Registry failures are distinct from first publication
 
 Registry HTTP 404 responses are now represented by `RegistryPackageNotFoundError`, including the
@@ -71,7 +145,6 @@ disabled, initialization now rejects with a clear error instead of prompting. No
 is assumed ([source](../../src/actions/publish/init.ts#L237)).
 
 ## Non-relevant findings
-
 ### PUBL-01 — Non-relevant — Publishing without abapGit source is supported
 
 The audit originally treated every failure from `getAbapgitSource` or the `.abapgit.xml` read as an
