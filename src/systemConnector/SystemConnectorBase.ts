@@ -430,16 +430,12 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async checkSapEntryExists(table: string, sapEntry: any): Promise<boolean> {
-    //invalid entries are thrown, not reported as missing
+    //invalid entries and read errors (authorization, connection) are thrown, not reported as missing
     const aQuery = getSapEntryConditions(sapEntry);
-    try {
-      const entry: any[] = await this.readTable(table.trim().toUpperCase(),
-        [{ fieldName: Object.keys(sapEntry)[0].trim().toUpperCase() }],
-        aQuery.join(' AND '));
-      return entry.length > 0;
-    } catch (e) {
-      return false;
-    }
+    const entry: any[] = await this.readTable(table.trim().toUpperCase(),
+      [{ fieldName: Object.keys(sapEntry)[0].trim().toUpperCase() }],
+      aQuery.join(' AND '));
+    return entry.length > 0;
   }
 
   public async getPackageIntegrity(oPackage: TrmPackage): Promise<string> {
@@ -663,7 +659,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async checkTableCondition(table: components.TABNAME, where: TrmManifestEngineTableCondition[]): Promise<boolean> {
-    //unlike checkSapEntryExists, read errors (missing table, authorization) are thrown
+    //read errors (missing table, authorization) are thrown
     const aQuery = where.map(condition => `${condition.field.trim().toUpperCase()} ${(condition.op || 'EQ').trim().toUpperCase()} '${condition.value.toString().replace(/'/g, "''")}'`);
     const rows: any[] = await this.readTable(table.trim().toUpperCase(),
       [{ fieldName: where[0].field.trim().toUpperCase() }],

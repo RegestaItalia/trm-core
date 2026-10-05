@@ -7,21 +7,30 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-69 — Medium — Technical — Connector swallows every SAP-entry error (SAPCHK-02 ineffective)
-
-- **Where:** [`SystemConnectorBase.ts#L441`](../../src/systemConnector/SystemConnectorBase.ts#L441) returns `false` on any read error, so the rethrow at [`analyze.ts#L77`](../../src/actions/checkSapEntries/analyze.ts#L77) and the "Unknown" branch are dead.
-- **Failure:** missing authorization or a dropped connection reports every table "not found" and aborts install with "requirements are not met" instead of the real cause.
-- **Fix:** propagate read errors; treat only true absence as `false`.
+No active findings.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. |
-| 2 | `analyze` | Error handling dead (ACT-2026-69). Entry conditions are escaped and validated, and invalid entries are thrown rather than reported missing. The table probe uppercases the name and accepts tables and views. Printed rows stay aligned with the header and output statuses follow declaration order. |
+| 2 | `analyze` | No issue found. Only an empty read counts as missing; table-probe and entry read errors abort the check with the table or entry and the original message. Entry conditions are escaped and validated, and invalid entries are thrown rather than reported missing. The table probe uppercases the name and accepts tables and views. Printed rows stay aligned with the header and output statuses follow declaration order. |
 | — | install wrapper `check-sap-entries` | Skips on `noSapEntries`; logs each missing entry at error level, with its table and field values, before aborting. |
 
 ## Resolved findings
+### ACT-2026-69 — Resolved — Medium — Technical — Connector swallows every SAP-entry error (SAPCHK-02 ineffective)
+
+Previously `SystemConnectorBase.checkSapEntryExists` returned `false` on any error, so a missing
+authorization or a dropped connection reported every table "not found" and install aborted with
+"requirements are not met" instead of the real cause; the SAPCHK-02 rethrow and the entry `Unknown`
+branch never ran. The connector now propagates read errors and returns `false` only when the read
+returns no row; both clients already map `TABLE_WITHOUT_DATA` to an empty result
+([source](../../src/systemConnector/SystemConnectorBase.ts#L432)). The TADIR probe error is
+re-thrown with the table name, and an entry read error is now re-thrown with the entry and table
+instead of being recorded as an `Unknown` status logged only in debug
+([source](../../src/actions/checkSapEntries/analyze.ts#L97)), matching the action's documented
+contract of throwing when the system cannot be queried.
+
 ### ACT-2026-70 — Resolved — Medium — Technical — SAP-entry where clause is built unsafely
 
 Previously `checkSapEntryExists` interpolated field names and values into the where clause without
@@ -80,4 +89,4 @@ re-thrown with the affected table name and original message, preserving the dist
 missing table and an authorization, connection, or response failure
 ([source](../../src/actions/checkSapEntries/analyze.ts#L63)).
 
-> **2026-10-04 audit:** this fix is ineffective because `SystemConnectorBase.checkSapEntryExists` swallows every error and returns `false`, so the rethrow never runs. Tracked as active finding ACT-2026-69 in the [README](README.md).
+> **2026-10-04 audit:** this fix was ineffective because `SystemConnectorBase.checkSapEntryExists` swallowed every error and returned `false`, so the rethrow never ran. Tracked as ACT-2026-69, now resolved: the connector propagates read errors, so this rethrow is effective.

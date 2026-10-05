@@ -93,31 +93,25 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
                 printTableHead.push('Status');
                 for(const tableEntry of context.output.sapEntries[table]){
                     tableData = [table];
-                    var entryStatus;
+                    var exists: boolean;
                     try{
-                        const exists = await SystemConnector.checkSapEntryExists(table, tableEntry);
-                        if(exists){
-                            entryStatus = `OK`;
-                            context.runtime.entriesStatus.good.push({
-                                table,
-                                tableEntry
-                            });
-                        }else{
-                            entryStatus = `NOT FOUND`;
-                            context.runtime.entriesStatus.bad.push({
-                                table,
-                                tableEntry
-                            });
-                        }
+                        exists = await SystemConnector.checkSapEntryExists(table, tableEntry);
                     }catch(e){
-                        Logger.error(e.toString(), true);
-                        Logger.error(`Error during check of SAP entry ${JSON.stringify(tableEntry)}`, true);
-                        entryStatus = `Unknown`;
+                        const reason = e instanceof Error ? e.message : String(e);
+                        throw new Error(`Unable to check required SAP entry ${JSON.stringify(tableEntry)} in table "${table}": ${reason}`);
+                    }
+                    if(exists){
+                        context.runtime.entriesStatus.good.push({
+                            table,
+                            tableEntry
+                        });
+                    }else{
                         context.runtime.entriesStatus.bad.push({
                             table,
                             tableEntry
                         });
                     }
+                    const entryStatus = exists ? `OK` : `NOT FOUND`;
                     tableData = tableData.concat(printTableHead.slice(1, -1).map(field => tableEntry[field] ?? ''));
                     tableData.push(entryStatus);
                     printTableData.push(tableData);

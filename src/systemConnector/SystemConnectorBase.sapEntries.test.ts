@@ -19,4 +19,13 @@ describe('SystemConnectorBase checkSapEntryExists', () => {
         await expect(connector(readTable).checkSapEntryExists('ZTAB', { ID: 'X'.repeat(70) })).rejects.toThrow(/too long/);
         expect(readTable).not.toHaveBeenCalled();
     });
+
+    test('returns false only when no row is read', async () => {
+        expect(await connector(jest.fn().mockResolvedValue([])).checkSapEntryExists('ZTAB', { ID: '1' })).toBe(false);
+    });
+
+    test('propagates read errors', async () => {
+        const readTable = jest.fn().mockRejectedValue(new Error('NOT_AUTHORIZED'));
+        await expect(connector(readTable).checkSapEntryExists('ZTAB', { ID: '1' })).rejects.toThrow('NOT_AUTHORIZED');
+    });
 });

@@ -69,4 +69,19 @@ describe('checkSapEntries', () => {
             { status: false, entry: { ID: 'B' } }
         ]);
     });
+
+    test('table probe read errors abort with the table context', async () => {
+        connector.checkSapEntryExists.mockRejectedValue(new Error('NOT_AUTHORIZED'));
+        await expect(run({ ZTAB: [{ ID: 'A' }] })).rejects.toThrow('Unable to check whether required SAP table "ZTAB" exists: NOT_AUTHORIZED');
+    });
+
+    test('entry read errors abort with the entry context', async () => {
+        connector.checkSapEntryExists.mockImplementation(async (table: string) => {
+            if (table === 'TADIR') {
+                return true;
+            }
+            throw new Error('NOT_AUTHORIZED');
+        });
+        await expect(run({ ZTAB: [{ ID: 'A' }] })).rejects.toThrow('Unable to check required SAP entry {"ID":"A"} in table "ZTAB": NOT_AUTHORIZED');
+    });
 });
