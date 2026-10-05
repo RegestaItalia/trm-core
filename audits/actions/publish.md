@@ -13,12 +13,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** `inc('latest')` is `null` (non-interactive fails later with "Package version missing"); the file's manifest is merged regardless of package name; its CUST transports are classified as retained, skipped by generation, and ignored by `FileSystem.publish`, so customizing silently disappears.
 - **Fix:** do not treat the target file as latest for LOCAL, or validate its name and return the real version.
 
-### ACT-2026-58 — Medium — Technical — Post-activity existence check is dead
-
-- **Where:** [`PostActivity.ts#L117`](../../src/manifest/PostActivity.ts#L117) does not await `getObject`; used at [`setManifestValues.ts#L391`](../../src/actions/publish/setManifestValues.ts#L391) and [`PostActivity.ts#L22`](../../src/manifest/PostActivity.ts#L22).
-- **Failure:** a Promise is always truthy, so non-existent classes are published and the install-time guard never fires; a rejected lookup becomes an unhandled rejection.
-- **Fix:** await `getObject` (and `exists` at L22).
-
 ### ACT-2026-59 — Medium — Functional — Non-interactive engines are validated non-strictly
 
 - **Where:** [`setManifestValues.ts#L49`](../../src/actions/publish/setManifestValues.ts#L49); strict validation only in prompt branches.
@@ -65,7 +59,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
-| 6 | `set-manifest-values` | Dead post-activity check (ACT-2026-58), non-strict engines (ACT-2026-59), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). |
+| 6 | `set-manifest-values` | non-strict engines (ACT-2026-59), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
 | 7 | `set-optional-release-data` | No issue found. |
 | 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
 | 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts hit cached status ([ACT-2026-17](shared.md)). |
@@ -74,6 +68,15 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-58 — Resolved — Post-activity existence check is dead
+
+`PostActivity.exists` did not await the TADIR lookup, so the Promise was always truthy: post activities
+of non-existent classes were published, the install-time guard in `execute` never fired, and a failed
+lookup became an unhandled rejection. `exists` now awaits the lookup and `execute` awaits `exists`, so
+publish removes post activities of missing classes, install stops before calling the system with a
+clear "doesn't exist" error, and lookup failures propagate to the caller
+([source](../../src/manifest/PostActivity.ts#L116)).
+
 ### ACT-2026-57 — Resolved — Async registry publish failures are reported as success
 
 On 202, a failed status poll was logged as "check manually" and `publish` resolved, so the workflow

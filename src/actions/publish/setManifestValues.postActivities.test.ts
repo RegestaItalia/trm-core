@@ -7,6 +7,7 @@ import { Logger } from 'trm-commons';
 import { RegistryType } from '../../registry';
 import { PostActivity } from '../../manifest';
 import { setManifestValues } from './setManifestValues';
+import { SystemConnector } from '../../systemConnector';
 
 function context(postActivities: any[] | undefined, latestPostActivities: any[]) {
     return {
@@ -53,6 +54,21 @@ describe('publish setManifestValues post activities merge', () => {
 
     test('without input post activities the latest release ones are used', async () => {
         const ctx = context(undefined, [{ name: 'ZCL_PA' }]);
+        await setManifestValues.run(ctx);
+        expect(ctx.runtime.manifest.postActivities).toEqual([{ name: 'ZCL_PA' }]);
+    });
+});
+
+describe('publish setManifestValues post activities existence', () => {
+    beforeEach(() => {
+        jest.restoreAllMocks();
+        ['log', 'loading', 'error', 'warning', 'info'].forEach(m => jest.spyOn(Logger, m as any).mockImplementation(() => undefined as never));
+    });
+
+    test('removes post activities whose class does not exist', async () => {
+        jest.spyOn(SystemConnector, 'getObject').mockImplementation(async (_pgmid, _object, objName) =>
+            objName === 'ZCL_PA' ? { pgmid: 'R3TR', object: 'CLAS', objName } as any : undefined);
+        const ctx = context([{ name: 'ZCL_PA' }, { name: 'zcl_missing' }], []);
         await setManifestValues.run(ctx);
         expect(ctx.runtime.manifest.postActivities).toEqual([{ name: 'ZCL_PA' }]);
     });

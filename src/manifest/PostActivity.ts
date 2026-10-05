@@ -19,7 +19,7 @@ export class PostActivity {
     public async execute(silent?: boolean) {
         const data = Buffer.from(this._xml, 'utf8');
         Logger.loading(`Post activity: ${this.data.name}`, silent);
-        if(!PostActivity.exists(this.data.name)){
+        if(!(await PostActivity.exists(this.data.name))){
             throw new Error(`Class "${this.data.name}" doesn't exist.`);
         }
         const description = await this.getDescription();
@@ -114,7 +114,7 @@ export class PostActivity {
     }
 
     public static async exists(className: string): Promise<boolean> {
-        const classObject = SystemConnector.getObject('R3TR', 'CLAS', className.trim().toUpperCase());
+        const classObject = await SystemConnector.getObject('R3TR', 'CLAS', className.trim().toUpperCase());
         return classObject ? true : false;
     }
 
