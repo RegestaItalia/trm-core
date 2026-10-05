@@ -51,6 +51,10 @@ export async function releaseDeletionTransport(
         throw new Error(`Test import of deletion transport failed: check logs.`);
     }
     Logger.loading(`Importing ${deletionTransport.trkorr}`, true);
+    // Mark before the mutating await: the import may change objects and still fail.
+    if (retainSnapshot) {
+        context.revert.deleImportStarted = true;
+    }
     await context.runtime.dele.import(false);
     Logger.success(`Transport ${deletionTransport.trkorr} imported`, true);
     deletionTransport = context.runtime.dele; //replace

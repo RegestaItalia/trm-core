@@ -246,6 +246,7 @@ type WorkflowRevert = {
     },
     sapPackages: DEVCLASS[],
     dele?: TransportBinary,
+    deleImportStarted?: boolean,
     deleInTargetTms?: boolean,
     cleanupOriginalTadir?: TADIR[],
     cleanupTemporaryPackages?: TDEVC[],

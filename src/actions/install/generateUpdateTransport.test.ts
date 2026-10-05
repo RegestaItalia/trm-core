@@ -57,7 +57,8 @@ function context() {
             dele: {
                 trkorr: 'DEVK9DELE', entries: undefined,
                 binaries: { header: Buffer.from('h'), data: Buffer.from('d') }
-            }
+            },
+            deleImportStarted: true
         }
     } as any;
 }

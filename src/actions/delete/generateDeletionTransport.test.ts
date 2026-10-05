@@ -157,6 +157,44 @@ describe('generateDeletionTransport', () => {
         expect(dummy.delete).toHaveBeenCalledTimes(1);
     });
 
+    describe('rollback after the deletion transport was released', () => {
+        test('a registry failure does not re-import the copy over the live objects', async () => {
+            const { ctx, registry } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
+            registry.delete.mockRejectedValue(new Error('registry 500'));
+
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('registry 500');
+            expect(ctx.revert.dele).toBeDefined();
+            expect(ctx.revert.deleImportStarted).toBeFalsy();
+
+            await generateDeletionTransport.revert(ctx);
+            expect(Transport.upload).not.toHaveBeenCalled();
+        });
+
+        test('a failed test import does not re-import the copy', async () => {
+            const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
+            imported.import.mockResolvedValueOnce(12);
+
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('Test import of deletion transport failed');
+            expect(ctx.revert.deleImportStarted).toBeFalsy();
+
+            (Transport.upload as jest.Mock).mockClear();
+            await generateDeletionTransport.revert(ctx);
+            expect(Transport.upload).not.toHaveBeenCalled();
+        });
+
+        test('a failed import re-imports the copy', async () => {
+            const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
+            imported.import.mockResolvedValueOnce(0).mockRejectedValueOnce(new Error('import failed'));
+
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('import failed');
+            expect(ctx.revert.deleImportStarted).toBe(true);
+
+            (Transport.upload as jest.Mock).mockClear();
+            await generateDeletionTransport.revert(ctx);
+            expect(Transport.upload).toHaveBeenCalledWith('DEVK9DELE', expect.anything());
+        });
+    });
+
     describe('objects moved outside the installation', () => {
         function movedContext() {
             const run = runContext([
@@ -249,6 +287,7 @@ describe('generateDeletionTransport', () => {
             const { ctx } = runContext([]);
             ctx.revert.sapPackages = ['ZTRM_DELE_ONE', 'ZTRM_DELE_TWO'];
             ctx.revert.dele = { trkorr: 'DEVK9DELE', entries: undefined, binaries: { header: Buffer.from('h'), data: Buffer.from('d') } };
+            ctx.revert.deleImportStarted = true;
             ctx.revert.cleanupOriginalTadir = [
                 { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE', devclass: '$LOCAL', srcsystem: 'OLD' }
             ];

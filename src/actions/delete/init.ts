@@ -112,6 +112,7 @@ export const init: Step<DeleteWorkflowContext> = {
         context.revert = {
             sapPackages: [],
             dele: undefined,
+            deleImportStarted: false,
             deleInTargetTms: false,
             metadataRemoveStarted: false,
             metadataPreviousPackageRow: undefined

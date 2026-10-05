@@ -19,12 +19,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** on final systems customizing is never deleted; on landscape systems TABU entries lack keys ([ACT-2026-40](install.md)).
 - **Fix:** define the customizing policy for delete and document or implement it.
 
-### ACT-2026-49 — Medium — Technical — Revert re-imports the copy even when the deletion was never imported
-
-- **Where:** snapshot saved before `registry.delete` ([`releaseDeletionTransport.ts#L19`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L19)); revert decides only on `canBeDeleted()` ([`packageCleanup.ts#L518`](../../src/actions/commons/utils/packageCleanup.ts#L518)).
-- **Failure:** a registry 500 still triggers a full re-import over live objects; if it fails, staging cleanup is skipped.
-- **Fix:** set an "import started" flag before `import(false)` and re-import only when set.
-
 ### ACT-2026-50 — Medium — Technical — The only rollback copy lives in memory and its export is unchecked
 
 - **Where:** [`releaseDeletionTransport.ts#L14`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L14), [`#L42`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L42) (deletion binaries uploaded under the copy's number).
@@ -41,11 +35,17 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | Raw package name for mapping lookup ([ACT-2026-16](shared.md)); re-reads a missing TRM packages table record and aborts before any change when it still can't be read (ACT-2026-51, resolved); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
 | 4 | `check-dependants` | No additional issue beyond [ACT-2026-15](shared.md). |
 | 5 | `lock-resources` | No issue found. |
-| 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages deleted (ACT-2026-47), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-49, ACT-2026-50). |
+| 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages deleted (ACT-2026-47), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-50); the copy is re-imported only once the deletion import started (ACT-2026-49, resolved). |
 | 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
 | 8 | `remove-package-data` | Atomic and reversible; always runs, and fails instead of skipping without a snapshot (ACT-2026-51, resolved). |
 
 ## Resolved findings
+
+### ACT-2026-49 — Medium — Technical — Resolved — Revert re-imports the copy even when the deletion was never imported
+
+- **Where:** [`releaseDeletionTransport.ts#L54`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L54), [`packageCleanup.ts#L562`](../../src/actions/commons/utils/packageCleanup.ts#L563).
+- **Failure (before):** the snapshot was saved before `registry.delete` and the revert decided only on `canBeDeleted()`, so a registry 500 or a failed test import still triggered a full re-import over live objects; if it failed, staging cleanup was skipped.
+- **Resolution:** `deleImportStarted` is set right before `import(false)` (only for the cleanup's own deletion transport). The revert re-imports the copy only when it is set; a released but never imported deletion transport is left as is, and the remaining restore steps and staging cleanup run normally.
 
 ### ACT-2026-51 — Medium — Functional — Resolved — Record removal is skipped when the snapshot is missing
 
