@@ -157,6 +157,39 @@ describe('generateDeletionTransport', () => {
         expect(dummy.delete).toHaveBeenCalledTimes(1);
     });
 
+    test('nothing to delete only warns and does not generate a deletion transport', async () => {
+        const { ctx, dummy, registry } = runContext([
+            { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' }
+        ], '');
+        ctx.runtime.previousInstallPackages = [];
+        dummy.canBeDeleted.mockResolvedValue(true);
+
+        await generateDeletionTransport.run(ctx);
+
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Nothing to delete for package pkg'));
+        expect(dummy.addObjects).not.toHaveBeenCalled();
+        expect(dummy.release).not.toHaveBeenCalled();
+        expect(registry.delete).not.toHaveBeenCalled();
+        expect(dummy.delete).toHaveBeenCalledTimes(1);
+        expect(ctx.revert.updateCleanupTransport).toBeUndefined();
+        expect(ctx.revert.dele).toBeUndefined();
+        expect(ctx.output.transport).toBeUndefined();
+    });
+
+    test('nothing to delete still completes when the empty transport cannot be deleted', async () => {
+        const { ctx, dummy } = runContext([], '');
+        ctx.runtime.previousInstallPackages = [];
+        dummy.canBeDeleted.mockResolvedValue(true);
+        dummy.delete.mockRejectedValue(new Error('delete failed'));
+
+        await generateDeletionTransport.run(ctx);
+
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not delete transport DEVK9DELE'));
+        expect(dummy.release).not.toHaveBeenCalled();
+        // Rollback can still retry deleting it.
+        expect(ctx.revert.updateCleanupTransport).toBe(dummy);
+    });
+
     describe('revert', () => {
         function revertContext() {
             const { ctx } = runContext([]);

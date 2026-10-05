@@ -49,11 +49,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** with `noInquirer` the action always throws a bare "Delete aborted."
 - **Fix:** add an explicit override option and include the reason.
 
-### ACT-2026-54 — Low — Functional — An empty deletion list still reports a successful delete
-
-- **Where:** [`packageCleanup.ts#L368`](../../src/actions/commons/utils/packageCleanup.ts#L368), [`#L427`](../../src/actions/commons/utils/packageCleanup.ts#L427).
-- **Fix:** warn or abort when nothing would be deleted.
-
 ## Step review
 
 | Order | Step | Result |
@@ -64,13 +59,17 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | Raw package name for mapping lookup ([ACT-2026-16](shared.md)); dirty packages cannot be deleted non-interactively (ACT-2026-53). |
 | 4 | `check-dependants` | No additional issue beyond [ACT-2026-15](shared.md). |
 | 5 | `lock-resources` | No issue found. |
-| 6 | `generate-deletion-transport` | Highest-risk step: final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages and moved objects deleted (ACT-2026-47, ACT-2026-52), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-49, ACT-2026-50). |
+| 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages and moved objects deleted (ACT-2026-47, ACT-2026-52), customizing not covered (ACT-2026-48), rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-49, ACT-2026-50). |
 | 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
 | 8 | `remove-package-data` | Atomic and reversible; silently skipped without a snapshot (ACT-2026-51). |
 
 ## Resolved findings
 
-None.
+### ACT-2026-54 — Low — Functional — Resolved — An empty deletion list still reports a successful delete
+
+- **Where:** [`packageCleanup.ts#L362`](../../src/actions/commons/utils/packageCleanup.ts#L362).
+- **Failure (before):** with no installed transport entries and no package to remove (missing transport or E071 rows, no devclass, or every extra-object group declined), an empty deletion transport was still released, sent to the registry, and imported.
+- **Resolution:** when the selection holds no objects other than TRM comment rows (and no retained tables), the cleanup logs a warning, deletes the empty transport when possible, and generates no deletion transport, so nothing is forwarded.
 
 ## Non-relevant findings
 

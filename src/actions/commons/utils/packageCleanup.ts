@@ -359,6 +359,20 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects]
             .filter(object => !retainedKeys.has(objectKey(object)))
             .map(object => [objectKey(object), object]));
+        // TRM comment rows of the installed transport are not objects to delete.
+        const hasObjectsToDelete = Array.from(deletionObjects.values()).some(object => normalize(object.pgmid) !== '*');
+        if (!hasObjectsToDelete && retainedTables.length === 0) {
+            Logger.warning(`Nothing to delete for package ${context.rawInput.packageData.name}: deletion transport was not generated. Manual cleanup of previous release install might be necessary.`);
+            try {
+                if (await dummy.canBeDeleted()) {
+                    await dummy.delete();
+                    context.revert.updateCleanupTransport = undefined;
+                }
+            } catch (e) {
+                Logger.warning(`Could not delete transport ${dummy.trkorr}: ${String(e)}`);
+            }
+            return;
+        }
         await context.lockScope.acquire([
             ...Array.from(deletionObjects.values(), objectLockResource),
             ...Array.from(deletionObjects.values())
