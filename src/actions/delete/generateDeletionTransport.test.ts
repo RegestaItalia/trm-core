@@ -365,6 +365,75 @@ describe('generateDeletionTransport', () => {
         });
     });
 
+    describe('SAP packages of other TRM packages', () => {
+        // Shared with the upgrade cleanup; the delete action deletes nested packages first.
+        function otherContext() {
+            const run = runContext([
+                { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' },
+                { pgmid: 'R3TR', object: 'PROG', objName: 'Z_INTO_NESTED' }
+            ]);
+            // Z_ROOT -> Z_LOCAL -> Z_NESTED (other TRM package) -> Z_NESTED_SUB; Z_ROOT -> Z_EXTRA
+            const parents: Record<string, string> = { Z_LOCAL: 'Z_ROOT', Z_NESTED: 'Z_LOCAL', Z_NESTED_SUB: 'Z_NESTED', Z_EXTRA: 'Z_ROOT' };
+            (SystemConnector.getSubpackages as jest.Mock).mockImplementation(async devclass => devclass === 'Z_ROOT'
+                ? Object.entries(parents).map(([sub, parentcl]) => ({ devclass: sub, parentcl }))
+                : []);
+            (SystemConnector.getDevclassObjects as jest.Mock).mockImplementation(async devclass => ({
+                Z_LOCAL: [{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL_PROG' }],
+                Z_NESTED: [{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_NESTED_PROG' }],
+                Z_NESTED_SUB: [{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_NESTED_SUB_PROG' }],
+                Z_EXTRA: [{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_EXTRA_PROG' }]
+            } as Record<string, any[]>)[devclass] || []);
+            const devclasses: Record<string, string> = { Z_CLASS: 'Z_ROOT', Z_INTO_NESTED: 'Z_NESTED_SUB' };
+            (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async objects =>
+                objects.map((object: any) => ({ ...object, devclass: devclasses[object.objName] })));
+            run.ctx.rawInput.contextData.systemPackages = [
+                { packageName: 'pkg', getDevclass: () => 'Z_ROOT' },
+                { packageName: 'nested', getDevclass: () => 'Z_NESTED' }
+            ];
+            return run;
+        }
+        const deletedOf = (dummy: any) => dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+
+        test('are ignored: everything else is removed, their ancestors stay as packages', async () => {
+            const { ctx, dummy } = otherContext();
+
+            await generateDeletionTransport.run(ctx);
+
+            const deleted = deletedOf(dummy);
+            expect(deleted).toEqual(expect.arrayContaining(['CLAS Z_CLASS', 'PROG Z_LOCAL_PROG', 'PROG Z_EXTRA_PROG', 'DEVC Z_EXTRA']));
+            expect(deleted).toHaveLength(4);
+            // Without prompts, extra objects are deleted with a warning.
+            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_EXTRA will delete 2 extra objects outside this installation.');
+            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_LOCAL will delete 2 extra objects outside this installation.');
+            expect(Logger.warning).not.toHaveBeenCalledWith(expect.stringContaining('nested'));
+            expect(Logger.warning).not.toHaveBeenCalledWith(expect.stringContaining('NESTED'));
+        });
+
+        test('installed objects now in another TRM package are kept without asking', async () => {
+            const { ctx, dummy } = otherContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteExtraObjects: true });
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(deletedOf(dummy)).not.toContain('PROG Z_INTO_NESTED');
+            expect(prompt).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'deleteMovedObjects' }));
+        });
+
+        test('nothing of theirs is deleted once the delete action removed them', async () => {
+            const { ctx, dummy } = otherContext();
+            // The nested delete already ran: its SAP packages are gone.
+            ctx.rawInput.contextData.systemPackages = [ctx.rawInput.contextData.systemPackages[0]];
+            (SystemConnector.getSubpackages as jest.Mock).mockImplementation(async devclass => devclass === 'Z_ROOT'
+                ? [{ devclass: 'Z_LOCAL', parentcl: 'Z_ROOT' }]
+                : []);
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(deletedOf(dummy)).toEqual(['CLAS Z_CLASS', 'PROG Z_LOCAL_PROG', 'DEVC Z_ROOT', 'DEVC Z_LOCAL']);
+        });
+    });
+
     test('nothing to delete only warns and does not generate a deletion transport', async () => {
         const { ctx, dummy, registry } = runContext([
             { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' }

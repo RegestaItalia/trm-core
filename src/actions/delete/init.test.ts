@@ -6,6 +6,7 @@ jest.mock('../../systemConnector', () => ({
         getInstallTransports: jest.fn(),
         getInstalledPackages: jest.fn(),
         getTransportTargets: jest.fn(),
+        getSubpackages: jest.fn(),
         getDest: jest.fn(() => 'TST')
     }
 }));
@@ -60,6 +61,7 @@ describe('delete init', () => {
         jest.spyOn(Logger, 'error').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'loading').mockImplementation(() => undefined as never);
         (SystemConnector.getTransportTargets as jest.Mock).mockResolvedValue(['QAS']);
+        (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([]);
         (SystemConnector.getInstallPackages as jest.Mock).mockResolvedValue([{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }]);
         (SystemConnector.getInstallTransports as jest.Mock).mockResolvedValue([{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }]);
     });
@@ -75,6 +77,28 @@ describe('delete init', () => {
         expect(ctx.runtime.previousInstallTransports).toEqual([{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }]);
         expect(ctx.output.manifest.version).toBe('1.0.0');
         expect(ctx.revert.sapPackages).toEqual([]);
+    });
+
+    test('finds the TRM packages installed under it, at any depth', async () => {
+        const pkg = installed('pkg');
+        const nested = installed('nested', { devclass: 'ZNESTED' });
+        const deeper = installed('deeper', { devclass: 'ZDEEPER' });
+        const sibling = installed('sibling', { devclass: 'ZSIBLING' });
+        (SystemConnector.getSubpackages as jest.Mock).mockImplementation(async devclass => devclass === 'ZPKG' ? [
+            { devclass: 'ZLOCAL', parentcl: 'ZPKG' },
+            { devclass: 'ZNESTED', parentcl: 'ZLOCAL' },
+            { devclass: 'ZNESTED_SUB', parentcl: 'ZNESTED' },
+            { devclass: 'ZDEEPER', parentcl: 'ZNESTED_SUB' },
+            { devclass: 'ZSIBLING', parentcl: 'ZPKG' }
+        ] : []);
+        const ctx = context('pkg', [pkg, nested, deeper, sibling, installed('unrelated', { devclass: 'ZOTHER' })]);
+
+        await init.run(ctx);
+
+        expect(ctx.runtime.nestedPackages.all).toEqual([nested, deeper, sibling]);
+        // The deeper one is deleted by the delete of the package it's installed under.
+        expect(ctx.runtime.nestedPackages.outermost).toEqual([nested, sibling]);
+        expect(ctx.runtime.nestedRollbacks).toEqual([]);
     });
 
     test('selects the landscape target that receives the deletion transport', async () => {
@@ -185,7 +209,7 @@ describe('delete checkDependants', () => {
         const dependant = installed('dependant', { dependencies: [{ name: 'pkg', version: '^1.0.0', registry: undefined }] });
         const ctx = context('pkg', [pkg, dependant], undefined, noInquirer);
         ctx.rawInput.deleteData = { checks: {} };
-        ctx.runtime = { update: pkg };
+        ctx.runtime = { update: pkg, nestedPackages: { outermost: [], all: [] } };
         return ctx;
     }
 
@@ -206,11 +230,22 @@ describe('delete checkDependants', () => {
         await expect(checkDependants.run(dependantContext(false))).rejects.toThrow('Delete aborted');
     });
 
+    test('ignores dependants deleted by the same run', async () => {
+        const nestedCtx = dependantContext(true);
+        nestedCtx.runtime.nestedPackages.all = [nestedCtx.rawInput.contextData.systemPackages[1]];
+        await expect(checkDependants.run(nestedCtx)).resolves.toBeUndefined();
+
+        const parentCtx = dependantContext(true);
+        // A copy, as the parent delete passes its own snapshot of the system packages.
+        parentCtx.deletingPackages = [installed('dependant')];
+        await expect(checkDependants.run(parentCtx)).resolves.toBeUndefined();
+    });
+
     test('passes when nothing depends on the package, and can be skipped', async () => {
         const pkg = installed('pkg');
         const ctx = context('pkg', [pkg, installed('other')]);
         ctx.rawInput.deleteData = { checks: { noDependants: true } };
-        ctx.runtime = { update: pkg };
+        ctx.runtime = { update: pkg, nestedPackages: { outermost: [], all: [] } };
 
         await expect(checkDependants.run(ctx)).resolves.toBeUndefined();
         expect(await checkDependants.filter(ctx)).toBe(false);

@@ -41,7 +41,9 @@ export interface PackageCleanupContext {
             registry: AbstractRegistry
         },
         contextData?: {
-            noInquirer?: boolean
+            noInquirer?: boolean,
+            /** Packages installed on the target system: SAP packages of other installations are never cleaned up. */
+            systemPackages?: TrmPackage[]
         }
     },
     runtime?: {
@@ -88,6 +90,18 @@ function objectKey(object: CleanupObject): string {
 
 function isDevclass(object: CleanupObject): boolean {
     return normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'DEVC';
+}
+
+/**
+ * TRM packages, other than `installed`, installed in one of `devclasses` (normalized SAP package
+ * names, usually the live subtree of the installed release).
+ */
+export function getPackagesInstalledIn(systemPackages: TrmPackage[], installed: TrmPackage, devclasses: Set<string>): TrmPackage[] {
+    const installedDevclass = normalize(installed.getDevclass() || '');
+    return systemPackages.filter(pkg => {
+        const devclass = normalize(pkg.getDevclass() || '');
+        return devclass && devclass !== installedDevclass && devclasses.has(devclass);
+    });
 }
 
 /** Deletes every temporary package, reporting the first failure after the cleanup pass. */
@@ -285,12 +299,32 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             }
         }
 
+        // Other TRM packages installed underneath have their own lifecycle and are ignored: the delete
+        // action deletes them first, an upgrade removes everything else. Their ancestors stay as packages.
+        const otherInstallations = new Map(getPackagesInstalledIn(
+            context.rawInput.contextData?.systemPackages || [], installed, new Set(previousDevclasses.keys())
+        ).map(pkg => [normalize(pkg.getDevclass()), pkg]));
+        const isOtherInstallation = (devclass: string): boolean => {
+            const visited = new Set<string>();
+            let current = normalize(devclass);
+            while (current && !visited.has(current)) {
+                if (otherInstallations.has(current)) {
+                    return true;
+                }
+                visited.add(current);
+                current = packageParents.get(current);
+            }
+            return false;
+        };
+        otherInstallations.forEach(pkg => Logger.log(`Ignoring SAP package ${pkg.getDevclass()}: TRM package ${pkg.packageName} is installed there`, true));
+
         // Local additions remain cleanup candidates even when reused as incoming targets.
         // The first local package owns the decision for its locally added descendants.
         const cleanupGroups = new Map<string, Set<string>>();
         for (const normalizedDevclass of previousDevclasses.keys()) {
             const locallyAdded = !installedDevclasses.has(normalizedDevclass);
-            if (generatedDevclasses.has(normalizedDevclass) || (!locallyAdded && currentDevclasses.has(normalizedDevclass))) {
+            if (generatedDevclasses.has(normalizedDevclass) || (!locallyAdded && currentDevclasses.has(normalizedDevclass))
+                || isOtherInstallation(normalizedDevclass)) {
                 continue;
             }
             let root = normalizedDevclass;
@@ -334,12 +368,16 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             const packagesToRemove = Array.from(group).filter(member => !currentDevclasses.has(member));
             const extraObjectCount = objectsAfterImport.size + packagesToRemove.filter(member => !installedDevclasses.has(member)).length;
             if (extraObjectCount > 0) {
+                const extraObjectsMessage = `Cleanup of SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} will delete ${extraObjectCount} extra objects outside this installation`;
+                if (context.rawInput.contextData.noInquirer) {
+                    Logger.warning(`${extraObjectsMessage}.`);
+                }
                 const { deleteExtraObjects } = context.rawInput.contextData.noInquirer
                     ? { deleteExtraObjects: true }
                     : await Inquirer.prompt({
                         name: 'deleteExtraObjects',
                         type: 'confirm',
-                        message: `Cleanup of SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} will delete ${extraObjectCount} extra objects outside this installation. Continue?`,
+                        message: `${extraObjectsMessage}. Continue?`,
                         default: true
                     });
                 if (!deleteExtraObjects) {
@@ -391,13 +429,21 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             }
         }
 
-        // Installed objects moved to a package outside this installation (another TRM package,
-        // customer development) are kept unless confirmed.
-        const movedObjects = (await SystemConnector.getExistingObjects(previousTransportObjects
+        // Installed objects moved to a package outside this installation (customer development)
+        // are kept unless confirmed; those now in another TRM package belong to it and are kept.
+        const relocatedObjects = (await SystemConnector.getExistingObjects(previousTransportObjects
             .filter(object => normalize(object.pgmid) === 'R3TR' && !isDevclass(object) && !retainedKeys.has(objectKey(object)))
             .map(object => ({ pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: '' }))))
-            .filter(object => object.devclass && !previousDevclasses.has(normalize(object.devclass)));
+            .filter(object => object.devclass && (!previousDevclasses.has(normalize(object.devclass)) || isOtherInstallation(object.devclass)));
         const movedKeys = new Set<string>();
+        const movedObjects = relocatedObjects.filter(object => {
+            if (!isOtherInstallation(object.devclass)) {
+                return true;
+            }
+            Logger.log(`Keeping ${object.pgmid} ${object.object} ${object.objName}: it's in SAP package ${object.devclass} of another TRM package`, true);
+            movedKeys.add(objectKey(object));
+            return false;
+        });
         if (movedObjects.length > 0) {
             movedObjects.forEach(object => Logger.warning(`${object.pgmid} ${object.object} ${object.objName} was moved to SAP package ${object.devclass}, outside this installation`));
             const { deleteMovedObjects } = context.rawInput.contextData.noInquirer

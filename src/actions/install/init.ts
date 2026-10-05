@@ -202,6 +202,9 @@ export const init: Step<InstallWorkflowContext> = {
                 } else {
                     Logger.warning(`${chalk.bold('Downgrading')} ${installedVersion} -> ${installVersion}`);
                 }
+                if (context.runtime.update.isDirty()) {
+                    Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`);
+                }
             }
         } else {
             Logger.info(`Package first install on ${SystemConnector.getDest()}`, true);

@@ -2,10 +2,11 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { Inquirer, Logger } from "trm-commons";
 import { DeleteWorkflowContext } from ".";
 import { getDependants } from "../install/checkDependants";
+import { TrmPackage } from "../../trmPackage";
 
 /**
  * Asks for confirmation before deleting a package that other installed packages depend on.
- * Without prompts, the delete is aborted.
+ * Without prompts, the delete is aborted. Packages deleted by the same run are not dependants.
  */
 export const checkDependants: Step<DeleteWorkflowContext> = {
     name: 'check-dependants',
@@ -19,7 +20,10 @@ export const checkDependants: Step<DeleteWorkflowContext> = {
     },
     run: async (context: DeleteWorkflowContext): Promise<void> => {
         const deletedPackage = context.runtime.update;
-        const dependants = getDependants(context.rawInput.contextData.systemPackages, deletedPackage);
+        // Packages deleted by the same run don't count: the ones this is installed under, and the nested ones.
+        const deleting = [...(context.deletingPackages || []), ...context.runtime.nestedPackages.all];
+        const dependants = getDependants(context.rawInput.contextData.systemPackages, deletedPackage)
+            .filter(dependant => !deleting.some(pkg => TrmPackage.compare(pkg, dependant.package)));
         if (dependants.length === 0) {
             Logger.info(`No installed packages depend on "${deletedPackage.packageName}".`, true);
             return;

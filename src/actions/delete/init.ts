@@ -5,6 +5,7 @@ import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from 
 import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { setLandscapeTarget } from "../commons/prompts";
+import { getNestedPackages } from "./deleteNestedPackages";
 
 /**
  * Workflow step that finds the installed package and initializes rollback state.
@@ -17,7 +18,7 @@ import { setLandscapeTarget } from "../commons/prompts";
  *
  * 4- check/set system target
  *
- * 5- fill context data
+ * 5- fill context data, including the TRM packages installed under the deleted one
  *
 */
 export const init: Step<DeleteWorkflowContext> = {
@@ -95,18 +96,26 @@ export const init: Step<DeleteWorkflowContext> = {
         }
 
         //5- fill context data
+        const previousInstallPackages = await SystemConnector.getInstallPackages(
+            context.rawInput.packageData.name,
+            registry
+        );
         context.runtime = {
             update: installed,
-            previousInstallPackages: await SystemConnector.getInstallPackages(
-                context.rawInput.packageData.name,
-                registry
-            ),
+            previousInstallPackages,
             previousInstallTransports: await SystemConnector.getInstallTransports(
                 context.rawInput.packageData.name,
                 registry
             ),
             dele: undefined,
-            stopWarningShown: false
+            stopWarningShown: false,
+            nestedPackages: await getNestedPackages(
+                context.rawInput.contextData.systemPackages,
+                installed,
+                previousInstallPackages.map(replacement => replacement.installDevclass)
+            ),
+            nestedRollbacks: [],
+            nestedReleases: []
         };
         context.output = {
             manifest: installed.manifest.get(),

@@ -5,10 +5,11 @@ import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { checkServerAuth, IActionContext, setSystemPackages, workflowCallbacks } from "../commons";
 import execute from "@simonegaffurini/sammarksworkflow";
-import { ActionLockScope, PackageCleanupRevert, packageLockResource } from "../commons/utils";
+import { ActionLockScope, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource } from "../commons/utils";
 import { InstallPackageReplacements } from "../install";
 import { init } from "./init";
 import { checkDependants } from "./checkDependants";
+import { deleteNestedPackages } from "./deleteNestedPackages";
 import { lockResources } from "./lockResources";
 import { generateDeletionTransport } from "./generateDeletionTransport";
 import { removePackageData } from "./removePackageData";
@@ -92,7 +93,13 @@ type WorkflowRuntime = {
     /** Transports recorded for the installed release. */
     previousInstallTransports: InstallTransport[],
     dele?: Transport,
-    stopWarningShown: boolean
+    stopWarningShown: boolean,
+    /** TRM packages installed in the SAP packages of the deleted one; the outermost ones are deleted directly. */
+    nestedPackages: { outermost: TrmPackage[], all: TrmPackage[] },
+    /** Rollbacks of the deletes of the TRM packages installed under this one, in execution order. */
+    nestedRollbacks: Array<() => Promise<void>>,
+    /** Lock releases of the deletes of the TRM packages installed under this one. */
+    nestedReleases: Array<() => Promise<void>>
 }
 
 type WorkflowRevert = PackageCleanupRevert & {
@@ -115,6 +122,8 @@ export interface DeleteWorkflowContext extends IActionContext {
     lockScope?: ActionLockScope,
     /** Original action input; optional groups are normalized during initialization. */
     rawInput: DeleteActionInput,
+    /** Other packages deleted by the same run (the packages it's installed under, and their nested ones): they're not dependants. */
+    deletingPackages?: TrmPackage[],
     /** Installed package and its install mappings. */
     runtime?: WorkflowRuntime,
     /** Data retained so completed steps can be rolled back after a later failure. */
@@ -133,6 +142,8 @@ const WORKFLOW_NAME = 'delete';
  * registry-generated deletion transport, forwards that transport to the landscape target
  * system so the package is deleted there too, and removes the TRM package record. The object
  * cleanup is the same performed when an install upgrades a package, with no incoming release.
+ * Other TRM packages installed in its SAP packages, at any depth, are deleted first by the same
+ * action, with the same options.
  * Completed reversible steps are rolled back when a later step fails.
  *
  * This operation changes the target SAP system. Do not interrupt it while transports are being
@@ -145,29 +156,93 @@ const WORKFLOW_NAME = 'delete';
  * package record removal fails.
  */
 export async function deletePackage(inputData: DeleteActionInput): Promise<DeleteActionOutput> {
+    return (await runDelete(inputData, false, [])).output;
+}
+
+const deleteWorkflow = [
+    checkServerAuth,
+    setSystemPackages,
+    init,
+    checkDependants,
+    deleteNestedPackages,
+    lockResources,
+    generateDeletionTransport,
+    forwardDeletionTransport,
+    removePackageData
+];
+
+async function runDelete(inputData: DeleteActionInput, retainRollback: boolean, deletingPackages: TrmPackage[]): Promise<{
+    output: DeleteActionOutput,
+    rollback?: () => Promise<void>,
+    release?: () => Promise<void>
+}> {
     const lockScope = new ActionLockScope(WORKFLOW_NAME);
-    const context: DeleteWorkflowContext = { rawInput: inputData, lockScope };
+    const context: DeleteWorkflowContext = { rawInput: inputData, lockScope, deletingPackages };
     await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
-    let result: DeleteWorkflowContext;
-    try {
-        result = await execute<DeleteWorkflowContext>(WORKFLOW_NAME, [
-            checkServerAuth,
-            setSystemPackages,
-            init,
-            checkDependants,
-            lockResources,
-            generateDeletionTransport,
-            forwardDeletionTransport,
-            removePackageData
-        ], context, workflowCallbacks);
-    } catch (error) {
+    const release = async (): Promise<void> => {
+        let firstError: unknown;
+        for (const releaseNested of [...(context.runtime?.nestedReleases || [])].reverse()) {
+            try {
+                await releaseNested();
+            } catch (error) {
+                firstError ||= error;
+            }
+        }
         try {
             await lockScope.release();
+        } catch (error) {
+            firstError ||= error;
+        }
+        if (firstError) throw firstError;
+    };
+    try {
+        if (retainRollback) {
+            const retained = await executeRetainedWorkflow<DeleteWorkflowContext>(
+                WORKFLOW_NAME, deleteWorkflow, context, workflowCallbacks
+            );
+            return {
+                output: retained.context.output,
+                release,
+                rollback: async () => {
+                    let firstError: unknown;
+                    try {
+                        await retained.rollback();
+                    } catch (error) {
+                        firstError = error;
+                    }
+                    try {
+                        await release();
+                    } catch (error) {
+                        firstError ||= error;
+                    }
+                    if (firstError) throw firstError;
+                }
+            };
+        }
+        const result = await execute<DeleteWorkflowContext>(WORKFLOW_NAME, deleteWorkflow, context, workflowCallbacks);
+        await release();
+        return { output: result.output };
+    } catch (error) {
+        try {
+            await release();
         } catch {
             // Preserve the workflow failure; the release failure was already attempted.
         }
         throw error;
     }
-    await lockScope.release();
-    return result.output;
+}
+
+/**
+ * Internal transactional entry point used when a parent delete must retain rollback ownership:
+ * the package is deleted, its locks stay held until `release`, and `rollback` restores it.
+ *
+ * @param deletingPackages Other packages deleted by the same run, ignored as dependants.
+ */
+export async function deleteWithRollback(inputData: DeleteActionInput, deletingPackages: TrmPackage[]): Promise<{
+    output: DeleteActionOutput,
+    rollback: () => Promise<void>,
+    release: () => Promise<void>
+}> {
+    const retained = await runDelete(inputData, true, deletingPackages);
+    return { output: retained.output, rollback: retained.rollback, release: retained.release };
 }

@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-47 — High — Functional — Uninstall deletes objects outside the installation without confirmation
-
-- **Where:** [`packageCleanup.ts#L230`](../../src/actions/commons/utils/packageCleanup.ts#L230), [`#L292`](../../src/actions/commons/utils/packageCleanup.ts#L292).
-- **Failure:** every live subpackage not in the mappings is "locally added", including another TRM package installed underneath; its objects and DEVC are deleted while its record remains. With `noInquirer` extra objects are auto-confirmed (`deleteExtraObjects: true`), silently removing customer development.
-- **Fix:** exclude devclasses owned by other installed packages; default to keeping extra objects without prompts and add an explicit option.
-
 ### ACT-2026-50 — Medium — Technical — The only rollback copy lives in memory and its export is unchecked
 
 - **Where:** [`releaseDeletionTransport.ts#L14`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L14), [`#L42`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L42) (deletion binaries uploaded under the copy's number).
@@ -26,12 +20,13 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | — | package lock (pre-workflow) | Lock lifecycle issues ([ACT-2026-11](shared.md)). |
 | 1 | `check-server-auth` | Shared [ACT-2026-12](shared.md). |
 | 2 | `set-system-packages` | Local-registry dependants missed ([ACT-2026-15](shared.md)); a missing record snapshot (backend read failed) is re-read by `init` (ACT-2026-51, resolved). |
-| 3 | `init` | Reads the install mappings and the recorded install transports; raw package name for mapping lookup ([ACT-2026-16](shared.md)); re-reads a missing TRM packages table record and aborts before any change when it still can't be read (ACT-2026-51, resolved); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
-| 4 | `check-dependants` | No additional issue beyond [ACT-2026-15](shared.md). |
-| 5 | `lock-resources` | No issue found. |
-| 6 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), foreign subpackages deleted (ACT-2026-47); customizing rows of the recorded CUST transports are always deleted by key (ACT-2026-48, resolved); rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-50); the copy is re-imported only once the deletion import started (ACT-2026-49, resolved). |
-| 7 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
-| 8 | `remove-package-data` | Atomic and reversible, install transports included; always runs, and fails instead of skipping without a snapshot (ACT-2026-51, resolved). |
+| 3 | `init` | Reads the install mappings, the recorded install transports and the TRM packages installed under the package; raw package name for mapping lookup ([ACT-2026-16](shared.md)); re-reads a missing TRM packages table record and aborts before any change when it still can't be read (ACT-2026-51, resolved); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
+| 4 | `check-dependants` | Packages deleted by the same run are ignored (ACT-2026-47, non-relevant); no additional issue beyond [ACT-2026-15](shared.md). |
+| 5 | `delete-nested-packages` | Runs the delete action for the TRM packages installed in the package's SAP packages and retains their rollbacks (ACT-2026-47, non-relevant). |
+| 6 | `lock-resources` | No issue found. |
+| 7 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), shared namespace deleted ([ACT-2026-05](shared.md)), SAP packages of other installations are never cleaned up, as their packages are deleted first (ACT-2026-47, non-relevant); customizing rows of the recorded CUST transports are always deleted by key (ACT-2026-48, resolved); rollback weaknesses ([ACT-2026-06](shared.md), [ACT-2026-07](shared.md), ACT-2026-50); the copy is re-imported only once the deletion import started (ACT-2026-49, resolved). |
+| 8 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
+| 9 | `remove-package-data` | Atomic and reversible, install transports included; always runs, and fails instead of skipping without a snapshot (ACT-2026-51, resolved). |
 
 ## Resolved findings
 
@@ -65,7 +60,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 - **Where:** [`packageCleanup.ts#L349`](../../src/actions/commons/utils/packageCleanup.ts#L349).
 - **Failure (before):** every install-transport entry was deleted wherever it lived, including objects moved to another package or now shipped by another TRM package.
-- **Resolution:** before locking or changing anything, the current TADIR package of every installed `R3TR` object is compared with the installation's packages (including live subpackages). Objects now outside are listed and kept, unless the user confirms the prompt (default no); without prompts they are always kept. `LIMU` entries and package definitions are not checked: package definitions follow the subtree decision ([ACT-2026-47](#act-2026-47--high--functional--uninstall-deletes-objects-outside-the-installation-without-confirmation)).
+- **Resolution:** before locking or changing anything, the current TADIR package of every installed `R3TR` object is compared with the installation's packages (including live subpackages). Objects now outside are listed and kept, unless the user confirms the prompt (default no); without prompts they are always kept. `LIMU` entries and package definitions are not checked: package definitions follow the subtree decision ([ACT-2026-47](#act-2026-47--high--functional--non-relevant--uninstall-deletes-objects-outside-the-installation-without-confirmation)).
 
 ### ACT-2026-53 — Low — Functional — Resolved — Dirty packages cannot be deleted non-interactively
 
@@ -81,4 +76,10 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Non-relevant findings
 
-None.
+### ACT-2026-47 — High — Functional — Non-relevant — Uninstall deletes objects outside the installation without confirmation
+
+- **Where:** [`packageCleanup.ts`](../../src/actions/commons/utils/packageCleanup.ts) (`cleanupInstalledPackage`), [`deleteNestedPackages.ts`](../../src/actions/delete/deleteNestedPackages.ts).
+- **Reported failure:** every live subpackage not in the mappings is "locally added", including another TRM package installed underneath; its objects and DEVC are deleted while its record remains. With `noInquirer` extra objects are auto-confirmed (`deleteExtraObjects: true`).
+- **Decision:** deleting the whole subtree, other TRM packages included, is the expected behavior, and so is the confirmation without prompts. A package with objects outside its installation is dirty, and deleting a dirty package already requires confirmation or the `ignoreDirty` check ([ACT-2026-53](#act-2026-53--low--functional--resolved--dirty-packages-cannot-be-deleted-non-interactively)).
+- **Change made:** the stale record was a real gap. `init` now lists the TRM packages installed in the package's SAP subtree, at any depth. The new `delete-nested-packages` step warns about them and runs the delete action for the outermost ones, with the same options; deeper ones are deleted by those deletes. Each nested delete removes its own objects, customizing and record, and forwards its own deletion transport. Its rollback is retained, so a later failure restores it, and its locks are held until the parent delete ends. Packages deleted by the same run are not dependants. The shared cleanup ignores other installations, which have their own lifecycle: during an upgrade everything else is removed, their SAP packages and subpackages are left untouched, their ancestors stay only as packages, and installed objects now in one of their packages are kept without asking. Without prompts, the extra objects count is now logged as a warning. Upgrading a dirty package now warns too (before, only the same-version overwrite warned).
+- **Not covered:** when a nested package can't be deleted (local registry, declined dirty or dependants prompt), the whole delete aborts.
