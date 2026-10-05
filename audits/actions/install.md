@@ -163,7 +163,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 4 | `check-dependants` | Correct on its own, but blocks nested dependency upgrades against the parent's old manifest (ACT-2026-23). |
 | 5 | `check-transports` | Root package matched by raw name ([ACT-2026-16](shared.md)); non-interactive mode overwrites when the root devclass is unknown (ACT-2026-36). |
 | 6 | `check-sap-entries` | See check-sap-entries findings; install wrapper hides missing entries ([ACT-2026-72](check-sap-entries.md)). |
-| 7 | `check-engines` | No install-specific issue; `anyOf` detail lost ([ACT-2026-76](check-engines.md)). |
+| 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
 | 8 | `check-dependencies` | Incompatible installed dependencies are labelled "missing" and may be downgraded ([ACT-2026-81](install-dependency.md)). |
 | 9 | `set-install-devclass` | Stale stored mappings retained (ACT-2026-25), wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35), TypeError on unknown root (ACT-2026-41). |
 | 10 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). |

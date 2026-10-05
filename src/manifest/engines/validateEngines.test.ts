@@ -182,6 +182,13 @@ describe('validateEngines', () => {
         expect(validateEngines({ notes: { '123': false } })).toHaveLength(1);
     });
 
+    test('describes the accepted value kinds of each check', () => {
+        expect(validateEngines({ notes: { '123': false } })).toEqual(['engines.notes.123: expected true or an object.']);
+        expect(validateEngines({ notes: { '123': [{ version: '>=1' }] } })).toEqual(['engines.notes.123: expected true or an object.']);
+        expect(validateEngines({ components: { SAP_BASIS: 'x' } })).toEqual(['engines.components.SAP_BASIS: expected true, false, an object or an array of objects.']);
+        expect(validateEngines({ products: { 'S4HANA': [true] } })).toEqual(['engines.products.S4HANA[0]: expected an object.']);
+    });
+
     test('rejects unsafe or malformed table checks', () => {
         expect(validateEngines({ tables: {} })).toHaveLength(1);
         expect(validateEngines({ tables: [{ table: 'TADIR' }] })).toHaveLength(1);

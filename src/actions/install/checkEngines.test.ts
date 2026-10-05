@@ -48,7 +48,29 @@ describe('install checkEngines step', () => {
             ]
         });
         await expect(checkEngines.run(context())).rejects.toThrow('Install aborted. 3 engine requirements are not met!');
-        expect(Logger.error).toHaveBeenCalledTimes(3);
+        expect(Logger.error).toHaveBeenCalledTimes(4);
+    });
+
+    test('details why each alternative of a failed anyOf is not met', async () => {
+        workflowMock.mockResolvedValue({
+            engines: {},
+            passed: false,
+            results: [
+                { path: 'anyOf', requirement: 'at least 1 of 2 alternatives', actual: 'no alternative satisfied', ok: false, required: true },
+                { path: 'anyOf[0].components.SAP_BASIS', requirement: 'release >=758', actual: 'release 750, sp 1', ok: false, required: false },
+                { path: 'anyOf[0].components.SAP_UI', requirement: 'installed', actual: 'release 754, sp 0', ok: true, required: false },
+                { path: 'anyOf[0].anyOf', requirement: 'at least 1 of 2 alternatives', actual: 'satisfied', ok: true, required: false },
+                { path: 'anyOf[0].anyOf[0].notes.1', requirement: 'implemented', actual: 'not downloaded', ok: false, required: false },
+                { path: 'anyOf[0].anyOf[1].notes.2', requirement: 'implemented', actual: 'implemented, version 3', ok: true, required: false },
+                { path: 'anyOf[1].tables[0]', requirement: 'TADIR where PGMID EQ \'R3TR\'', ok: false, required: false, reason: 'Cannot read table TADIR: denied' }
+            ]
+        });
+        await expect(checkEngines.run(context())).rejects.toThrow('Install aborted. 1 engine requirement is not met!');
+        expect((Logger.error as jest.Mock).mock.calls.map(c => c[0])).toEqual([
+            'Engine requirement anyOf not met: expected at least 1 of 2 alternatives, found no alternative satisfied',
+            '  anyOf[0].components.SAP_BASIS: expected release >=758, found release 750, sp 1',
+            '  anyOf[1].tables[0]: expected TADIR where PGMID EQ \'R3TR\' (Cannot read table TADIR: denied)'
+        ]);
     });
 
     test('runs before any system change (before lockResources)', () => {

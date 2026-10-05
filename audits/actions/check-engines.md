@@ -1,6 +1,6 @@
 # `check-engines` workflow audit
 
-Audit date: 2026-10-04
+Audit date: 2026-10-05
 Entry point: [`checkEngines`](../../src/actions/checkEngines/index.ts#L88)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared findings ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are listed in the README.
@@ -18,22 +18,25 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Where:** `validateEngines.ts` normalization (`sap_basis`/`SAP_BASIS`, `0001234`/`1234` collapse silently); blank `EXTRELEASE` shown as SP 0 but fails `sp >=0`; failed CVERS/PRDVERS reads not cached ([`analyze.ts#L31`](../../src/actions/checkEngines/analyze.ts#L31)).
 - **Fix:** reject post-normalization duplicates, normalize blank SP, cache rejections.
 
-### ACT-2026-76 — Low — Functional — `anyOf` failures are opaque
-
-- **Where:** [`install/checkEngines.ts#L39`](../../src/actions/install/checkEngines.ts#L39); notes validation message lists unsupported value kinds.
-- **Fix:** print each alternative's reason under a failed `anyOf`; use per-check validation messages.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | Unknown nested properties silently accepted (ACT-2026-74); key collisions (ACT-2026-75). |
 | 2 | `analyze` | Main logic correct (read failures fail requirements, unknown top-level keys fail, `anyOf` handled); minor comparison gaps (ACT-2026-75). |
-| — | install wrapper `check-engines` | Skips on `noEngines` or when no engines are declared; prints each unmet requirement before aborting. `anyOf` detail is lost (ACT-2026-76). |
+| — | install wrapper `check-engines` | Skips on `noEngines` or when no engines are declared; prints each unmet requirement before aborting; under a failed `anyOf` it also prints each unmet requirement of every alternative, with its reason or actual value, skipping the contents of a satisfied nested `anyOf`. |
 
 ## Resolved findings
+### ACT-2026-76 — Resolved — Low — Functional — `anyOf` failures are opaque
 
-None.
+Previously the install `check-engines` step printed only "expected at least 1 of N alternatives"
+for a failed `anyOf` and dropped why each alternative failed. It now prints every unmet
+requirement nested under the failed `anyOf`, with its reason or actual value, and skips
+requirements under a nested `anyOf` that was satisfied
+([source](../../src/actions/install/checkEngines.ts#L14)). Validation messages are now specific to
+each check: notes report "expected true or an object" instead of also listing `false` and arrays,
+and an element of a component or product alternatives list reports "expected an object"
+([source](../../src/manifest/engines/validateEngines.ts#L38)).
 
 ## Non-relevant findings
 

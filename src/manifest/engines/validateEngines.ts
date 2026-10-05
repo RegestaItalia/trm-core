@@ -35,9 +35,9 @@ export function normalizeNoteNumber(note: string | number): string {
     return parseInt(note.toString().trim(), 10).toString();
 }
 
-function checkConstraint(errors: string[], path: string, constraint: any, props: { [prop: string]: SapRangeMode }, strict: boolean) {
+function checkConstraint(errors: string[], path: string, constraint: any, props: { [prop: string]: SapRangeMode }, strict: boolean, expected: string) {
     if (!isPlainObject(constraint)) {
-        errors.push(`${path}: expected true, false, an object or an array of objects.`);
+        errors.push(`${path}: expected ${expected}.`);
         return;
     }
     Object.keys(constraint).forEach(prop => {
@@ -72,9 +72,9 @@ function checkVersionedMap(errors: string[], path: string, map: any, nameRegex: 
             if (value.length === 0) {
                 errors.push(`${itemPath}: alternatives list is empty.`);
             }
-            value.forEach((o, i) => checkConstraint(errors, `${itemPath}[${i}]`, o, props, strict));
+            value.forEach((o, i) => checkConstraint(errors, `${itemPath}[${i}]`, o, props, strict, 'an object'));
         } else {
-            checkConstraint(errors, itemPath, value, props, strict);
+            checkConstraint(errors, itemPath, value, props, strict, `${allowFalse ? 'true, false' : 'true'}, an object or an array of objects`);
         }
     });
 }
@@ -93,7 +93,7 @@ function checkNotes(errors: string[], path: string, notes: any, strict: boolean)
         if (value === true) {
             return;
         }
-        checkConstraint(errors, itemPath, value, { version: 'number' }, strict);
+        checkConstraint(errors, itemPath, value, { version: 'number' }, strict, 'true or an object');
     });
 }
 
