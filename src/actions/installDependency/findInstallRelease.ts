@@ -1,6 +1,5 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
-import { Logger } from "trm-commons";
 import { desc } from "semver-sort";
 import { satisfies } from "semver";
 import { Lockfile } from "../../lockfile";

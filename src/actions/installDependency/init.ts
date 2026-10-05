@@ -1,6 +1,5 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
-import { Logger } from "trm-commons";
 import { parsePackageName } from "../../commons";
 import { validRange } from "semver";
 import { RegistryType } from "../../registry";

@@ -31,10 +31,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** A→B→A re-enters install and fails on the package lock with an unrelated message.
 - **Fix:** track ancestry and fail with an explicit cycle error.
 
-### ACT-2026-83 — Low — Technical — Dead guard and unused imports
-
-- **Where:** [`installRelease.ts#L14`](../../src/actions/installDependency/installRelease.ts#L14) can never fire; unused `inspect`/`Logger` imports.
-
 ## Step review
 
 | Order | Step | Result |
@@ -42,9 +38,16 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 1 | `init` | No issue found. |
 | 2 | `set-system-packages` | Snapshot loaded but never consulted (ACT-2026-81). |
 | 3 | `find-install-release` | Lockfile fallback unreachable (ACT-2026-79); integrity check on a different download (ACT-2026-80). |
-| 4 | `install-release` | Forwards options correctly; dead guard (ACT-2026-83). |
+| 4 | `install-release` | Forwards options correctly; relies on `find-install-release` to set the version or throw. |
 
 ## Resolved findings
+### ACT-2026-83 — Resolved — Dead guard and unused imports
+
+The `install-release` step no longer re-checks `installVersion`: `find-install-release` always sets
+it or throws, so the guard could never fire
+([source](../../src/actions/installDependency/installRelease.ts#L14)). The unused `inspect` and
+`Logger` imports were removed from the workflow's modules.
+
 ### DEPINS-01 — Resolved — Optional input initializes `installData.checks`
 
 The `init` step now creates an empty `checks` object when callers omit `installData` or

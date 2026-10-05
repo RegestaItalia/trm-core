@@ -11,10 +11,6 @@ import { InstallActionInput, install as InstallWkf } from "..";
 export const installRelease: Step<InstallDependencyWorkflowContext> = {
     name: 'install-release',
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
-        if (!context.runtime.installVersion) {
-            throw new Error(`Couldn't find dependency "${context.rawInput.dependencyDataPackage.name}" on registry.`);
-        }
-        
         //1- run install workflow
         const inputData: InstallActionInput = {
             packageData: {
