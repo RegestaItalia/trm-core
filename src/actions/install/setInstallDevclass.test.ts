@@ -188,6 +188,19 @@ describe('set-install-devclass stored mappings', () => {
         expect(ctx.rawInput.installData.installDevclass.keepOriginal).toBe(false);
     });
 
+    test('keeping the original names maps the devclasses new in this release too', async () => {
+        //v1 had ZFOO only, the release adds ZFOO_SUB back
+        const stored = [{ originalDevclass: 'ZFOO', installDevclass: 'ZFOO' }];
+        (SystemConnector.getInstallPackages as jest.Mock).mockResolvedValue([...stored]);
+        const ctx = context(stored);
+        await setInstallDevclass.run(ctx);
+        expect(ctx.rawInput.installData.installDevclass.keepOriginal).toBe(true);
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
+            { originalDevclass: 'ZFOO', installDevclass: 'ZFOO' },
+            { originalDevclass: 'ZFOO_SUB', installDevclass: 'ZFOO_SUB' }
+        ]);
+    });
+
     test('drops removed devclasses before keeping the original names', async () => {
         const stored = [
             { originalDevclass: 'ZFOO', installDevclass: 'ZFOO' },

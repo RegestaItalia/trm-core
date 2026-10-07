@@ -87,6 +87,13 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             if (!continueWithReplacements) {
                 // Later workflow steps use this flag to import the original DEVC transport.
                 context.rawInput.installData.installDevclass.keepOriginal = true;
+                // Packages new in this release keep their name too, and are mapped like the others.
+                originalDevclasses
+                    .filter(originalDevclass => !context.rawInput.installData.installDevclass.replacements.some(o => o.originalDevclass === originalDevclass))
+                    .forEach(originalDevclass => context.rawInput.installData.installDevclass.replacements.push({
+                        originalDevclass,
+                        installDevclass: originalDevclass
+                    }));
                 return;
             }
         }
