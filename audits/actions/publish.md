@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-60 — Medium — Functional — `preRelease` is ignored on automatic versions
-
-- **Where:** [`publish/init.ts#L169`](../../src/actions/publish/init.ts#L169) vs L176–183.
-- **Failure:** with the version omitted on an existing package, a stable version is published instead of a prerelease.
-- **Fix:** apply the prerelease computation after the automatic increment.
-
 ### ACT-2026-63 — Medium — Functional — Retained customizing transports cannot be dropped non-interactively
 
 - **Where:** [`setCustomizingTransports.ts#L55`](../../src/actions/publish/setCustomizingTransports.ts#L55).
@@ -34,7 +28,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Order | Step | Result |
 |---:|---|---|
 | 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
-| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); a local publish never reads the overwritten target file as its latest release (ACT-2026-56, resolved); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
+| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); a local publish never reads the overwritten target file as its latest release (ACT-2026-56, resolved); an automatic version increments the latest release as requested, without applying `preRelease` (ACT-2026-60, non-relevant); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
 | 6 | `set-manifest-values` | Engines are validated strictly on the final manifest, whatever their source (ACT-2026-59, resolved). The public-registry length limits on description, website and git are checked in the prompts and again on the normalized manifest, so non-interactive and copied values are enforced too (ACT-2026-65, resolved). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
@@ -188,6 +182,14 @@ disabled, initialization now rejects with a clear error instead of prompting. No
 is assumed ([source](../../src/actions/publish/init.ts#L237)).
 
 ## Non-relevant findings
+### ACT-2026-60 — Non-relevant — Medium — Functional — `preRelease` is ignored on automatic versions
+
+The audit reported that, when the version is omitted on an existing package, `init` increments the
+latest release without applying `preRelease`, so a stable version is proposed instead of a
+prerelease. This is the expected behavior: the prerelease computation applies only to an explicitly
+supplied version (or to the first publication), and the automatic increment follows `inc` alone
+([source](../../src/actions/publish/init.ts#L176)).
+
 ### PUBL-01 — Non-relevant — Publishing without abapGit source is supported
 
 The audit originally treated every failure from `getAbapgitSource` or the `.abapgit.xml` read as an
