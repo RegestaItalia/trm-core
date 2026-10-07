@@ -107,10 +107,9 @@ export const init: Step<InstallWorkflowContext> = {
         }
 
 
-        if (context.runtime.isLocal) {
-            // guard and replace input name with actual name in manifest
-            context.rawInput.packageData.name = context.runtime.package.data.manifest.name;
-        }
+        // replace input name with actual name in manifest: install mappings and transports
+        // are read and written with case-sensitive queries, under the name of the package record
+        context.rawInput.packageData.name = context.runtime.package.data.manifest.name;
         //install mappings, transports and locks are recorded under the real registry of a local artifact
         context.runtime.installRegistry = (await resolveInstallPackage(registry, context.rawInput.packageData.name)).registry;
 

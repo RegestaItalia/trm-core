@@ -79,6 +79,18 @@ describe('delete init', () => {
         expect(ctx.revert.sapPackages).toEqual([]);
     });
 
+    test('install mappings are read with the stored package name, not the input name', async () => {
+        const pkg = installed('pkg');
+        const ctx = context('PKG', [pkg]);
+
+        await init.run(ctx);
+
+        expect(ctx.runtime.update).toBe(pkg);
+        expect(SystemConnector.getInstallPackages).toHaveBeenCalledWith('pkg', pkg.registry);
+        expect(SystemConnector.getInstallTransports).toHaveBeenCalledWith('pkg', pkg.registry);
+        expect(ctx.runtime.previousInstallPackages).toEqual([{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }]);
+    });
+
     test('finds the TRM packages installed under it, at any depth', async () => {
         const pkg = installed('pkg');
         const nested = installed('nested', { devclass: 'ZNESTED' });

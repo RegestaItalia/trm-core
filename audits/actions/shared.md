@@ -24,12 +24,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** an unreadable log or a request that never reaches the queue hangs install/publish forever after SAP state changed; rollback never runs.
 - **Fix:** add a deadline or attempt cap and throw; exit early on an error exit code.
 
-### ACT-2026-16 — Medium — Technical — Raw input package name used for case-sensitive lookups
-
-- **Where:** [`install/init.ts#L166`](../../src/actions/install/init.ts#L166), [`setInstallDevclass.ts#L56`](../../src/actions/install/setInstallDevclass.ts#L56), [`delete/init.ts#L86`](../../src/actions/delete/init.ts#L86); query at [`SystemConnectorBase.ts#L412`](../../src/systemConnector/SystemConnectorBase.ts#L412).
-- **Failure:** the installed package is found case-insensitively, but mappings are queried with `PACKAGE_NAME EQ '<raw>'`. With "MyPkg" vs stored "mypkg", mappings are empty: install's existing-object check throws "object(s) already exist", and delete's revert restores the record without its mappings.
-- **Fix:** after lookup, use the installed package's stored name and registry.
-
 ### ACT-2026-17 — Medium — Technical — Cached transport status is never invalidated
 
 - **Where:** `getE070` cache [`Transport.ts#L59`](../../src/transport/Transport.ts#L59); `delete`/`release` do not reset it; `canBeDeleted` dereferences a possibly undefined row ([`#L862`](../../src/transport/Transport.ts#L862)).
@@ -76,9 +70,20 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized deletion keeps the released transport, clears the rollback snapshot so it is neither restored nor forwarded, and rethrows the original authorization error (ACT-2026-07, resolved); context overwrite and dead assignment (ACT-2026-21). |
 | `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); the upgrade revert skips every restore (packages, deletion copy, retained tables, TADIR assignments) when the cleanup of the imported objects failed, and still deletes unreleased cleanup transports (ACT-2026-08, resolved); the `ZTRM_DELE_*` staging package of a `$` installation is tracked apart from the action's SAP packages, so the rollback of the imported objects never transports it, and both the upgrade and the delete revert delete it through `deleteCleanupStagingPackages` only after a complete restore; an unauthorized upgrade cleanup names it for manual deletion (ACT-2026-09, resolved). |
 | `Transport` status cache (used by every revert) | Cached E070 never invalidated (ACT-2026-17); release and queue polling unbounded (ACT-2026-14). |
-| Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
+| Package-name lookups | Install mappings and transports are queried and written under the stored package name: install adopts the registry manifest name, delete uses the installed package's name and registry (ACT-2026-16, resolved). |
 
 ## Resolved findings
+### ACT-2026-16 — Resolved — Medium — Technical — Raw input package name used for case-sensitive lookups
+
+Install `init` now replaces the input name with the name of the fetched manifest for every registry,
+not only for local artifacts ([source](../../src/actions/install/init.ts#L112)), so the existing
+install mappings and transports are read (`init`, `set-install-devclass`) and written
+(`update-package-data`) under the same name as the TRM packages table record that the update is
+matched against. Delete `init` queries them with the installed package's stored name and registry
+([source](../../src/actions/delete/init.ts#L100)). Before, an input like "MyPkg" for the stored
+"mypkg" found the installed package but no mappings: install failed its existing-object check with
+"object(s) already exist", and the delete revert restored the record without its mappings.
+
 ### ACT-2026-15 — Resolved — Medium — Functional — System-package snapshot excludes local-registry packages
 
 `set-system-packages` now reads the snapshot with `getInstalledPackages(true, true)`

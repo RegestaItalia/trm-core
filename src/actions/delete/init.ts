@@ -96,16 +96,17 @@ export const init: Step<DeleteWorkflowContext> = {
         }
 
         //5- fill context data
+        //install mappings are queried case-sensitively: use the stored name and registry, not the input
         const previousInstallPackages = await SystemConnector.getInstallPackages(
-            context.rawInput.packageData.name,
-            registry
+            installed.packageName,
+            installed.registry
         );
         context.runtime = {
             update: installed,
             previousInstallPackages,
             previousInstallTransports: await SystemConnector.getInstallTransports(
-                context.rawInput.packageData.name,
-                registry
+                installed.packageName,
+                installed.registry
             ),
             dele: undefined,
             stopWarningShown: false,

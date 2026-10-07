@@ -80,6 +80,15 @@ describe('install release integrity', () => {
         expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
     });
 
+    test('the input name is replaced with the registry manifest name', async () => {
+        const ctx = context();
+        ctx.rawInput.packageData.name = 'DEP';
+        await expect(init.run(ctx)).rejects.toThrow('past integrity check');
+        expect(ctx.rawInput.packageData.registry.getPackage).toHaveBeenCalledWith('DEP', '1.0.0');
+        // install mappings and transports are queried and written under this name
+        expect(ctx.rawInput.packageData.name).toBe('dep');
+    });
+
     test('a local artifact is recorded under the registry it was published to', async () => {
         const ctx = context();
         const realRegistry = { getRegistryType: () => 'PRIVATE', endpoint: 'https://private.example' };
