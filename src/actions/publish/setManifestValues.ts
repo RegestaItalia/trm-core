@@ -11,6 +11,20 @@ import _ from 'lodash';
 import { TrmPackage } from "../../trmPackage";
 import { SystemConnector } from "../../systemConnector";
 
+//maximum lengths accepted by the public registry
+const PUBLIC_REGISTRY_LIMITS = {
+    description: 50,
+    website: 100,
+    git: 100
+};
+
+function checkPublicRegistryLimit(context: PublishWorkflowContext, field: keyof typeof PUBLIC_REGISTRY_LIMITS, value: string): true | string {
+    if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC && (value || '').length > PUBLIC_REGISTRY_LIMITS[field]) {
+        return `Maximum length: ${PUBLIC_REGISTRY_LIMITS[field]} characters`;
+    }
+    return true;
+}
+
 /**
  * Workflow step that merges, collects, normalizes, and serializes release manifest values.
  * 
@@ -180,49 +194,19 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 message: "Short description",
                 name: "description",
                 default: context.runtime.manifest.description,
-                validate: (input) => {
-                    if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
-                        if (input.length > 50) {
-                            return "Maximum length: 50 characters";
-                        } else {
-                            return true;
-                        }
-                    } else {
-                        return true;
-                    }
-                }
+                validate: (input) => checkPublicRegistryLimit(context, 'description', input)
             }, {
                 type: "input",
                 message: "Website",
                 name: "website",
                 default: context.runtime.manifest.website,
-                validate: (input) => {
-                    if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
-                        if (input.length > 100) {
-                            return "Maximum length: 100 characters";
-                        } else {
-                            return true;
-                        }
-                    } else {
-                        return true;
-                    }
-                }
+                validate: (input) => checkPublicRegistryLimit(context, 'website', input)
             }, {
                 type: "input",
                 message: "Git repository",
                 name: "git",
                 default: context.runtime.manifest.git,
-                validate: (input) => {
-                    if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
-                        if (input.length > 100) {
-                            return "Maximum length: 100 characters";
-                        } else {
-                            return true;
-                        }
-                    } else {
-                        return true;
-                    }
-                }
+                validate: (input) => checkPublicRegistryLimit(context, 'git', input)
             }, Inquirer.isUi() ? {
                 type: "input",
                 message: "Authors",
@@ -650,6 +634,13 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
             }
         }
         context.runtime.manifest = Manifest.normalize(context.runtime.manifest);
+        //prompts already check the limits, but non-interactive and copied values are not prompted
+        for (const field of Object.keys(PUBLIC_REGISTRY_LIMITS) as (keyof typeof PUBLIC_REGISTRY_LIMITS)[]) {
+            const check = checkPublicRegistryLimit(context, field, context.runtime.manifest[field]);
+            if (check !== true) {
+                throw new Error(`Invalid manifest ${field} for the public registry: ${check}.`);
+            }
+        }
 
         //8- transform into xml
         context.runtime.manifestXml = new Manifest(context.runtime.manifest).getAbapXml();

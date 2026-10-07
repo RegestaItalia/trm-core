@@ -15,7 +15,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ### ACT-2026-59 — Medium — Functional — Non-interactive engines are validated non-strictly
 
-- **Where:** [`setManifestValues.ts#L49`](../../src/actions/publish/setManifestValues.ts#L49); strict validation only in prompt branches.
+- **Where:** [`setManifestValues.ts#L63`](../../src/actions/publish/setManifestValues.ts#L63); strict validation only in prompt branches.
 - **Failure:** an unknown top-level key is published and makes every install fail "update TRM"; an unknown constraint property (typo) is dropped and never enforced.
 - **Fix:** validate caller-supplied engines strictly in non-interactive mode.
 
@@ -35,11 +35,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Where:** check in `init`, locks in [`publish/lockResources.ts#L8`](../../src/actions/publish/lockResources.ts#L8) after the prompt steps.
 - **Fix:** re-read objects and SAP locks in `lock-resources`.
 
-### ACT-2026-65 — Low — Functional — Public-registry metadata limits are enforced only in prompts
-
-- **Where:** [`setManifestValues.ts#L182`](../../src/actions/publish/setManifestValues.ts#L182).
-- **Fix:** apply the same limits before transport generation in non-interactive mode.
-
 ### ACT-2026-67 — Low — Technical — Prompted version is not cleaned
 
 - **Where:** [`publish/init.ts#L204`](../../src/actions/publish/init.ts#L204).
@@ -54,7 +49,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
-| 6 | `set-manifest-values` | non-strict engines (ACT-2026-59), interactive-only limits (ACT-2026-65). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
+| 6 | `set-manifest-values` | non-strict engines (ACT-2026-59). The public-registry length limits on description, website and git are checked in the prompts and again on the normalized manifest, so non-interactive and copied values are enforced too (ACT-2026-65, resolved). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
 | 7 | `set-optional-release-data` | No issue found. |
 | 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
 | 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts re-read the status after an earlier delete ([ACT-2026-17](shared.md), resolved). |
@@ -63,16 +58,24 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-65 — Resolved — Low — Functional — Public-registry metadata limits are enforced only in prompts
+
+The public-registry limits (description 50, website and git 100 characters) are defined once and
+used both by the prompts and by a check on the normalized manifest before the XML and package are
+built ([source](../../src/actions/publish/setManifestValues.ts#L637)). A non-interactive publish,
+or one whose values are copied from the latest release, now fails in `set-manifest-values`, before
+any transport is generated. Before, those values bypassed the limits.
+
 ### ACT-2026-68 — Resolved — Low — Functional — Derived manifest fields and engine prefill are brittle
 
 `set-manifest-values` always derives `namespace` and `registry`: the namespace is removed when the
 SAP package has none, and a publish to the public registry sets the public keyword
-([source](../../src/actions/publish/setManifestValues.ts#L274)). Before, a caller-supplied
+([source](../../src/actions/publish/setManifestValues.ts#L258)). Before, a caller-supplied
 `registry` or `namespace` survived and was published. `getSystemEngines` skips a malformed
 component or product row on its own with a debug warning, so it no longer discards the whole
 prefill ([source](../../src/actions/publish/getSystemEngines.ts#L32)). Post activities,
 dependencies, SAP entries and engines edited in the JSON editor are logged as JSON instead of
-`[object Object]` ([source](../../src/actions/publish/setManifestValues.ts#L386)).
+`[object Object]` ([source](../../src/actions/publish/setManifestValues.ts#L370)).
 
 ### ACT-2026-58 — Resolved — Post-activity existence check is dead
 
@@ -101,7 +104,7 @@ post activity's parameters published both versions and it ran twice at install. 
 by class, compared trimmed and uppercased: an input post activity replaces the latest release one of
 the same class, and latest release post activities of other classes are kept. Authors and keywords
 remain an additive union with the latest release
-([source](../../src/actions/publish/setManifestValues.ts#L92)).
+([source](../../src/actions/publish/setManifestValues.ts#L106)).
 
 ### ACT-2026-61 — Resolved — Non-interactive devclass may stay unresolved
 
@@ -205,7 +208,7 @@ fails ([source](../../src/actions/publish/releaseTransports.ts#L21)).
 The audit originally inferred from `type: "select"` that only one retained dependency could be
 chosen. In this project's `trm-commons` prompt adapter, that question is the supported multi-select
 flow and returns the dependency collection consumed by the following concatenation
-([source](../../src/actions/publish/setManifestValues.ts#L100)).
+([source](../../src/actions/publish/setManifestValues.ts#L114)).
 
 ### PUBL-10 — Non-relevant — Origin-system record synchronization is best-effort
 
