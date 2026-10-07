@@ -31,6 +31,11 @@ export interface PackageCleanupRevert {
     updateCleanupTransport?: Transport,
     updateTablesBackupTransport?: Transport,
     retainedTables?: TransportBinary,
+    /**
+     * Tables kept installed by an upgrade, set with {@link PackageCleanupRevert.retainedTables}: a rollback of the
+     * incoming import must not delete them, the backup restores their previous definition.
+     */
+    retainedTableObjects?: CleanupObject[],
     /** Customizing transports whose rows were added to the deletion transport. */
     cleanupCustomizingSources?: string[],
     /** Set before forwarding the deletion transport, as the TMS queue may change even when the call fails. */
@@ -264,6 +269,11 @@ async function backupRetainedTables(
         entries: undefined,
         binaries: (await backup.download()).binaries
     };
+    context.revert.retainedTableObjects = retainedTables.map(object => ({
+        pgmid: object.pgmid,
+        object: object.object,
+        objName: object.objName
+    }));
 }
 
 /**

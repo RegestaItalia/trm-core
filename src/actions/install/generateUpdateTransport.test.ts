@@ -438,6 +438,7 @@ describe('generateUpdateTransport revert', () => {
         expect(backup.release).toHaveBeenCalledWith(false, true);
         expect(ctx.revert.updateTablesBackupTransport).toBe(backup);
         expect(ctx.revert.retainedTables).toEqual({ trkorr: 'DEVK9BKP', entries: undefined, binaries: expect.any(Object) });
+        expect(ctx.revert.retainedTableObjects).toEqual([{ pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT' }]);
     });
 
     describe('local (.trm) upgrades', () => {

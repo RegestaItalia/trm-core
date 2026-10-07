@@ -314,6 +314,32 @@ describe('importBatch rollback checkpoint', () => {
         expect(entries).toHaveLength(5);
     });
 
+    test('a failure after import keeps tables retained by the upgrade out of the cleanup', async () => {
+        const context = makeContext(registryDelete);
+        context.revert.retainedTables = { trkorr: 'DEVK9BKP', entries: undefined, binaries: {} };
+        context.revert.retainedTableObjects = [{ pgmid: 'R3TR', object: 'TABL', objName: 'z_three' }];
+        failurePoint = 'connect';
+        const restore = { name: 'restore', run: async () => undefined, revert: async () => undefined };
+
+        await expect(execute('test', [restore, importBatch], context)).rejects.toThrow('failure at connect');
+
+        const entries = cleanupTransport.addObjects.mock.calls[0][0];
+        expect(entries).not.toContainEqual({ pgmid: 'R3TR', object: 'TABL', objName: 'Z_THREE' });
+        expect(entries).toContainEqual({ pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' });
+        expect(context.revert.cleanupSucceeded).toBe(true);
+    });
+
+    test('retained tables without a backup are still cleaned up', async () => {
+        const context = makeContext(registryDelete);
+        context.revert.retainedTableObjects = [{ pgmid: 'R3TR', object: 'TABL', objName: 'Z_THREE' }];
+        failurePoint = 'connect';
+        const restore = { name: 'restore', run: async () => undefined, revert: async () => undefined };
+
+        await expect(execute('test', [restore, importBatch], context)).rejects.toThrow('failure at connect');
+
+        expect(cleanupTransport.addObjects.mock.calls[0][0]).toContainEqual({ pgmid: 'R3TR', object: 'TABL', objName: 'Z_THREE' });
+    });
+
     test('imported customizing is copied into the cleanup transport instead of added without its keys', async () => {
         const context = makeContext(registryDelete);
         context.runtime.transports.cust[0].binaries.entries.e071 = [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' }];

@@ -299,6 +299,7 @@ type WorkflowRevert = {
     updateCleanupTransport?: Transport,
     updateTablesBackupTransport?: Transport,
     retainedTables?: TransportBinary,
+    retainedTableObjects?: Pick<E071, 'pgmid' | 'object' | 'objName'>[],
     metadataWriteStarted?: boolean,
     /** Set before the install transports are written, as SAP may commit them and still fail. */
     metadataTransportsWriteStarted?: boolean,
