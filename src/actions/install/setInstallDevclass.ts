@@ -52,6 +52,15 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             //no input replacements = get from the trm table devclass replacements the corresponding name
             Logger.loading(`Checking package replacements...`);
             context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.runtime.installRegistry);
+        } else if (context.runtime.update) {
+            //explicit replacements win; stored ones keep the devclasses they don't mention renamed
+            const explicit = new Set(context.rawInput.installData.installDevclass.replacements.map(o => o.originalDevclass));
+            const stored = (context.runtime.previousInstallPackages || []).filter(o => !explicit.has(o.originalDevclass));
+            stored.forEach(o => Logger.log(`Keeping stored package replacement ${o.originalDevclass} -> ${o.installDevclass}`, true));
+            context.rawInput.installData.installDevclass.replacements = [
+                ...context.rawInput.installData.installDevclass.replacements,
+                ...stored.map(o => ({ originalDevclass: o.originalDevclass, installDevclass: o.installDevclass }))
+            ];
         }
         //drop replacements of devclasses that are not part of the release (e.g. removed in this version)
         const originalDevclasses = flattenDevclasses(context.runtime.package.hierarchy);

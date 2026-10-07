@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-35 — Medium — Functional — Partial explicit replacements discard stored mappings on update
-
-- **Where:** [`setInstallDevclass.ts#L53`](../../src/actions/install/setInstallDevclass.ts#L53).
-- **Failure:** passing one replacement for a new subpackage makes every previously renamed devclass fall back to publisher names (non-interactive).
-- **Fix:** merge stored rows under the explicit rows.
-
 ### ACT-2026-37 — Medium — Technical — Parent cleanup runs after dependency rollback for early failures
 
 - **Where:** [`install/init.ts#L207`](../../src/actions/install/init.ts#L207) runs after [`installDependencies.ts#L113`](../../src/actions/install/installDependencies.ts#L113).
@@ -42,7 +36,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
 | 8 | `check-dependencies` | Queues missing and incompatible dependencies separately, with the installed version; a downgrade must be confirmed by the dependency install ([ACT-2026-81](install-dependency.md), resolved). |
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Following the install order, it records the version each dependency ends up with (release to install, or compatible installed release kept) and aborts when a later range in the graph is not satisfied by it, so a version conflict on a shared dependency stops the install before any dependency is installed ([ACT-2026-24](#act-2026-24--resolved--transitive-installs-are-merged-into-the-parent-snapshot), resolved). Skipped with `noDependencies`. |
-| 10 | `set-install-devclass` | Stored and explicit mappings of devclasses not in the release are dropped before use ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved); new devclasses in the original root's namespace are moved to the installed root's namespace, matched literally ([ACT-2026-33](#act-2026-33--resolved--namespace-carry-over-matches-the-original-roots-namespace), resolved); partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
+| 10 | `set-install-devclass` | Stored and explicit mappings of devclasses not in the release are dropped before use ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved); new devclasses in the original root's namespace are moved to the installed root's namespace, matched literally ([ACT-2026-33](#act-2026-33--resolved--namespace-carry-over-matches-the-original-roots-namespace), resolved); on upgrades, explicit replacements are merged over the stored mappings, which keep the devclasses they don't mention renamed ([ACT-2026-35](#act-2026-35--resolved--explicit-replacements-are-merged-over-the-stored-mappings), resolved); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 11 | `lock-resources` | Locks the custom install namespace, unless a parent install already holds it, then repeats the object-lock check and fails on objects created since `check-transports` (warns with `noExistingObjects`) ([ACT-2026-38](#act-2026-38--resolved--safety-checks-are-repeated-once-locked-the-install-namespace-is-locked), resolved). The package lock uses the resolved install registry, so local and remote installs of the same package block each other ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). |
 | 12 | `install-dependencies` | On upgrade, each dependency install receives the parent's new manifest in its package snapshot ([ACT-2026-23](#act-2026-23--resolved--nested-dependency-upgrades-are-checked-against-the-parents-new-manifest), resolved). Each dependency install starts with no package mappings and resolves its own ([ACT-2026-22](#act-2026-22--resolved--dependency-installs-no-longer-inherit-the-parents-package-mappings), resolved). Every package a dependency install installed, transitive ones included, is merged into the parent snapshot, so a dependency shared by two siblings (diamond) is installed once and found installed by the second; after a successful rollback the snapshot taken before the dependency installs is restored ([ACT-2026-24](#act-2026-24--resolved--transitive-installs-are-merged-into-the-parent-snapshot), resolved). |
 | 13 | `add-namespace` | Namespace derived from the target root package, or from the only reserved namespace used by a subpackage; more than one reserved namespace is rejected before any system change ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
@@ -69,6 +63,12 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-35 — Resolved — Explicit replacements are merged over the stored mappings
+
+- **Where:** [`setInstallDevclass.ts`](../../src/actions/install/setInstallDevclass.ts).
+- **Was:** stored mappings were read only when no explicit replacement was given: passing one replacement for a new subpackage made every previously renamed devclass fall back to its publisher name (non-interactive).
+- **Fix:** on upgrades, the stored mappings (`runtime.previousInstallPackages`, read by `init`) are added under the explicit replacements: an explicit row wins for its devclass, stored rows keep the others. First installs have no stored mappings and are unchanged. Covered by [`setInstallDevclass.test.ts`](../../src/actions/install/setInstallDevclass.test.ts).
+
 ### ACT-2026-33 — Resolved — Namespace carry-over matches the original root's namespace
 
 - **Where:** [`setInstallDevclass.ts`](../../src/actions/install/setInstallDevclass.ts).

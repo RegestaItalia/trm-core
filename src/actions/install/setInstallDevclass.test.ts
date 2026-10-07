@@ -204,6 +204,58 @@ describe('set-install-devclass stored mappings', () => {
         ]);
     });
 
+    test('a partial explicit replacement keeps the stored mappings of the other devclasses', async () => {
+        const ctx = context([
+            { originalDevclass: 'ZFOO', installDevclass: 'ZFOO_INST' },
+            { originalDevclass: 'ZFOO_OLD', installDevclass: 'ZFOO_OLD_INST' }
+        ]);
+        //only the new subpackage is given
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZFOO_SUB', installDevclass: 'ZFOO_SUB_NEW' }];
+
+        await setInstallDevclass.run(ctx);
+
+        expect(SystemConnector.getInstallPackages).not.toHaveBeenCalled();
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
+            { originalDevclass: 'ZFOO_SUB', installDevclass: 'ZFOO_SUB_NEW' },
+            { originalDevclass: 'ZFOO', installDevclass: 'ZFOO_INST' }
+        ]);
+        expect(ctx.rawInput.installData.installDevclass.keepOriginal).toBe(false);
+    });
+
+    test('an explicit replacement overrides the stored mapping of the same devclass', async () => {
+        const stored = [
+            { originalDevclass: 'ZFOO', installDevclass: 'ZFOO_INST' },
+            { originalDevclass: 'ZFOO_SUB', installDevclass: 'ZFOO_SUB_INST' }
+        ];
+        const ctx = context(stored);
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZFOO_SUB', installDevclass: 'ZFOO_SUB_NEW' }];
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
+            { originalDevclass: 'ZFOO_SUB', installDevclass: 'ZFOO_SUB_NEW' },
+            { originalDevclass: 'ZFOO', installDevclass: 'ZFOO_INST' }
+        ]);
+        //the stored rows are not changed: the metadata revert restores them
+        expect(stored[1]).toEqual({ originalDevclass: 'ZFOO_SUB', installDevclass: 'ZFOO_SUB_INST' });
+    });
+
+    test('explicit replacements on a first install are not merged', async () => {
+        const ctx = context([{ originalDevclass: 'ZFOO', installDevclass: 'ZFOO_INST' }]);
+        ctx.runtime.update = undefined;
+        ctx.rawInput.installData.installDevclass.replacements = [
+            { originalDevclass: 'ZFOO', installDevclass: 'ZNEW' },
+            { originalDevclass: 'ZFOO_SUB', installDevclass: 'ZNEW_SUB' }
+        ];
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
+            { originalDevclass: 'ZFOO', installDevclass: 'ZNEW' },
+            { originalDevclass: 'ZFOO_SUB', installDevclass: 'ZNEW_SUB' }
+        ]);
+    });
+
     test('drops explicit replacements of devclasses not in the release', async () => {
         const ctx = context([]);
         ctx.rawInput.installData.installDevclass.replacements = [
