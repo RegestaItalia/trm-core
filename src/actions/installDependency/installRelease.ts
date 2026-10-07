@@ -27,6 +27,7 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
         if (context.installRunner) {
             const result = await context.installRunner(inputData);
             context.runtime.installOutput = result.output;
+            context.runtime.installedPackages = result.installedPackages;
             context.runtime.rollback = result.rollback;
             context.runtime.release = result.release;
         } else {

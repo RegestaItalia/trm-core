@@ -30,7 +30,8 @@ function context() {
                 { dependency: { name: 'dep-two', version: '^2.0.0' }, status: 'versionMismatch', installedVersion: '3.0.0' }
             ],
             dependencyRollbacks: [],
-            dependencyReleases: []
+            dependencyReleases: [],
+            installedDependencies: []
         }
     } as any;
 }
@@ -171,6 +172,77 @@ describe('nested dependency rollback ownership', () => {
         await execute('test', [installDependencies], ctx);
 
         expect(installWithRollback).toHaveBeenCalledWith({ packageData: { name: 'dep' } }, ['/ACME/']);
+    });
+
+    describe('transitive installs (diamond A->B->D, A->C->D)', () => {
+        const D = { packageName: 'dep-shared' };
+
+        beforeEach(() => {
+            (TrmPackage.compare as jest.Mock).mockImplementation((a, b) => a.packageName === b.packageName);
+        });
+
+        afterEach(() => {
+            (TrmPackage.compare as jest.Mock).mockImplementation(() => false);
+        });
+
+        test('a package installed by one dependency is in the snapshot of the next one', async () => {
+            const ctx = context();
+            const seenByC: string[][] = [];
+            (installDependency as jest.Mock)
+                .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-one' } }, installedPackages: [D], rollback: jest.fn() })
+                .mockImplementationOnce(async input => {
+                    seenByC.push(input.contextData.systemPackages.map((o: any) => o.packageName));
+                    return { installOutput: { manifest: { name: 'dep-two' } }, rollback: jest.fn() };
+                });
+
+            await execute('test', [installDependencies], ctx);
+
+            expect(seenByC).toEqual([['dep-shared', 'dep-one']]);
+            expect(ctx.rawInput.contextData.systemPackages.map((o: any) => o.packageName)).toEqual(['dep-shared', 'dep-one', 'dep-two']);
+            expect(ctx.runtime.installedDependencies.map((o: any) => o.packageName)).toEqual(['dep-shared', 'dep-one', 'dep-two']);
+        });
+
+        test('a transitive install replaces the snapshot entry of the same package', async () => {
+            const ctx = context();
+            const previousD = { packageName: 'dep-shared', old: true };
+            ctx.rawInput.contextData.systemPackages = [previousD];
+            (installDependency as jest.Mock)
+                .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-one' } }, installedPackages: [D], rollback: jest.fn() })
+                .mockResolvedValueOnce({ alreadyInstalled: true });
+
+            await execute('test', [installDependencies], ctx);
+
+            expect(ctx.rawInput.contextData.systemPackages).toEqual([D, expect.objectContaining({ packageName: 'dep-one' })]);
+        });
+
+        test('a later failure rolls back and restores the snapshot taken before the dependency installs', async () => {
+            const ctx = context();
+            const existing = { packageName: 'existing' };
+            ctx.rawInput.contextData.systemPackages = [existing];
+            const snapshot = ctx.rawInput.contextData.systemPackages;
+            const rollbackFirst = jest.fn().mockResolvedValue(undefined);
+            (installDependency as jest.Mock)
+                .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-one' } }, installedPackages: [D], rollback: rollbackFirst })
+                .mockRejectedValueOnce(new Error('second dependency failed'));
+
+            await expect(execute('test', [installDependencies], ctx)).rejects.toThrow('second dependency failed');
+
+            expect(rollbackFirst).toHaveBeenCalledTimes(1);
+            expect(ctx.rawInput.contextData.systemPackages).toBe(snapshot);
+            expect(snapshot).toEqual([existing]);
+            expect(ctx.runtime.installedDependencies).toEqual([]);
+        });
+
+        test('the snapshot is kept when a dependency rollback fails', async () => {
+            const ctx = context();
+            ctx.rawInput.contextData.systemPackages = [D];
+            ctx.runtime.systemPackagesBeforeDependencies = [];
+            ctx.runtime.dependencyRollbacks = [jest.fn().mockRejectedValue(new Error('rollback failed'))];
+
+            await expect(installDependencies.revert(ctx)).rejects.toThrow('rollback failed');
+
+            expect(ctx.rawInput.contextData.systemPackages).toEqual([D]);
+        });
     });
 
     test('one dependency rollback failure does not skip earlier dependencies', async () => {

@@ -138,6 +138,59 @@ describe('install checkDependencyCycles step', () => {
         expect((registry.getPackage as jest.Mock).mock.calls.filter(([name, version]) => name === 'c' && version === '1.0.0')).toHaveLength(1);
     });
 
+    describe('version conflicts', () => {
+        test('a shared dependency selected outside a later range is rejected', async () => {
+            release('a', '1.0.0', [['c', '^1.0.0']]);
+            release('b', '1.0.0', [['c', '^2.0.0']]);
+            release('c', '1.0.0');
+            release('c', '2.0.0');
+            await expect(checkDependencyCycles.run(context([['a', '^1.0.0'], ['b', '^1.0.0']])))
+                .rejects.toThrow('dependency "c" version conflict: "a" requires ^1.0.0 (v1.0.0 to install), "b" requires ^2.0.0');
+        });
+
+        test('a shared dependency satisfying every range is accepted', async () => {
+            release('a', '1.0.0', [['c', '^1.0.0']]);
+            release('b', '1.0.0', [['c', '>=1.1.0']]);
+            release('c', '1.0.0');
+            release('c', '1.2.0');
+            await expect(checkDependencyCycles.run(context([['a', '^1.0.0'], ['b', '^1.0.0']]))).resolves.toBeUndefined();
+        });
+
+        test('a kept installed dependency conflicts with a later range', async () => {
+            release('a', '1.0.0', [['c', '^1.0.0']]);
+            release('b', '1.0.0', [['c', '^2.0.0']]);
+            release('c', '2.0.0');
+            await expect(checkDependencyCycles.run(context([['a', '^1.0.0'], ['b', '^1.0.0']], [installed('c', '1.0.0')])))
+                .rejects.toThrow('"a" requires ^1.0.0 (v1.0.0 installed), "b" requires ^2.0.0');
+        });
+
+        test('a dependency replaced earlier in the run conflicts with a later range its installed version satisfied', async () => {
+            release('a', '1.0.0', [['c', '^2.0.0']]);
+            release('b', '1.0.0', [['c', '^1.0.0']]);
+            release('c', '2.0.0');
+            await expect(checkDependencyCycles.run(context([['a', '^1.0.0'], ['b', '^1.0.0']], [installed('c', '1.0.0')])))
+                .rejects.toThrow('"a" requires ^2.0.0 (v2.0.0 to install), "b" requires ^1.0.0');
+        });
+
+        test('a direct dependency of the root conflicts with the version a nested dependency planned', async () => {
+            release('a', '1.0.0', [['c', '^1.0.0']]);
+            release('c', '1.0.0');
+            release('c', '2.0.0');
+            await expect(checkDependencyCycles.run(context([['a', '^1.0.0'], ['c', '^2.0.0']])))
+                .rejects.toThrow('"a" requires ^1.0.0 (v1.0.0 to install), "root" requires ^2.0.0');
+        });
+
+        test('a conflict aborts the workflow before any dependency is installed', async () => {
+            release('a', '1.0.0', [['c', '^1.0.0']]);
+            release('b', '1.0.0', [['c', '^2.0.0']]);
+            release('c', '1.0.0');
+            release('c', '2.0.0');
+            await expect(execute('test', [checkDependencyCycles, installDependencies], context([['a', '^1.0.0'], ['b', '^1.0.0']])))
+                .rejects.toThrow('version conflict');
+            expect(installDependency).not.toHaveBeenCalled();
+        });
+    });
+
     test('the check is skipped when dependencies are skipped', async () => {
         expect(await checkDependencyCycles.filter(context([['root', '*']], [], { noDependencies: true }))).toBe(false);
     });

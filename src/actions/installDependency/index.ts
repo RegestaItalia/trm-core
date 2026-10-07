@@ -46,6 +46,8 @@ type WorkflowRuntime = {
     /** True when the installed release is kept and nothing is installed. */
     alreadyInstalled: boolean,
     installOutput: InstallActionOutput,
+    /** Packages installed by the nested install's dependency installs, transitive ones included. */
+    installedPackages?: TrmPackage[],
     rollback?: () => Promise<void>
     release?: () => Promise<void>
 }
@@ -71,6 +73,7 @@ export interface InstallDependencyWorkflowContext extends IActionContext {
     /** Optional transactional install runner supplied by a parent workflow. */
     installRunner?: (input: InstallActionInput) => Promise<{
         output: InstallActionOutput,
+        installedPackages?: TrmPackage[],
         rollback: () => Promise<void>
         release: () => Promise<void>
     }>
@@ -94,6 +97,7 @@ const WORKFLOW_NAME = 'install-dependency';
  * install fails.
  */
 export async function installDependency(inputData: InstallDependencyActionInput, installRunner?: InstallDependencyWorkflowContext['installRunner']): Promise<InstallDependencyActionOutput & {
+    installedPackages?: TrmPackage[],
     rollback?: () => Promise<void>
     release?: () => Promise<void>
 }> {
@@ -114,6 +118,7 @@ export async function installDependency(inputData: InstallDependencyActionInput,
         installOutput,
         alreadyInstalled: result.runtime.alreadyInstalled,
         installedVersion: result.runtime.installedVersion,
+        installedPackages: result.runtime.installedPackages,
         rollback: result.runtime.rollback,
         release: result.runtime.release
     }

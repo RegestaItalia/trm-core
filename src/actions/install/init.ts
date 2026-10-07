@@ -56,6 +56,7 @@ export const init: Step<InstallWorkflowContext> = {
             previousInstallTransports: [],
             dependencyRollbacks: [],
             dependencyReleases: [],
+            installedDependencies: [],
             stopWarningShown: false
         };
         context.output = {

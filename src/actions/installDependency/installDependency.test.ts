@@ -126,6 +126,19 @@ describe('installDependency installed-release handling', () => {
         }));
     });
 
+    test('packages installed by the nested install are returned to the parent', async () => {
+        const ctx = context([]);
+        const transitive = installed('1.0.0');
+        ctx.installRunner.mockImplementation(async (input: any) => ({
+            output: { manifest: { name: 'dep', version: input.packageData.version } },
+            installedPackages: [transitive],
+            rollback: jest.fn(),
+            release: jest.fn()
+        }));
+        const result = await run(ctx);
+        expect(result.runtime.installedPackages).toEqual([transitive]);
+    });
+
     test('allowDowngrade confirms the downgrade in advance', async () => {
         const ctx = context([installed('2.0.0')], '^1.0.0', { allowDowngrade: true });
         await run(ctx);

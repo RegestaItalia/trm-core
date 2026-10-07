@@ -243,6 +243,10 @@ type WorkflowRuntime = {
     previousInstallTransports: InstallTransport[],
     dependencyRollbacks: Array<() => Promise<void>>,
     dependencyReleases: Array<() => Promise<void>>,
+    /** Packages installed by the dependency installs, transitive ones included, merged into the package snapshot. */
+    installedDependencies: TrmPackage[],
+    /** Package snapshot before the dependency installs, restored after they are rolled back. */
+    systemPackagesBeforeDependencies?: TrmPackage[],
     rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean,
     /** Release objects found on the system by check-transports, accepted before locking. */
@@ -380,6 +384,7 @@ const installWorkflow = [
 
 async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = []): Promise<{
     output: InstallActionOutput,
+    installedPackages?: TrmPackage[],
     rollback?: () => Promise<void>,
     release?: () => Promise<void>
 }> {
@@ -422,6 +427,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     // The locks stay held until the parent calls release (or rollback).
     return {
         output: retained.context.output,
+        installedPackages: retained.context.runtime?.installedDependencies || [],
         release,
         rollback: async () => {
             let firstError: unknown;
@@ -446,9 +452,11 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
  */
 export async function installWithRollback(inputData: InstallActionInput, inheritedNamespaceLocks: string[] = []): Promise<{
     output: InstallActionOutput,
+    /** Packages installed by the install's own dependency installs, transitive ones included. */
+    installedPackages: TrmPackage[],
     rollback: () => Promise<void>,
     release: () => Promise<void>
 }> {
     const retained = await runInstall(inputData, true, inheritedNamespaceLocks);
-    return { output: retained.output, rollback: retained.rollback, release: retained.release };
+    return { output: retained.output, installedPackages: retained.installedPackages, rollback: retained.rollback, release: retained.release };
 }

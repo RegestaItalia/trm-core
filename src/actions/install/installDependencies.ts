@@ -11,7 +11,9 @@ import { installWithRollback } from ".";
 /**
  * Workflow step that installs each dependency missing from the target system or installed in an
  * incompatible version. A downgrade is confirmed by the dependency install; a dependency found
- * already installed there is skipped without a rollback.
+ * already installed there is skipped without a rollback. Every package a dependency install
+ * installed, transitive ones included, is merged into the package snapshot, so a later dependency
+ * sharing it (diamond) finds it installed.
  * 
  * 1- list dependencies to install
  * 
@@ -57,6 +59,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
         }
 
         //3- run install workflow for each dependency
+        context.runtime.systemPackagesBeforeDependencies = [...context.rawInput.contextData.systemPackages];
         let counter = 0;
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
@@ -113,13 +116,17 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                     dependencyRegistry,
                     new Manifest(result.installOutput.manifest)
                 );
-                const installedIndex = context.rawInput.contextData.systemPackages.findIndex(
-                    systemPackage => TrmPackage.compare(systemPackage, installedPackage)
-                );
-                if (installedIndex === -1) {
-                    context.rawInput.contextData.systemPackages.push(installedPackage);
-                } else {
-                    context.rawInput.contextData.systemPackages.splice(installedIndex, 1, installedPackage);
+                //the dependency install only updated its own copy of the snapshot
+                for (const installed of [...(result.installedPackages || []), installedPackage]) {
+                    const installedIndex = context.rawInput.contextData.systemPackages.findIndex(
+                        systemPackage => TrmPackage.compare(systemPackage, installed)
+                    );
+                    if (installedIndex === -1) {
+                        context.rawInput.contextData.systemPackages.push(installed);
+                    } else {
+                        context.rawInput.contextData.systemPackages.splice(installedIndex, 1, installed);
+                    }
+                    context.runtime.installedDependencies.push(installed);
                 }
             } finally {
                 Logger.setPrefix(originalLPrefix);
@@ -139,5 +146,11 @@ export const installDependencies: Step<InstallWorkflowContext> = {
         if (firstError) {
             throw firstError;
         }
+        //the rolled back packages are no longer installed
+        const before = context.runtime.systemPackagesBeforeDependencies;
+        if (before) {
+            context.rawInput.contextData.systemPackages.splice(0, context.rawInput.contextData.systemPackages.length, ...before);
+        }
+        context.runtime.installedDependencies = [];
     }
 }

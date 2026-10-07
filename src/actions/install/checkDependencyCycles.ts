@@ -6,14 +6,29 @@ import { RegistryProvider } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { selectDependencyRelease } from "../installDependency/findInstallRelease";
 import { getInstalledDependency } from "../commons/utils";
+import { satisfies } from "semver";
+
+/** Version a package of the dependency graph ends up with: the release to install or the installed one kept. */
+type PlannedDependency = {
+    trmPackage: TrmPackage,
+    version: string,
+    /** The installed release is kept. */
+    kept: boolean,
+    /** Package whose dependency planned it, and its range. */
+    requiredBy: string,
+    versionRange: string
+}
 
 /**
- * Workflow step that rejects dependency cycles the install would recurse into, before anything
- * is installed. A dependency already installed in a compatible version is not installed again,
- * so it ends the walk on that branch. Any other dependency is resolved to the release a
- * dependency install would select (lockfile entry or newest release in range) and walked.
+ * Workflow step that rejects dependency cycles and version conflicts the install would run into,
+ * before anything is locked or installed. A dependency already installed in a compatible version is
+ * not installed again, so it ends the walk on that branch. Any other dependency is resolved to the
+ * release a dependency install would select (lockfile entry or newest release in range) and walked.
+ * The walk follows the install order: the first package reaching a dependency decides its version,
+ * and a later range that version doesn't satisfy is a conflict, which would otherwise fail midway,
+ * after earlier dependencies were installed.
  *
- * 1- walk the dependency graph and abort on the first cycle
+ * 1- walk the dependency graph and abort on the first cycle or version conflict
  *
 */
 export const checkDependencyCycles: Step<InstallWorkflowContext> = {
@@ -27,21 +42,31 @@ export const checkDependencyCycles: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        //1- walk the dependency graph and abort on the first cycle
+        //1- walk the dependency graph and abort on the first cycle or version conflict
         Logger.loading(`Checking dependency graph...`);
         const systemPackages = context.rawInput.contextData.systemPackages || [];
         const lockfile = context.rawInput.installData.checks.lockfile;
-        const resolved: TrmPackage[] = [];
-
-        const getManifest = async (trmPackage: TrmPackage, versionRange: string): Promise<TrmManifest> => {
-            const release = await selectDependencyRelease(trmPackage, trmPackage.registry, versionRange, lockfile);
-            return (await trmPackage.registry.getPackage(trmPackage.packageName, release.version)).manifest;
-        };
+        const root = new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry);
+        //completely walked dependencies (a dependency still being walked is on the path)
+        const planned: PlannedDependency[] = [];
 
         const visit = async (manifest: TrmManifest, path: TrmPackage[]): Promise<void> => {
+            const requiredBy = path[path.length - 1].packageName;
             for (const dependency of manifest.dependencies || []) {
                 const trmPackage = new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry));
-                if (getInstalledDependency(systemPackages, trmPackage, dependency.version).status === 'ok') {
+                const plan = planned.find(o => TrmPackage.compare(o.trmPackage, trmPackage));
+                if (plan) {
+                    if (!satisfies(plan.version, dependency.version, { includePrerelease: true })) {
+                        throw new Error(`Install aborted: dependency "${trmPackage.packageName}" version conflict: "${plan.requiredBy}" requires ${plan.versionRange} (v${plan.version} ${plan.kept ? 'installed' : 'to install'}), "${requiredBy}" requires ${dependency.version}.`);
+                    }
+                    continue;
+                }
+                const installed = getInstalledDependency(systemPackages, trmPackage, dependency.version);
+                if (installed.status === 'ok') {
+                    //the package being installed changes version: it is not planned
+                    if (!TrmPackage.compare(trmPackage, root)) {
+                        planned.push({ trmPackage, version: installed.installedVersion, kept: true, requiredBy, versionRange: dependency.version });
+                    }
                     continue;
                 }
                 const cycleStart = path.findIndex(o => TrmPackage.compare(o, trmPackage));
@@ -49,17 +74,13 @@ export const checkDependencyCycles: Step<InstallWorkflowContext> = {
                     const cycle = [...path.slice(cycleStart), trmPackage].map(o => `"${o.packageName}"`).join(' -> ');
                     throw new Error(`Install aborted: cyclic dependency detected ${cycle}.`);
                 }
-                if (resolved.some(o => TrmPackage.compare(o, trmPackage))) {
-                    continue;
-                }
-                await visit(await getManifest(trmPackage, dependency.version), [...path, trmPackage]);
-                resolved.push(trmPackage);
+                const release = await selectDependencyRelease(trmPackage, trmPackage.registry, dependency.version, lockfile);
+                const releaseManifest = (await trmPackage.registry.getPackage(trmPackage.packageName, release.version)).manifest;
+                await visit(releaseManifest, [...path, trmPackage]);
+                planned.push({ trmPackage, version: release.version, kept: false, requiredBy, versionRange: dependency.version });
             }
         };
 
-        await visit(
-            context.runtime.package.data.manifest,
-            [new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry)]
-        );
+        await visit(context.runtime.package.data.manifest, [root]);
     }
 }
