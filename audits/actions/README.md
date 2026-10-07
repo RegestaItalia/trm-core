@@ -32,7 +32,7 @@ feature, missing case).
 | Workflow | Steps audited | Critical | High | Medium | Low | Report |
 |---|---:|---:|---:|---:|---:|---|
 | `cg3y` | 2 | 0 | 0 | 0 | 0 | [CG3Y](cg3y.md) |
-| `cg3z` | 2 | 0 | 1 | 0 | 0 | [CG3Z](cg3z.md) |
+| `cg3z` | 2 | 0 | 0 | 0 | 0 | [CG3Z](cg3z.md) |
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-engines` | 2 | 0 | 0 | 0 | 0 | [Engines check](check-engines.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
@@ -41,7 +41,7 @@ feature, missing case).
 | `install` | 24 | 0 | 2 | 5 | 2 | [Package install](install.md) |
 | `publish` | 15 | 0 | 0 | 1 | 1 | [Package publish](publish.md) |
 | Shared steps/callbacks | 12 | 1 | 1 | 1 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **1** | **4** | **8** | **7** | |
+| **Total** | | **1** | **3** | **8** | **7** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
@@ -52,7 +52,7 @@ update; `delete` and `check-engines` are new workflows; publish gained manifest 
 included in the index counts.
 
 Two earlier resolutions turned out to be ineffective and are superseded by new findings:
-**SAPCHK-02** (see [ACT-2026-69](check-sap-entries.md), now resolved) and **CG3Z-01** (see [ACT-2026-85](cg3z.md)).
+**SAPCHK-02** (see [ACT-2026-69](check-sap-entries.md)) and **CG3Z-01** (see [ACT-2026-85](cg3z.md)), both now resolved.
 
 ### Workflow engine behavior assumed by this audit
 
@@ -68,6 +68,5 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 1. **[ACT-2026-04](shared.md)** and **[ACT-2026-06](shared.md)**, together with re-deciding **INST-02** ([install](install.md#reconsideration-of-accepted-findings)) — enforce import return codes for deletion, restore, and batch imports.
 2. **[ACT-2026-28](install.md)** — keep retained tables out of the rollback cleanup.
 3. **[ACT-2026-24](install.md)** — merge transitive installs into the parent snapshot (diamonds).
-4. **[ACT-2026-85](cg3z.md)** — cg3z rollback.
 
 These findings were identified by static review and were not reproduced against SAP or a registry.

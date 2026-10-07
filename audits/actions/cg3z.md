@@ -1,26 +1,29 @@
 # `cg3z` workflow audit
 
-Audit date: 2026-10-04
+Audit date: 2026-10-07
 Entry point: [`cg3z`](../../src/actions/cg3z/index.ts#L50)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 
 ## Findings
 
-### ACT-2026-85 — High — Technical — Upload rollback is ineffective (CG3Z-01 ineffective)
-
-- **Where:** [`cg3z/upload.ts#L72`](../../src/actions/cg3z/upload.ts#L72); the unit test mocks `Transport` entirely.
-- **Failure:** uploaded foreign transports have no E070 row in the target, so the revert (which since ACT-2026-86 skips deletion without an E070 row) cleans up nothing for a new transport: its cofile/data files and any TMS buffer entry remain. Even with E070, `deleteTrkorr` removes neither. Overwritten files are restored (ACT-2026-86).
-- **Fix:** track header/data/forward progress, remove the buffer entry with `deleteTmsTransport`, restore or delete only files written by this run, and never call `deleteTrkorr` here.
+No active findings.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `check-server-auth` | Fails closed on any result other than a granted authorization ([ACT-2026-12](shared.md), resolved). |
-| 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and the TMS text is refreshed only for an overwritten transport (a non-fatal refresh failure is logged with its error message). Archive entries are matched by case-insensitive basename (`K`/`R` + number + `.` + 3-character SID), directories and unrelated files are ignored, and the transport number is uppercased. Before writing, an existing transport (E070 entry, header or data file) is detected and overwritten only per `uploadData.overwrite`, after a confirmation prompt, or never with `noInquirer`; overwritten files are snapshotted and restored on rollback, and a request that existed before the run is never deleted. Rollback of newly uploaded transports is still ineffective (ACT-2026-85). |
+| 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and the TMS text is refreshed only for an overwritten transport (a non-fatal refresh failure is logged with its error message). Archive entries are matched by case-insensitive basename (`K`/`R` + number + `.` + 3-character SID), directories and unrelated files are ignored, and the transport number is uppercased. Before writing, an existing transport (E070 entry, header or data file) is detected and overwritten only per `uploadData.overwrite`, after a confirmation prompt, or never with `noInquirer`; overwritten files are snapshotted and restored on rollback, and a request that existed before the run is never deleted. The import-queue state is read before writing. Each SAP change (header write, data write, forward) is recorded before its call; on rollback the import-queue entry added by the run is removed from the connected system, files created by the run are emptied (no file-deletion API exists; an empty file is treated as missing), overwritten files are restored only after that cleanup succeeded, and no request is ever deleted (ACT-2026-85, resolved). |
 
 ## Resolved findings
+
+### ACT-2026-85 — Resolved — Upload rollback is ineffective (CG3Z-01 ineffective)
+
+- **Where:** [`cg3z/upload.ts`](../../src/actions/cg3z/upload.ts).
+- **Was:** uploaded foreign transports have no E070 row in the target, so the revert cleaned up nothing for a new transport: its cofile/data files and the TMS buffer entry remained. Even with E070, `deleteTrkorr` removed neither.
+- **Fix:** the step writes the header and data files individually and records `runtime.progress` (header, data, forwarded) before each call, plus whether the transport was already in the connected system's import queue (`readTmsQueue`, read before any write). The revert never deletes a request; it removes the queue entry with `deleteTmsTransport` only when the run forwarded it and it was not queued before, empties files the run created, continues past failed operations, restores overwritten files only after that cleanup succeeded, and rethrows the first error. Failure injection at header, data and forward is covered by [`upload.test.ts`](../../src/actions/cg3z/upload.test.ts).
+- **Backend limitation:** trm-server exposes no file-deletion API (`/ATRM/CL_UTILITIES` only reads and writes binary files), so created files are truncated rather than removed and the operator is warned to delete them if needed.
 
 ### ACT-2026-86 — Resolved — Existing transport files are overwritten
 
@@ -51,7 +54,7 @@ binary files. If upload or forwarding fails, its revert handler checks whether S
 the transport modifiable and deletes it, following the rollback pattern used by generated publish
 transports ([source](../../src/actions/cg3z/upload.ts)).
 
-> **2026-10-04 audit:** this fix is ineffective in practice (uploaded transports have no E070 row, so `canBeDeleted()` throws, and files/TMS buffer are never cleaned). Tracked as active finding ACT-2026-85 in the [README](README.md).
+> **2026-10-04 audit:** this fix is ineffective in practice (uploaded transports have no E070 row, so `canBeDeleted()` throws, and files/TMS buffer are never cleaned). Superseded by ACT-2026-85, now resolved.
 
 ### CG3Z-02 — Resolved — Unsupported `r3transOptions` input was removed
 

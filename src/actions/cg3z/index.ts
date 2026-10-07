@@ -2,7 +2,6 @@ import { checkServerAuth, executeWorkflow, workflowCallbacks } from "..";
 import { parseTransportArchive, upload } from "./upload";
 import { ActionLockScope, withActionLockScope } from "../commons/utils";
 import { TRKORR } from "../../client";
-import { Transport } from "../../transport";
 
 /** Shared execution settings for the CG3Z action. */
 export type Cg3zActionInputContextData = {
@@ -36,9 +35,21 @@ export interface Cg3zActionInput {
     binaries: Buffer
 }
 
+/** SAP changes attempted by the upload step, each set before its call so a failure is rolled back too. */
+export type Cg3zUploadProgress = {
+    /** The transport was already in the connected system import queue: rollback must never remove it. */
+    queued: boolean,
+    /** Header (cofile) write attempted. */
+    header?: boolean,
+    /** Data file write attempted. */
+    data?: boolean,
+    /** Forward to the connected system import queue attempted. */
+    forwarded?: boolean
+}
+
 type WorkflowRuntime = {
-    /** Uploaded transport tracked before file writes so failures can be rolled back. */
-    transport?: Transport,
+    /** Upload progress, set once SAP writes begin. */
+    progress?: Cg3zUploadProgress,
     /** State of an existing transport that is being overwritten, restored on rollback. */
     overwritten?: {
         /** The transport already had an E070 entry: rollback must never delete it. */

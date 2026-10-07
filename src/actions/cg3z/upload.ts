@@ -1,5 +1,5 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { Cg3zWorkflowContext } from ".";
+import { Cg3zUploadProgress, Cg3zWorkflowContext } from ".";
 import { Transport } from "../../transport";
 import { Inquirer, Logger } from "trm-commons";
 import * as AdmZip from "adm-zip";
@@ -107,62 +107,79 @@ export const upload: Step<Cg3zWorkflowContext> = {
                 data: existingFiles.data
             };
         }
+        //an import queue entry that existed before this run is never removed
+        const queued = (await SystemConnector.readTmsQueue(dest)).some(o => o.trkorr === trkorr);
 
         //3- upload
         stopWarning('cg3z');
-        Logger.loading(`Uploading transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
-        context.runtime.transport = new Transport(context.output.trkorr, SystemConnector.getDest());
-        await Transport.upload(
-            context.output.trkorr, {
-                binary: {
-                    header: archive.header.getData(),
-                    data: archive.data.getData()
-                },
-                trTarget: SystemConnector.getDest()
-        });
+        Logger.loading(`Uploading transport ${Transport.getTransportIcon()}  ${trkorr}...`);
+        //progress is tracked before each call: a failed write or forward may still have changed SAP
+        const progress: Cg3zUploadProgress = { queued };
+        context.runtime.progress = progress;
+        for (const kind of ['header', 'data'] as const) {
+            progress[kind] = true;
+            await Transport.writeBinaryFile(trkorr, kind, (kind === 'header' ? archive.header : archive.data).getData());
+        }
 
         //4- forward
-        Logger.loading(`Forwarding transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
-        await SystemConnector.forwardTransport(context.output.trkorr, SystemConnector.getDest(), SystemConnector.getDest(), true);
+        Logger.loading(`Forwarding transport ${Transport.getTransportIcon()}  ${trkorr}...`);
+        progress.forwarded = true;
+        await SystemConnector.forwardTransport(trkorr, dest, dest, true);
 
         //5- refresh text (only an overwritten transport can have a stale TMS text)
         if (context.runtime.overwritten) {
             try {
-                Logger.loading(`Refreshing transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
-                await SystemConnector.refreshTransportTmsTxt(context.output.trkorr);
+                Logger.loading(`Refreshing transport ${Transport.getTransportIcon()}  ${trkorr}...`);
+                await SystemConnector.refreshTransportTmsTxt(trkorr);
             } catch (e) {
-                Logger.warning(`Couldn't refresh transport ${context.output.trkorr} text: ${e?.message || e}`, { important: true });
+                Logger.warning(`Couldn't refresh transport ${trkorr} text: ${e?.message || e}`, { important: true });
             }
         }
     },
     revert: async (context: Cg3zWorkflowContext): Promise<void> => {
-        const transport = context.runtime?.transport;
-        if (!transport) {
+        const trkorr = context.output?.trkorr;
+        const progress = context.runtime?.progress;
+        if (!trkorr || !progress) {
             return;
         }
         const overwritten = context.runtime.overwritten;
         let firstError: any;
 
-        //a request that existed before this run is never deleted
-        if (!overwritten?.e070) {
+        //the request (E070) is never deleted: the upload doesn't create it, and an existing one isn't ours
+
+        //remove the import queue entry added by this run (the forward targets the connected system)
+        if (progress.forwarded && !progress.queued) {
             try {
-                if (await transport.getE070() && await transport.canBeDeleted()) {
-                    await transport.delete();
-                }
+                Logger.loading(`Removing ${trkorr} from ${SystemConnector.getDest()} import queue...`, true);
+                await SystemConnector.deleteTmsTransport(trkorr, SystemConnector.getDest());
             } catch (e) {
-                firstError = e;
+                firstError ??= e;
             }
+        }
+
+        //files created by this run: no file deletion API, emptied files are treated as missing
+        const created = (['header', 'data'] as const).filter(kind => progress[kind] && !overwritten?.[kind]);
+        for (const kind of created) {
+            try {
+                Logger.loading(`Emptying uploaded ${trkorr} ${kind} file...`, true);
+                await Transport.writeBinaryFile(trkorr, kind, Buffer.alloc(0));
+            } catch (e) {
+                firstError ??= e;
+            }
+        }
+        if (created.length > 0) {
+            Logger.warning(`Uploaded ${trkorr} files (${created.join(', ')}) were emptied in ${SystemConnector.getDest()}: delete them from the transport directory if needed.`, { important: true });
         }
 
         //restore overwritten files only after the destructive cleanup succeeded
         if (!firstError && overwritten) {
             for (const kind of ['header', 'data'] as const) {
-                if (!overwritten[kind]) {
+                if (!progress[kind] || !overwritten[kind]) {
                     continue;
                 }
                 try {
-                    Logger.loading(`Restoring previous ${transport.trkorr} ${kind} file...`, true);
-                    await Transport.writeBinaryFile(transport.trkorr, kind, overwritten[kind]);
+                    Logger.loading(`Restoring previous ${trkorr} ${kind} file...`, true);
+                    await Transport.writeBinaryFile(trkorr, kind, overwritten[kind]);
                 } catch (e) {
                     firstError ??= e;
                 }

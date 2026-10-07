@@ -16,13 +16,14 @@ jest.mock('../../systemConnector', () => ({
     SystemConnector: {
         getDest: jest.fn(() => 'TST'),
         forwardTransport: jest.fn(),
-        refreshTransportTmsTxt: jest.fn()
+        refreshTransportTmsTxt: jest.fn(),
+        readTmsQueue: jest.fn(),
+        deleteTmsTransport: jest.fn()
     }
 }));
 
 jest.mock('../../transport', () => ({
     Transport: class MockTransport {
-        static upload = jest.fn();
         static getTransportIcon = jest.fn(() => 'TR');
         static readBinaryFiles = jest.fn();
         static writeBinaryFile = jest.fn();
@@ -47,7 +48,6 @@ describe('cg3z upload rollback', () => {
         for (const method of ['loading', 'warning'] as const) {
             jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
         }
-        jest.spyOn(Transport, 'upload').mockResolvedValue({} as Transport);
         jest.spyOn(Transport, 'readBinaryFiles').mockResolvedValue({});
         jest.spyOn(Transport, 'writeBinaryFile').mockResolvedValue(undefined);
         jest.spyOn(Transport.prototype, 'getE070').mockResolvedValue(undefined);
@@ -56,7 +56,26 @@ describe('cg3z upload rollback', () => {
         jest.spyOn(Transport.prototype, 'delete').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'forwardTransport').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'refreshTransportTmsTxt').mockResolvedValue(undefined);
+        jest.spyOn(SystemConnector, 'readTmsQueue').mockResolvedValue([]);
+        jest.spyOn(SystemConnector, 'deleteTmsTransport').mockResolvedValue(undefined);
     });
+
+    const EMPTY = Buffer.alloc(0);
+    const NEW_HEADER = Buffer.from('K900001.TST');
+    const NEW_DATA = Buffer.from('R900001.TST');
+
+    /** Injects a failure at one point of the upload (header write, data write or forward). */
+    function failAt(point: string) {
+        if (point === 'forward') {
+            jest.spyOn(SystemConnector, 'forwardTransport').mockRejectedValue(new Error('forward failed'));
+        } else {
+            jest.spyOn(Transport, 'writeBinaryFile').mockImplementation(async (_trkorr, kind, binary: Buffer) => {
+                if (kind === point && binary.length > 0 && binary.equals(kind === 'header' ? NEW_HEADER : NEW_DATA)) {
+                    throw new Error(`${point} failed`);
+                }
+            });
+        }
+    }
 
     function context(options: { overwrite?: boolean, noInquirer?: boolean } = {}) {
         return {
@@ -73,21 +92,79 @@ describe('cg3z upload rollback', () => {
     const OLD_DATA = Buffer.from('old data');
     const E070 = { trkorr: 'TSTK900001', trfunction: 'K', trstatus: 'D', as4Date: '20261005', as4Time: '120000' };
 
-    test.each(['upload', 'forward'])('%s failure deletes the possibly-created SAP transport', async point => {
-        const ctx = context();
-        //not existing before the upload, modifiable request afterwards
-        jest.spyOn(Transport.prototype, 'getE070').mockResolvedValueOnce(undefined).mockResolvedValue(E070);
-        if (point === 'upload') {
-            jest.spyOn(Transport, 'upload').mockRejectedValue(new Error('upload failed'));
-        } else {
-            jest.spyOn(SystemConnector, 'forwardTransport').mockRejectedValue(new Error('forward failed'));
-        }
+    describe('new transport rollback', () => {
+        test.each([
+            ['header', ['header'], false],
+            ['data', ['header', 'data'], false],
+            ['forward', ['header', 'data'], true]
+        ])('%s failure empties the files written by the run and never deletes a request', async (point, written, forwarded) => {
+            failAt(point);
+            jest.spyOn(Transport.prototype, 'getE070').mockResolvedValue(E070);
+            jest.spyOn(Transport, 'readBinaryFiles').mockResolvedValue({});
+            const ctx = context({ overwrite: true });
 
-        await expect(execute('test', [upload], ctx)).rejects.toThrow();
+            await expect(execute('test', [upload], ctx)).rejects.toThrow(`${point} failed`);
 
-        expect(ctx.runtime.transport).toBeDefined();
-        expect(ctx.runtime.transport.canBeDeleted).toHaveBeenCalledTimes(1);
-        expect(ctx.runtime.transport.delete).toHaveBeenCalledTimes(1);
+            for (const kind of ['header', 'data']) {
+                if ((written as string[]).includes(kind)) {
+                    expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', kind, EMPTY);
+                } else {
+                    expect(Transport.writeBinaryFile).not.toHaveBeenCalledWith('TSTK900001', kind, EMPTY);
+                }
+            }
+            if (forwarded) {
+                expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('TSTK900001', 'TST');
+            } else {
+                expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+            }
+            expect(Transport.prototype.canBeDeleted).not.toHaveBeenCalled();
+            expect(Transport.prototype.delete).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('were emptied'), { important: true });
+        });
+
+        test('a transport already in the import queue is not removed from it', async () => {
+            jest.spyOn(SystemConnector, 'readTmsQueue').mockResolvedValue([{ trkorr: 'TSTK900001' } as any]);
+            failAt('forward');
+
+            await expect(execute('test', [upload], context())).rejects.toThrow('forward failed');
+
+            expect(SystemConnector.readTmsQueue).toHaveBeenCalledWith('TST');
+            expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+            expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'header', EMPTY);
+        });
+
+        test('a queue read failure aborts before writing', async () => {
+            jest.spyOn(SystemConnector, 'readTmsQueue').mockRejectedValue(new Error('queue failed'));
+            const ctx = context();
+
+            await expect(execute('test', [upload], ctx)).rejects.toThrow('queue failed');
+
+            expect(Transport.writeBinaryFile).not.toHaveBeenCalled();
+            expect(ctx.runtime.progress).toBeUndefined();
+        });
+
+        test('cleanup continues after the queue removal fails and surfaces the first failure', async () => {
+            const ctx = context();
+            ctx.output = { trkorr: 'TSTK900001' };
+            ctx.runtime.progress = { queued: false, header: true, data: true, forwarded: true };
+            jest.spyOn(SystemConnector, 'deleteTmsTransport').mockRejectedValue(new Error('queue removal failed'));
+            jest.spyOn(Transport, 'writeBinaryFile').mockRejectedValueOnce(new Error('header empty failed')).mockResolvedValue(undefined);
+
+            await expect(upload.revert(ctx)).rejects.toThrow('queue removal failed');
+
+            expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'header', EMPTY);
+            expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'data', EMPTY);
+        });
+
+        test('nothing is reverted before SAP writes begin', async () => {
+            const ctx = context();
+            ctx.output = { trkorr: 'TSTK900001' };
+
+            await expect(upload.revert(ctx)).resolves.toBeUndefined();
+
+            expect(Transport.writeBinaryFile).not.toHaveBeenCalled();
+            expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+        });
     });
 
     test('a new transport is not refreshed', async () => {
@@ -115,7 +192,7 @@ describe('cg3z upload rollback', () => {
 
         await expect(upload.run(context({ overwrite: true }))).resolves.toBeUndefined();
 
-        expect(Transport.upload).toHaveBeenCalledTimes(1);
+        expect(Transport.writeBinaryFile).toHaveBeenCalledTimes(2);
         expect(SystemConnector.forwardTransport).toHaveBeenCalledTimes(1);
         expect(Logger.warning).toHaveBeenLastCalledWith(expect.stringContaining('refresh failed'), { important: true });
     });
@@ -124,7 +201,7 @@ describe('cg3z upload rollback', () => {
         const ctx = context();
         const order: string[] = [];
         (Logger.warning as jest.Mock).mockImplementation((msg: string) => { order.push(`warning:${msg}`); });
-        jest.spyOn(Transport, 'upload').mockImplementation(async () => { order.push('upload'); return {} as Transport; });
+        jest.spyOn(Transport, 'writeBinaryFile').mockImplementation(async () => { order.push('upload'); });
         await upload.run(ctx);
         expect(order[0]).toMatch(/^warning:.*cg3z.*Do not interrupt/);
         expect(order[1]).toBe('upload');
@@ -159,7 +236,8 @@ describe('cg3z upload rollback', () => {
             mockEntryNames = ['k900001.npl', 'r900001.npl'];
             const ctx = context();
             await upload.run(ctx);
-            expect(Transport.upload).toHaveBeenCalledWith('NPLK900001', expect.anything());
+            expect(Transport.writeBinaryFile).toHaveBeenCalledWith('NPLK900001', 'header', expect.any(Buffer));
+            expect(Transport.writeBinaryFile).toHaveBeenCalledWith('NPLK900001', 'data', expect.any(Buffer));
             expect(ctx.output.trkorr).toBe('NPLK900001');
         });
     });
@@ -168,7 +246,7 @@ describe('cg3z upload rollback', () => {
         test('a new transport is uploaded without asking', async () => {
             await upload.run(context());
             expect(Inquirer.prompt).not.toHaveBeenCalled();
-            expect(Transport.upload).toHaveBeenCalledTimes(1);
+            expect(Transport.writeBinaryFile).toHaveBeenCalledTimes(2);
         });
 
         test.each([
@@ -183,7 +261,7 @@ describe('cg3z upload rollback', () => {
             await upload.run(ctx);
 
             expect(Inquirer.prompt).not.toHaveBeenCalled();
-            expect(Transport.upload).toHaveBeenCalledTimes(1);
+            expect(Transport.writeBinaryFile).toHaveBeenCalledTimes(2);
             expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining(what));
             expect(ctx.runtime.overwritten).toEqual({ e070: !!existing.e070, header: existing.files['header'], data: existing.files['data'] });
         });
@@ -194,7 +272,7 @@ describe('cg3z upload rollback', () => {
             await expect(upload.run(context({ overwrite: false }))).rejects.toThrow('Upload aborted');
 
             expect(Inquirer.prompt).not.toHaveBeenCalled();
-            expect(Transport.upload).not.toHaveBeenCalled();
+            expect(Transport.writeBinaryFile).not.toHaveBeenCalled();
         });
 
         test('an error reading the existing files aborts before writing', async () => {
@@ -203,8 +281,8 @@ describe('cg3z upload rollback', () => {
 
             await expect(upload.run(ctx)).rejects.toThrow('GENERIC');
 
-            expect(Transport.upload).not.toHaveBeenCalled();
-            expect(ctx.runtime.transport).toBeUndefined();
+            expect(Transport.writeBinaryFile).not.toHaveBeenCalled();
+            expect(ctx.runtime.progress).toBeUndefined();
         });
 
         test('missing overwrite with noInquirer aborts without writing', async () => {
@@ -213,7 +291,7 @@ describe('cg3z upload rollback', () => {
             await expect(upload.run(context({ noInquirer: true }))).rejects.toThrow('Set overwrite to replace it');
 
             expect(Inquirer.prompt).not.toHaveBeenCalled();
-            expect(Transport.upload).not.toHaveBeenCalled();
+            expect(Transport.writeBinaryFile).not.toHaveBeenCalled();
         });
 
         test.each([true, false])('missing overwrite asks the user (answer %p)', async answer => {
@@ -223,10 +301,10 @@ describe('cg3z upload rollback', () => {
 
             if (answer) {
                 await expect(run).resolves.toBeUndefined();
-                expect(Transport.upload).toHaveBeenCalledTimes(1);
+                expect(Transport.writeBinaryFile).toHaveBeenCalledTimes(2);
             } else {
                 await expect(run).rejects.toThrow('Upload aborted');
-                expect(Transport.upload).not.toHaveBeenCalled();
+                expect(Transport.writeBinaryFile).not.toHaveBeenCalled();
             }
             expect(Inquirer.prompt).toHaveBeenCalledWith(expect.objectContaining({ type: 'confirm', name: 'overwrite', default: false }));
         });
@@ -241,39 +319,42 @@ describe('cg3z upload rollback', () => {
     });
 
     describe('overwrite rollback', () => {
-        test.each(['upload', 'forward'])('%s failure restores overwritten files of a foreign transport', async point => {
+        test.each(['header', 'data', 'forward'])('%s failure restores the overwritten files written by the run', async point => {
             jest.spyOn(Transport, 'readBinaryFiles').mockResolvedValue({ header: OLD_HEADER, data: OLD_DATA });
-            if (point === 'upload') {
-                jest.spyOn(Transport, 'upload').mockRejectedValue(new Error('upload failed'));
-            } else {
-                jest.spyOn(SystemConnector, 'forwardTransport').mockRejectedValue(new Error('forward failed'));
-            }
+            failAt(point);
             const ctx = context({ overwrite: true });
 
-            await expect(execute('test', [upload], ctx)).rejects.toThrow();
+            await expect(execute('test', [upload], ctx)).rejects.toThrow(`${point} failed`);
 
             expect(Transport.prototype.delete).not.toHaveBeenCalled();
+            expect(Transport.writeBinaryFile).not.toHaveBeenCalledWith('TSTK900001', expect.anything(), EMPTY);
             expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'header', OLD_HEADER);
-            expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'data', OLD_DATA);
+            if (point === 'header') {
+                expect(Transport.writeBinaryFile).not.toHaveBeenCalledWith('TSTK900001', 'data', OLD_DATA);
+            } else {
+                expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'data', OLD_DATA);
+            }
         });
 
         test('a request that existed before the upload is never deleted', async () => {
             jest.spyOn(Transport.prototype, 'getE070').mockResolvedValue(E070);
             jest.spyOn(Transport, 'readBinaryFiles').mockResolvedValue({ header: OLD_HEADER });
-            jest.spyOn(SystemConnector, 'forwardTransport').mockRejectedValue(new Error('forward failed'));
+            failAt('forward');
             const ctx = context({ overwrite: true });
 
             await expect(execute('test', [upload], ctx)).rejects.toThrow();
 
             expect(Transport.prototype.canBeDeleted).not.toHaveBeenCalled();
             expect(Transport.prototype.delete).not.toHaveBeenCalled();
-            expect(Transport.writeBinaryFile).toHaveBeenCalledTimes(1);
             expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'header', OLD_HEADER);
+            //the data file didn't exist before: it is emptied, not restored
+            expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'data', EMPTY);
         });
 
         function failedRun() {
             const ctx = context();
-            ctx.runtime.transport = new Transport('TSTK900001');
+            ctx.output = { trkorr: 'TSTK900001' };
+            ctx.runtime.progress = { queued: false, header: true, data: true, forwarded: true };
             return ctx;
         }
 
@@ -288,24 +369,15 @@ describe('cg3z upload rollback', () => {
             expect(Transport.writeBinaryFile).toHaveBeenLastCalledWith('TSTK900001', 'data', OLD_DATA);
         });
 
-        test('files are not restored when deleting the created request fails', async () => {
+        test('files are not restored when the destructive cleanup fails', async () => {
             const ctx = failedRun();
             ctx.runtime.overwritten = { e070: false, header: OLD_HEADER };
-            jest.spyOn(Transport.prototype, 'getE070').mockResolvedValue(E070);
-            jest.spyOn(Transport.prototype, 'delete').mockRejectedValue(new Error('delete failed'));
+            jest.spyOn(SystemConnector, 'deleteTmsTransport').mockRejectedValue(new Error('queue removal failed'));
 
-            await expect(upload.revert(ctx)).rejects.toThrow('delete failed');
+            await expect(upload.revert(ctx)).rejects.toThrow('queue removal failed');
 
-            expect(Transport.writeBinaryFile).not.toHaveBeenCalled();
-        });
-
-        test('a transport without E070 row is not deleted and does not throw', async () => {
-            const ctx = failedRun();
-
-            await expect(upload.revert(ctx)).resolves.toBeUndefined();
-
-            expect(Transport.prototype.canBeDeleted).not.toHaveBeenCalled();
-            expect(Transport.prototype.delete).not.toHaveBeenCalled();
+            expect(Transport.writeBinaryFile).toHaveBeenCalledWith('TSTK900001', 'data', EMPTY);
+            expect(Transport.writeBinaryFile).not.toHaveBeenCalledWith('TSTK900001', 'header', OLD_HEADER);
         });
     });
 });
