@@ -30,7 +30,7 @@ import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
 import { generateUpdateTransport } from "./generateUpdateTransport";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
-import { ActionLockScope, packageLockResource, resolveInstallPackage } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage } from "../commons/utils";
 import { lockResources } from "./lockResources";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
@@ -388,41 +388,40 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
         }
         if (firstError) throw firstError;
     };
+    if (!retainRollback) {
+        return withLockRelease(release, async () => {
+            const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
+            return { output: result.output };
+        });
+    }
+    let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<InstallWorkflowContext>>>;
     try {
-        if (retainRollback) {
-            const retained = await executeRetainedWorkflow<InstallWorkflowContext>(
-                WORKFLOW_NAME, installWorkflow, context, workflowCallbacks
-            );
-            return {
-                output: retained.context.output,
-                release,
-                rollback: async () => {
-                    let firstError: unknown;
-                    try {
-                        await retained.rollback();
-                    } catch (error) {
-                        firstError = error;
-                    }
-                    try {
-                        await release();
-                    } catch (error) {
-                        firstError ||= error;
-                    }
-                    if (firstError) throw firstError;
-                }
-            };
-        }
-        const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
-        await release();
-        return { output: result.output };
+        retained = await executeRetainedWorkflow<InstallWorkflowContext>(
+            WORKFLOW_NAME, installWorkflow, context, workflowCallbacks
+        );
     } catch (error) {
-        try {
-            await release();
-        } catch {
-            // Preserve the workflow failure; the release failure was already attempted.
-        }
+        await releaseLogged(release);
         throw error;
     }
+    // The locks stay held until the parent calls release (or rollback).
+    return {
+        output: retained.context.output,
+        release,
+        rollback: async () => {
+            let firstError: unknown;
+            try {
+                await retained.rollback();
+            } catch (error) {
+                firstError = error;
+            }
+            try {
+                await release();
+            } catch (error) {
+                firstError ||= error;
+            }
+            if (firstError) throw firstError;
+        }
+    };
 }
 
 /** Internal transactional entry point used when a parent install must retain rollback ownership. */

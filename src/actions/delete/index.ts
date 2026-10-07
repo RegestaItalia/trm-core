@@ -4,7 +4,7 @@ import { TrmPackage } from "../../trmPackage";
 import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
-import { ActionLockScope, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource } from "../commons/utils";
 import { InstallPackageReplacements } from "../install";
 import { init } from "./init";
 import { checkDependants } from "./checkDependants";
@@ -194,41 +194,40 @@ async function runDelete(inputData: DeleteActionInput, retainRollback: boolean, 
         }
         if (firstError) throw firstError;
     };
+    if (!retainRollback) {
+        return withLockRelease(release, async () => {
+            const result = await executeWorkflow<DeleteWorkflowContext>(WORKFLOW_NAME, deleteWorkflow, context, workflowCallbacks);
+            return { output: result.output };
+        });
+    }
+    let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<DeleteWorkflowContext>>>;
     try {
-        if (retainRollback) {
-            const retained = await executeRetainedWorkflow<DeleteWorkflowContext>(
-                WORKFLOW_NAME, deleteWorkflow, context, workflowCallbacks
-            );
-            return {
-                output: retained.context.output,
-                release,
-                rollback: async () => {
-                    let firstError: unknown;
-                    try {
-                        await retained.rollback();
-                    } catch (error) {
-                        firstError = error;
-                    }
-                    try {
-                        await release();
-                    } catch (error) {
-                        firstError ||= error;
-                    }
-                    if (firstError) throw firstError;
-                }
-            };
-        }
-        const result = await executeWorkflow<DeleteWorkflowContext>(WORKFLOW_NAME, deleteWorkflow, context, workflowCallbacks);
-        await release();
-        return { output: result.output };
+        retained = await executeRetainedWorkflow<DeleteWorkflowContext>(
+            WORKFLOW_NAME, deleteWorkflow, context, workflowCallbacks
+        );
     } catch (error) {
-        try {
-            await release();
-        } catch {
-            // Preserve the workflow failure; the release failure was already attempted.
-        }
+        await releaseLogged(release);
         throw error;
     }
+    // The locks stay held until the parent calls release (or rollback).
+    return {
+        output: retained.context.output,
+        release,
+        rollback: async () => {
+            let firstError: unknown;
+            try {
+                await retained.rollback();
+            } catch (error) {
+                firstError = error;
+            }
+            try {
+                await release();
+            } catch (error) {
+                firstError ||= error;
+            }
+            if (firstError) throw firstError;
+        }
+    };
 }
 
 /**

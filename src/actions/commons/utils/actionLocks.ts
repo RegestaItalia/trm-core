@@ -63,25 +63,44 @@ export class ActionLockScope {
             return;
         }
         const keys = [...this.held.values()];
-        await SystemConnector.releaseActionLocks(keys, this.ownerToken);
+        try {
+            await SystemConnector.releaseActionLocks(keys, this.ownerToken);
+        } catch (error) {
+            // Locks never expire: name them so they can be deleted with /ATRM/ACT_LOCK_ADMIN.
+            const resources = keys.map(key => `${key.resourceType} ${key.resourceName}`).join(", ");
+            Logger.warning(`Could not release ${this.actionName} action locks owned by ${this.ownerToken} (${resources}): ${error instanceof Error ? error.message : String(error)}. Delete them with program /ATRM/ACT_LOCK_ADMIN.`);
+            throw error;
+        }
         this.held.clear();
     }
 }
 
-/** Preserve the operation's first failure while still attempting lock cleanup. */
-export async function withActionLockScope<T>(scope: ActionLockScope, work: () => Promise<T>): Promise<T> {
+/**
+ * Runs the work, then releases its locks once. A release failure is logged by the lock scope:
+ * after a success it doesn't reject the committed action, after a failure it never masks it.
+ */
+export async function withLockRelease<T>(release: () => Promise<void>, work: () => Promise<T>): Promise<T> {
     let result: T;
-    let firstError: unknown;
     try {
         result = await work();
     } catch (error) {
-        firstError = error;
+        await releaseLogged(release);
+        throw error;
     }
-    try {
-        await scope.release();
-    } catch (error) {
-        firstError ||= error;
-    }
-    if (firstError) throw firstError;
+    await releaseLogged(release);
     return result;
+}
+
+/** Releases locks whose failure was already logged by their {@link ActionLockScope}. */
+export async function releaseLogged(release: () => Promise<void>): Promise<void> {
+    try {
+        await release();
+    } catch {
+        // Logged with resources and owner token by ActionLockScope.release.
+    }
+}
+
+/** Preserve the operation's result or failure while still attempting lock cleanup. */
+export function withActionLockScope<T>(scope: ActionLockScope, work: () => Promise<T>): Promise<T> {
+    return withLockRelease(() => scope.release(), work);
 }

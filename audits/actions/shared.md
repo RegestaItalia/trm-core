@@ -1,6 +1,6 @@
 # Shared action infrastructure audit
 
-Audit date: 2026-10-04
+Audit date: 2026-10-07
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. This report covers reusable steps, callbacks, and helpers used by more than one action workflow.
 
@@ -17,12 +17,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Where:** [`restoreTransport.ts#L14`](../../src/actions/commons/utils/restoreTransport.ts#L14); used by `revertInstalledPackageCleanup` and every `prepare-*` revert.
 - **Failure:** re-importing the pre-deletion copy or the retained-table backup ends with RC 8/12, yet the revert logs "restored" and resolves. Staging cleanup then proceeds and the TRM record is restored over missing objects; the rollback looks clean.
 - **Fix:** throw when the restore RC exceeds the threshold so the best-effort pass reports it.
-
-### ACT-2026-11 — Medium — Technical — Action-lock release is mishandled
-
-- **Where:** [`actionLocks.ts#L72`](../../src/actions/commons/utils/actionLocks.ts#L72), [`install/index.ts#L378`](../../src/actions/install/index.ts#L378), [`delete/index.ts#L155`](../../src/actions/delete/index.ts#L155).
-- **Failure:** a release error after success turns a committed install/delete/publish/cg3z into a rejection (install's outer `catch` then releases a second time); release errors after a failure are swallowed without logging. Locks are non-expiring and the clients expose no list/break API, so a crash or failed release blocks the package with no recovery path in TRM.
-- **Fix:** log release failures with resources and owner token; after success, warn instead of throwing; never re-run release from the outer catch; provide a TTL or break-lock API server-side.
 
 ### ACT-2026-13 — Medium — Functional — Transport target is not normalized, breaking forwarded-deletion rollback
 
@@ -87,7 +81,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `setTransportTarget` | Zero-target rejection is correct; the returned target is not normalized (ACT-2026-13). |
 | `setLandscapeTarget` | No issue found. |
 | `stopWarning` | No issue found. |
-| `actionLocks` | Owner-token and deduplication logic correct; release lifecycle and non-expiring locks (ACT-2026-11). |
+| `actionLocks` | Owner-token and deduplication logic correct; a failed release is logged with its resources and owner token and never rejects a committed action, never masks a workflow failure, and is attempted once per run (ACT-2026-11, resolved). |
 | `retainedWorkflow` | Run/revert tracking correct; rollback loses diagnostics and cannot be retried (ACT-2026-19). |
 | `withScopedPrefix` | No issue found; restores prefixes in `finally`. |
 | `restoreTransport` / `revertPreparedTransport` | Import return code ignored (ACT-2026-06). |
@@ -97,6 +91,23 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-11 — Resolved — Medium — Technical — Action-lock release is mishandled
+
+`ActionLockScope.release` logs a failed release as a warning naming the action, the owner token,
+every held resource, and the `/ATRM/ACT_LOCK_ADMIN` program that deletes the non-expiring locks
+on SAP, then rethrows and keeps the locks held
+([source](../../src/actions/commons/utils/actionLocks.ts#L61)). `withLockRelease` runs the work
+and then releases exactly once: after a success a release failure no longer rejects the
+committed action, and after a failure it never replaces the workflow error
+([source](../../src/actions/commons/utils/actionLocks.ts#L82)). publish and cg3z use it through
+`withActionLockScope`; install and delete use it for their non-retained runs, and their retained
+runs release only when the workflow fails, so the outer `catch` no longer releases a second time
+([install](../../src/actions/install/index.ts#L391), [delete](../../src/actions/delete/index.ts#L197)).
+A retained run keeps its locks until the parent calls `release`, or `rollback`, which still
+surfaces a release failure after attempting the rollback. Stuck locks are recovered on SAP with
+`/ATRM/ACT_LOCK_ADMIN` ("View and manually delete TRM action locks", package `/ATRM/SERVER`);
+no TTL was added.
+
 ### ACT-2026-12 — Resolved — Medium — Technical — Server authorization check fails open and caches failures
 
 `checkServerAuth` throws on any result other than `true`: the `ClientError` denial, or a generic

@@ -1,5 +1,6 @@
-import { ActionLockScope, actionLockKey, packageLockResource, withActionLockScope } from "./actionLocks";
+import { ActionLockScope, actionLockKey, packageLockResource, withActionLockScope, withLockRelease } from "./actionLocks";
 import { SystemConnector } from "../../../systemConnector";
+import { Logger } from "trm-commons";
 
 describe("persistent action lock scope", () => {
     const acquire = jest.spyOn(SystemConnector, "acquireActionLocks");
@@ -54,5 +55,47 @@ describe("persistent action lock scope", () => {
             throw new Error("work failed");
         })).rejects.toThrow("work failed");
         expect(events).toEqual(["acquire", "work", "release"]);
+    });
+
+    test("a failed release logs the resources and owner token, keeps the locks held and rethrows", async () => {
+        const warning = jest.spyOn(Logger, "warning").mockImplementation(() => undefined);
+        try {
+            const scope = new ActionLockScope("delete");
+            await scope.acquire([{ type: "DEVCLASS", name: "Z_A" }]);
+            release.mockRejectedValueOnce(new Error("release failed"));
+            await expect(scope.release()).rejects.toThrow("release failed");
+            const owner = acquire.mock.calls[0][1];
+            expect(warning).toHaveBeenCalledTimes(1);
+            expect(warning.mock.calls[0][0]).toContain(owner);
+            expect(warning.mock.calls[0][0]).toContain("DEVCLASS Z_A");
+            expect(warning.mock.calls[0][0]).toContain("/ATRM/ACT_LOCK_ADMIN");
+            await scope.release();
+            expect(release).toHaveBeenCalledTimes(2);
+        } finally {
+            warning.mockRestore();
+        }
+    });
+
+    test("a release failure after success is logged and does not reject the committed work", async () => {
+        const warning = jest.spyOn(Logger, "warning").mockImplementation(() => undefined);
+        try {
+            const scope = new ActionLockScope("cg3z");
+            await scope.acquire([{ type: "TRANSPORT", name: "A4HK900001" }]);
+            release.mockRejectedValueOnce(new Error("release failed"));
+            await expect(withActionLockScope(scope, async () => "done")).resolves.toBe("done");
+            expect(release).toHaveBeenCalledTimes(1);
+            expect(warning).toHaveBeenCalledTimes(1);
+        } finally {
+            warning.mockRestore();
+        }
+    });
+
+    test("release runs once after success and once after failure", async () => {
+        let calls = 0;
+        const countRelease = async () => { calls++; throw new Error("release failed"); };
+        await expect(withLockRelease(countRelease, async () => 1)).resolves.toBe(1);
+        expect(calls).toBe(1);
+        await expect(withLockRelease(countRelease, async () => { throw new Error("work failed"); })).rejects.toThrow("work failed");
+        expect(calls).toBe(2);
     });
 });
