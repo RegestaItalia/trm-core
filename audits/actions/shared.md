@@ -24,15 +24,9 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** an unreadable log or a request that never reaches the queue hangs install/publish forever after SAP state changed; rollback never runs.
 - **Fix:** add a deadline or attempt cap and throw; exit early on an error exit code.
 
-### ACT-2026-15 — Medium — Functional — System-package snapshot excludes local-registry packages
-
-- **Where:** [`setSystemPackages.ts#L21`](../../src/actions/commons/setSystemPackages.ts#L21) calls `getInstalledPackages(true)`; locals filtered at [`SystemConnectorBase.ts#L239`](../../src/systemConnector/SystemConnectorBase.ts#L239).
-- **Failure:** a dependency declared with `registry: local` is reported "not found" and `installDependency` throws "has to be installed manually" although it is installed; `delete` misses dependants that were published locally.
-- **Fix:** include locals in the snapshot (or for dependency/dependant matching).
-
 ### ACT-2026-16 — Medium — Technical — Raw input package name used for case-sensitive lookups
 
-- **Where:** [`install/init.ts#L166`](../../src/actions/install/init.ts#L166), [`setInstallDevclass.ts#L56`](../../src/actions/install/setInstallDevclass.ts#L56), [`checkTransports.ts#L254`](../../src/actions/install/checkTransports.ts#L254), [`delete/init.ts#L86`](../../src/actions/delete/init.ts#L86); query at [`SystemConnectorBase.ts#L412`](../../src/systemConnector/SystemConnectorBase.ts#L412).
+- **Where:** [`install/init.ts#L166`](../../src/actions/install/init.ts#L166), [`setInstallDevclass.ts#L56`](../../src/actions/install/setInstallDevclass.ts#L56), [`delete/init.ts#L86`](../../src/actions/delete/init.ts#L86); query at [`SystemConnectorBase.ts#L412`](../../src/systemConnector/SystemConnectorBase.ts#L412).
 - **Failure:** the installed package is found case-insensitively, but mappings are queried with `PACKAGE_NAME EQ '<raw>'`. With "MyPkg" vs stored "mypkg", mappings are empty: install's existing-object check throws "object(s) already exist", and delete's revert restores the record without its mappings.
 - **Fix:** after lookup, use the installed package's stored name and registry.
 
@@ -70,7 +64,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Step/helper | Result |
 |---|---|
 | `check-server-auth` | Fails closed: throws on any result other than `true` and propagates failures of the check itself; clients return only a typed SAP denial and rethrow other errors, and connectors cache only a granted authorization (ACT-2026-12, resolved). |
-| `set-system-packages` | Excludes local-registry packages (ACT-2026-15); writes into caller input (ACT-2026-20). |
+| `set-system-packages` | Reads the snapshot with local-registry packages included, so locally published dependencies and dependants are matched (ACT-2026-15, resolved); writes into caller input (ACT-2026-20). |
 | `workflowCallbacks` | Every action runs through `executeWorkflow`, which collects each revert failure and, after the rollback, throws an `ActionWorkflowRevertError` (a `WorkflowRevertError`) with the step failure and all of them; a clean rollback still throws the step failure (ACT-2026-10, resolved); prefixes overwritten instead of restored (ACT-2026-18). |
 | `setTransportTarget` | Zero-target rejection is correct; the returned target is trimmed and uppercased (ACT-2026-13, resolved). |
 | `setLandscapeTarget` | No issue found. |
@@ -85,6 +79,18 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-15 — Resolved — Medium — Functional — System-package snapshot excludes local-registry packages
+
+`set-system-packages` now reads the snapshot with `getInstalledPackages(true, true)`
+([source](../../src/actions/commons/setSystemPackages.ts#L22)), so packages recorded under the
+local registry are part of it. A dependency declared with `registry: local` that is installed is
+reported `ok` by `check-dependencies` instead of "not found", so the install no longer queues it for
+`install-dependency` (which rejects local packages as "has to be installed manually"), and `delete`
+`check-dependants` sees dependants that were published locally. Every lookup in the snapshot
+matches by name and registry, except the update root lookup of install `check-transports`, which
+matched by name only and could pick a same-named local package; it now uses the package being
+updated (`runtime.update`) ([source](../../src/actions/install/checkTransports.ts#L255)).
+
 ### ACT-2026-13 — Resolved — Medium — Functional — Transport target is not normalized, breaking forwarded-deletion rollback
 
 `setTransportTarget` trims and uppercases an explicit target before validating it and returns the

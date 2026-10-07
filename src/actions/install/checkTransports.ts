@@ -251,7 +251,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         if (existingObjects.length > 0) {
             const sObjs = existingObjects.map(o => `${o.pgmid} ${o.object} ${o.objName}`).join('\n');
             if (context.runtime.update) {
-                const rootPackage = context.rawInput.contextData.systemPackages.find(o => o.packageName === context.rawInput.packageData.name);
+                //the installed package being updated (a same-named package of another registry is a different package)
+                const rootPackage = context.runtime.update;
                 if (rootPackage) {
                     const rootDevclass = rootPackage.getDevclass();
                     if (rootDevclass) {

@@ -14,7 +14,7 @@ No active findings.
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. It rejects duplicate `(name, registry)` keys and invalid or empty version ranges, and normalizes optional input. |
-| 2 | `set-system-packages` | Local-registry packages excluded from the snapshot ([ACT-2026-15](shared.md)). |
+| 2 | `set-system-packages` | No issue found; local-registry packages are included in the snapshot ([ACT-2026-15](shared.md), resolved). |
 | 3 | `analyze` | One ordered result per declaration, each with a `status` (`ok`, `versionMismatch`, `notFound`, `manifestUnreadable`). Installed prerelease versions are matched with `includePrerelease`, so `1.3.0-beta.1` satisfies `>=1.0.0`. |
 
 ## Resolved findings
