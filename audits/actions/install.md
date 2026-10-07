@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-22 — Critical — Functional — Dependency installs inherit the parent's resolved package mappings
-
-- **Where:** [`installDependencies.ts#L83`](../../src/actions/install/installDependencies.ts#L83) clones `installData` after `set-install-devclass` filled `replacements`; only `keepOriginal` is removed. The dependency's [`setInstallDevclass.ts#L53`](../../src/actions/install/setInstallDevclass.ts#L53) skips its stored mappings because the list is non-empty.
-- **Failure:** installing P (renamed packages) with a missing dependency D: D's `generate-devclass` sees P's root as a second root and fails with "Multiple roots found"; with `$` targets it fails "All packages must start with prefix $"; D may pick P's namespace or contend for P's devclass locks; on success P's rows are persisted as D's mappings.
-- **Fix:** build each dependency's `installDevclass` from the user's original input with `replacements: []`.
-
 ### ACT-2026-23 — High — Functional — Upgrades needing a new dependency major are blocked
 
 - **Where:** nested installs receive the snapshot holding the parent's installed manifest ([`installDependencies.ts#L82`](../../src/actions/install/installDependencies.ts#L82)); [`checkDependants.ts#L50`](../../src/actions/install/checkDependants.ts#L50).
@@ -115,9 +109,9 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
 | 10 | `set-install-devclass` | Stored and explicit mappings of devclasses not in the release are dropped before use ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved); wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). The package lock uses the resolved install registry, so local and remote installs of the same package block each other ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). |
-| 12 | `install-dependencies` | Forwards the parent's resolved mappings (ACT-2026-22); transitive installs not merged back (ACT-2026-24). |
+| 12 | `install-dependencies` | Each dependency install starts with no package mappings and resolves its own ([ACT-2026-22](#act-2026-22--resolved--dependency-installs-no-longer-inherit-the-parents-package-mappings), resolved); transitive installs not merged back (ACT-2026-24). |
 | 13 | `add-namespace` | Namespace derived from the target root package, or from the only reserved namespace used by a subpackage; more than one reserved namespace is rejected before any system change ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
-| 14 | `generate-devclass` | Fails with "Multiple roots" on inherited mappings (ACT-2026-22); stale stored mappings no longer reach it ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
+| 14 | `generate-devclass` | A dependency's mappings no longer include the parent's root ([ACT-2026-22](#act-2026-22--resolved--dependency-installs-no-longer-inherit-the-parents-package-mappings), resolved); stale stored mappings no longer reach it ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
 | 15 | `generate-update-transport` | Runs for local (`.trm`) upgrades too, generating the deletion transport through the artifact's real registry ([ACT-2026-32](#act-2026-32--resolved--local-registry-upgrades-clean-up-obsolete-objects), resolved); revert restores nothing over objects left by a failed cleanup of the imported objects ([ACT-2026-08](shared.md), resolved); after a complete restore it deletes the `$` installation's staging package, which the rollback of the imported objects no longer transports ([ACT-2026-09](shared.md), resolved). Deletes the installed release's customizing by key, without asking, before the new customizing is imported, unless `noCust` ([ACT-2026-48](delete.md), resolved). |
 | 16–19 | `prepare-devc`, `prepare-tadir`, `prepare-lang`, `prepare-cust` | Forward flow correct; test-import RC is checked. `prepare-cust` revert is not best-effort (ACT-2026-39). |
 | 20 | `import-batch` | Batch RC ignored (see *Reconsideration of accepted findings*). Rollback drops retained tables (ACT-2026-28), deletes unsnapshotted pre-existing objects (ACT-2026-30). The cleanup deletion transport of a local (`.trm`) install is generated by the registry the artifact was published to ([ACT-2026-27](#act-2026-27--resolved--local-registry-rollback-generates-deletion-transports-through-the-real-registry), resolved). |
@@ -140,6 +134,16 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-22 — Resolved — Dependency installs no longer inherit the parent's package mappings
+
+`install-dependencies` still forwards the parent's install options to each dependency install, but
+resets `installDevclass.replacements` to an empty list (besides dropping `keepOriginal`), so the
+mappings `set-install-devclass` resolved for the parent's devclasses never reach the dependency. The
+dependency's own `set-install-devclass` therefore reads its stored mappings and maps only its own
+devclasses: `generate-devclass` no longer sees the parent's root, the `$` consistency check and
+namespace derivation apply to the dependency alone, and the parent's rows are not persisted as the
+dependency's ([source](../../src/actions/install/installDependencies.ts#L88)).
+
 ### ACT-2026-32 — Resolved — Local-registry upgrades clean up obsolete objects
 
 `generate-update-transport` no longer skips upgrades from a local (`.trm`) artifact. The skip existed

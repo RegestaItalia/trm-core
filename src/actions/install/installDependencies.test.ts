@@ -114,6 +114,27 @@ describe('nested dependency rollback ownership', () => {
         expect(Logger.setPrefix).toHaveBeenLastCalledWith(undefined);
     });
 
+    test('dependencies do not inherit the parent package mappings', async () => {
+        const ctx = context();
+        ctx.rawInput.installData.installDevclass = {
+            keepOriginal: false,
+            transportLayer: 'ZTRL',
+            replacements: [{ originalDevclass: 'ZPARENT', installDevclass: 'ZRENAMED' }]
+        };
+        (installDependency as jest.Mock)
+            .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-one' } }, rollback: jest.fn() })
+            .mockResolvedValueOnce({ installOutput: { manifest: { name: 'dep-two' } }, rollback: jest.fn() });
+
+        await execute('test', [installDependencies], ctx);
+
+        for (const [input] of (installDependency as jest.Mock).mock.calls) {
+            expect(input.installData.installDevclass).toEqual({ transportLayer: 'ZTRL', replacements: [] });
+        }
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
+            { originalDevclass: 'ZPARENT', installDevclass: 'ZRENAMED' }
+        ]);
+    });
+
     test('one dependency rollback failure does not skip earlier dependencies', async () => {
         const ctx = context();
         const rollbackFirst = jest.fn().mockResolvedValue(undefined);
