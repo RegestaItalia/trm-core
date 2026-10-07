@@ -3,7 +3,7 @@ jest.mock('../../systemConnector', () => ({
         getDest: jest.fn(() => 'TST'),
         getObjectsLocks: jest.fn(),
         getObjectsList: jest.fn(),
-        getSupportedBulk: jest.fn(() => ({ getTransportObjects: false })),
+        getSupportedBulk: jest.fn(() => ({ getTransportObjects: false, getExistingObjects: false })),
         getExistingObjects: jest.fn(),
         getSubpackages: jest.fn()
     }

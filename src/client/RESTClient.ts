@@ -541,9 +541,14 @@ export class RESTClient implements IClient {
     }
 
     public async getExistingObjectsBulk(objects: struct.TADIR[]): Promise<struct.TADIR[]> {
+        //the request is mapped onto TADIR fields: object names are matched by OBJ_NAME
         const result = (await this._axiosInstance.get('/get_existing_objs_bulk', {
             data: {
-                objects
+                objects: objects.map(o => ({
+                    pgmid: o.pgmid,
+                    object: o.object,
+                    obj_name: o.objName
+                }))
             }
         })).data;
         return result.tadir;

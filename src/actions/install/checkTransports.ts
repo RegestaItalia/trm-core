@@ -33,7 +33,7 @@ export async function findExistingObjects(context: InstallWorkflowContext, tadir
             }
         }
     });
-    if (!SystemConnector.getSupportedBulk().getTransportObjects) {
+    if (!SystemConnector.getSupportedBulk().getExistingObjects) {
         return SystemConnector.getExistingObjects(checkTadir);
     } else {
         return SystemConnector.getExistingObjectsBulk(checkTadir);

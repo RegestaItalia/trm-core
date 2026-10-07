@@ -11,3 +11,18 @@ describe('RESTClient deleteTmsTransport', () => {
         expect(del).toHaveBeenCalledWith('/delete_tms_transport', { data: { trkorr: 'DEVK9DELE', system: 'QAS' } });
     });
 });
+
+describe('RESTClient getExistingObjectsBulk', () => {
+    it('sends the object names as TADIR OBJ_NAME, otherwise the server matches nothing', async () => {
+        const client = Object.create(RESTClient.prototype) as RESTClient;
+        const tadir = [{ pgmid: 'R3TR', object: 'PROG', objName: 'ZPROG', devclass: 'ZPKG' }];
+        const get = jest.fn().mockResolvedValue({ data: { tadir } });
+        (client as any)._axiosInstance = { get };
+
+        await expect(client.getExistingObjectsBulk([{ pgmid: 'R3TR', object: 'PROG', objName: 'ZPROG', devclass: '' }])).resolves.toEqual(tadir);
+
+        expect(get).toHaveBeenCalledWith('/get_existing_objs_bulk', {
+            data: { objects: [{ pgmid: 'R3TR', object: 'PROG', obj_name: 'ZPROG' }] }
+        });
+    });
+});
