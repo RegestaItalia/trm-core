@@ -4,7 +4,8 @@ jest.mock('../../systemConnector', () => ({
         deleteInstallDevc: jest.fn(),
         restoreInstallMetadata: jest.fn(),
         setInstallTransports: jest.fn(),
-        updateTrmPackageData: jest.fn()
+        updateTrmPackageData: jest.fn(),
+        getTrmPackageData: jest.fn()
     }
 }));
 
@@ -53,6 +54,7 @@ describe('install package metadata writes', () => {
         jest.spyOn(SystemConnector, 'restoreInstallMetadata').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'setInstallTransports').mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'updateTrmPackageData').mockResolvedValue(undefined);
+        jest.spyOn(SystemConnector, 'getTrmPackageData').mockResolvedValue(undefined);
     });
 
     test('records the customizing and translation transports imported on this system', async () => {
@@ -67,13 +69,47 @@ describe('install package metadata writes', () => {
         expect(transportsOrder).toBeLessThan((SystemConnector.updateTrmPackageData as jest.Mock).mock.invocationCallOrder[0]);
     });
 
+    const storedRow = {
+        package_name: 'pkg', package_registry: 'public', manifest: Buffer.from('<old/>'),
+        trkorr: 'DEVK900000', integrity: 'old-sha', devclass: 'ZROOT'
+    };
+
+    test('upgrade reads the stored row before writing anything', async () => {
+        const ctx = context();
+        ctx.runtime.update = {};
+        jest.spyOn(SystemConnector, 'getTrmPackageData').mockResolvedValue(storedRow);
+
+        await updatePackageData.run(ctx);
+
+        expect(SystemConnector.getTrmPackageData).toHaveBeenCalledWith('pkg', 'public');
+        expect((SystemConnector.getTrmPackageData as jest.Mock).mock.invocationCallOrder[0])
+            .toBeLessThan((SystemConnector.setInstallDevc as jest.Mock).mock.invocationCallOrder[0]);
+        expect(ctx.revert.metadataPreviousPackageRow).toBe(storedRow);
+    });
+
+    test('a failed read of the stored row aborts before any write and the revert changes nothing', async () => {
+        const ctx = context();
+        ctx.runtime.update = {};
+        ctx.runtime.previousInstallPackages = [{ originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }];
+        jest.spyOn(SystemConnector, 'getTrmPackageData').mockRejectedValue(new Error('read failed'));
+
+        await expect(execute('metadata-read-test', [updatePackageData], ctx)).rejects.toThrow('read failed');
+
+        expect(SystemConnector.setInstallDevc).not.toHaveBeenCalled();
+        expect(SystemConnector.updateTrmPackageData).not.toHaveBeenCalled();
+        expect(SystemConnector.restoreInstallMetadata).not.toHaveBeenCalled();
+    });
+
+    test('first installs do not read the stored row', async () => {
+        await updatePackageData.run(context());
+
+        expect(SystemConnector.getTrmPackageData).not.toHaveBeenCalled();
+    });
+
     test('upgrade rollback restores the previous install transports with the package row', async () => {
         const ctx = context();
-        const previousRow = {
-            package_name: 'pkg', package_registry: 'public', manifest: Buffer.from('<old/>'),
-            trkorr: 'DEVK900000', integrity: 'old-sha', devclass: 'ZROOT'
-        };
-        ctx.runtime.update = { getMetadataSnapshot: () => previousRow };
+        ctx.runtime.update = {};
+        jest.spyOn(SystemConnector, 'getTrmPackageData').mockResolvedValue(storedRow);
         ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9OLDC', trmType: 'CUST' }];
         jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
 
@@ -81,26 +117,32 @@ describe('install package metadata writes', () => {
         await updatePackageData.revert(ctx);
 
         expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith(expect.objectContaining({
-            package: previousRow,
+            package: storedRow,
             packageExists: true,
             installTr: [{ package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK9OLDC', trm_type: 'CUST' }]
         }));
     });
 
-    test('rollback without a previous row restores transports even when mappings fail', async () => {
+    test('upgrade rollback without a stored row deletes the written row and restores mappings and transports atomically', async () => {
         const ctx = context();
         ctx.runtime.update = {};
         ctx.runtime.previousInstallPackages = [{ originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }];
         ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9OLDC', trmType: 'CUST' }];
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZOLD', installDevclass: 'ZNEW_TARGET' }];
         jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
+
         await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
-        (SystemConnector.setInstallDevc as jest.Mock).mockRejectedValueOnce(new Error('mapping restore failed'));
+        await updatePackageData.revert(ctx);
 
-        await expect(updatePackageData.revert(ctx)).rejects.toThrow('mapping restore failed');
-
-        expect(SystemConnector.setInstallTransports).toHaveBeenLastCalledWith('pkg', 'public', [
-            { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK9OLDC', trm_type: 'CUST' }
-        ]);
+        expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith({
+            package: ctx.revert.metadataPackageRow,
+            packageExists: false,
+            installDevc: [{ package_name: 'pkg', package_registry: 'public', original_devclass: 'ZOLD', install_devclass: 'ZOLD_TARGET' }],
+            installTr: [{ package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK9OLDC', trm_type: 'CUST' }]
+        });
+        // The previous state is restored through the atomic operation only.
+        expect(SystemConnector.setInstallDevc).toHaveBeenCalledTimes(1);
+        expect(SystemConnector.setInstallTransports).toHaveBeenCalledTimes(1);
     });
 
     test('a transports write failure is reverted even without previous mappings', async () => {
@@ -113,7 +155,21 @@ describe('install package metadata writes', () => {
         expect(SystemConnector.updateTrmPackageData).not.toHaveBeenCalled();
         await updatePackageData.revert(ctx);
 
-        expect(SystemConnector.setInstallTransports).toHaveBeenLastCalledWith('pkg', 'public', []);
+        expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith(expect.objectContaining({
+            packageExists: false,
+            installDevc: [],
+            installTr: []
+        }));
+    });
+
+    test('a failed atomic restore is surfaced', async () => {
+        const ctx = context();
+        ctx.runtime.update = {};
+        jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
+        await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
+        jest.spyOn(SystemConnector, 'restoreInstallMetadata').mockRejectedValue(new Error('restore failed'));
+
+        await expect(updatePackageData.revert(ctx)).rejects.toThrow('restore failed');
     });
 
     test('propagates mapping-write failure before package-row write', async () => {
@@ -133,44 +189,10 @@ describe('install package metadata writes', () => {
         expect(SystemConnector.updateTrmPackageData).toHaveBeenCalledTimes(1);
     });
 
-    test('upgrade rollback restores prior install mappings after metadata write failure', async () => {
-        const ctx = context();
-        const failure = new Error('package row write failed');
-        ctx.runtime.update = {};
-        ctx.runtime.previousInstallPackages = [
-            { originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }
-        ];
-        ctx.rawInput.installData.installDevclass.replacements = [
-            { originalDevclass: 'ZOLD', installDevclass: 'ZNEW_TARGET' }
-        ];
-        jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(failure);
-
-        await expect(updatePackageData.run(ctx)).rejects.toBe(failure);
-        expect(ctx.revert.metadataWriteStarted).toBe(true);
-
-        await updatePackageData.revert(ctx);
-        expect(SystemConnector.setInstallDevc).toHaveBeenLastCalledWith([
-            {
-                package_name: 'pkg',
-                package_registry: 'public',
-                original_devclass: 'ZOLD',
-                install_devclass: 'ZOLD_TARGET'
-            }
-        ]);
-    });
-
     test('upgrade rollback atomically restores the previous package row and mappings', async () => {
         const ctx = context();
-        ctx.runtime.update = {
-            getMetadataSnapshot: () => ({
-                package_name: 'pkg',
-                package_registry: 'public',
-                manifest: Buffer.from('<old-manifest/>'),
-                trkorr: 'DEVK900000',
-                integrity: 'old-sha',
-                devclass: 'ZROOT'
-            })
-        };
+        ctx.runtime.update = {};
+        jest.spyOn(SystemConnector, 'getTrmPackageData').mockResolvedValue(storedRow);
         ctx.runtime.previousInstallPackages = [
             { originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }
         ];
@@ -183,7 +205,7 @@ describe('install package metadata writes', () => {
         await updatePackageData.revert(ctx);
 
         expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith({
-            package: ctx.revert.metadataPreviousPackageRow,
+            package: storedRow,
             packageExists: true,
             installDevc: [{
                 package_name: 'pkg',
@@ -198,19 +220,16 @@ describe('install package metadata writes', () => {
 
     test('upgrade rollback restores a previous package row even without install mappings', async () => {
         const ctx = context();
-        const previousRow = {
-            package_name: 'pkg', package_registry: 'public', manifest: Buffer.from('<old/>'),
-            trkorr: 'DEVK900000', integrity: 'old-sha', devclass: 'ZROOT'
-        };
-        ctx.runtime.update = { getMetadataSnapshot: () => previousRow };
+        ctx.runtime.update = {};
         ctx.runtime.previousInstallPackages = [];
         ctx.revert.metadataWriteStarted = true;
-        ctx.revert.metadataPreviousPackageRow = previousRow;
+        ctx.revert.metadataPreviousPackageRead = true;
+        ctx.revert.metadataPreviousPackageRow = storedRow;
 
         await updatePackageData.revert(ctx);
 
         expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith({
-            package: previousRow,
+            package: storedRow,
             packageExists: true,
             installDevc: [],
             installTr: []
@@ -229,7 +248,7 @@ describe('install package metadata writes', () => {
         jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
 
         await expect(execute('metadata-test', [updatePackageData], ctx)).rejects.toThrow('row failed');
-        expect(SystemConnector.setInstallDevc).toHaveBeenCalledTimes(2);
+        expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledTimes(1);
     });
 
     test('workflow execution restores mappings when the first metadata write throws', async () => {
@@ -241,13 +260,14 @@ describe('install package metadata writes', () => {
         ctx.rawInput.installData.installDevclass.replacements = [
             { originalDevclass: 'ZOLD', installDevclass: 'ZNEW_TARGET' }
         ];
-        (SystemConnector.setInstallDevc as jest.Mock)
-            .mockRejectedValueOnce(new Error('mapping response lost'))
-            .mockResolvedValueOnce(undefined);
+        (SystemConnector.setInstallDevc as jest.Mock).mockRejectedValueOnce(new Error('mapping response lost'));
 
         await expect(execute('metadata-first-write-test', [updatePackageData], ctx))
             .rejects.toThrow('mapping response lost');
-        expect(SystemConnector.setInstallDevc).toHaveBeenCalledTimes(2);
+        expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith(expect.objectContaining({
+            packageExists: false,
+            installDevc: [expect.objectContaining({ original_devclass: 'ZOLD', install_devclass: 'ZOLD_TARGET' })]
+        }));
         expect(SystemConnector.updateTrmPackageData).not.toHaveBeenCalled();
     });
 
@@ -268,9 +288,10 @@ describe('install package metadata writes', () => {
         await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
         await updatePackageData.revert(ctx);
 
-        expect(SystemConnector.setInstallDevc).toHaveBeenLastCalledWith([
-            expect.objectContaining({ package_registry: 'https://registry.example' })
-        ]);
+        expect(SystemConnector.getTrmPackageData).toHaveBeenCalledWith('pkg', 'https://registry.example');
+        expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith(expect.objectContaining({
+            installDevc: [expect.objectContaining({ package_registry: 'https://registry.example' })]
+        }));
     });
 
     test('first-install metadata revert does not fabricate a deletion call', async () => {
@@ -350,8 +371,12 @@ describe('install package metadata writes', () => {
             expect(SystemConnector.deleteInstallDevc).toHaveBeenCalledWith([row('ZROOT', 'ZROOT_T'), row('ZREMOVED', 'ZREMOVED_T')]);
         });
 
-        test('a failed deletion is rolled back: added mappings removed and previous mappings restored', async () => {
+        test.each([
+            ['with', storedRow],
+            ['without', undefined]
+        ])('a failed deletion is rolled back %s a stored row: every previous mapping replaces the written ones', async (_, previousRow) => {
             const ctx = upgrade();
+            jest.spyOn(SystemConnector, 'getTrmPackageData').mockResolvedValue(previousRow);
             const failure = new Error('delete response lost');
             (SystemConnector.deleteInstallDevc as jest.Mock).mockRejectedValueOnce(failure);
 
@@ -359,50 +384,12 @@ describe('install package metadata writes', () => {
             expect(SystemConnector.setInstallTransports).not.toHaveBeenCalled();
             await updatePackageData.revert(ctx);
 
-            expect(SystemConnector.deleteInstallDevc).toHaveBeenLastCalledWith([row('ZADDED', 'ZADDED_T')]);
-            expect(SystemConnector.setInstallDevc).toHaveBeenLastCalledWith([row('ZROOT', 'ZROOT_T'), row('ZREMOVED', 'ZREMOVED_T')]);
-            expect(SystemConnector.setInstallTransports).not.toHaveBeenCalled();
-        });
-
-        test('revert keeps restoring after the added-mapping deletion fails and surfaces that failure', async () => {
-            const ctx = upgrade();
-            jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
-            await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
-            (SystemConnector.deleteInstallDevc as jest.Mock).mockRejectedValueOnce(new Error('cleanup failed'));
-            (SystemConnector.setInstallDevc as jest.Mock).mockRejectedValueOnce(new Error('restore failed'));
-
-            await expect(updatePackageData.revert(ctx)).rejects.toThrow('cleanup failed');
-
-            expect(SystemConnector.setInstallDevc).toHaveBeenLastCalledWith([row('ZROOT', 'ZROOT_T'), row('ZREMOVED', 'ZREMOVED_T')]);
-            expect(SystemConnector.setInstallTransports).toHaveBeenLastCalledWith('pkg', 'public', []);
-        });
-
-        test('revert deletes added mappings even without previous mappings', async () => {
-            const ctx = upgrade();
-            ctx.runtime.previousInstallPackages = [];
-            jest.spyOn(SystemConnector, 'setInstallTransports').mockRejectedValueOnce(new Error('transports failed'));
-            await expect(updatePackageData.run(ctx)).rejects.toThrow('transports failed');
-            (SystemConnector.deleteInstallDevc as jest.Mock).mockClear();
-
-            await updatePackageData.revert(ctx);
-
-            expect(SystemConnector.deleteInstallDevc).toHaveBeenCalledWith([row('ZROOT', 'ZROOT_NEW'), row('ZADDED', 'ZADDED_T')]);
-        });
-
-        test('upgrade rollback with a snapshot replaces the mappings atomically', async () => {
-            const ctx = upgrade();
-            const previousRow = { package_name: 'pkg', package_registry: 'public', devclass: 'ZROOT_T' };
-            ctx.runtime.update = { getMetadataSnapshot: () => previousRow };
-            jest.spyOn(SystemConnector, 'updateTrmPackageData').mockRejectedValue(new Error('row failed'));
-            await expect(updatePackageData.run(ctx)).rejects.toThrow('row failed');
-            (SystemConnector.deleteInstallDevc as jest.Mock).mockClear();
-
-            await updatePackageData.revert(ctx);
-
             expect(SystemConnector.restoreInstallMetadata).toHaveBeenCalledWith(expect.objectContaining({
+                packageExists: !!previousRow,
                 installDevc: [row('ZROOT', 'ZROOT_T'), row('ZREMOVED', 'ZREMOVED_T')]
             }));
-            expect(SystemConnector.deleteInstallDevc).not.toHaveBeenCalled();
+            expect(SystemConnector.deleteInstallDevc).toHaveBeenCalledTimes(1);
+            expect(SystemConnector.setInstallDevc).toHaveBeenCalledTimes(1);
         });
     });
 });

@@ -316,7 +316,10 @@ type WorkflowRevert = {
     /** Install package mappings written by this install. */
     metadataInstallDevc?: ZTRM_INSTALLDEVC[],
     metadataPackageRow?: TrmPackageUpdateData,
+    /** TRM packages table row stored before an upgrade wrote its own; undefined when none was stored. */
     metadataPreviousPackageRow?: TrmPackageUpdateData,
+    /** Set once the stored row was read: only then can an upgrade revert restore the metadata. */
+    metadataPreviousPackageRead?: boolean,
     namespace?: string
 }
 

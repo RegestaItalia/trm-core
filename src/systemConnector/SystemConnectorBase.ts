@@ -9,6 +9,7 @@ import { InstallTransport } from "./InstallTransport";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
+import type { TrmPackageUpdateData } from "./ISystemConnector";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
@@ -218,6 +219,25 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       throw new Error(`Package ${TRM_REST_PACKAGE_NAME} was not found.`);
     }
     return oPackage;
+  }
+
+  public async getTrmPackageData(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY): Promise<TrmPackageUpdateData | undefined> {
+    // The backend filter keeps rows matching either the name or the registry: match both here.
+    // trm-server and trm-rest installed through abapGit are listed with a dummy 10000101
+    // timestamp, but no row is stored for them.
+    const row = (await this.getInstalledPackagesBackend({ name: packageName, registry: packageRegistry }))
+      .find(o => o.packageName === packageName && o.packageRegistry === packageRegistry && o.as4Date !== '10000101');
+    if (!row) {
+      return undefined;
+    }
+    return {
+      package_name: row.packageName,
+      package_registry: row.packageRegistry,
+      manifest: Buffer.from(row.manifest, 'utf8'),
+      trkorr: row.trkorr,
+      integrity: row.integrity,
+      devclass: row.devclass
+    };
   }
 
   public async getInstalledPackages(refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }): Promise<TrmPackage[]> {

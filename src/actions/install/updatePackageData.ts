@@ -67,8 +67,12 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
                 : [])
         ]);
         context.revert.metadataPackageRegistry = packageRegistry;
-        if (context.runtime.update && typeof context.runtime.update.getMetadataSnapshot === 'function') {
-            context.revert.metadataPreviousPackageRow = context.runtime.update.getMetadataSnapshot();
+        if (context.runtime.update) {
+            // The installed packages may have been read without their rows: read the stored row
+            // before writing, so the revert restores it exactly, or removes the row it wrote.
+            // A failed read aborts before any write.
+            context.revert.metadataPreviousPackageRow = await SystemConnector.getTrmPackageData(context.runtime.package.data.manifest.name, packageRegistry);
+            context.revert.metadataPreviousPackageRead = true;
         }
         context.revert.metadataPackageRow = {
             package_name: context.runtime.package.data.manifest.name,
@@ -94,8 +98,7 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
         await SystemConnector.updateTrmPackageData(context.revert.metadataPackageRow);
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
-        // Restore the exact persisted row when available; first installs remove
-        // the newly written row through the same atomic SAP operation.
+        // First installs remove the newly written row through the same atomic SAP operation.
         if (!context.revert.metadataWriteStarted) {
             return;
         }
@@ -110,56 +113,18 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
             }
             return;
         }
-        const previousInstallTransports = context.runtime.previousInstallTransports || [];
-        // Mappings this install added: the previous rows don't overwrite them on restore.
-        const addedInstallDevc = (context.revert.metadataInstallDevc || []).filter(
-            o => !context.runtime.previousInstallPackages.some(previous => previous.originalDevclass === o.original_devclass)
-        );
-        if (context.runtime.previousInstallPackages.length === 0 && addedInstallDevc.length === 0
-            && !context.revert.metadataPreviousPackageRow && !context.revert.metadataTransportsWriteStarted) {
+        if (!context.revert.metadataPreviousPackageRead) {
             return;
         }
-        const packageRegistry = context.revert.metadataPreviousPackageRow?.package_registry
-            || context.revert.metadataPackageRegistry;
-        if (!packageRegistry) {
-            return;
-        }
-        const previousInstallDevc = installDevcRows(context.rawInput.packageData.name, packageRegistry, context.runtime.previousInstallPackages);
-        const previousInstallTr = installTransportRows(context.rawInput.packageData.name, packageRegistry, previousInstallTransports);
-        if (context.revert.metadataPreviousPackageRow) {
-            await SystemConnector.restoreInstallMetadata({
-                package: context.revert.metadataPreviousPackageRow,
-                packageExists: true,
-                installDevc: previousInstallDevc,
-                installTr: previousInstallTr
-            });
-            return;
-        }
-        // Without a snapshot the writes are restored separately: attempt each.
-        let firstError: unknown;
-        if (addedInstallDevc.length > 0) {
-            try {
-                await SystemConnector.deleteInstallDevc(addedInstallDevc);
-            } catch (error) {
-                firstError = error;
-            }
-        }
-        if (previousInstallDevc.length > 0) {
-            try {
-                await SystemConnector.setInstallDevc(previousInstallDevc);
-            } catch (error) {
-                firstError ||= error;
-            }
-        }
-        if (context.revert.metadataTransportsWriteStarted) {
-            try {
-                await SystemConnector.setInstallTransports(context.rawInput.packageData.name, packageRegistry, previousInstallTr);
-            } catch (error) {
-                firstError ||= error;
-            }
-        }
-        if (firstError) {
-            throw firstError;
-        }
+        // One atomic SAP operation restores the row read before writing (or deletes the row this
+        // install wrote when none was stored) and replaces the mappings and install transports.
+        const previousRow = context.revert.metadataPreviousPackageRow;
+        const packageRow = previousRow || context.revert.metadataPackageRow;
+        await SystemConnector.restoreInstallMetadata({
+            package: packageRow,
+            packageExists: !!previousRow,
+            installDevc: installDevcRows(context.rawInput.packageData.name, packageRow.package_registry, context.runtime.previousInstallPackages),
+            installTr: installTransportRows(context.rawInput.packageData.name, packageRow.package_registry, context.runtime.previousInstallTransports || [])
+        });
     }
 }

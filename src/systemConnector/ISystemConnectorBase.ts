@@ -7,6 +7,7 @@ import { InstallTransport } from "./InstallTransport";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { TrmManifestEngineTableCondition } from "../manifest";
+import type { TrmPackageUpdateData } from "./ISystemConnector";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
@@ -14,6 +15,7 @@ export interface ISystemConnectorBase {
     getIgnoredTrkorr: () => Promise<components.TRKORR[]>,
     getObject: (pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<struct.TADIR>,
     getInstalledPackages: (refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }) => Promise<TrmPackage[]>,
+    getTrmPackageData: (packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY) => Promise<TrmPackageUpdateData | undefined>,
     getDevclass: (devclass: components.DEVCLASS) => Promise<struct.TDEVC>,
     getSubpackages: (devclass: components.DEVCLASS) => Promise<struct.TDEVC[]>,
     getNamespacePackages: (namespace: components.NAMESPACE) => Promise<struct.TDEVC[]>,

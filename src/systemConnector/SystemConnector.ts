@@ -102,6 +102,16 @@ export namespace SystemConnector {
         return systemConnector.getInstalledPackages(refresh, includeLocals, filter);
     }
 
+    /**
+     * Reads the TRM packages table row of a package, bypassing the installed packages cache.
+     * Resolves `undefined` when no row is stored; a failed read throws. Like the installed packages,
+     * a row whose SAP package or transport is no longer on the system is not listed.
+     */
+    export async function getTrmPackageData(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY): Promise<TrmPackageUpdateData | undefined> {
+        await checkSystemConnector();
+        return systemConnector.getTrmPackageData(packageName, packageRegistry);
+    }
+
     export async function getDevclass(devclass: DEVCLASS): Promise<TDEVC> {
         await checkSystemConnector();
         return systemConnector.getDevclass(devclass);

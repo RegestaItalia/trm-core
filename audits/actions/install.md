@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-31 — Medium — Functional — `update-package-data` revert is incomplete without a metadata snapshot
-
-- **Where:** [`updatePackageData.ts#L97`](../../src/actions/install/updatePackageData.ts#L97), [`#L119`](../../src/actions/install/updatePackageData.ts#L119).
-- **Failure:** when packages were not read through the backend API, an upgrade revert restores only mappings (or nothing); the new version/trkorr row survives over rolled-back objects, notably in parent-driven dependency rollbacks.
-- **Fix:** read the row directly before writing, or fail forward when restore cannot be guaranteed.
-
 ### ACT-2026-33 — Medium — Functional — Namespace carry-over for new devclasses uses the wrong pattern
 
 - **Where:** [`setInstallDevclass.ts#L79`](../../src/actions/install/setInstallDevclass.ts#L79), [`#L108`](../../src/actions/install/setInstallDevclass.ts#L108).
@@ -65,7 +59,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 21 | `generate-landscape-transport` | A namespace locked in another transport is omitted with a warning naming the locking transport ([ACT-2026-44](#act-2026-44--resolved--locked-namespace-is-omitted-from-the-landscape-transport-with-a-warning), resolved). |
 | 22 | `execute-post-activities` | Global prefix clobbered ([ACT-2026-18](shared.md)). `&LANDSCAPE_TRANSPORT&` intentionally resolves to an empty string without a landscape transport (ACT-2026-43, non-relevant). |
 | 23 | `release-install-transports` | On rollback, a released landscape transport and the forwarded deletion transport are removed from the target import queue when it is the connected system; for another system the revert warns the operator to remove them in STMS ([ACT-2026-29](#act-2026-29--resolved--a-released-landscape-transport-is-removed-from-the-connected-systems-queue-otherwise-reported), resolved); unbounded release wait ([ACT-2026-14](shared.md)). |
-| 24 | `update-package-data` | Revert incomplete without a metadata snapshot (ACT-2026-31). After writing the new mappings, deletes the stored rows of devclasses no longer installed through `deleteInstallDevc`; without a metadata snapshot, the revert deletes the mappings this install added and re-upserts the previous ones, attempting each and surfacing the first failure ([ACT-2026-90](#act-2026-90--resolved--mappings-of-removed-devclasses-are-deleted), resolved). Records the imported CUST and LANG transports in `/ATRM/INSTALLTR` and restores the previous ones on revert ([ACT-2026-48](delete.md), resolved). |
+| 24 | `update-package-data` | On upgrades, reads the stored TRM packages row through `getTrmPackageData` before any write, aborting when the read fails; the revert restores the metadata in one atomic SAP operation: the stored row, or the deletion of the written row when none was stored, with the previous mappings and install transports ([ACT-2026-31](#act-2026-31--resolved--upgrade-metadata-revert-restores-the-row-read-before-writing), resolved). After writing the new mappings, deletes the stored rows of devclasses no longer installed through `deleteInstallDevc`; the atomic revert replaces them with the previous ones ([ACT-2026-90](#act-2026-90--resolved--mappings-of-removed-devclasses-are-deleted), resolved). Records the imported CUST and LANG transports in `/ATRM/INSTALLTR` and restores the previous ones on revert ([ACT-2026-48](delete.md), resolved). |
 
 ## Reconsideration of accepted findings
 
@@ -81,6 +75,12 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-31 — Resolved — Upgrade metadata revert restores the row read before writing
+
+- **Where:** [`updatePackageData.ts`](../../src/actions/install/updatePackageData.ts); [`SystemConnectorBase.getTrmPackageData`](../../src/systemConnector/SystemConnectorBase.ts).
+- **Was:** the previous TRM packages row came only from the snapshot set when the installed packages were read through the backend API. Without it, an upgrade revert restored only the mappings (or nothing): the new version and transport row survived over rolled-back objects, notably in parent-driven dependency rollbacks.
+- **Fix:** on upgrades, `update-package-data` reads the stored row through the new `SystemConnector.getTrmPackageData` (`/ATRM/GET_INSTALLED_PACKAGES` and REST `get_installed_packages`, filtered by name and registry, matched exactly on both; the entries listed for trm-server/trm-rest installed through abapGit have no row) before any write; a failed read aborts before writing. The revert always uses `restoreInstallMetadata` (`/ATRM/SET_INSTALL_DEVC`), which atomically writes the stored row or, when none was stored, deletes the written one, and replaces the mappings and install transports with the previous ones. A row the backend can't list (its SAP package or transport no longer on the system) is read as missing, and removed by the revert. Covered by [`updatePackageData.test.ts`](../../src/actions/install/updatePackageData.test.ts) and [`SystemConnectorBase.packageData.test.ts`](../../src/systemConnector/SystemConnectorBase.packageData.test.ts).
+
 ### ACT-2026-30 — Resolved — Existing objects are backed up and restored instead of deleted on rollback
 
 - **Where:** [`importBatch.ts`](../../src/actions/install/importBatch.ts) `backupExistingObjects`, `restoreExistingObjects`, `cleanupEntries`.
