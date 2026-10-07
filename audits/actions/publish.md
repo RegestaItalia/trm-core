@@ -17,18 +17,12 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Where:** check in `init`, locks in [`publish/lockResources.ts#L8`](../../src/actions/publish/lockResources.ts#L8) after the prompt steps.
 - **Fix:** re-read objects and SAP locks in `lock-resources`.
 
-### ACT-2026-67 — Low — Technical — Prompted version is not cleaned
-
-- **Where:** [`publish/init.ts#L204`](../../src/actions/publish/init.ts#L204).
-- **Failure:** `v1.2.4` is stored raw (duplicate check, transport text and comment disagree with the manifest).
-- **Fix:** store `clean(v)`.
-
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
-| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); a local publish never reads the overwritten target file as its latest release (ACT-2026-56, resolved); an automatic version increments the latest release as requested, without applying `preRelease` (ACT-2026-60, non-relevant); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
+| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); a local publish never reads the overwritten target file as its latest release (ACT-2026-56, resolved); an automatic version increments the latest release as requested, without applying `preRelease` (ACT-2026-60, non-relevant); a prompted version is cleaned before the duplicate check and before it is stored (ACT-2026-67, resolved). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
 | 6 | `set-manifest-values` | Engines are validated strictly on the final manifest, whatever their source (ACT-2026-59, resolved). The public-registry length limits on description, website and git are checked in the prompts and again on the normalized manifest, so non-interactive and copied values are enforced too (ACT-2026-65, resolved). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
@@ -40,6 +34,13 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-67 — Resolved — Low — Technical — Prompted version is not cleaned
+
+The version entered at the automatic-version prompt is cleaned with `clean` both in the prompt
+validation, so the duplicate check compares the stored form, and before it is stored
+([source](../../src/actions/publish/init.ts#L224)). Before, an input such as `v1.2.4` passed the
+duplicate check and was stored raw, so the transport text and comment disagreed with the manifest.
+
 ### ACT-2026-59 — Resolved — Medium — Functional — Non-interactive engines are validated non-strictly
 
 `set-manifest-values` validates the engines strictly before normalizing the manifest, whatever their

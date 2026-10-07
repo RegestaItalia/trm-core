@@ -207,7 +207,7 @@ export const init: Step<PublishWorkflowContext> = {
         if (automaticVersion) {
             Logger.info(`Automatically set publish version to "${context.rawInput.packageData.version}"`);
             if (!context.rawInput.contextData.noInquirer) {
-                context.rawInput.packageData.version = (await Inquirer.prompt([{
+                const promptedVersion: string = (await Inquirer.prompt([{
                     type: 'confirm',
                     message: `Continue publish as version "${context.rawInput.packageData.version}"?`,
                     default: true,
@@ -221,12 +221,14 @@ export const init: Step<PublishWorkflowContext> = {
                         return !hash.acceptDefaultVersion;
                     },
                     validate: (v) => {
-                        if (valid(v)) {
+                        //compare the version as it will be stored (cleaned)
+                        const version = clean(v || '');
+                        if (version) {
                             const publishedVersions = context.runtime.latest.data
                                 ? context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions)
                                 : [];
-                            if (publishedVersions.includes(v)) {
-                                return `Version "${v}" is already published.`;
+                            if (publishedVersions.includes(version)) {
+                                return `Version "${version}" is already published.`;
                             } else {
                                 return true;
                             }
@@ -234,7 +236,8 @@ export const init: Step<PublishWorkflowContext> = {
                             return `Invalid version`;
                         }
                     }
-                }])).version || context.rawInput.packageData.version;
+                }])).version;
+                context.rawInput.packageData.version = clean(promptedVersion || '') || context.rawInput.packageData.version;
             }
         }
 

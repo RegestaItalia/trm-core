@@ -10,12 +10,12 @@ jest.mock('../../validators', () => ({
     validateDevclass: jest.fn(async () => true)
 }));
 
-import { Logger } from 'trm-commons';
+import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { RegistryType } from '../../registry';
 import { init } from './init';
 
-describe('publish latest release lookup', () => {
+describe('publish version resolution', () => {
     //an existing artifact of another package, with customizing
     const existing = {
         name: 'other',
@@ -26,7 +26,7 @@ describe('publish latest release lookup', () => {
         transports: [{ trkorr: 'TESTK900010', type: 'CUST' }]
     };
 
-    function context(registryType: RegistryType, version?: string) {
+    function context(registryType: RegistryType, version?: string, noInquirer: boolean = true) {
         return {
             rawInput: {
                 packageData: {
@@ -40,7 +40,7 @@ describe('publish latest release lookup', () => {
                         validatePublish: jest.fn(async () => undefined)
                     }
                 },
-                contextData: { noInquirer: true, systemPackages: [] },
+                contextData: { noInquirer, systemPackages: [] },
                 publishData: { private: true }
             }
         } as any;
@@ -91,6 +91,29 @@ describe('publish latest release lookup', () => {
         await run(ctx);
         expect(ctx.rawInput.packageData.registry.getPackage).toHaveBeenCalledWith('pkg', 'latest');
         expect(ctx.runtime.latest.data).toBe(existing);
+        expect(ctx.rawInput.packageData.version).toBe('3.2.2');
+    });
+
+    test('prompted version is cleaned before it is stored', async () => {
+        const questions: any[] = [];
+        jest.spyOn(Inquirer, 'prompt').mockImplementation(async (q: any) => {
+            questions.push(...q);
+            return { acceptDefaultVersion: false, version: ' v3.3.0 ' };
+        });
+        const ctx = context(RegistryType.PRIVATE, undefined, false);
+        await run(ctx);
+        expect(ctx.rawInput.packageData.version).toBe('3.3.0');
+        expect(ctx.rawInput.packageData.registry.validatePublish).toHaveBeenCalledWith('pkg', '3.3.0', true);
+        const validate = questions.find(q => q.name === 'version').validate;
+        expect(validate('v3.2.1')).toBe('Version "3.2.1" is already published.');
+        expect(validate('=3.3.0')).toBe(true);
+        expect(validate('latest')).toBe('Invalid version');
+    });
+
+    test('accepted automatic version is kept', async () => {
+        jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ acceptDefaultVersion: true });
+        const ctx = context(RegistryType.PRIVATE, undefined, false);
+        await run(ctx);
         expect(ctx.rawInput.packageData.version).toBe('3.2.2');
     });
 });
