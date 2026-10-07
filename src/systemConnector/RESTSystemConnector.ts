@@ -55,7 +55,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     private _lang: string;
     private _user: string;
     protected _client: RESTClient;
-    private _isServerApisAllowed: true | RESTClientError;
+    private _isServerApisAllowed?: true;
 
     supportedBulk: SystemConnectorSupportedBulk;
     isStateless: boolean = true;
@@ -341,10 +341,15 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     public async isServerApisAllowed(): Promise<true | ClientError> {
-        if (this._isServerApisAllowed === undefined) {
-            this._isServerApisAllowed = await this._client.isServerApisAllowed();
+        if (this._isServerApisAllowed) {
+            return this._isServerApisAllowed;
         }
-        return this._isServerApisAllowed;
+        // Only a granted authorization is cached: a denial may be transient and is checked again.
+        const auth = await this._client.isServerApisAllowed();
+        if (auth === true) {
+            this._isServerApisAllowed = auth;
+        }
+        return auth;
     }
 
     public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {

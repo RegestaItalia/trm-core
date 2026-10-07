@@ -667,7 +667,11 @@ export class RESTClient implements IClient {
             await this._axiosInstance.post('/check_auth');
             return true;
         } catch (e) {
-            return e;
+            // Only a SAP error is an authorization result: anything else (e.g. a timeout) is rethrown.
+            if (e instanceof RESTClientError) {
+                return e;
+            }
+            throw e;
         }
     }
 

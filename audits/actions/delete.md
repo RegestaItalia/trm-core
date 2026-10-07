@@ -18,7 +18,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Order | Step | Result |
 |---:|---|---|
 | — | package lock (pre-workflow) | Lock lifecycle issues ([ACT-2026-11](shared.md)). |
-| 1 | `check-server-auth` | Shared [ACT-2026-12](shared.md). |
+| 1 | `check-server-auth` | Fails closed on any result other than a granted authorization ([ACT-2026-12](shared.md), resolved). |
 | 2 | `set-system-packages` | Local-registry dependants missed ([ACT-2026-15](shared.md)); a missing record snapshot (backend read failed) is re-read by `init` (ACT-2026-51, resolved). |
 | 3 | `init` | Reads the install mappings, the recorded install transports and the TRM packages installed under the package; raw package name for mapping lookup ([ACT-2026-16](shared.md)); re-reads a missing TRM packages table record and aborts before any change when it still can't be read (ACT-2026-51, resolved); dirty packages need confirmation, or the `ignoreDirty` check without prompts; aborts state the reason (ACT-2026-53, resolved). |
 | 4 | `check-dependants` | Packages deleted by the same run are ignored (ACT-2026-47, non-relevant); no additional issue beyond [ACT-2026-15](shared.md). |

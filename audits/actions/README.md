@@ -40,8 +40,8 @@ feature, missing case).
 | `install-dependency` | 6 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 24 | 1 | 4 | 8 | 3 | [Package install](install.md) |
 | `publish` | 15 | 0 | 1 | 3 | 4 | [Package publish](publish.md) |
-| Shared steps/callbacks | 12 | 1 | 1 | 7 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **2** | **7** | **19** | **11** | |
+| Shared steps/callbacks | 12 | 1 | 1 | 6 | 4 | [Shared infrastructure](shared.md) |
+| **Total** | | **2** | **7** | **18** | **11** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the

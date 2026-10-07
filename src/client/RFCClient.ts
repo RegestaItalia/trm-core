@@ -742,7 +742,11 @@ export class RFCClient implements IClient {
             await this._call("/ATRM/CHECK_AUTH");
             return true;
         } catch (e) {
-            return e;
+            // Only a SAP error is an authorization result: anything else (e.g. a timeout) is rethrown.
+            if (e instanceof RFCClientError) {
+                return e;
+            }
+            throw e;
         }
     }
 

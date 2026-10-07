@@ -104,7 +104,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `check-server-auth` | Shared [ACT-2026-12](shared.md). |
+| 1 | `check-server-auth` | Fails closed on any result other than a granted authorization ([ACT-2026-12](shared.md), resolved). |
 | 2 | `set-system-packages` | Snapshot excludes local-registry packages ([ACT-2026-15](shared.md)) and is never refreshed for transitive installs (ACT-2026-24). |
 | 3 | `init` | Raw package name used for lookups ([ACT-2026-16](shared.md)); a local (`.trm`) artifact is resolved to the registry it was published to (`runtime.installRegistry`), used for the mapping and transport lookups ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). An explicit transport layer is validated; the system default is no longer looked up here ([ACT-2026-42](#act-2026-42--resolved--transport-layer-is-required-only-for-generated-transportable-packages), resolved). Revert is the only cleanup point for early failures (ACT-2026-37). |
 | 4 | `check-dependants` | Correct on its own, but blocks nested dependency upgrades against the parent's old manifest (ACT-2026-23). |

@@ -17,7 +17,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `check-server-auth` | Fails open on non-`ClientError` failures ([ACT-2026-12](shared.md)). |
+| 1 | `check-server-auth` | Fails closed on any result other than a granted authorization ([ACT-2026-12](shared.md), resolved). |
 | 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and the TMS text is refreshed only for an overwritten transport (a non-fatal refresh failure is logged with its error message). Archive entries are matched by case-insensitive basename (`K`/`R` + number + `.` + 3-character SID), directories and unrelated files are ignored, and the transport number is uppercased. Before writing, an existing transport (E070 entry, header or data file) is detected and overwritten only per `uploadData.overwrite`, after a confirmation prompt, or never with `noInquirer`; overwritten files are snapshotted and restored on rollback, and a request that existed before the run is never deleted. Rollback of newly uploaded transports is still ineffective (ACT-2026-85). |
 
 ## Resolved findings

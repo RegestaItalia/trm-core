@@ -22,7 +22,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     private _lang: string;
     private _user: string;
     protected _client: RFCClient;
-    private _isServerApisAllowed: true | RFCClientError;
+    private _isServerApisAllowed?: true;
 
     supportedBulk: SystemConnectorSupportedBulk = {
         getTransportObjects: false,
@@ -285,10 +285,15 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     }
 
     public async isServerApisAllowed(): Promise<true | ClientError> {
-        if (this._isServerApisAllowed === undefined) {
-            this._isServerApisAllowed = await this._client.isServerApisAllowed();
+        if (this._isServerApisAllowed) {
+            return this._isServerApisAllowed;
         }
-        return this._isServerApisAllowed;
+        // Only a granted authorization is cached: a denial may be transient and is checked again.
+        const auth = await this._client.isServerApisAllowed();
+        if (auth === true) {
+            this._isServerApisAllowed = auth;
+        }
+        return auth;
     }
 
     public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {

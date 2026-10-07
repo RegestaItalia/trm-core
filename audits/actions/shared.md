@@ -24,12 +24,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** a release error after success turns a committed install/delete/publish/cg3z into a rejection (install's outer `catch` then releases a second time); release errors after a failure are swallowed without logging. Locks are non-expiring and the clients expose no list/break API, so a crash or failed release blocks the package with no recovery path in TRM.
 - **Fix:** log release failures with resources and owner token; after success, warn instead of throwing; never re-run release from the outer catch; provide a TTL or break-lock API server-side.
 
-### ACT-2026-12 — Medium — Technical — Server authorization check fails open and caches failures
-
-- **Where:** [`checkServerAuth.ts#L16`](../../src/actions/commons/checkServerAuth.ts#L16); clients return any caught error ([`RESTClient.ts#L648`](../../src/client/RESTClient.ts#L648)); REST interceptor rethrows non-SAP errors untyped; result cached in [`RESTSystemConnector.ts#L335`](../../src/systemConnector/RESTSystemConnector.ts#L335).
-- **Failure:** a timeout or an HTTP 403/404 without a SAP message is not a `ClientError`, so the check passes. A transient `ClientError` is cached until reconnect.
-- **Fix:** treat any non-`true` value as failure and cache only `true`.
-
 ### ACT-2026-13 — Medium — Functional — Transport target is not normalized, breaking forwarded-deletion rollback
 
 - **Where:** [`setTransportTarget.ts#L66`](../../src/actions/commons/prompts/setTransportTarget.ts#L66) returns raw input; `forwardTransport` uppercases but `deleteTmsTransport` does not ([`RFCClient.ts#L629`](../../src/client/RFCClient.ts#L629)).
@@ -87,7 +81,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 | Step/helper | Result |
 |---|---|
-| `check-server-auth` | Fails open on non-`ClientError` failures and caches failures (ACT-2026-12). |
+| `check-server-auth` | Fails closed: throws on any result other than `true` and propagates failures of the check itself; clients return only a typed SAP denial and rethrow other errors, and connectors cache only a granted authorization (ACT-2026-12, resolved). |
 | `set-system-packages` | Excludes local-registry packages (ACT-2026-15); writes into caller input (ACT-2026-20). |
 | `workflowCallbacks` | Every action runs through `executeWorkflow`, which collects each revert failure and, after the rollback, throws an `ActionWorkflowRevertError` (a `WorkflowRevertError`) with the step failure and all of them; a clean rollback still throws the step failure (ACT-2026-10, resolved); prefixes overwritten instead of restored (ACT-2026-18). |
 | `setTransportTarget` | Zero-target rejection is correct; the returned target is not normalized (ACT-2026-13). |
@@ -103,6 +97,24 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-12 — Resolved — Medium — Technical — Server authorization check fails open and caches failures
+
+`checkServerAuth` throws on any result other than `true`: the `ClientError` denial, or a generic
+error for any other value ([source](../../src/actions/commons/checkServerAuth.ts#L16)). Both clients
+return only their typed SAP error (`RESTClientError`/`RFCClientError`) as a denial and rethrow any
+other error, such as a timeout or an HTTP 403/404 without a SAP message
+([REST](../../src/client/RESTClient.ts#L665), [RFC](../../src/client/RFCClient.ts#L740)), so a
+failed check propagates out of the step. Both connectors cache only a granted authorization: a
+denial or a failed check is checked again on the next call
+([REST](../../src/systemConnector/RESTSystemConnector.ts#L343),
+[RFC](../../src/systemConnector/RFCSystemConnector.ts#L287)). The public `true | ClientError`
+signature is unchanged and now accurate. The RFC client wraps connection failures in
+`RFCClientError`, so there they surface as an uncached denial. Backend contract checked on SAP:
+`/ATRM/CHECK_AUTH` raises `TRM_RFC_UNAUTHORIZED` with a T100 message, and
+`/ATRM/CL_REST_RESOURCE->handle_request` answers a denied route with HTTP 401 and a JSON `message`
+built from `sy`, which the REST interceptor turns into a `RESTClientError`; an HTTP 401 without
+that body (e.g. a failed SAP logon) is rethrown.
+
 ### ACT-2026-10 — Resolved — Medium — Technical — Rollback failures never reach the caller
 
 Every action workflow (and `executeRetainedWorkflow`) runs through `executeWorkflow`

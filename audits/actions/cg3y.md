@@ -13,7 +13,7 @@ No active findings.
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `check-server-auth` | Fails open on non-`ClientError` failures ([ACT-2026-12](shared.md)). |
+| 1 | `check-server-auth` | Fails closed on any result other than a granted authorization ([ACT-2026-12](shared.md), resolved). |
 | 2 | `download` | Read-only. Validates the transport number format, rejects tasks, unreleased and local (no target system) requests, and empty export files before building the ZIP. |
 
 ## Resolved findings
