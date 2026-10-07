@@ -10,11 +10,13 @@ import { setManifestValues } from './setManifestValues';
 
 const systemEnginesMock = getSystemEngines as jest.Mock;
 const SYSTEM_ENGINES = { components: { SAP_BASIS: [{ release: '758', sp: '>=2' }, { release: '>758' }] } };
+//a new engines declaration is prefilled with the trm-core version in use
+const TRM_ENGINES = { trm: { 'trm-core': '>=9.4.0' } };
 
 function context(options: { noInquirer?: boolean, engines?: any, latestEngines?: any } = {}) {
     return {
         rawInput: {
-            contextData: { noInquirer: !!options.noInquirer },
+            contextData: { noInquirer: !!options.noInquirer, coreVersion: '9.4.0' },
             publishData: { keepLatestReleaseManifestValues: true },
             packageData: {
                 registry: { getRegistryType: () => RegistryType.LOCAL, endpoint: 'local' }
@@ -77,10 +79,12 @@ describe('publish setManifestValues engines prompt', () => {
         const questions = mockPrompt({ editEngines: true });
         const ctx = context();
         await setManifestValues.run(ctx);
-        const tables = questions.filter(q => ['components', 'products', 'notes', 'tables'].includes(q.name));
-        expect(tables.map(q => q.name)).toEqual(['components', 'products', 'notes', 'tables']);
-        expect(tables[0].ui.value).toEqual([{ name: 'SAP_BASIS', notInstalled: false, constraints: [{ release: '758', sp: '>=2' }, { release: '>758' }] }]);
-        expect(ctx.runtime.manifest.engines).toEqual(SYSTEM_ENGINES);
+        const tables = questions.filter(q => ['trm', 'components', 'products', 'notes', 'tables'].includes(q.name));
+        expect(tables.map(q => q.name)).toEqual(['trm', 'components', 'products', 'notes', 'tables']);
+        expect(tables[0].ui.value).toEqual([{ name: 'trm-core', version: '>=9.4.0' }]);
+        expect(tables[1].ui.value).toEqual([{ name: 'SAP_BASIS', notInstalled: false, constraints: [{ release: '758', sp: '>=2' }, { release: '>758' }] }]);
+        expect(ctx.runtime.manifest.engines).toEqual({ ...TRM_ENGINES, ...SYSTEM_ENGINES });
+        expect(Object.keys(ctx.runtime.manifest.engines)[0]).toBe('trm');
     });
 
     test('UI: the system template starts empty', async () => {
@@ -90,7 +94,24 @@ describe('publish setManifestValues engines prompt', () => {
         const ctx = context();
         await setManifestValues.run(ctx);
         expect(questions.find(q => q.name === 'components').ui.value).toEqual([]);
-        expect(ctx.runtime.manifest.engines).toBeUndefined();
+        expect(ctx.runtime.manifest.engines).toEqual(TRM_ENGINES);
+    });
+
+    test('UI: existing engines are not prefilled with trm', async () => {
+        (Inquirer.isUi as jest.Mock).mockReturnValue(true);
+        const questions = mockPrompt({ editEngines: true });
+        const ctx = context({ engines: { components: { SAP_BASIS: true } } });
+        await setManifestValues.run(ctx);
+        expect(questions.find(q => q.name === 'trm').ui.value).toEqual([]);
+        expect(ctx.runtime.manifest.engines).toEqual({ components: { SAP_BASIS: true } });
+    });
+
+    test('UI: removing the trm rows removes the trm engines', async () => {
+        (Inquirer.isUi as jest.Mock).mockReturnValue(true);
+        mockPrompt({ editEngines: true, trm: [] });
+        const ctx = context();
+        await setManifestValues.run(ctx);
+        expect(ctx.runtime.manifest.engines).toEqual(SYSTEM_ENGINES);
     });
 
     test('UI: table answers and anyOf build the engines', async () => {
@@ -147,7 +168,7 @@ describe('publish setManifestValues engines prompt', () => {
         await setManifestValues.run(ctx);
         const editor = questions.find(q => q.name === 'engines');
         expect(editor.type).toBe('editor');
-        expect(JSON.parse(editor.default)).toEqual(SYSTEM_ENGINES);
+        expect(JSON.parse(editor.default)).toEqual({ ...TRM_ENGINES, ...SYSTEM_ENGINES });
         expect(ctx.runtime.manifest.engines).toEqual(edited);
         expect(ctx.runtime.manifestXml).toContain('<ENGINES>');
     });

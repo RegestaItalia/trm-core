@@ -42,6 +42,12 @@ export interface PublishActionInput {
          * Directory in which transport-release logs and temporary files are written.
          */
         logTemporaryFolder?: string;
+
+        /**
+         * Version of trm-core in use, used to prefill the `trm-core` engine when engines are declared.
+         * Supply it when the client resolves trm-core itself; defaults to the version read from trm-core package.json.
+         */
+        coreVersion?: string;
     };
 
     /**

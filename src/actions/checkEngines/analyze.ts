@@ -2,8 +2,11 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckEnginesWorkflowContext, EngineCheckResult } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
+import { resolveCoreVersion } from "../../commons";
+import { satisfies } from "semver";
 import { ENGINES_COMPONENT_PROPS, ENGINES_NOTE_PROPS, ENGINES_PRODUCT_PROPS, ENGINES_TABLE_CONDITION_PROPS, ENGINES_TABLE_PROPS, normalizeSapValue, satisfiesSapRange, TrmManifestEngineComponentConstraint, TrmManifestEngineProductConstraint, TrmManifestEngines, TrmManifestEngineTableCheck } from "../../manifest";
 import { CVERS, PRDVERS } from "../../client/struct";
+import { TrmPackage } from "../../trmPackage";
 
 //note implementation statuses (CWBNTCUST-PRSTATUS)
 const NOTE_IMPLEMENTED = 'E';
@@ -53,6 +56,36 @@ function getProducts(context: CheckEnginesWorkflowContext): Promise<PRDVERS[]> {
         context.runtime.products = SystemConnector.getInstalledProducts();
     }
     return context.runtime.products;
+}
+
+function getTrmServer(context: CheckEnginesWorkflowContext): Promise<TrmPackage> {
+    if (!context.runtime.trmServer) {
+        context.runtime.trmServer = SystemConnector.getTrmServerPackage();
+    }
+    return context.runtime.trmServer;
+}
+
+async function checkTrm(context: CheckEnginesWorkflowContext, name: string, range: string): Promise<Requirement> {
+    const requirement = `version ${range}`;
+    var version: string;
+    switch (name) {
+        case 'trm-core':
+            version = resolveCoreVersion(context.rawInput.contextData?.coreVersion);
+            if (!version) {
+                return { requirement, ok: false, reason: `Cannot determine trm-core version` };
+            }
+            break;
+        case 'trm-server':
+            try {
+                version = (await getTrmServer(context)).manifest.get().version;
+            } catch (e) {
+                return { requirement, actual: 'not installed', ok: false, reason: errorMessage(e) };
+            }
+            break;
+        default:
+            return { requirement, ok: false, reason: `Unsupported TRM package "${name}", update TRM to verify it` };
+    }
+    return { requirement, actual: `version ${version}`, ok: satisfies(version, range, { includePrerelease: true }) };
 }
 
 //a blank CVERS-EXTRELEASE means no support package is installed (level 0)
@@ -170,6 +203,11 @@ async function evaluate(context: CheckEnginesWorkflowContext, engines: TrmManife
     var ok = true;
     for (const key of Object.keys(engines)) {
         switch (key) {
+            case 'trm':
+                for (const name of Object.keys(engines.trm)) {
+                    ok = push(`${prefix}trm.${name}`, await checkTrm(context, name, engines.trm[name])) && ok;
+                }
+                break;
             case 'components':
                 for (const name of Object.keys(engines.components)) {
                     ok = push(`${prefix}components.${name}`, await checkComponent(context, name, engines.components[name])) && ok;

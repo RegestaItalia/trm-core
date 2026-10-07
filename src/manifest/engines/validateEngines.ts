@@ -1,7 +1,10 @@
 import { TrmManifestEngines } from "../TrmManifestEngines";
 import { SapRangeMode, validSapRange } from "./sapRange";
+import { validRange } from "semver";
 
-export const ENGINES_KEYS = ['components', 'products', 'notes', 'tables', 'anyOf'] as const;
+export const ENGINES_KEYS = ['trm', 'components', 'products', 'notes', 'tables', 'anyOf'] as const;
+//the only TRM packages an engines declaration can constrain
+export const ENGINES_TRM_PACKAGES = ['trm-core', 'trm-server'] as const;
 export const ENGINES_TABLE_OPERATORS = ['EQ', 'NE', 'LT', 'LE', 'GT', 'GE', 'LIKE'] as const;
 export const ENGINES_MAX_ANYOF_DEPTH = 3;
 
@@ -118,6 +121,25 @@ function checkNotes(errors: string[], path: string, notes: any, strict: boolean)
     });
 }
 
+export function validTrmRange(range: any): boolean {
+    return typeof range === 'string' && range.trim().length > 0 && validRange(range.trim()) !== null;
+}
+
+function checkTrm(errors: string[], path: string, trm: any) {
+    if (!isPlainObject(trm) || Object.keys(trm).length === 0) {
+        errors.push(`${path}: expected an object with at least one of ${ENGINES_TRM_PACKAGES.join(', ')}.`);
+        return;
+    }
+    Object.keys(trm).forEach(name => {
+        //unknown packages are errors even when not strict: these are the only packages that can be constrained
+        if (!(ENGINES_TRM_PACKAGES as readonly string[]).includes(name)) {
+            errors.push(`${path}.${name}: unknown TRM package, expected one of ${ENGINES_TRM_PACKAGES.join(', ')}.`);
+        } else if (!validTrmRange(trm[name])) {
+            errors.push(`${path}.${name}: invalid range "${trm[name]}".`);
+        }
+    });
+}
+
 function checkTables(errors: string[], path: string, tables: any, strict: boolean) {
     if (!Array.isArray(tables)) {
         errors.push(`${path}: expected an array.`);
@@ -171,6 +193,9 @@ function checkEngines(errors: string[], path: string, engines: any, depth: numbe
     Object.keys(engines).forEach(key => {
         const keyPath = `${path}.${key}`;
         switch (key) {
+            case 'trm':
+                checkTrm(errors, keyPath, engines.trm);
+                break;
             case 'components':
                 checkVersionedMap(errors, keyPath, engines.components, COMPONENT_NAME_REGEX, ENGINES_COMPONENT_PROPS, true, strict);
                 break;
@@ -232,6 +257,12 @@ export function normalizeEngines(engines: TrmManifestEngines): TrmManifestEngine
     const normalized: TrmManifestEngines = {};
     Object.keys(engines).forEach(key => {
         switch (key) {
+            case 'trm':
+                normalized.trm = {};
+                Object.keys(engines.trm).forEach(name => {
+                    normalized.trm[name] = engines.trm[name].trim();
+                });
+                break;
             case 'components':
             case 'products':
                 normalized[key] = {};

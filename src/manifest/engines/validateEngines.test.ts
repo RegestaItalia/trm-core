@@ -2,7 +2,14 @@ import { normalizeEngines, validateEngines } from './validateEngines';
 
 //examples published in the engines guide (trm-docs docs/commons/engines.md): keep in sync
 const GUIDE_EXAMPLES: { [name: string]: any } = {
+    'trm': {
+        trm: { 'trm-core': '>=9.4.0 <10.0.0', 'trm-server': '^6.4.1' }
+    },
     'structure at a glance': {
+        trm: {
+            'trm-core': '>=9.4.0',
+            'trm-server': '>=6.4.1'
+        },
         components: {
             SAP_BASIS: { release: '>=750', sp: '>=5' },
             SAP_GWFND: true,
@@ -234,5 +241,20 @@ describe('validateEngines', () => {
             tables: [{ table: 'TADIR', where: [{ field: 'PGMID', op: 'EQ', value: 'R3TR' }] }],
             anyOf: [{ components: { ST_PI: false } }]
         });
+    });
+
+    test('trm: only trm-core and trm-server, with semver ranges', () => {
+        expect(validateEngines({ trm: { 'trm-core': '>=9.4.0', 'trm-server': '^6.4.1 || >=7' } }, { strict: true })).toEqual([]);
+        expect(validateEngines({ trm: { 'trm-client': '>=1.0.0' } })).toEqual(['engines.trm.trm-client: unknown TRM package, expected one of trm-core, trm-server.']);
+        expect(validateEngines({ trm: { 'TRM-CORE': '>=1.0.0' } })).toHaveLength(1);
+        expect(validateEngines({ trm: { 'trm-core': 9 } })).toEqual(['engines.trm.trm-core: invalid range "9".']);
+        expect(validateEngines({ trm: { 'trm-core': '' } })).toEqual(['engines.trm.trm-core: invalid range "".']);
+        expect(validateEngines({ trm: { 'trm-core': 'abc!' } })).toEqual(['engines.trm.trm-core: invalid range "abc!".']);
+        expect(validateEngines({ trm: {} })).toHaveLength(1);
+        expect(validateEngines({ trm: true })).toHaveLength(1);
+    });
+
+    test('trm: normalization trims ranges', () => {
+        expect(normalizeEngines({ trm: { 'trm-core': ' >=9.4.0 ' } })).toEqual({ trm: { 'trm-core': '>=9.4.0' } });
     });
 });

@@ -3,8 +3,12 @@ jest.mock('../../systemConnector', () => ({
         getSoftwareComponents: jest.fn(),
         getInstalledProducts: jest.fn(),
         getNoteStatus: jest.fn(),
-        checkTableCondition: jest.fn()
+        checkTableCondition: jest.fn(),
+        getTrmServerPackage: jest.fn()
     }
+}));
+jest.mock('../../commons/getNodePackage', () => ({
+    getNodePackage: jest.fn(() => ({ version: '9.4.0' }))
 }));
 
 import { Logger } from 'trm-commons';
@@ -15,7 +19,8 @@ const connector = SystemConnector as unknown as {
     getSoftwareComponents: jest.Mock,
     getInstalledProducts: jest.Mock,
     getNoteStatus: jest.Mock,
-    checkTableCondition: jest.Mock
+    checkTableCondition: jest.Mock,
+    getTrmServerPackage: jest.Mock
 };
 
 function run(engines: any) {
@@ -46,6 +51,43 @@ describe('checkEngines', () => {
             '2222222': { prstatus: 'N', versno: '0001' }
         }[note] || {}));
         connector.checkTableCondition.mockResolvedValue(true);
+        connector.getTrmServerPackage.mockResolvedValue({ manifest: { get: () => ({ name: 'trm-server', version: '6.4.1' }) } });
+    });
+
+    test('trm: trm-core is checked against the version in use, trm-server against the system', async () => {
+        const output = await run({ trm: { 'trm-core': '>=9.0.0', 'trm-server': '^6.5.0' } });
+        expect(output.passed).toBe(false);
+        expect(result(output, 'trm.trm-core')).toMatchObject({ ok: true, actual: 'version 9.4.0', required: true });
+        expect(result(output, 'trm.trm-server')).toMatchObject({ ok: false, actual: 'version 6.4.1', requirement: 'version ^6.5.0' });
+        expect(connector.getSoftwareComponents).not.toHaveBeenCalled();
+    });
+
+    test('trm: the trm-core version supplied by the client takes precedence', async () => {
+        const input = (coreVersion: string) => ({ contextData: { coreVersion }, packageData: { manifest: { name: 'test', version: '1.0.0', engines: { trm: { 'trm-core': '>=10.0.0' } } } } });
+        expect((await checkEngines(input('10.1.0'))).passed).toBe(true);
+        expect((await checkEngines(input('9.9.9'))).passed).toBe(false);
+    });
+
+    test('trm: pre-release versions in use satisfy ranges', async () => {
+        const output = await checkEngines({ contextData: { coreVersion: '10.0.0-beta.1' }, packageData: { manifest: { name: 'test', version: '1.0.0', engines: { trm: { 'trm-core': '>=9.0.0' } } } } });
+        expect(output.passed).toBe(true);
+    });
+
+    test('trm: trm-server not installed fails with the reason', async () => {
+        connector.getTrmServerPackage.mockRejectedValue(new Error('Package trm-server was not found.'));
+        const output = await run({ trm: { 'trm-server': '>=1.0.0' } });
+        expect(output.passed).toBe(false);
+        expect(result(output, 'trm.trm-server')).toMatchObject({ ok: false, actual: 'not installed', reason: 'Package trm-server was not found.' });
+    });
+
+    test('trm: unknown TRM packages are rejected', async () => {
+        await expect(run({ trm: { 'trm-client': '>=1.0.0' } })).rejects.toThrow(/unknown TRM package/);
+    });
+
+    test('trm: can be used inside anyOf alternatives', async () => {
+        const output = await run({ anyOf: [{ trm: { 'trm-server': '>=7.0.0' } }, { trm: { 'trm-core': '>=9.0.0' } }] });
+        expect(output.passed).toBe(true);
+        expect(result(output, 'anyOf[0].trm.trm-server')).toMatchObject({ ok: false, required: false });
     });
 
     test('no engines: nothing is read and check passes', async () => {

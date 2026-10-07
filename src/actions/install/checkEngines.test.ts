@@ -36,6 +36,14 @@ describe('install checkEngines step', () => {
         expect(workflowMock).toHaveBeenCalledWith(expect.objectContaining({ packageData: { manifest: expect.objectContaining({ name: 'test' }) } }));
     });
 
+    test('forwards the trm-core version supplied by the client', async () => {
+        workflowMock.mockResolvedValue({ engines: {}, passed: true, results: [] });
+        const ctx = context({ trm: { 'trm-core': '>=9.0.0' } });
+        ctx.rawInput.contextData = { coreVersion: '9.4.0' };
+        await checkEngines.run(ctx);
+        expect(workflowMock).toHaveBeenCalledWith(expect.objectContaining({ contextData: { coreVersion: '9.4.0' } }));
+    });
+
     test('aborts the install counting only required requirements', async () => {
         workflowMock.mockResolvedValue({
             engines: {},

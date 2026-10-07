@@ -1,6 +1,10 @@
 import { enginesToUiRows, uiRowsToEngines, validateEnginesUiSection } from './enginesUi';
 
 const engines = {
+    trm: {
+        'trm-core': '>=9.4.0',
+        'trm-server': '^6.4.1'
+    },
     components: {
         SAP_BASIS: { release: '>=750', sp: '>=5' },
         SAP_GWFND: true,
@@ -41,6 +45,7 @@ describe('engines UI rows', () => {
             { name: 'S4CORE', notInstalled: true },
             { name: 'SAP_UI', notInstalled: false, constraints: [{ release: '750', sp: '>=17' }, { release: '>=752' }] }
         ]);
+        expect(rows.trm).toEqual([{ name: 'trm-core', version: '>=9.4.0' }, { name: 'trm-server', version: '^6.4.1' }]);
         expect(rows.notes).toEqual([{ note: '1234567', version: '>=3' }, { note: '3284711' }]);
         expect(rows.tables[0].where).toEqual([{ field: 'CLSNAME', value: '/UI2/CL_JSON' }, { field: 'ATTVALUE', op: 'GE', value: '12' }]);
     });
@@ -60,8 +65,9 @@ describe('engines UI rows', () => {
 describe('engines UI section validation', () => {
     test('valid sections', () => {
         const rows = enginesToUiRows(engines);
-        (['components', 'products', 'notes', 'tables'] as const).forEach(section => {
+        (['trm', 'components', 'products', 'notes', 'tables'] as const).forEach(section => {
             expect(validateEnginesUiSection(section, rows[section])).toBe(true);
+            expect(validateEnginesUiSection(section, [])).toBe(true);
         });
     });
 
@@ -69,11 +75,14 @@ describe('engines UI section validation', () => {
         expect(validateEnginesUiSection('components', [{ name: 'SAP_BASIS' }, { name: 'sap_basis' }])).toBe('Duplicate component "sap_basis"');
         expect(validateEnginesUiSection('products', [{ name: 'ABAP PLATFORM' }, { name: 'ABAP  PLATFORM' }])).toBe('Duplicate product "ABAP  PLATFORM"');
         expect(validateEnginesUiSection('notes', [{ note: '3284711' }, { note: '0003284711' }])).toBe('Duplicate SAP Note "0003284711"');
+        expect(validateEnginesUiSection('trm', [{ name: 'trm-core', version: '>=1.0.0' }, { name: 'trm-core', version: '>=2.0.0' }])).toBe('Duplicate TRM package "trm-core"');
     });
 
     test('invalid values are rejected', () => {
         expect(validateEnginesUiSection('components', [{ name: 'SAP_BASIS', constraints: [{ release: '^750' }] }])).not.toBe(true);
         expect(validateEnginesUiSection('notes', [{ note: 'abc' }])).not.toBe(true);
+        expect(validateEnginesUiSection('trm', [{ name: 'trm-client', version: '>=1.0.0' }])).not.toBe(true);
+        expect(validateEnginesUiSection('trm', [{ name: 'trm-core', version: 'abc!' }])).not.toBe(true);
         expect(validateEnginesUiSection('tables', [{ table: 'TADIR', where: [] }])).not.toBe(true);
         expect(validateEnginesUiSection('tables', [{ table: 'TADIR', where: [{ field: 'OBJ_NAME', op: 'IN', value: 'X' }] }])).not.toBe(true);
     });

@@ -1,5 +1,6 @@
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
+import { resolveCoreVersion } from "../../commons";
 import { compareSapValues, normalizeSapValue, TrmManifestEngineComponent, TrmManifestEngines } from "../../manifest";
 
 //CVERS-COMP_TYPE of components that are not delivered by SAP (local, home, customer)
@@ -77,4 +78,23 @@ export async function getSystemEngines(): Promise<TrmManifestEngines> {
         Logger.warning(`Couldn't read system components and products, engines will not be prefilled.`);
         return ENGINES_TEMPLATE;
     }
+}
+
+/**
+ * Adds the `trm-core` engine (the version in use or newer) in front of an engines declaration.
+ *
+ * @param engines Engines declaration, left untouched.
+ * @param coreVersion Version of trm-core supplied by the client, defaults to the version read from trm-core package.json.
+ * @returns A new engines declaration, or `engines` itself if the trm-core version can't be determined.
+ */
+export function withTrmEngines(engines: TrmManifestEngines, coreVersion?: string): TrmManifestEngines {
+    const version = resolveCoreVersion(coreVersion);
+    if (!version) {
+        Logger.warning(`Couldn't determine trm-core version, trm engines will not be prefilled.`, true);
+        return engines;
+    }
+    return {
+        trm: { ...engines?.trm, 'trm-core': `>=${version}` },
+        ...Object.fromEntries(Object.entries(engines || {}).filter(([key]) => key !== 'trm'))
+    };
 }

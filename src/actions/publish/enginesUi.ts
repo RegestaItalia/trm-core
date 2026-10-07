@@ -3,6 +3,7 @@ import {
     COMPONENT_NAME_REGEX,
     ENGINES_KEYS,
     ENGINES_TABLE_OPERATORS,
+    ENGINES_TRM_PACKAGES,
     FIELD_NAME_REGEX,
     normalizeEngineName,
     normalizeNoteNumber,
@@ -14,7 +15,8 @@ import {
     TABLE_VALUE_MAX_LENGTH,
     TrmManifestEngines,
     validateEngines,
-    validSapRange
+    validSapRange,
+    validTrmRange
 } from "../../manifest";
 
 type Row = Record<string, any>;
@@ -22,12 +24,13 @@ type Row = Record<string, any>;
 /**
  * Engines sections edited with a UI table.
  */
-export type EnginesUiSection = 'components' | 'products' | 'notes' | 'tables';
+export type EnginesUiSection = 'trm' | 'components' | 'products' | 'notes' | 'tables';
 
 /**
  * Engines split in UI table rows (see {@link enginesToUiRows}).
  */
 export type EnginesUiRows = {
+    trm: Row[],
     components: Row[],
     products: Row[],
     notes: Row[],
@@ -88,6 +91,18 @@ function rowsToVersioned(section: 'components' | 'products', rows: Row[]): any {
     return map;
 }
 
+function trmToRows(trm: any): Row[] {
+    return Object.keys(trm || {}).map(name => ({ name, version: trm[name] }));
+}
+
+function rowsToTrm(rows: Row[]): any {
+    const trm = {};
+    (rows || []).forEach(row => {
+        trm[row.name] = row.version;
+    });
+    return trm;
+}
+
 function notesToRows(notes: any): Row[] {
     return Object.keys(notes || {}).map(note => {
         const value = notes[note];
@@ -138,6 +153,7 @@ export function enginesToUiRows(engines?: TrmManifestEngines): EnginesUiRows {
     const other = {};
     Object.keys(engines || {}).filter(key => !(ENGINES_KEYS as readonly string[]).includes(key)).forEach(key => other[key] = engines[key]);
     return {
+        trm: trmToRows(engines?.trm),
         components: versionedToRows('components', engines?.components),
         products: versionedToRows('products', engines?.products),
         notes: notesToRows(engines?.notes),
@@ -154,6 +170,8 @@ export function enginesToUiRows(engines?: TrmManifestEngines): EnginesUiRows {
  */
 export function uiRowsToEnginesSection(section: EnginesUiSection, rows: Row[]): any {
     switch (section) {
+        case 'trm':
+            return rowsToTrm(rows);
         case 'components':
         case 'products':
             return rowsToVersioned(section, rows);
@@ -170,7 +188,7 @@ export function uiRowsToEnginesSection(section: EnginesUiSection, rows: Row[]): 
  */
 export function uiRowsToEngines(rows: EnginesUiRows): TrmManifestEngines {
     const engines: TrmManifestEngines = {};
-    (['components', 'products', 'notes', 'tables'] as const).forEach(section => {
+    (['trm', 'components', 'products', 'notes', 'tables'] as const).forEach(section => {
         if (rows[section]?.length > 0) {
             engines[section] = uiRowsToEnginesSection(section, rows[section]);
         }
@@ -188,14 +206,18 @@ export function uiRowsToEngines(rows: EnginesUiRows): TrmManifestEngines {
  * @returns `true` if valid, otherwise the first error
  */
 export function validateEnginesUiSection(section: EnginesUiSection, rows: Row[]): true | string {
+    //an empty section is omitted from the engines
+    if (!rows || rows.length === 0) {
+        return true;
+    }
     if (section !== 'tables') {
         const key = section === 'notes' ? 'note' : 'name';
         const seen: string[] = [];
         for (const row of rows || []) {
             const value = String(row[key] ?? '');
-            const normalized = section === 'notes' ? normalizeNoteNumber(value) : normalizeEngineName(value);
+            const normalized = section === 'notes' ? normalizeNoteNumber(value) : section === 'trm' ? value : normalizeEngineName(value);
             if (seen.includes(normalized)) {
-                return `Duplicate ${section === 'notes' ? 'SAP Note' : section.slice(0, -1)} "${value}"`;
+                return `Duplicate ${section === 'notes' ? 'SAP Note' : section === 'trm' ? 'TRM package' : section.slice(0, -1)} "${value}"`;
             }
             seen.push(normalized);
         }
@@ -237,6 +259,19 @@ function notInstalledColumn(nested: string): QuestionUiColumn {
  * Columns of the UI table of each engines section.
  */
 export const ENGINES_UI_COLUMNS: Record<EnginesUiSection, QuestionUiColumn[]> = {
+    trm: [{
+        name: 'name',
+        label: 'Package',
+        type: 'select',
+        required: true,
+        options: ENGINES_TRM_PACKAGES.map(name => ({ value: name }))
+    }, {
+        name: 'version',
+        label: 'Version',
+        required: true,
+        placeholder: '>=9.0.0',
+        validate: (value) => validTrmRange(value) ? true : `Invalid range "${value}"`
+    }],
     components: [
         nameColumn(COMPONENT_NAME_REGEX, 'SAP_BASIS'),
         notInstalledColumn('constraints'),

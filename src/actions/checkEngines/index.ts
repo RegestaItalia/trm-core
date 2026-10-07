@@ -3,9 +3,21 @@ import { analyze } from "./analyze";
 import { TrmManifest, TrmManifestEngines } from "../../manifest";
 import { executeWorkflow, workflowCallbacks } from "../commons";
 import { CVERS, PRDVERS } from "../../client/struct";
+import { TrmPackage } from "../../trmPackage";
 
-/** Input used to verify a manifest's engines (SAP release/components, products, notes, tables). */
+/** Input used to verify a manifest's engines (TRM, SAP release/components, products, notes, tables). */
 export interface CheckEnginesActionInput {
+    /**
+     * Data related to the running environment.
+     */
+    contextData?: {
+        /**
+         * Version of trm-core in use, checked against `engines.trm.trm-core`.
+         * Supply it when the client resolves trm-core itself; defaults to the version read from trm-core package.json.
+         */
+        coreVersion?: string;
+    };
+
     /**
      * Data related to the package being checked.
      */
@@ -59,6 +71,7 @@ export type CheckEnginesActionOutput = {
 }
 
 type WorkflowRuntime = {
+    trmServer?: Promise<TrmPackage>,
     components?: Promise<CVERS[]>,
     products?: Promise<PRDVERS[]>
 }

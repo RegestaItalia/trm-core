@@ -41,6 +41,9 @@ export const checkEngines: Step<InstallWorkflowContext> = {
     run: async (context: InstallWorkflowContext): Promise<void> => {
         //1- execute check engines workflow
         const inputData: CheckEnginesActionInput = {
+            contextData: {
+                coreVersion: context.rawInput.contextData?.coreVersion
+            },
             packageData: {
                 manifest: context.runtime.package.data.manifest
             },

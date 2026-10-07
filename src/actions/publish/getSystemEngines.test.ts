@@ -1,3 +1,6 @@
+jest.mock('../../commons/getNodePackage', () => ({
+    getNodePackage: jest.fn(() => ({ version: '9.4.0' }))
+}));
 jest.mock('../../systemConnector', () => ({
     SystemConnector: {
         getSoftwareComponents: jest.fn(),
@@ -8,7 +11,8 @@ jest.mock('../../systemConnector', () => ({
 import { Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { validateEngines } from '../../manifest';
-import { ENGINES_TEMPLATE, getSystemEngines } from './getSystemEngines';
+import { getNodePackage } from '../../commons/getNodePackage';
+import { ENGINES_TEMPLATE, getSystemEngines, withTrmEngines } from './getSystemEngines';
 
 const connector = SystemConnector as unknown as {
     getSoftwareComponents: jest.Mock,
@@ -84,5 +88,37 @@ describe('getSystemEngines', () => {
         expect(engines).not.toBe(ENGINES_TEMPLATE);
         expect(Object.keys(engines.components)).toEqual(['DMIS', 'SAP_ABA', 'SAP_BASIS', 'ST-PI', 'UIBAS001']);
         expect(Object.keys(engines.products)).toEqual(['ABAP PLATFORM', 'SAP FIORI FES FOR S/4HANA', 'SLT FOR S/4HANA']);
+    });
+});
+
+describe('withTrmEngines', () => {
+    beforeEach(() => {
+        jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+        (getNodePackage as jest.Mock).mockClear().mockImplementation(() => ({ version: '9.4.0' }));
+    });
+
+    test('prefills trm-core with the version in use or newer, first', () => {
+        const engines = withTrmEngines({ components: { SAP_BASIS: true } });
+        expect(engines).toEqual({ trm: { 'trm-core': '>=9.4.0' }, components: { SAP_BASIS: true } });
+        expect(Object.keys(engines)[0]).toBe('trm');
+        expect(validateEngines(engines, { strict: true })).toEqual([]);
+    });
+
+    test('the version supplied by the client takes precedence', () => {
+        expect(withTrmEngines({}, '10.0.1')).toEqual({ trm: { 'trm-core': '>=10.0.1' } });
+        expect(getNodePackage).not.toHaveBeenCalled();
+    });
+
+    test('other trm packages are kept, the template is not changed', () => {
+        expect(withTrmEngines({ trm: { 'trm-server': '>=6.0.0' } })).toEqual({ trm: { 'trm-server': '>=6.0.0', 'trm-core': '>=9.4.0' } });
+        const engines = withTrmEngines(ENGINES_TEMPLATE);
+        expect(engines.components).toBe(ENGINES_TEMPLATE.components);
+        expect(ENGINES_TEMPLATE).not.toHaveProperty('trm');
+    });
+
+    test('an unknown trm-core version is not prefilled', () => {
+        (getNodePackage as jest.Mock).mockImplementation(() => { throw new Error('not found'); });
+        const engines = { components: { SAP_BASIS: true } };
+        expect(withTrmEngines(engines)).toBe(engines);
     });
 });

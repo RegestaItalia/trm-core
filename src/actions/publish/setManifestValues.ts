@@ -4,7 +4,7 @@ import { Logger, Inquirer } from "trm-commons";
 import { validate as validateEmail } from "email-validator";
 import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency, validateEngines, validateSapEntries } from "../../manifest";
-import { ENGINES_TEMPLATE, getSystemEngines } from "./getSystemEngines";
+import { ENGINES_TEMPLATE, getSystemEngines, withTrmEngines } from "./getSystemEngines";
 import { ENGINES_UI_COLUMNS, EnginesUiSection, enginesToUiRows, uiRowsToEngines, validateEnginesUiSection } from "./enginesUi";
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 import _ from 'lodash';
@@ -513,7 +513,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
             const hasEngines = !!context.runtime.manifest.engines && Object.keys(context.runtime.manifest.engines).length > 0;
             const inqConfirm = await Inquirer.prompt({
-                message: `Do you want to declare engines (SAP system requirements)?`,
+                message: `Do you want to declare engines (TRM and SAP system requirements)?`,
                 type: 'confirm',
                 name: 'editEngines',
                 default: hasEngines
@@ -523,8 +523,12 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 if (inqDefault4 === ENGINES_TEMPLATE) {
                     inqDefault4 = {};
                 }
+                if (!hasEngines) {
+                    inqDefault4 = withTrmEngines(inqDefault4, context.rawInput.contextData.coreVersion);
+                }
                 const rows = enginesToUiRows(inqDefault4);
                 const sections: { section: EnginesUiSection, message: string, addLabel: string }[] = [
+                    { section: 'trm', message: 'Engines: TRM', addLabel: 'Add TRM package' },
                     { section: 'components', message: 'Engines: software components', addLabel: 'Add component' },
                     { section: 'products', message: 'Engines: product versions', addLabel: 'Add product' },
                     { section: 'notes', message: 'Engines: SAP Notes', addLabel: 'Add SAP Note' },
@@ -596,13 +600,13 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         } else if (!context.rawInput.contextData.noInquirer) {
             const hasEngines = !!context.runtime.manifest.engines && Object.keys(context.runtime.manifest.engines).length > 0;
             const inqConfirm = await Inquirer.prompt({
-                message: `Do you want to declare engines (SAP system requirements)?`,
+                message: `Do you want to declare engines (TRM and SAP system requirements)?`,
                 type: 'confirm',
                 name: 'editEngines',
                 default: hasEngines
             });
             if (inqConfirm.editEngines) {
-                const inqDefault4 = hasEngines ? context.runtime.manifest.engines : await getSystemEngines();
+                const inqDefault4 = hasEngines ? context.runtime.manifest.engines : withTrmEngines(await getSystemEngines(), context.rawInput.contextData.coreVersion);
                 const inq = await Inquirer.prompt({
                     message: 'Edit engines',
                     type: 'editor',

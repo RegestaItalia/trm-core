@@ -48,7 +48,18 @@ export type TrmManifestEngineTableCheck = {
     where: TrmManifestEngineTableCondition[]
 }
 
+/**
+ * TRM constraint: semver range of a TRM package.
+ * - `trm-core`: version of the trm-core running the install
+ * - `trm-server`: version of trm-server installed on the system
+ */
+export type TrmManifestEngineTrm = {
+    'trm-core'?: string,
+    'trm-server'?: string
+}
+
 export type TrmManifestEngines = {
+    trm?: TrmManifestEngineTrm,
     components?: { [component: string]: TrmManifestEngineComponent },
     products?: { [product: string]: TrmManifestEngineProduct },
     notes?: { [note: string]: TrmManifestEngineNote },
