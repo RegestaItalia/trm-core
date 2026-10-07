@@ -32,6 +32,7 @@ import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
 import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage } from "../commons/utils";
 import { lockResources } from "./lockResources";
+import { cleanupCheckpoint } from "./cleanupCheckpoint";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
@@ -381,6 +382,7 @@ const installWorkflow = [
         setInstallDevclass,
         lockResources,
         installDependencies,
+        cleanupCheckpoint,
         addNamespace,
         generateDevclass,
         generateUpdateTransport,

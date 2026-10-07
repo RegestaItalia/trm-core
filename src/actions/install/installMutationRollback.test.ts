@@ -38,7 +38,11 @@ import { Transport } from '../../transport';
 import { addNamespace } from './addNamespace';
 import { generateDevclass } from './generateDevclass';
 import { deleteImportedEntries } from './importBatch';
-import { init } from './init';
+import { cleanupCheckpoint } from './cleanupCheckpoint';
+import { installDependencies } from './installDependencies';
+import execute from '@simonegaffurini/sammarksworkflow';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 function context() {
     return {
@@ -182,14 +186,14 @@ describe('install mutation checkpoints', () => {
         expect(cleanup.addObjects).not.toHaveBeenCalled();
     });
 
-    test('init fallback cleans imported entries when import step throws before completion is recorded', async () => {
+    test('cleanup checkpoint cleans imported entries when import step throws before completion is recorded', async () => {
         const ctx = context();
         ctx.revert.importStarted = true;
         ctx.revert.importedEntries = [
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_IMPORTED' }
         ];
 
-        await init.revert(ctx);
+        await cleanupCheckpoint.revert(ctx);
 
         expect(cleanup.addObjects).toHaveBeenCalledWith([
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_IMPORTED' }
@@ -212,11 +216,63 @@ describe('install mutation checkpoints', () => {
         ctx.revert.importStarted = true;
         ctx.revert.importedEntries = [{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_IMPORTED' }];
 
-        await init.revert(ctx);
+        await cleanupCheckpoint.revert(ctx);
 
         expect(fileRegistry.delete).not.toHaveBeenCalled();
         expect(realRegistry.delete).toHaveBeenCalledTimes(1);
         expect(ctx.revert.cleanupSucceeded).toBe(true);
+    });
+
+    test('the cleanup checkpoint runs right after the dependency installs', () => {
+        const source = readFileSync(join(__dirname, 'index.ts'), 'utf8');
+        const workflow = /const installWorkflow = \[([\s\S]*?)\];/.exec(source)[1].split(',').map(s => s.trim()).filter(s => s);
+        expect(workflow.indexOf('cleanupCheckpoint')).toBe(workflow.indexOf('installDependencies') + 1);
+        for (const step of ['addNamespace', 'generateDevclass', 'generateUpdateTransport', 'prepareDevc', 'importBatch']) {
+            expect(workflow.indexOf(step)).toBeGreaterThan(workflow.indexOf('cleanupCheckpoint'));
+        }
+    });
+
+    test.each(['add-namespace', 'generate-devclass'])('a failure in %s cleans up the parent before the dependencies are rolled back', async failingStep => {
+        const ctx = context();
+        const events: string[] = [];
+        ctx.runtime.dependencyRollbacks = [async () => { events.push('dependency-rollback'); }];
+        ctx.rawInput.packageData.registry.delete.mockImplementation(async () => {
+            events.push('parent-cleanup');
+            return { header: Buffer.from('dh'), data: Buffer.from('dd') };
+        });
+        ctx.revert.packageHierarchy = [{ devclass: 'ZEXISTING', parentcl: 'ZOLD_PARENT' }];
+        (SystemConnector.setPackageSuperpackage as jest.Mock).mockImplementation(async () => { events.push('hierarchy-restore'); });
+        const dependencies = { name: 'install-dependencies', run: async () => undefined, revert: installDependencies.revert };
+        const failing = {
+            name: failingStep,
+            run: async () => {
+                // the step committed its change on SAP, then failed
+                if (failingStep === 'add-namespace') {
+                    ctx.revert.namespace = '/TEST/';
+                } else {
+                    ctx.revert.sapPackages.push('ZNEW');
+                }
+                throw new Error(`${failingStep} failed`);
+            }
+        };
+
+        await expect(execute('test', [dependencies, cleanupCheckpoint, failing], ctx)).rejects.toThrow(`${failingStep} failed`);
+
+        expect(events).toEqual(['parent-cleanup', 'hierarchy-restore', 'dependency-rollback']);
+    });
+
+    test('a failed parent cleanup still rolls back the dependencies', async () => {
+        const ctx = context();
+        const events: string[] = [];
+        ctx.runtime.dependencyRollbacks = [async () => { events.push('dependency-rollback'); }];
+        ctx.rawInput.packageData.registry.delete.mockRejectedValue(new Error('cleanup failed'));
+        const dependencies = { name: 'install-dependencies', run: async () => undefined, revert: installDependencies.revert };
+        const failing = { name: 'generate-devclass', run: async () => { ctx.revert.sapPackages.push('ZNEW'); throw new Error('later'); } };
+
+        await expect(execute('test', [dependencies, cleanupCheckpoint, failing], ctx)).rejects.toThrow('later');
+
+        expect(ctx.revert.cleanupSucceeded).toBe(false);
+        expect(events).toEqual(['dependency-rollback']);
     });
 
     test('snapshots an existing target package before hierarchy edits', async () => {
@@ -229,7 +285,7 @@ describe('install mutation checkpoints', () => {
         expect(ctx.revert.packageHierarchy).toEqual([existing]);
     });
 
-    test('init restores existing package hierarchy only after cleanup import succeeds', async () => {
+    test('cleanup checkpoint restores existing package hierarchy only after cleanup import succeeds', async () => {
         const ctx = context();
         ctx.revert.sapPackages = ['ZGENERATED'];
         ctx.revert.packageHierarchy = [
@@ -237,7 +293,7 @@ describe('install mutation checkpoints', () => {
             { devclass: 'ZROOT', parentcl: '' }
         ];
 
-        await init.revert(ctx);
+        await cleanupCheckpoint.revert(ctx);
 
         expect(Transport.createToc).toHaveBeenCalledTimes(1);
         expect(ctx.rawInput.packageData.registry.delete).toHaveBeenCalledTimes(1);
@@ -257,7 +313,7 @@ describe('install mutation checkpoints', () => {
         ];
         jest.spyOn(SystemConnector, 'setPackageSuperpackage').mockRejectedValue(new Error('restore failed'));
 
-        await expect(init.revert(ctx)).rejects.toThrow('restore failed');
+        await expect(cleanupCheckpoint.revert(ctx)).rejects.toThrow('restore failed');
 
         expect(SystemConnector.clearPackageSuperpackage).toHaveBeenCalledWith('ZROOT');
     });
@@ -298,7 +354,7 @@ describe('install mutation checkpoints', () => {
         }
 
         await expect(generateDevclass.run(ctx)).rejects.toThrow(`${point} failed`);
-        await init.revert(ctx);
+        await cleanupCheckpoint.revert(ctx);
 
         expect(SystemConnector.setPackageSuperpackage).toHaveBeenCalledWith('ZCHILD', 'ZOLD_PARENT');
         expect(SystemConnector.clearPackageSuperpackage).toHaveBeenCalledWith('ZROOT');

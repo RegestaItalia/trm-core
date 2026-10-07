@@ -38,7 +38,7 @@ import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
 import { deleteImportedEntries, importBatch } from './importBatch';
-import { init } from './init';
+import { cleanupCheckpoint } from './cleanupCheckpoint';
 
 type RegistryOutcome = 'allowed' | 'denied';
 
@@ -523,7 +523,7 @@ describe('importBatch rollback checkpoint', () => {
         ]);
         context.revert.cleanupImported = true;
         context.revert.cleanupSucceeded = true;
-        await init.revert(context);
+        await cleanupCheckpoint.revert(context);
         expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZROOT', 'OLD_LAYER');
         expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZSUB', 'OLD_LAYER');
     });

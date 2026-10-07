@@ -7,7 +7,6 @@ import { eq, gt, valid } from "semver";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
 import { setLandscapeTarget } from "../commons/prompts";
-import { deleteImportedEntries } from "./importBatch";
 import { resolveInstallPackage } from "../commons/utils";
 
 /**
@@ -215,39 +214,5 @@ export const init: Step<InstallWorkflowContext> = {
         }
 
         Logger.info(`Ready to install ${context.runtime.package.data.manifest.name} v${context.runtime.package.data.manifest.version}${!valid(context.rawInput.packageData.version) ? (' (' + (context.rawInput.packageData.version || 'latest') + ')') : ''}.`);
-    },
-    revert: async (context: InstallWorkflowContext): Promise<void> => {
-        if (!context.revert.cleanupImported && (
-            context.revert.importStarted || context.revert.importedEntries.length > 0
-            || context.revert.cleanupTransport || context.revert.namespace || context.revert.sapPackages.length > 0
-        )) {
-            await deleteImportedEntries(context);
-        }
-        if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
-            return;
-        }
-
-        let firstError: unknown;
-        for (const layer of context.revert.packageTransportLayers || []) {
-            try {
-                await SystemConnector.setPackageTransportLayer(layer.devclass, layer.transportLayer);
-            } catch (error) {
-                firstError ||= error;
-            }
-        }
-        for (const pkg of context.revert.packageHierarchy || []) {
-            try {
-                if (pkg.parentcl) {
-                    await SystemConnector.setPackageSuperpackage(pkg.devclass, pkg.parentcl);
-                } else {
-                    await SystemConnector.clearPackageSuperpackage(pkg.devclass);
-                }
-            } catch (error) {
-                firstError ||= error;
-            }
-        }
-        if (firstError) {
-            throw firstError;
-        }
     }
 }
