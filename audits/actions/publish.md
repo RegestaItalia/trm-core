@@ -46,11 +46,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** `v1.2.4` is stored raw (duplicate check, transport text and comment disagree with the manifest).
 - **Fix:** store `clean(v)`.
 
-### ACT-2026-68 — Low — Functional — Derived manifest fields and engine prefill are brittle
-
-- **Where:** [`setManifestValues.ts#L274`](../../src/actions/publish/setManifestValues.ts#L274) (caller `registry`/`namespace` survive), [`getSystemEngines.ts#L32`](../../src/actions/publish/getSystemEngines.ts#L32) (one malformed row discards the whole prefill), [`setManifestValues.ts#L380`](../../src/actions/publish/setManifestValues.ts#L380) (logs `[object Object]`).
-- **Fix:** reset derived fields, skip malformed rows individually, log JSON strings.
-
 ## Step review
 
 | Order | Step | Result |
@@ -59,7 +54,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
-| 6 | `set-manifest-values` | non-strict engines (ACT-2026-59), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
+| 6 | `set-manifest-values` | non-strict engines (ACT-2026-59), interactive-only limits (ACT-2026-65). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
 | 7 | `set-optional-release-data` | No issue found. |
 | 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
 | 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts re-read the status after an earlier delete ([ACT-2026-17](shared.md), resolved). |
@@ -68,6 +63,17 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-68 — Resolved — Low — Functional — Derived manifest fields and engine prefill are brittle
+
+`set-manifest-values` always derives `namespace` and `registry`: the namespace is removed when the
+SAP package has none, and a publish to the public registry sets the public keyword
+([source](../../src/actions/publish/setManifestValues.ts#L274)). Before, a caller-supplied
+`registry` or `namespace` survived and was published. `getSystemEngines` skips a malformed
+component or product row on its own with a debug warning, so it no longer discards the whole
+prefill ([source](../../src/actions/publish/getSystemEngines.ts#L32)). Post activities,
+dependencies, SAP entries and engines edited in the JSON editor are logged as JSON instead of
+`[object Object]` ([source](../../src/actions/publish/setManifestValues.ts#L386)).
+
 ### ACT-2026-58 — Resolved — Post-activity existence check is dead
 
 `PostActivity.exists` did not await the TADIR lookup, so the Promise was always truthy: post activities

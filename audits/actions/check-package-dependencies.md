@@ -43,7 +43,7 @@ than `semver.validRange`: an empty or blank range, which semver reads as `*`, is
 ([source](../../src/actions/checkPackageDependencies/init.ts#L39)). Publish applies the same check
 in both dependency editors and aborts before normalization, rather than letting normalization drop
 the dependency or publish an empty range
-([source](../../src/actions/publish/setManifestValues.ts#L638)). `analyze` reports an installed
+([source](../../src/actions/publish/setManifestValues.ts#L643)). `analyze` reports an installed
 package whose manifest is missing, cannot be read, or has a non-semver version as
 `manifestUnreadable` ("Installed, manifest unreadable")
 ([source](../../src/actions/checkPackageDependencies/analyze.ts#L44)). The install

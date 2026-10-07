@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
 import { validate as validateEmail } from "email-validator";
-import { RegistryType } from "../../registry";
+import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 import { Manifest, PostActivity, TrmManifestAuthor, TrmManifestDependency, validateEngines, validateSapEntries } from "../../manifest";
 import { ENGINES_TEMPLATE, getSystemEngines } from "./getSystemEngines";
 import { ENGINES_UI_COLUMNS, EnginesUiSection, enginesToUiRows, uiRowsToEngines, validateEnginesUiSection } from "./enginesUi";
@@ -284,13 +284,18 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                     };
                 })
             };
+        } else {
+            //derived from the SAP package only: never keep a caller value
+            delete context.runtime.manifest.namespace;
         }
 
-        //4- set registry endpoint
+        //4- set registry endpoint (derived from the target registry only: never keep a caller value)
         if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
             context.runtime.manifest.registry = LOCAL_RESERVED_KEYWORD;
         } else if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PRIVATE) {
             context.runtime.manifest.registry = context.rawInput.packageData.registry.endpoint;
+        } else {
+            context.runtime.manifest.registry = PUBLIC_RESERVED_KEYWORD;
         }
 
         //5- set post install activities
@@ -378,7 +383,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 }
             }]);
             if (inq.postActivities) {
-                Logger.log(`Post activities were manually changed: before -> ${JSON.stringify(context.runtime.manifest.postActivities)}, after -> ${JSON.parse(inq.postActivities)}`, true);
+                Logger.log(`Post activities were manually changed: before -> ${JSON.stringify(context.runtime.manifest.postActivities)}, after -> ${JSON.stringify(JSON.parse(inq.postActivities))}`, true);
                 context.runtime.manifest.postActivities = JSON.parse(inq.postActivities);
             }
         }
@@ -476,7 +481,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 }
             }]);
             if (inq.dependencies) {
-                Logger.log(`Dependencies were manually changed: before -> ${JSON.stringify(context.runtime.manifest.dependencies)}, after -> ${JSON.parse(inq.dependencies)}`, true);
+                Logger.log(`Dependencies were manually changed: before -> ${JSON.stringify(context.runtime.manifest.dependencies)}, after -> ${JSON.stringify(JSON.parse(inq.dependencies))}`, true);
                 context.runtime.manifest.dependencies = JSON.parse(inq.dependencies);
             }
         }
@@ -516,7 +521,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 }
             }]);
             if (inq.sapEntries) {
-                Logger.log(`SAP entries were manually changed: before -> ${JSON.stringify(context.runtime.manifest.sapEntries)}, after -> ${JSON.parse(inq.sapEntries)}`, true);
+                Logger.log(`SAP entries were manually changed: before -> ${JSON.stringify(context.runtime.manifest.sapEntries)}, after -> ${JSON.stringify(JSON.parse(inq.sapEntries))}`, true);
                 context.runtime.manifest.sapEntries = JSON.parse(inq.sapEntries);
             }
         }
@@ -632,7 +637,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                     }
                 });
                 if (inq.engines) {
-                    Logger.log(`Engines were manually changed: before -> ${JSON.stringify(context.runtime.manifest.engines)}, after -> ${inq.engines}`, true);
+                    Logger.log(`Engines were manually changed: before -> ${JSON.stringify(context.runtime.manifest.engines)}, after -> ${JSON.stringify(JSON.parse(inq.engines))}`, true);
                     context.runtime.manifest.engines = JSON.parse(inq.engines);
                 }
             }

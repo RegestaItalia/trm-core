@@ -76,4 +76,13 @@ describe('getSystemEngines', () => {
         connector.getInstalledProducts.mockResolvedValue([]);
         expect(await getSystemEngines()).toBe(ENGINES_TEMPLATE);
     });
+
+    test('a malformed row is skipped without discarding the rest of the prefill', async () => {
+        connector.getSoftwareComponents.mockResolvedValue([{ component: null, release: '758', extrelease: '0002', compType: 'S' }, ...CVERS]);
+        connector.getInstalledProducts.mockResolvedValue([{ id: '0', name: undefined, version: '2023' }, ...PRDVERS]);
+        const engines = await getSystemEngines();
+        expect(engines).not.toBe(ENGINES_TEMPLATE);
+        expect(Object.keys(engines.components)).toEqual(['DMIS', 'SAP_ABA', 'SAP_BASIS', 'ST-PI', 'UIBAS001']);
+        expect(Object.keys(engines.products)).toEqual(['ABAP PLATFORM', 'SAP FIORI FES FOR S/4HANA', 'SLT FOR S/4HANA']);
+    });
 });

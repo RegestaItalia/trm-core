@@ -29,28 +29,37 @@ export async function getSystemEngines(): Promise<TrmManifestEngines> {
             components: {},
             products: {}
         };
+        //a malformed row is skipped on its own, without discarding the rest of the prefill
         for (const component of await SystemConnector.getSoftwareComponents()) {
-            const name = component.component.trim().toUpperCase();
-            const release = normalizeSapValue(component.release, 'release');
-            if (!name || !release || release === 'DEV' || EXCLUDED_COMPONENT_TYPES.includes(component.compType)) {
-                continue;
+            try {
+                const name = component.component.trim().toUpperCase();
+                const release = normalizeSapValue(component.release, 'release');
+                if (!name || !release || release === 'DEV' || EXCLUDED_COMPONENT_TYPES.includes(component.compType)) {
+                    continue;
+                }
+                const sp = normalizeSapValue(component.extrelease, 'number') || '0';
+                const constraint: TrmManifestEngineComponent = [
+                    { release, sp: `>=${sp}` },
+                    { release: `>${release}` }
+                ];
+                engines.components[name] = constraint;
+            } catch (e) {
+                Logger.warning(`Skipping software component ${JSON.stringify(component)}: ${e}`, true);
             }
-            const sp = normalizeSapValue(component.extrelease, 'number') || '0';
-            const constraint: TrmManifestEngineComponent = [
-                { release, sp: `>=${sp}` },
-                { release: `>${release}` }
-            ];
-            engines.components[name] = constraint;
         }
         const productVersions: { [name: string]: string } = {};
         for (const product of await SystemConnector.getInstalledProducts()) {
-            const name = product.name.trim().toUpperCase().replace(/\s+/g, ' ');
-            const version = normalizeSapValue(product.version, 'version');
-            if (!name || !version) {
-                continue;
-            }
-            if (!productVersions[name] || compareSapValues(version, productVersions[name], 'version') > 0) {
-                productVersions[name] = version;
+            try {
+                const name = product.name.trim().toUpperCase().replace(/\s+/g, ' ');
+                const version = normalizeSapValue(product.version, 'version');
+                if (!name || !version) {
+                    continue;
+                }
+                if (!productVersions[name] || compareSapValues(version, productVersions[name], 'version') > 0) {
+                    productVersions[name] = version;
+                }
+            } catch (e) {
+                Logger.warning(`Skipping installed product ${JSON.stringify(product)}: ${e}`, true);
             }
         }
         Object.keys(productVersions).forEach(name => {

@@ -45,7 +45,7 @@ outside the error-swallowing block, so an invalid entry throws instead of readin
 ([source](../../src/systemConnector/SystemConnectorBase.ts#L432)). `Manifest.normalize` validates
 the whole `sapEntries` map, including table names, and rejects an invalid declaration
 ([source](../../src/manifest/Manifest.ts#L519)); the publish editor for SAP entries applies the same
-validation ([source](../../src/actions/publish/setManifestValues.ts#L506)).
+validation ([source](../../src/actions/publish/setManifestValues.ts#L511)).
 
 ### ACT-2026-71 — Resolved — Medium — Functional — Table probe is case-sensitive and TABL-only
 
