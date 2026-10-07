@@ -133,3 +133,14 @@ describe('parseMessageLog', () => {
         expect(parseMessageLog(['  ', ''])).toBeUndefined();
     });
 });
+
+describe('RFCClient deleteTmsTransport', () => {
+    it('normalizes the transport and the target system like forwardTransport', async () => {
+        const call = mockCalls({ '/ATRM/DEL_TRANSPORT_TMS': () => ({}) });
+        const client = createClient(call);
+
+        await client.deleteTmsTransport(' devk9dele ', 'qas ');
+
+        expect(call).toHaveBeenCalledWith('/ATRM/DEL_TRANSPORT_TMS', { TRKORR: 'DEVK9DELE', SYSTEM: 'QAS' }, undefined);
+    });
+});

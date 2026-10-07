@@ -565,8 +565,8 @@ export class RESTClient implements IClient {
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await this._axiosInstance.delete('/delete_tms_transport', {
             data: {
-                trkorr,
-                system
+                trkorr: trkorr.trim().toUpperCase(),
+                system: system.trim().toUpperCase()
             }
         });
     }

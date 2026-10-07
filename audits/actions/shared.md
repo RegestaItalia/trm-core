@@ -18,12 +18,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** re-importing the pre-deletion copy or the retained-table backup ends with RC 8/12, yet the revert logs "restored" and resolves. Staging cleanup then proceeds and the TRM record is restored over missing objects; the rollback looks clean.
 - **Fix:** throw when the restore RC exceeds the threshold so the best-effort pass reports it.
 
-### ACT-2026-13 — Medium — Functional — Transport target is not normalized, breaking forwarded-deletion rollback
-
-- **Where:** [`setTransportTarget.ts#L66`](../../src/actions/commons/prompts/setTransportTarget.ts#L66) returns raw input; `forwardTransport` uppercases but `deleteTmsTransport` does not ([`RFCClient.ts#L629`](../../src/client/RFCClient.ts#L629)).
-- **Failure:** with `targetSystem: 'qas'`, the forward succeeds but the revert's `deleteTmsTransport(..., 'qas')` fails, leaving the deletion transport queued in QAS while the source is rolled back.
-- **Fix:** return `trim().toUpperCase()` from `setTransportTarget` and normalize in `deleteTmsTransport`.
-
 ### ACT-2026-14 — Medium — Technical — Release and TMS-queue polling never time out
 
 - **Where:** [`Transport.ts#L471`](../../src/transport/Transport.ts#L471) (`readReleaseLog`; the "Timed out" branch is unreachable), [`#L554`](../../src/transport/Transport.ts#L554) (`_isInTmsQueue`).
@@ -78,7 +72,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `check-server-auth` | Fails closed: throws on any result other than `true` and propagates failures of the check itself; clients return only a typed SAP denial and rethrow other errors, and connectors cache only a granted authorization (ACT-2026-12, resolved). |
 | `set-system-packages` | Excludes local-registry packages (ACT-2026-15); writes into caller input (ACT-2026-20). |
 | `workflowCallbacks` | Every action runs through `executeWorkflow`, which collects each revert failure and, after the rollback, throws an `ActionWorkflowRevertError` (a `WorkflowRevertError`) with the step failure and all of them; a clean rollback still throws the step failure (ACT-2026-10, resolved); prefixes overwritten instead of restored (ACT-2026-18). |
-| `setTransportTarget` | Zero-target rejection is correct; the returned target is not normalized (ACT-2026-13). |
+| `setTransportTarget` | Zero-target rejection is correct; the returned target is trimmed and uppercased (ACT-2026-13, resolved). |
 | `setLandscapeTarget` | No issue found. |
 | `stopWarning` | No issue found. |
 | `actionLocks` | Owner-token and deduplication logic correct; a failed release is logged with its resources and owner token and never rejects a committed action, never masks a workflow failure, and is attempted once per run (ACT-2026-11, resolved). |
@@ -91,6 +85,17 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-13 — Resolved — Medium — Functional — Transport target is not normalized, breaking forwarded-deletion rollback
+
+`setTransportTarget` trims and uppercases an explicit target before validating it and returns the
+normalized value ([source](../../src/actions/commons/prompts/setTransportTarget.ts#L28)), so
+publish, install and delete store the same target they forward to. `deleteTmsTransport` trims and
+uppercases the transport and the target system in both clients, like `forwardTransport`
+([RFC](../../src/client/RFCClient.ts#L644), [REST](../../src/client/RESTClient.ts#L565)), so the
+revert of a forward to `qas` removes the transport from the `QAS` import queue. Before, the
+forward succeeded but `deleteTmsTransport(..., 'qas')` failed, leaving the deletion transport
+queued in QAS while the source was rolled back.
+
 ### ACT-2026-11 — Resolved — Medium — Technical — Action-lock release is mishandled
 
 `ActionLockScope.release` logs a failed release as a warning naming the action, the owner token,

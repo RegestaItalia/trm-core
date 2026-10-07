@@ -643,8 +643,8 @@ export class RFCClient implements IClient {
 
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await this._call("/ATRM/DEL_TRANSPORT_TMS", {
-            trkorr: trkorr,
-            system: system
+            trkorr: trkorr.trim().toUpperCase(),
+            system: system.trim().toUpperCase()
         });
     }
 

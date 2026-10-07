@@ -25,7 +25,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 5 | `delete-nested-packages` | Runs the delete action for the TRM packages installed in the package's SAP packages and retains their rollbacks (ACT-2026-47, non-relevant). |
 | 6 | `lock-resources` | No issue found. |
 | 7 | `generate-deletion-transport` | Highest-risk step; an empty deletion list now only warns and skips the deletion transport (ACT-2026-54, resolved), and installed objects moved outside the installation are kept unless confirmed (ACT-2026-52, resolved): final import RC ignored ([ACT-2026-04](shared.md)), namespaces still used by other SAP packages (TDEVC) are kept ([ACT-2026-05](shared.md), resolved), SAP packages of other installations are never cleaned up, as their packages are deleted first (ACT-2026-47, non-relevant); customizing rows of the recorded CUST transports are always deleted by key (ACT-2026-48, resolved); rollback weaknesses ([ACT-2026-06](shared.md), ACT-2026-50); an unauthorized deletion transport aborts with the original authorization error and leaves nothing to restore or forward ([ACT-2026-07](shared.md), resolved); the copy is re-imported only once the deletion import started (ACT-2026-49, resolved). |
-| 8 | `forward-deletion-transport` | Correct on its own; lowercase targets break its revert ([ACT-2026-13](shared.md)). |
+| 8 | `forward-deletion-transport` | No issue found; the target is normalized, so the revert removes the transport from the same import queue ([ACT-2026-13](shared.md), resolved). |
 | 9 | `remove-package-data` | Atomic and reversible, install transports included; always runs, and fails instead of skipping without a snapshot (ACT-2026-51, resolved). |
 
 ## Resolved findings
