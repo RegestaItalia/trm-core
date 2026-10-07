@@ -8,7 +8,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ### ACT-2026-04 — Critical — Technical — Deletion-transport import return code is ignored
 
-- **Where:** [`releaseDeletionTransport.ts#L53`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L53); `Transport.import()` only logs the RC ([`Transport.ts#L809`](../../src/transport/Transport.ts#L809)).
+- **Where:** [`releaseDeletionTransport.ts#L53`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L53); `Transport.import()` only logs the RC ([`Transport.ts#L809`](../../src/transport/Transport.ts#L819)).
 - **Failure:** the test import only rejects RC > 8, and the real `import(false)` result is discarded. With RC 8/12/16/-1 the delete action logs "imported", forwards the deletion transport, removes the TRM record and reports success while the objects remain. The same helper drives upgrade cleanup and `import-batch` rollback cleanup.
 - **Fix:** check the real-import RC and throw above the accepted threshold (≤ 4), so the workflow rolls back.
 
@@ -20,15 +20,9 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ### ACT-2026-14 — Medium — Technical — Release and TMS-queue polling never time out
 
-- **Where:** [`Transport.ts#L471`](../../src/transport/Transport.ts#L471) (`readReleaseLog`; the "Timed out" branch is unreachable), [`#L554`](../../src/transport/Transport.ts#L554) (`_isInTmsQueue`).
+- **Where:** [`Transport.ts#L471`](../../src/transport/Transport.ts#L481) (`readReleaseLog`; the "Timed out" branch is unreachable), [`#L564`](../../src/transport/Transport.ts#L564) (`_isInTmsQueue`).
 - **Failure:** an unreadable log or a request that never reaches the queue hangs install/publish forever after SAP state changed; rollback never runs.
 - **Fix:** add a deadline or attempt cap and throw; exit early on an error exit code.
-
-### ACT-2026-17 — Medium — Technical — Cached transport status is never invalidated
-
-- **Where:** `getE070` cache [`Transport.ts#L59`](../../src/transport/Transport.ts#L59); `delete`/`release` do not reset it; `canBeDeleted` dereferences a possibly undefined row ([`#L862`](../../src/transport/Transport.ts#L862)).
-- **Failure:** publish rollback: `release-transport` revert deletes unreleased requests, then the generator reverts read the cached `D` on the same instances and delete again, producing spurious "Failed rollback". Where no E070 exists (cg3z uploads, deleted requests) `canBeDeleted` throws `TypeError`.
-- **Fix:** clear the cache in `delete`/`release` and return `false` when no row exists.
 
 ### ACT-2026-18 — Low — Technical — Global prefixes are overwritten instead of restored
 
@@ -69,10 +63,21 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `restoreTransport` / `revertPreparedTransport` | Import return code ignored (ACT-2026-06). |
 | `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized deletion keeps the released transport, clears the rollback snapshot so it is neither restored nor forwarded, and rethrows the original authorization error (ACT-2026-07, resolved); context overwrite and dead assignment (ACT-2026-21). |
 | `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); the upgrade revert skips every restore (packages, deletion copy, retained tables, TADIR assignments) when the cleanup of the imported objects failed, and still deletes unreleased cleanup transports (ACT-2026-08, resolved); the `ZTRM_DELE_*` staging package of a `$` installation is tracked apart from the action's SAP packages, so the rollback of the imported objects never transports it, and both the upgrade and the delete revert delete it through `deleteCleanupStagingPackages` only after a complete restore; an unauthorized upgrade cleanup names it for manual deletion (ACT-2026-09, resolved). |
-| `Transport` status cache (used by every revert) | Cached E070 never invalidated (ACT-2026-17); release and queue polling unbounded (ACT-2026-14). |
+| `Transport` status cache (used by every revert) | `delete` and `release` invalidate the cached E070, even when the call fails, and the status checks return `false` when no row exists (ACT-2026-17, resolved); release and queue polling unbounded (ACT-2026-14). |
 | Package-name lookups | Install mappings and transports are queried and written under the stored package name: install adopts the registry manifest name, delete uses the installed package's name and registry (ACT-2026-16, resolved). |
 
 ## Resolved findings
+### ACT-2026-17 — Resolved — Medium — Technical — Cached transport status is never invalidated
+
+`Transport.delete` and `Transport.release` clear the cached E070 row after the connector call,
+also when it fails, so the next status check re-reads the request
+([source](../../src/transport/Transport.ts#L435)). `canBeDeleted` and `isReleased` return `false`
+when no E070 row exists instead of throwing a `TypeError`
+([source](../../src/transport/Transport.ts#L907)). Before, in the publish rollback the
+`release-transport` revert deleted the unreleased requests and the generator reverts then read the
+cached `D` on the same instances and deleted them again, reporting a spurious "Failed rollback";
+a request without an E070 row (deleted requests, cg3z uploads) made `canBeDeleted` throw.
+
 ### ACT-2026-16 — Resolved — Medium — Technical — Raw input package name used for case-sensitive lookups
 
 Install `init` now replaces the input name with the name of the fetched manifest for every registry,

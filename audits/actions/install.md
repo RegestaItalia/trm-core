@@ -133,7 +133,7 @@ current source changes their context. They should be re-decided explicitly.
 
 - **INST-02 — Batch import return codes are discarded.** INST-02 accepted that the install relied
   on `Transport.import()` to report TMS return codes. The install now imports through
-  [`Transport.importMultiple`](../../src/transport/Transport.ts#L776), whose per-transport results
+  [`Transport.importMultiple`](../../src/transport/Transport.ts#L786), whose per-transport results
   are discarded at [`importBatch.ts#L194`](../../src/actions/install/importBatch.ts#L194), while the
   `prepare-*` steps now explicitly reject test-import RC > 8. A final import with RC 8/12 continues to
   TADIR finalization, landscape release and the package record, and reports success. Recommended
@@ -340,4 +340,4 @@ not rolled back if a later finalization step fails; that ordering is accepted wo
 Install steps intentionally rely on `Transport.import()` to interpret and report TMS return codes.
 The action workflow does not independently convert logged return codes into rejected promises;
 continuing according to the transport layer's result is the accepted contract
-([source](../../src/transport/Transport.ts#L793)).
+([source](../../src/transport/Transport.ts#L803)).

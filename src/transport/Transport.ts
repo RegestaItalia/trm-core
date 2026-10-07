@@ -433,12 +433,22 @@ export class Transport {
     }
 
     public async delete(): Promise<null> {
-        await SystemConnector.deleteTrkorr(this.trkorr);
+        try {
+            await SystemConnector.deleteTrkorr(this.trkorr);
+        } finally {
+            //the request may be gone even if the call failed: re-read its status
+            this._e070 = undefined;
+        }
         return null;
     }
 
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
-        await SystemConnector.releaseTrkorr(this.trkorr, lock);
+        try {
+            await SystemConnector.releaseTrkorr(this.trkorr, lock);
+        } finally {
+            //the status may have changed even if the call failed: re-read it
+            this._e070 = undefined;
+        }
         if (tmpFolder) {
             await this.readReleaseLog(tmpFolder);
         } else {
@@ -895,12 +905,12 @@ export class Transport {
     }
 
     public async canBeDeleted(): Promise<boolean> {
-        const status = (await this.getE070()).trstatus;
+        const status = (await this.getE070())?.trstatus;
         return status === 'D';
     }
 
     public async isReleased(): Promise<boolean> {
-        const status = (await this.getE070()).trstatus;
+        const status = (await this.getE070())?.trstatus;
         return status === 'R' || status === 'N';
     }
 

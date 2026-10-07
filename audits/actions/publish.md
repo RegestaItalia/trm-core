@@ -62,7 +62,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 6 | `set-manifest-values` | non-strict engines (ACT-2026-59), interactive-only limits (ACT-2026-65), stale derived fields (ACT-2026-68). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
 | 7 | `set-optional-release-data` | No issue found. |
 | 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
-| 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts hit cached status ([ACT-2026-17](shared.md)). |
+| 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts re-read the status after an earlier delete ([ACT-2026-17](shared.md), resolved). |
 | 13 | `release-transport` | Prefixes restored, revert best-effort; unbounded release wait ([ACT-2026-14](shared.md)). |
 | 14 | `publish-to-registry` | An async publish whose status cannot be followed fails with an unknown outcome; polling is bounded (ACT-2026-57, resolved). |
 | 15 | `update-package-data` | Accepted best-effort behavior. |
