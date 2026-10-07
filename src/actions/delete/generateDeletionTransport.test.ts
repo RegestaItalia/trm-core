@@ -533,7 +533,7 @@ describe('generateDeletionTransport', () => {
     describe('revert', () => {
         function revertContext() {
             const { ctx } = runContext([]);
-            ctx.revert.sapPackages = ['ZTRM_DELE_ONE', 'ZTRM_DELE_TWO'];
+            ctx.revert.stagingPackages = ['ZTRM_DELE_ONE', 'ZTRM_DELE_TWO'];
             ctx.revert.dele = { trkorr: 'DEVK9DELE', entries: undefined, binaries: { header: Buffer.from('h'), data: Buffer.from('d') } };
             ctx.revert.deleImportStarted = true;
             ctx.revert.cleanupOriginalTadir = [
@@ -595,7 +595,7 @@ describe('generateDeletionTransport', () => {
 
         test('a failed staging deletion transport is deleted when still possible', async () => {
             const ctx = revertContext();
-            ctx.revert.sapPackages = ['ZTRM_DELE_ONE'];
+            ctx.revert.stagingPackages = ['ZTRM_DELE_ONE'];
             ctx.rawInput.packageData.registry.delete.mockRejectedValue(new Error('registry down'));
             const stage = new Transport('DEVK9STAGE') as any;
             stage.canBeDeleted.mockResolvedValue(true);

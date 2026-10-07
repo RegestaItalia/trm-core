@@ -18,12 +18,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** re-importing the pre-deletion copy or the retained-table backup ends with RC 8/12, yet the revert logs "restored" and resolves. Staging cleanup then proceeds and the TRM record is restored over missing objects; the rollback looks clean.
 - **Fix:** throw when the restore RC exceeds the threshold so the best-effort pass reports it.
 
-### ACT-2026-09 — Medium — Functional — `ZTRM_DELE_*` staging package leaks on install upgrades
-
-- **Where:** created at [`packageCleanup.ts#L388`](../../src/actions/commons/utils/packageCleanup.ts#L388); install revert only calls `revertInstalledPackageCleanup` ([`generateUpdateTransport.ts#L59`](../../src/actions/install/generateUpdateTransport.ts#L59)); delete has `deleteStagingPackages`.
-- **Failure:** for `$` installations the staging package survives a rollback (re-importing `dele` even recreates it), and on the unauthorized path it survives a successful upgrade.
-- **Fix:** reuse the delete action's staging cleanup after a full restore and exclude it from `cleanupEntries`.
-
 ### ACT-2026-10 — Medium — Technical — Rollback failures never reach the caller
 
 - **Where:** engine `execute` (revert catch); [`workflowCallbacks.ts#L35`](../../src/actions/commons/workflowCallbacks.ts#L35) only logs.
@@ -110,11 +104,26 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `withScopedPrefix` | No issue found; restores prefixes in `finally`. |
 | `restoreTransport` / `revertPreparedTransport` | Import return code ignored (ACT-2026-06). |
 | `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized deletion keeps the released transport, clears the rollback snapshot so it is neither restored nor forwarded, and rethrows the original authorization error (ACT-2026-07, resolved); context overwrite and dead assignment (ACT-2026-21). |
-| `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); the upgrade revert skips every restore (packages, deletion copy, retained tables, TADIR assignments) when the cleanup of the imported objects failed, and still deletes unreleased cleanup transports (ACT-2026-08, resolved); staging package leak (ACT-2026-09). |
+| `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); the upgrade revert skips every restore (packages, deletion copy, retained tables, TADIR assignments) when the cleanup of the imported objects failed, and still deletes unreleased cleanup transports (ACT-2026-08, resolved); the `ZTRM_DELE_*` staging package of a `$` installation is tracked apart from the action's SAP packages, so the rollback of the imported objects never transports it, and both the upgrade and the delete revert delete it through `deleteCleanupStagingPackages` only after a complete restore; an unauthorized upgrade cleanup names it for manual deletion (ACT-2026-09, resolved). |
 | `Transport` status cache (used by every revert) | Cached E070 never invalidated (ACT-2026-17); release and queue polling unbounded (ACT-2026-14). |
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-09 — Resolved — Medium — Functional — `ZTRM_DELE_*` staging package leaks on install upgrades
+
+The staging package is tracked in `revert.stagingPackages` instead of `revert.sapPackages`, so
+`cleanupEntries` no longer adds it to the cleanup transport of the imported objects (where an
+already deleted package could fail the add and mark that cleanup failed). The delete action's
+staging cleanup moved to `deleteCleanupStagingPackages`
+([source](../../src/actions/commons/utils/packageCleanup.ts#L148)). The `generate-update-transport`
+revert calls it after `revertInstalledPackageCleanup` succeeds with `restore` set
+([caller](../../src/actions/install/generateUpdateTransport.ts#L72)): a package still holding objects
+is kept and reported, every package is attempted, and the first failure is thrown. A package already
+deleted by the deletion transport is skipped. On the unauthorized upgrade path the package cannot be
+deleted (that also needs a deletion transport): after restoring the assignments the cleanup warns
+that it must be deleted manually
+([source](../../src/actions/commons/utils/packageCleanup.ts#L692)).
+
 ### ACT-2026-08 — Resolved — Medium — Technical — Upgrade-cleanup revert restores payloads after a failed cleanup
 
 `revertInstalledPackageCleanup` takes a `restore` flag. The `generate-update-transport` revert

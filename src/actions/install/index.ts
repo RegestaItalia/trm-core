@@ -273,6 +273,7 @@ type WorkflowRevert = {
         cust: Transport[]
     },
     sapPackages: DEVCLASS[],
+    stagingPackages?: DEVCLASS[],
     dele?: TransportBinary,
     deleImportStarted?: boolean,
     deleInTargetTms?: boolean,

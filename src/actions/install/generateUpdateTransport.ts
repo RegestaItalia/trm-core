@@ -3,7 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
-import { cleanupInstalledPackage, revertInstalledPackageCleanup } from "../commons/utils";
+import { cleanupInstalledPackage, deleteCleanupStagingPackages, revertInstalledPackageCleanup } from "../commons/utils";
 import { PackageHierarchy } from "../../commons";
 
 export { deleteTemporaryCleanupPackages } from "../commons/utils";
@@ -64,6 +64,12 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         // Rollback of the imported objects ran first: when it failed, they are still on the system
         // and the previous release must not be restored over them.
-        await revertInstalledPackageCleanup(context, !(context.revert.cleanupImported && !context.revert.cleanupSucceeded));
+        const restore = !(context.revert.cleanupImported && !context.revert.cleanupSucceeded);
+        await revertInstalledPackageCleanup(context, restore);
+        // Objects might still be assigned to a staging package if restoring failed or was skipped:
+        // only delete staging packages after a complete restore.
+        if (restore) {
+            await deleteCleanupStagingPackages(context);
+        }
     }
 }

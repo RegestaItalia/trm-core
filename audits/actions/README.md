@@ -1,6 +1,6 @@
 # Action workflow audits
 
-Audit date: 2026-10-05 (in-depth static source review; no SAP or registry operation was run).
+Audit date: 2026-10-07 (in-depth static source review; no SAP or registry operation was run).
 
 These documents are static source audits of every workflow assembled under `src/actions`.
 Each step was reviewed in execution order, including filters, external calls, context mutations,
@@ -40,8 +40,8 @@ feature, missing case).
 | `install-dependency` | 6 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 24 | 1 | 4 | 8 | 3 | [Package install](install.md) |
 | `publish` | 15 | 0 | 1 | 3 | 4 | [Package publish](publish.md) |
-| Shared steps/callbacks | 12 | 1 | 1 | 9 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **2** | **7** | **21** | **11** | |
+| Shared steps/callbacks | 12 | 1 | 1 | 8 | 4 | [Shared infrastructure](shared.md) |
+| **Total** | | **2** | **7** | **20** | **11** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the

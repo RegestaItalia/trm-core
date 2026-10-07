@@ -558,7 +558,10 @@ describe('generateUpdateTransport revert', () => {
 
         await generateUpdateTransport.run(ctx);
 
-        const staging = ctx.revert.sapPackages[0];
+        const staging = ctx.revert.stagingPackages[0];
+        expect(staging).toMatch(/^ZTRM_DELE_/);
+        // Not an install package: the rollback of the imported objects must not transport it.
+        expect(ctx.revert.sapPackages).toEqual([]);
         const assignments = (SystemConnector.tadirInterface as jest.Mock).mock.calls.map(([o]) => `${o.objName}:${o.devclass}`);
         expect(assignments).toEqual([
             `${staging}:${staging}`,
@@ -570,5 +573,110 @@ describe('generateUpdateTransport revert', () => {
         const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => o.objName));
         expect(deleted).not.toContain('Z_KEPT');
         expect(ctx.revert.cleanupOriginalTadir.map((o: any) => o.objName)).toEqual(['Z_GONE', 'Z_KEPT']);
+    });
+    describe('staging package of a local installation', () => {
+        function stagingRevertContext() {
+            const ctx = context();
+            ctx.rawInput = { packageData: { name: 'pkg', registry: { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn(async (binaries: any) => binaries) } } };
+            ctx.runtime = { update: { manifest: { get: () => ({ version: '1.0.0' }) } } };
+            ctx.revert.sapPackages = [];
+            ctx.revert.stagingPackages = ['ZTRM_DELE_ONE'];
+            (SystemConnector.getDevclass as jest.Mock).mockImplementation(async devclass =>
+                devclass === 'ZTRM_DELE_ONE' ? { devclass } : undefined);
+            jest.spyOn(SystemConnector, 'getDevclassObjects').mockResolvedValue([]);
+            (Transport.createToc as jest.Mock).mockReset();
+            (Transport.createToc as jest.Mock).mockImplementation(async () => new Transport('DEVK9STAGE'));
+            jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+            return ctx;
+        }
+
+        function stagedDeletions(): string[] {
+            return (Transport as any).instances
+                .filter((t: any) => t.trkorr === 'DEVK9STAGE')
+                .flatMap((t: any) => t.addObjects.mock.calls.map(([objects]: any[]) => objects[0].objName));
+        }
+
+        test('is deleted after a complete restore', async () => {
+            const ctx = stagingRevertContext();
+
+            await generateUpdateTransport.revert(ctx);
+
+            expect(stagedDeletions()).toEqual(['ZTRM_DELE_ONE']);
+            expect(ctx.rawInput.packageData.registry.delete).toHaveBeenCalledTimes(1);
+            const tadirOrder = Math.max(...(SystemConnector.tadirInterface as jest.Mock).mock.invocationCallOrder);
+            expect(tadirOrder).toBeLessThan((Transport.createToc as jest.Mock).mock.invocationCallOrder[0]);
+        });
+
+        test('is kept when restoring object assignments fails', async () => {
+            const ctx = stagingRevertContext();
+            (SystemConnector.tadirInterface as jest.Mock).mockRejectedValue(new Error('assignment failed'));
+
+            await expect(generateUpdateTransport.revert(ctx)).rejects.toThrow('assignment failed');
+
+            expect(Transport.createToc).not.toHaveBeenCalled();
+        });
+
+        test('is kept when the cleanup of the imported objects failed', async () => {
+            const ctx = stagingRevertContext();
+            ctx.revert.cleanupImported = true;
+            ctx.revert.cleanupSucceeded = false;
+
+            await generateUpdateTransport.revert(ctx);
+
+            expect(Transport.createToc).not.toHaveBeenCalled();
+        });
+
+        test('is kept, and the failure surfaced, when objects are still assigned to it', async () => {
+            const ctx = stagingRevertContext();
+            (SystemConnector.getDevclassObjects as jest.Mock).mockResolvedValue([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_LEFT' }]);
+
+            await expect(generateUpdateTransport.revert(ctx)).rejects.toThrow('ZTRM_DELE_ONE still contains 1 objects');
+
+            expect(Transport.createToc).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not delete SAP package ZTRM_DELE_ONE'));
+        });
+
+        test('a failed deletion transport is deleted when still possible and the failure surfaced', async () => {
+            const ctx = stagingRevertContext();
+            ctx.rawInput.packageData.registry.delete.mockRejectedValue(new Error('registry down'));
+            const stage = new Transport('DEVK9STAGE') as any;
+            stage.canBeDeleted.mockResolvedValue(true);
+            (Transport.createToc as jest.Mock).mockReset();
+            (Transport.createToc as jest.Mock).mockResolvedValue(stage);
+
+            await expect(generateUpdateTransport.revert(ctx)).rejects.toThrow('registry down');
+
+            expect(stage.delete).toHaveBeenCalledTimes(1);
+        });
+
+        test('already deleted by the deletion transport is skipped', async () => {
+            const ctx = stagingRevertContext();
+            (SystemConnector.getDevclass as jest.Mock).mockResolvedValue(undefined);
+
+            await generateUpdateTransport.revert(ctx);
+
+            expect(Transport.createToc).not.toHaveBeenCalled();
+        });
+
+        test('left by an unauthorized deletion transport is reported for manual cleanup', async () => {
+            const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+            ctx.runtime.update.getDevclass = () => '$OLD';
+            jest.spyOn(SystemConnector, 'getSubpackages').mockResolvedValue([]);
+            jest.spyOn(SystemConnector, 'getDevclassObjects').mockResolvedValue([]);
+            jest.spyOn(SystemConnector, 'getDefaultTransportLayer').mockResolvedValue('ZTRL');
+            jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects =>
+                objects.map(object => ({ ...object, devclass: '$OLD', srcsystem: 'OLD' })) as any);
+            ctx.rawInput.packageData.registry.delete = jest.fn().mockRejectedValue(
+                new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401')));
+            (SystemConnector.getDevclass as jest.Mock).mockImplementation(async devclass =>
+                devclass === '$OLD' ? { devclass: '$OLD', parentcl: '' } : undefined);
+            const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+
+            await expect(generateUpdateTransport.run(ctx)).resolves.toBeUndefined();
+
+            const staging = ctx.revert.stagingPackages[0];
+            expect(warning).toHaveBeenCalledWith(expect.stringContaining(`SAP package ${staging}, created for the cleanup, was left on TST`));
+            expect(SystemConnector.tadirInterface).toHaveBeenLastCalledWith(expect.objectContaining({ objName: 'Z_GONE', devclass: '$OLD' }));
+        });
     });
 });
