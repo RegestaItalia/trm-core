@@ -31,4 +31,13 @@ describe('install checkDependants', () => {
     test('rejects a prerelease upgrade outside the dependant range', async () => {
         await expect(checkDependants.run(context('2.0.0-beta.1', '^1.0.0'))).rejects.toThrow('Upgrade aborted');
     });
+
+    test('guides the user before rejecting an incompatible upgrade', async () => {
+        await expect(checkDependants.run(context('2.0.0', '^1.0.0'))).rejects.toThrow('Upgrade aborted');
+        const messages = (Logger.info as jest.Mock).mock.calls.map(call => call[0]).join('\n');
+        expect(messages).toContain('How to upgrade to "pkg" v2.0.0:');
+        expect(messages).toContain('1. Install a newer release of "dependant"');
+        expect(messages).toContain('2. If "pkg" v2.0.0 is still not installed, run this install again.');
+        expect(messages).toContain('(^1.0.0)');
+    });
 });
