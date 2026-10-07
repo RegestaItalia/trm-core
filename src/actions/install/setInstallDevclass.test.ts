@@ -67,6 +67,67 @@ describe('set-install-devclass namespace carry-over', () => {
         });
     });
 
+    test('moves a new devclass of the original root namespace to the installed namespace', async () => {
+        // ZFOO installed as /ACME/FOO: a new ZFOO_B must follow it under /ACME/.
+        const ctx = context('/ACME/FOO', []);
+        ctx.runtime.package.hierarchy = { devclass: 'ZFOO', sub: [{ devclass: 'ZFOO_B', sub: [] }] };
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZFOO', installDevclass: '/ACME/FOO' }];
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toContainEqual({
+            originalDevclass: 'ZFOO_B', installDevclass: '/ACME/FOO_B'
+        });
+    });
+
+    test('moves a new devclass out of a reserved original namespace', async () => {
+        const ctx = context('ZFOO', []);
+        ctx.runtime.package.hierarchy = { devclass: '/ACME/FOO', sub: [{ devclass: '/ACME/FOO_B', sub: [] }] };
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: '/ACME/FOO', installDevclass: 'ZFOO' }];
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toContainEqual({
+            originalDevclass: '/ACME/FOO_B', installDevclass: 'ZFOO_B'
+        });
+    });
+
+    test('a temporary original namespace is matched literally', async () => {
+        const ctx = context('/ACME/FOO', []);
+        ctx.runtime.package.hierarchy = { devclass: '$FOO', sub: [{ devclass: '$FOO_B', sub: [] }] };
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: '$FOO', installDevclass: '/ACME/FOO' }];
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toContainEqual({
+            originalDevclass: '$FOO_B', installDevclass: '/ACME/FOO_B'
+        });
+    });
+
+    test('a temporary installed namespace is written literally', async () => {
+        const ctx = context('$FOO', []);
+        ctx.runtime.package.hierarchy = { devclass: 'ZFOO', sub: [{ devclass: 'ZFOO_B', sub: [] }] };
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZFOO', installDevclass: '$FOO' }];
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toContainEqual({
+            originalDevclass: 'ZFOO_B', installDevclass: '$FOO_B'
+        });
+    });
+
+    test('a new devclass outside the original root namespace keeps its name', async () => {
+        const ctx = context('/ACME/FOO', []);
+        ctx.runtime.package.hierarchy = { devclass: 'ZFOO', sub: [{ devclass: 'YFOO_B', sub: [] }] };
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZFOO', installDevclass: '/ACME/FOO' }];
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toContainEqual({
+            originalDevclass: 'YFOO_B', installDevclass: 'YFOO_B'
+        });
+    });
+
     test('rejects more than one reserved namespace before locks and dependency installs', async () => {
         const ctx = context('/INST/ROOT', []);
         ctx.rawInput.installData.installDevclass.replacements = [

@@ -5,6 +5,10 @@ import { SystemConnector } from "../../systemConnector";
 import { Logger, Inquirer, Question } from "trm-commons";
 import { flattenDevclasses, getInstallNamespace } from "./addNamespace";
 
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
 function _validateDevclass(input: string, namespaces?: string[]): string | true {
     const sInput: string = input.trim().toUpperCase();
     if (sInput.length > 30) {
@@ -78,12 +82,8 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
             }
         }
 
-        //2- get root devclass and find namespace
-        let rootDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === context.runtime.package.hierarchy.devclass)?.installDevclass;
-        if (!rootDevclass) {
-            rootDevclass = context.runtime.package.hierarchy.devclass;
-        }
-        const originalNamespace = getPackageNamespace(rootDevclass);
+        //2- find the namespace of the original root, carried over onto new devclasses
+        const originalNamespace = getPackageNamespace(context.runtime.package.hierarchy.devclass);
         // Only carry the currently installed namespace forward onto newly introduced original
         // devclasses when the package was genuinely customized before (some stored replacement
         // actually renamed a package). Otherwise "currently installed" is just this package's
@@ -114,7 +114,8 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                 if (!replacement && updateNamespace === '$' && (context.runtime.isTrmServer || context.runtime.isTrmRest)) {
                     adaptDevclassName = adjustTrmServerRestDevclass(adaptDevclassName);
                 } else {
-                    adaptDevclassName = adaptDevclassName.replace(new RegExp(`^${originalNamespace}`, 'gmi'), updateNamespace);
+                    //original names use the original root namespace; a function keeps `$` literal
+                    adaptDevclassName = adaptDevclassName.replace(new RegExp(`^${escapeRegExp(originalNamespace)}`, 'i'), () => updateNamespace);
                 }
             } else if (context.runtime.isTrmRest) {
                 //extra guard for trm-rest first install: move /ATRM/ to $
