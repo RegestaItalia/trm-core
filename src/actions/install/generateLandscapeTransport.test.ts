@@ -122,6 +122,21 @@ describe('generateLandscapeTransport rollback', () => {
         expect(ctx.output.transport).toBeUndefined();
     });
 
+    test('locked namespace is omitted with a warning naming the locking transport', async () => {
+        const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+        jest.spyOn(SystemConnector, 'getObjectsLocks').mockResolvedValue([
+            { pgmid: 'R3TR', object: 'NSPC', objName: '/TEST/', trkorr: 'DEVK9OTHER' }
+        ]);
+        const ctx = context();
+
+        await execute('test', [generateLandscapeTransport], ctx);
+
+        expect(landscape.addObjects).not.toHaveBeenCalled();
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('/TEST/'));
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9OTHER'));
+        expect(ctx.output.transport).toBe(landscape);
+    });
+
     test('no transport target skips landscape generation', async () => {
         jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
         const ctx = context();

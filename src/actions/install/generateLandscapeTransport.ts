@@ -85,6 +85,9 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
                     object: 'NSPC',
                     objName: context.revert.namespace
                 }], true);
+            } else {
+                const lockTransports = [...new Set(nspcLock.map(o => o.trkorr))].join(', ');
+                Logger.warning(`Namespace ${context.revert.namespace} is locked in transport ${lockTransports} and won't be included in the landscape transport.`);
             }
         }
 
