@@ -86,6 +86,14 @@ describe('check-transports existing objects with unknown root devclass', () => {
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('1 object(s) already exist'), { important: true });
     });
 
+    test('a first install names the objects that already exist', async () => {
+        const ctx = context({ noInquirer: false });
+        ctx.runtime.update = undefined;
+        await expect(checkTransports.run(ctx)).rejects.toThrow(
+            '1 object(s) already exist on target system TST, install without object check (expert mode):\nR3TR CLAS ZCL_FOREIGN'
+        );
+    });
+
     test('interactive mode asks for confirmation', async () => {
         jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ ow: false } as any);
         await expect(checkTransports.run(context({ noInquirer: false }))).rejects.toThrow('1 object(s) already exist on target system TST');
