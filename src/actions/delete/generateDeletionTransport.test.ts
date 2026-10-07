@@ -183,7 +183,7 @@ describe('generateDeletionTransport', () => {
 
         const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
         expect(deleted).toEqual(['CLAS /NS/CLASS', 'DEVC /NS/ROOT']);
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Keeping namespace /NS/'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Keeping namespace /NS/'), { important: true });
     });
 
     test('unauthorized deletion transport aborts the delete instead of only warning', async () => {
@@ -318,7 +318,7 @@ describe('generateDeletionTransport', () => {
             await generateDeletionTransport.run(ctx);
 
             expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
-            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9CUST1 is no longer on TST'));
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9CUST1 is no longer on TST'), { important: true });
         });
 
         test('the rows are deleted without asking, even when prompts are enabled', async () => {
@@ -466,8 +466,8 @@ describe('generateDeletionTransport', () => {
             expect(deleted).toEqual(expect.arrayContaining(['CLAS Z_CLASS', 'PROG Z_LOCAL_PROG', 'PROG Z_EXTRA_PROG', 'DEVC Z_EXTRA']));
             expect(deleted).toHaveLength(4);
             // Without prompts, extra objects are deleted with a warning.
-            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_EXTRA will delete 2 extra objects outside this installation.');
-            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_LOCAL will delete 2 extra objects outside this installation.');
+            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_EXTRA will delete 2 extra objects outside this installation.', { important: true });
+            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_LOCAL will delete 2 extra objects outside this installation.', { important: true });
             expect(Logger.warning).not.toHaveBeenCalledWith(expect.stringContaining('nested'));
             expect(Logger.warning).not.toHaveBeenCalledWith(expect.stringContaining('NESTED'));
         });
@@ -506,7 +506,7 @@ describe('generateDeletionTransport', () => {
 
         await generateDeletionTransport.run(ctx);
 
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Nothing to delete for package pkg'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Nothing to delete for package pkg'), { important: true });
         expect(dummy.addObjects).not.toHaveBeenCalled();
         expect(dummy.release).not.toHaveBeenCalled();
         expect(registry.delete).not.toHaveBeenCalled();
@@ -524,7 +524,7 @@ describe('generateDeletionTransport', () => {
 
         await generateDeletionTransport.run(ctx);
 
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not delete transport DEVK9DELE'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not delete transport DEVK9DELE'), { important: true });
         expect(dummy.release).not.toHaveBeenCalled();
         // Rollback can still retry deleting it.
         expect(ctx.revert.updateCleanupTransport).toBe(dummy);

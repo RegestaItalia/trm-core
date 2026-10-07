@@ -24,7 +24,7 @@ export const confirmDowngrade: Step<InstallDependencyWorkflowContext> = {
         const versionRange = context.rawInput.dependencyDataPackage.versionRange;
         const installedVersion = context.runtime.installedVersion;
         const installVersion = context.runtime.installVersion;
-        Logger.warning(`Dependency "${dependencyName}" v${installedVersion} is installed, but ${versionRange} requires a downgrade to v${installVersion}.`);
+        Logger.warning(`Dependency "${dependencyName}" v${installedVersion} is installed, but ${versionRange} requires a downgrade to v${installVersion}.`, { important: true });
         if (context.rawInput.installData.checks.allowDowngrade) {
             return;
         }

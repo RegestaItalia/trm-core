@@ -29,7 +29,7 @@ export const checkDependants: Step<DeleteWorkflowContext> = {
             return;
         }
         dependants.forEach(dependant => Logger.warning(
-            `Dependant "${dependant.package.packageName}" requires "${deletedPackage.packageName}" ${dependant.range}.`
+            `Dependant "${dependant.package.packageName}" requires "${deletedPackage.packageName}" ${dependant.range}.`, { important: true }
         ));
         let ignoreDependants = false;
         if (!context.rawInput.contextData.noInquirer) {

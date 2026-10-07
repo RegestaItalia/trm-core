@@ -129,7 +129,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                         }
                     });
                     if (missingDependencies.length > 0) {
-                        Logger.warning(`Latest version of the package had ${missingDependencies.length} ${missingDependencies.length === 1 ? 'dependency that is now missing' : 'dependencies that are now missing'}.`);
+                        Logger.warning(`Latest version of the package had ${missingDependencies.length} ${missingDependencies.length === 1 ? 'dependency that is now missing' : 'dependencies that are now missing'}.`, { important: true });
                         if (!context.rawInput.contextData.noInquirer) {
                             const inq = await Inquirer.prompt({
                                 type: 'select',
@@ -152,12 +152,12 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                         } else {
                             missingDependencies.forEach(o => {
                                 if (o.registry) {
-                                    Logger.warning(` ${o.name} (${o.registry})`);
+                                    Logger.warning(` ${o.name} (${o.registry})`, { important: true });
                                 } else {
-                                    Logger.warning(` ${o.name}`);
+                                    Logger.warning(` ${o.name}`, { important: true });
                                 }
                             });
-                            Logger.warning(`Include them manually later if still relveant.`);
+                            Logger.warning(`Include them manually later if still relveant.`, { important: true });
                         }
                     }
                 }
@@ -392,7 +392,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 }
             }
             removedPostActivities.forEach(name => {
-                Logger.error(`Class "${name}" does not exist and will be removed from post activities list.`);
+                Logger.error(`Class "${name}" does not exist and will be removed from post activities list.`, { important: true });
                 context.runtime.manifest.postActivities = context.runtime.manifest.postActivities.filter(o => o.name !== name);
             });
         }

@@ -34,8 +34,8 @@ export const updatePackageData: Step<PublishWorkflowContext> = {
         } catch (e) {
             const packageName = context.rawInput.packageData.name;
             const packageVersion = context.runtime.manifest.version;
-            Logger.error(`An error occurred during publish finalize. ${packageName} v${packageVersion} has been published, however package on ${SystemConnector.getDest()} is inconsistent.`);
-            Logger.error(`Install ${packageName} v${packageVersion} on ${SystemConnector.getDest()} to synchronize its package data.`);
+            Logger.error(`An error occurred during publish finalize. ${packageName} v${packageVersion} has been published, however package on ${SystemConnector.getDest()} is inconsistent.`, { important: true });
+            Logger.error(`Install ${packageName} v${packageVersion} on ${SystemConnector.getDest()} to synchronize its package data.`, { important: true });
             Logger.error(String(e), true);
         }
     }

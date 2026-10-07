@@ -11,6 +11,7 @@ Legend
 2026-08-05 v10.0.0
 -------------------
 + usage of registry /transport route (when available)
++ important log messages (kept visible at the end of an action)
 
 2026-07-29 v9.10.4
 -------------------

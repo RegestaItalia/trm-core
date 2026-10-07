@@ -204,7 +204,7 @@ describe('delete init', () => {
         await init.run(ctx);
 
         expect(prompt).not.toHaveBeenCalled();
-        expect(Logger.warning).toHaveBeenCalledWith('pkg has changes made on TST that will be deleted!');
+        expect(Logger.warning).toHaveBeenCalledWith('pkg has changes made on TST that will be deleted!', { important: true });
         expect(ctx.runtime.update.packageName).toBe('pkg');
     });
 });

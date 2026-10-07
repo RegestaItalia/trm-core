@@ -75,7 +75,7 @@ export const addNamespace: Step<InstallWorkflowContext> = {
                 if (context.rawInput.installData.installDevclass.skipNamespace) {
                     if (context.rawInput.installData.installDevclass.keepOriginal) {
                         //no packages are being generated under this namespace, importing it is optional
-                        Logger.warning(`Install will continue without importing namespace ${context.runtime.namespace}. Run install with namespace import or manually add namespace in SE03.`, context.runtime.namespace === '/ATRM/');
+                        Logger.warning(`Install will continue without importing namespace ${context.runtime.namespace}. Run install with namespace import or manually add namespace in SE03.`, { debug: context.runtime.namespace === '/ATRM/', important: true });
                         return;
                     }
                     //namespace doesn't exist but packages must be generated, it's mandatory to have the namespace

@@ -170,12 +170,12 @@ export async function deleteCleanupStagingPackages(context: PackageCleanupContex
                         await transport.delete();
                     }
                 } catch (deleteError) {
-                    Logger.warning(`Could not delete transport ${transport.trkorr}: ${String(deleteError)}`);
+                    Logger.warning(`Could not delete transport ${transport.trkorr}: ${String(deleteError)}`, { important: true });
                 }
                 throw error;
             }
         } catch (error) {
-            Logger.warning(`Could not delete SAP package ${devclass}, manual cleanup might be necessary.`);
+            Logger.warning(`Could not delete SAP package ${devclass}, manual cleanup might be necessary.`, { important: true });
             firstError ||= error;
         }
     }
@@ -279,14 +279,14 @@ async function getCustomizingSources(context: PackageCleanupContext, target: Pac
         if (await new Transport(transport.trkorr).getE070()) {
             sources.push(transport.trkorr);
         } else {
-            Logger.warning(`Customizing transport ${transport.trkorr} is no longer on ${SystemConnector.getDest()}: its rows can't be deleted.`);
+            Logger.warning(`Customizing transport ${transport.trkorr} is no longer on ${SystemConnector.getDest()}: its rows can't be deleted.`, { important: true });
         }
     }
     if (sources.length === 0) {
         return [];
     }
     if (target.keepCustomizing) {
-        Logger.warning(`Keeping customizing of ${sources.length} transports (${sources.join(', ')}).`);
+        Logger.warning(`Keeping customizing of ${sources.length} transports (${sources.join(', ')}).`, { important: true });
         return [];
     }
     return sources;
@@ -436,7 +436,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             if (extraObjectCount > 0) {
                 const extraObjectsMessage = `Cleanup of SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} will delete ${extraObjectCount} extra objects outside this installation`;
                 if (context.rawInput.contextData.noInquirer) {
-                    Logger.warning(`${extraObjectsMessage}.`);
+                    Logger.warning(`${extraObjectsMessage}.`, { important: true });
                 }
                 const { deleteExtraObjects } = context.rawInput.contextData.noInquirer
                     ? { deleteExtraObjects: true }
@@ -503,7 +503,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
                     Logger.log(`Keeping namespace ${namespace}: still used by SAP packages ${remainingPackages.map(pkg => pkg.devclass).join(', ')}`, true);
                 }
             } catch (e) {
-                Logger.warning(`Keeping namespace ${namespace}: its usage could not be checked (${String(e)})`);
+                Logger.warning(`Keeping namespace ${namespace}: its usage could not be checked (${String(e)})`, { important: true });
             }
         }
 
@@ -534,7 +534,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
                 });
             if (!deleteMovedObjects) {
                 movedObjects.forEach(object => movedKeys.add(objectKey(object)));
-                Logger.warning(`Keeping ${movedObjects.length} objects moved outside this installation.`);
+                Logger.warning(`Keeping ${movedObjects.length} objects moved outside this installation.`, { important: true });
             }
         }
 
@@ -556,14 +556,14 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         // TRM comment rows of the installed transport are not objects to delete.
         const hasObjectsToDelete = Array.from(deletionObjects.values()).some(object => normalize(object.pgmid) !== '*');
         if (!hasObjectsToDelete && retainedTables.length === 0 && customizingSources.length === 0) {
-            Logger.warning(`Nothing to delete for package ${context.rawInput.packageData.name}: deletion transport was not generated. Manual cleanup of previous release install might be necessary.`);
+            Logger.warning(`Nothing to delete for package ${context.rawInput.packageData.name}: deletion transport was not generated. Manual cleanup of previous release install might be necessary.`, { important: true });
             try {
                 if (await dummy.canBeDeleted()) {
                     await dummy.delete();
                     context.revert.updateCleanupTransport = undefined;
                 }
             } catch (e) {
-                Logger.warning(`Could not delete transport ${dummy.trkorr}: ${String(e)}`);
+                Logger.warning(`Could not delete transport ${dummy.trkorr}: ${String(e)}`, { important: true });
             }
             return;
         }
@@ -581,7 +581,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
                 OBJ_NAME: object.objName
             })));
             if (locks.length > 0) {
-                locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`));
+                locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true }));
                 throw new Error(`${target.actionName} aborted. To continue, all cleanup objects and SAP packages must be released`);
             }
         }
@@ -685,13 +685,13 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             //at this point the dummy is already released, transport cannot be deleted but it's a harmless release of a transport of copies.
             await restoreCleanupAssignments(context, true);
             if (target.requireDeletion) {
-                Logger.error(`User is not authorized to generate deletion transports.`);
+                Logger.error(`User is not authorized to generate deletion transports.`, { important: true });
                 throw e;
             }
-            Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`);
+            Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`, { important: true });
             // Deleting the staging package needs a deletion transport too.
             if (stagingDevclass) {
-                Logger.warning(`SAP package ${stagingDevclass}, created for the cleanup, was left on ${SystemConnector.getDest()}: delete it manually.`);
+                Logger.warning(`SAP package ${stagingDevclass}, created for the cleanup, was left on ${SystemConnector.getDest()}: delete it manually.`, { important: true });
             }
         }
     });
@@ -726,7 +726,7 @@ export async function removeFromImportQueue(trkorr: string, targetSystem: string
         await SystemConnector.deleteTmsTransport(trkorr, targetSystem);
         return true;
     }
-    Logger.warning(`${description} ${trkorr} may be in the ${targetSystem} import queue: remove it manually in STMS (it can't be removed from ${SystemConnector.getDest()}).`);
+    Logger.warning(`${description} ${trkorr} may be in the ${targetSystem} import queue: remove it manually in STMS (it can't be removed from ${SystemConnector.getDest()}).`, { important: true });
     return false;
 }
 
@@ -764,7 +764,7 @@ export async function revertInstalledPackageCleanup(context: PackageCleanupConte
                 if (restore) {
                     await restoreTransport(context.revert.dele);
                 } else {
-                    Logger.warning(`Objects deleted by ${context.revert.dele.trkorr} were not restored, as the cleanup of the imported objects failed: manual restore might be necessary.`);
+                    Logger.warning(`Objects deleted by ${context.revert.dele.trkorr} were not restored, as the cleanup of the imported objects failed: manual restore might be necessary.`, { important: true });
                 }
             } else {
                 // Released but never imported: the objects were not deleted, re-importing the copy would overwrite them.
@@ -783,7 +783,7 @@ export async function revertInstalledPackageCleanup(context: PackageCleanupConte
                 // Old table definitions are imported over the new ones: data is kept.
                 await restoreTransport(context.revert.retainedTables);
             } else {
-                Logger.warning(`Retained tables backup ${context.revert.retainedTables.trkorr} was not restored, as the cleanup of the imported objects failed: manual restore might be necessary.`);
+                Logger.warning(`Retained tables backup ${context.revert.retainedTables.trkorr} was not restored, as the cleanup of the imported objects failed: manual restore might be necessary.`, { important: true });
             }
         } else if (context.revert.updateTablesBackupTransport
             && await context.revert.updateTablesBackupTransport.canBeDeleted()) {

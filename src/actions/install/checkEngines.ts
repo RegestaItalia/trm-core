@@ -59,10 +59,10 @@ export const checkEngines: Step<InstallWorkflowContext> = {
         const notMet = result.results.filter(o => o.required && !o.ok);
         if (!result.passed) {
             notMet.forEach(o => {
-                Logger.error(`Engine requirement ${o.path} not met: ${describeNotMet(o)}`);
+                Logger.error(`Engine requirement ${o.path} not met: ${describeNotMet(o)}`, { important: true });
                 if (isAnyOf(o)) {
                     getAnyOfDetails(result.results, o).forEach(detail => {
-                        Logger.error(`  ${detail.path}: ${describeNotMet(detail)}`);
+                        Logger.error(`  ${detail.path}: ${describeNotMet(detail)}`, { important: true });
                     });
                 }
             });

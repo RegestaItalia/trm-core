@@ -56,8 +56,8 @@ describe('publish package metadata synchronization', () => {
         } as any;
 
         await expect(updatePackageData.run(context)).resolves.toBeUndefined();
-        expect(logError).toHaveBeenCalledWith(expect.stringContaining('pkg v1.2.3 has been published'));
-        expect(logError).toHaveBeenCalledWith(expect.stringContaining('Install pkg v1.2.3 on TST'));
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('pkg v1.2.3 has been published'), { important: true });
+        expect(logError).toHaveBeenCalledWith(expect.stringContaining('Install pkg v1.2.3 on TST'), { important: true });
         expect(logError).toHaveBeenCalledWith('Error: metadata write failed', true);
     });
 

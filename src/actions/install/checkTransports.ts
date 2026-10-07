@@ -18,7 +18,7 @@ export async function checkObjectsLocks(e071: E071[]): Promise<void> {
     }));
     if (locks.length > 0) {
         locks.forEach(l => {
-            Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`);
+            Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`, { important: true });
         });
         throw new Error(`Install aborted. To continue, all objects must be released`);
     }
@@ -272,9 +272,9 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                                 Logger.log(`${o.pgmid} ${o.object} ${o.objName} already in system but devclass ${o.devclass} is part of the same trm package in update`, true);
                             } else {
                                 if (context.rawInput.installData.checks.noExistingObjects) {
-                                    Logger.warning(`${o.pgmid} ${o.object} ${o.objName} already exist on target system ${SystemConnector.getDest()}`);
+                                    Logger.warning(`${o.pgmid} ${o.object} ${o.objName} already exist on target system ${SystemConnector.getDest()}`, { important: true });
                                 } else {
-                                    Logger.error(`${o.pgmid} ${o.object} ${o.objName} already exist on target system ${SystemConnector.getDest()}`);
+                                    Logger.error(`${o.pgmid} ${o.object} ${o.objName} already exist on target system ${SystemConnector.getDest()}`, { important: true });
                                 }
                                 throwExistingObjectsError = true;
                             }
@@ -284,7 +284,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                         }
                     } else {
                         if (context.rawInput.installData.checks.noExistingObjects) {
-                            Logger.warning(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
+                            Logger.warning(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`, { important: true });
                         } else if (context.rawInput.contextData.noInquirer) {
                             //can't confirm the overwrite without a prompt: fail closed
                             throw new Error(`Couldn't determine root SAP package for "${rootPackage.packageName}", ${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
@@ -307,7 +307,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                 }
             } else {
                 if (context.rawInput.installData.checks.noExistingObjects) {
-                    Logger.warning(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
+                    Logger.warning(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`, { important: true });
                 } else {
                     throw new Error(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}, install without object check (expert mode)`);
                 }

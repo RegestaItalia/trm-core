@@ -43,7 +43,7 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
                 const postActivity = new PostActivity(activity);
                 await postActivity.execute();
             } catch (e) {
-                Logger.error(`Failed execution of post activity: ${e.message}`);
+                Logger.error(`Failed execution of post activity: ${e.message}`, { important: true });
                 throw e;
             } finally {
                 Logger.removePrefix();

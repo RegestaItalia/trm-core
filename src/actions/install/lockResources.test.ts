@@ -105,7 +105,7 @@ describe("install lock coverage", () => {
 
         await expect(lockResources.run(ctx)).rejects.toThrow("1 object(s) were created");
 
-        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining("R3TR CLAS Z_SHARED"));
+        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining("R3TR CLAS Z_SHARED"), { important: true });
     });
 
     test("objects created after check-transports only warn with noExistingObjects", async () => {
@@ -117,6 +117,6 @@ describe("install lock coverage", () => {
 
         await lockResources.run(ctx);
 
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining("R3TR CLAS Z_SHARED"));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining("R3TR CLAS Z_SHARED"), { important: true });
     });
 });

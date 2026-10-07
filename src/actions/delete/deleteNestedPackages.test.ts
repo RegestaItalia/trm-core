@@ -73,7 +73,7 @@ describe('deleteNestedPackages', () => {
         expect(await deleteNestedPackages.filter(ctx)).toBe(true);
         await deleteNestedPackages.run(ctx);
 
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('3 TRM package(s) installed in the SAP packages of pkg will be deleted too: nested, deeper, sibling'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('3 TRM package(s) installed in the SAP packages of pkg will be deleted too: nested, deeper, sibling'), { important: true });
         expect(deleteWithRollback).toHaveBeenCalledTimes(2);
         const [input, deleting] = (deleteWithRollback as jest.Mock).mock.calls[0];
         expect(input).toEqual({

@@ -83,7 +83,7 @@ describe('check-transports existing objects with unknown root devclass', () => {
 
     test('non-interactive mode continues when existing objects are explicitly allowed', async () => {
         await expect(checkTransports.run(context({ noInquirer: true, noExistingObjects: true }))).resolves.toBeUndefined();
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('1 object(s) already exist'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('1 object(s) already exist'), { important: true });
     });
 
     test('interactive mode asks for confirmation', async () => {

@@ -117,7 +117,7 @@ describe('cg3z upload rollback', () => {
 
         expect(Transport.upload).toHaveBeenCalledTimes(1);
         expect(SystemConnector.forwardTransport).toHaveBeenCalledTimes(1);
-        expect(Logger.warning).toHaveBeenLastCalledWith(expect.stringContaining('refresh failed'));
+        expect(Logger.warning).toHaveBeenLastCalledWith(expect.stringContaining('refresh failed'), { important: true });
     });
 
     test('shows the stop warning before writing to SAP', async () => {

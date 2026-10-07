@@ -87,7 +87,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
                 }], true);
             } else {
                 const lockTransports = [...new Set(nspcLock.map(o => o.trkorr))].join(', ');
-                Logger.warning(`Namespace ${context.revert.namespace} is locked in transport ${lockTransports} and won't be included in the landscape transport.`);
+                Logger.warning(`Namespace ${context.revert.namespace} is locked in transport ${lockTransports} and won't be included in the landscape transport.`, { important: true });
             }
         }
 

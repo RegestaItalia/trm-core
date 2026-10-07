@@ -55,7 +55,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
             })));
             if (locks.length > 0) {
                 locks.forEach(lock => {
-                    Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`);
+                    Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true });
                 });
                 throw new Error(`Install aborted. To continue, all ABAP packages must be released`);
             }

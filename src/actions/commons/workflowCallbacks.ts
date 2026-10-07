@@ -35,7 +35,7 @@ export const workflowCallbacks: WorkflowCallbacks<any> = {
     onRevertFailed(step: Step<any>, error: Error) {
         Logger.removePrefix();
         Inquirer.removePrefix();
-        Logger.error(`Failed rollback: ${error.message}`);
+        Logger.error(`Failed rollback: ${error.message}`, { important: true });
         Logger.log(`Failed revert "${step.name}" step: ${error.message}`, true);
     },
 };

@@ -62,7 +62,7 @@ export class Lockfile {
                         });
                         dependencies = dependencies.concat(depManifest.dependencies || []);
                     } else {
-                        Logger.warning(`Dependency "${dep.name}", registry "${depRegistry.endpoint}" not found in system ${SystemConnector.getDest()}`);
+                        Logger.warning(`Dependency "${dep.name}", registry "${depRegistry.endpoint}" not found in system ${SystemConnector.getDest()}`, { important: true });
                     }
                 }
             }
@@ -113,11 +113,11 @@ export class Lockfile {
         const artifact = await registry.downloadArtifact(lock.name, lock.version);
         const checksum = createHash("sha512").update(artifact.binary).digest("base64");
         if (release.checksum !== lock.integrity || checksum !== lock.integrity) {
-            Logger.error(`SECURITY ISSUE! Release "${lock.name}", registry "${lock.registry}", integrity in lockfile does NOT match!`);
-            Logger.error(`SECURITY ISSUE! Registry SHA is ${release.checksum}`);
-            Logger.error(`SECURITY ISSUE! Artifact SHA is ${checksum}`);
-            Logger.error(`SECURITY ISSUE! Lockfile SHA is ${lock.integrity}`);
-            Logger.error(`SECURITY ISSUE! Please, report the issue to ${ping && ping.alert_email ? ping.alert_email : 'registry moderation team'}`);
+            Logger.error(`SECURITY ISSUE! Release "${lock.name}", registry "${lock.registry}", integrity in lockfile does NOT match!`, { important: true });
+            Logger.error(`SECURITY ISSUE! Registry SHA is ${release.checksum}`, { important: true });
+            Logger.error(`SECURITY ISSUE! Artifact SHA is ${checksum}`, { important: true });
+            Logger.error(`SECURITY ISSUE! Lockfile SHA is ${lock.integrity}`, { important: true });
+            Logger.error(`SECURITY ISSUE! Please, report the issue to ${ping && ping.alert_email ? ping.alert_email : 'registry moderation team'}`, { important: true });
             return false;
         }
         return true;

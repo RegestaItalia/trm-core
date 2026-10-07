@@ -131,7 +131,7 @@ export const upload: Step<Cg3zWorkflowContext> = {
                 Logger.loading(`Refreshing transport ${Transport.getTransportIcon()}  ${context.output.trkorr}...`);
                 await SystemConnector.refreshTransportTmsTxt(context.output.trkorr);
             } catch (e) {
-                Logger.warning(`Couldn't refresh transport ${context.output.trkorr} text: ${e?.message || e}`);
+                Logger.warning(`Couldn't refresh transport ${context.output.trkorr} text: ${e?.message || e}`, { important: true });
             }
         }
     },

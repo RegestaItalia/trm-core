@@ -82,7 +82,7 @@ export const lockResources: Step<InstallWorkflowContext> = {
             const noExistingObjects = context.rawInput.installData.checks?.noExistingObjects;
             appeared.forEach(o => {
                 const message = `${o.pgmid} ${o.object} ${o.objName} was created on the target system during the install checks`;
-                noExistingObjects ? Logger.warning(message) : Logger.error(message);
+                noExistingObjects ? Logger.warning(message, { important: true }) : Logger.error(message, { important: true });
             });
             if (!noExistingObjects) {
                 throw new Error(`Install aborted: ${appeared.length} object(s) were created on the target system during the install checks.`);

@@ -94,9 +94,9 @@ export const init: Step<InstallWorkflowContext> = {
         //the release whose transports are imported must be the expected one (e.g. locked)
         const expectedIntegrity = context.rawInput.packageData.integrity;
         if (expectedIntegrity !== undefined && context.runtime.package.data.checksum !== expectedIntegrity) {
-            Logger.error(`SECURITY ISSUE! Release "${context.rawInput.packageData.name}", registry "${registry.name}", integrity does NOT match!`);
-            Logger.error(`SECURITY ISSUE! Registry SHA is ${context.runtime.package.data.checksum}`);
-            Logger.error(`SECURITY ISSUE! Expected SHA is ${expectedIntegrity}`);
+            Logger.error(`SECURITY ISSUE! Release "${context.rawInput.packageData.name}", registry "${registry.name}", integrity does NOT match!`, { important: true });
+            Logger.error(`SECURITY ISSUE! Registry SHA is ${context.runtime.package.data.checksum}`, { important: true });
+            Logger.error(`SECURITY ISSUE! Expected SHA is ${expectedIntegrity}`, { important: true });
             throw new Error(`Cannot continue due to security issues.`);
         }
 
@@ -181,7 +181,7 @@ export const init: Step<InstallWorkflowContext> = {
                 if (context.rawInput.packageData.overwrite) {
                     if (context.runtime.update.isDirty()) {
                         let ignoreDirty = false;
-                        Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`);
+                        Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
                         Logger.warning(`Consider analyzing dirty entries before overwrite.`);
                         if (!context.rawInput.contextData.noInquirer) {
                             ignoreDirty = (await Inquirer.prompt({
@@ -206,7 +206,7 @@ export const init: Step<InstallWorkflowContext> = {
                     Logger.warning(`${chalk.bold('Downgrading')} ${installedVersion} -> ${installVersion}`);
                 }
                 if (context.runtime.update.isDirty()) {
-                    Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`);
+                    Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
                 }
             }
         } else {

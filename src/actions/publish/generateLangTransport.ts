@@ -39,7 +39,7 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
             await context.runtime.transports.lang.addTranslations(aDevc.map(o => o.objName));
             iLanguageObjects = (await context.runtime.transports.lang.getE071()).length;
         } catch (e) {
-            Logger.warning(`Language transport generation error: ${e.toString()}`);
+            Logger.warning(`Language transport generation error: ${e.toString()}`, { important: true });
         } finally {
             if (iLanguageObjects === 0) {
                 Logger.info(`Language transport has no content, deleting.`, true);

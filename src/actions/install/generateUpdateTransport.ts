@@ -42,7 +42,7 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
         const installDevclass = context.rawInput.installData?.installDevclass;
         const importData = context.rawInput.installData?.import;
         if (importData?.noCust) {
-            Logger.warning(`Customizing transports are skipped: the customizing of the installed release is kept.`);
+            Logger.warning(`Customizing transports are skipped: the customizing of the installed release is kept.`, { important: true });
         }
         await cleanupInstalledPackage(context, {
             get incomingObjects() {

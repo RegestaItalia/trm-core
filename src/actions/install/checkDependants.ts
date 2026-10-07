@@ -35,10 +35,10 @@ export function getDependants(systemPackages: TrmPackage[], target: TrmPackage):
 function logResolutionGuide(upgradedPackage: TrmPackage, upgradedVersion: string, incompatibleDependants: PackageDependant[], ranges: string[]): void {
     const target = `"${upgradedPackage.packageName}" v${upgradedVersion}`;
     const names = incompatibleDependants.map(dependant => `"${dependant.package.packageName}"`).join(', ');
-    Logger.info(`How to upgrade to ${target}:`);
-    Logger.info(`  1. Install a newer release of ${names} whose dependency on "${upgradedPackage.packageName}" accepts v${upgradedVersion}; installing it can also upgrade "${upgradedPackage.packageName}" as its dependency.`);
-    Logger.info(`  2. If ${target} is still not installed, run this install again.`);
-    Logger.info(`If no compatible release of ${names} is available, keep the current version or install a version of "${upgradedPackage.packageName}" that satisfies all dependant ranges (${[...new Set(ranges)].join(', ')}).`);
+    Logger.info(`How to upgrade to ${target}:`, { important: true });
+    Logger.info(`  1. Install a newer release of ${names} whose dependency on "${upgradedPackage.packageName}" accepts v${upgradedVersion}; installing it can also upgrade "${upgradedPackage.packageName}" as its dependency.`, { important: true });
+    Logger.info(`  2. If ${target} is still not installed, run this install again.`, { important: true });
+    Logger.info(`If no compatible release of ${names} is available, keep the current version or install a version of "${upgradedPackage.packageName}" that satisfies all dependant ranges (${[...new Set(ranges)].join(', ')}).`, { important: true });
 }
 
 /**
@@ -79,7 +79,7 @@ export const checkDependants: Step<InstallWorkflowContext> = {
         }
 
         incompatibleDependants.forEach(dependant => Logger.error(
-            `Dependant "${dependant.package.packageName}" requires "${upgradedPackage.packageName}" ${dependant.range}, which does not accept v${upgradedVersion}.`
+            `Dependant "${dependant.package.packageName}" requires "${upgradedPackage.packageName}" ${dependant.range}, which does not accept v${upgradedVersion}.`, { important: true }
         ));
         logResolutionGuide(upgradedPackage, upgradedVersion, incompatibleDependants, dependants.map(dependant => dependant.range));
         throw new Error(`Upgrade aborted: incompatible dependant packages must be upgraded first.`);

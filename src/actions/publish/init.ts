@@ -139,7 +139,7 @@ export const init: Step<PublishWorkflowContext> = {
             try {
                 await context.rawInput.packageData.registry.whoAmI();
             } catch (e) {
-                Logger.error(`Cannot publish to public registry without being logged in!`);
+                Logger.error(`Cannot publish to public registry without being logged in!`, { important: true });
                 throw e;
             }
         }
@@ -391,7 +391,7 @@ export const init: Step<PublishWorkflowContext> = {
             };
         }));
         if (locks.length > 0) {
-            locks.forEach(l => { Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`) });
+            locks.forEach(l => { Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`, { important: true }) });
             throw new Error(`To continue, all objects must be released.`);
         } else {
             Logger.log(`All objects released, continue`, true);

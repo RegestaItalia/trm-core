@@ -22,7 +22,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
     filter: async (context: PublishWorkflowContext): Promise<boolean> => {
         if (context.rawInput.publishData.noDependenciesDetection) {
             Logger.log(`Skipping automatic dependencies detection (user input)`, true);
-            Logger.warning(`Skipping automatic dependency detection can cause your package to fail activation during install. Make sure to manually edit the dependencies later if necessary.`);
+            Logger.warning(`Skipping automatic dependency detection can cause your package to fail activation during install. Make sure to manually edit the dependencies later if necessary.`, { important: true });
             return false;
         } else {
             return true;
@@ -42,18 +42,18 @@ export const findDependencies: Step<PublishWorkflowContext> = {
 
         //2- find dependencies with custom packages
         if (customDependencies.length > 0) {
-            Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${customDependencies.length} non-TRM ${customDependencies.length === 1 ? 'package' : 'packages'}:`);
+            Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${customDependencies.length} non-TRM ${customDependencies.length === 1 ? 'package' : 'packages'}:`, { important: true });
             customDependencies.forEach((d, i) => {
-                Logger.error(`  (${i + 1}/${customDependencies.length}) ${d.abapPackage.devclass}`);
+                Logger.error(`  (${i + 1}/${customDependencies.length}) ${d.abapPackage.devclass}`, { important: true });
             });
             throw new Error(`Consider publishing them as TRM packages or refactor your development to avoid the dependency.`);
         }
 
         //3- find dependencies with local trm packages
         if (trmLocalDependencies.length > 0) {
-            Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${trmLocalDependencies.length} TRM local ${trmLocalDependencies.length === 1 ? 'package' : 'packages'}:`);
+            Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${trmLocalDependencies.length} TRM local ${trmLocalDependencies.length === 1 ? 'package' : 'packages'}:`, { important: true });
             trmLocalDependencies.forEach((d, i) => {
-                Logger.error(`  (${i + 1}/${trmLocalDependencies.length}) ${d.trmPackage.packageName}`);
+                Logger.error(`  (${i + 1}/${trmLocalDependencies.length}) ${d.trmPackage.packageName}`, { important: true });
             });
             throw new Error(`Cannot deliver to registry a TRM package with a local TRM package.`);
         }
@@ -65,7 +65,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
             const dependenciesWithoutManifest = trmDependencies.filter(o => !o.trmPackage.manifest);
             if (dependenciesWithoutManifest.length > 0) {
                 dependenciesWithoutManifest.forEach(o => {
-                    Logger.error(`Cannot find manifest of dependency in ABAP package "${o.trmPackage.getDevclass()}"`);
+                    Logger.error(`Cannot find manifest of dependency in ABAP package "${o.trmPackage.getDevclass()}"`, { important: true });
                 });
                 throw new Error(`Cannot publish package "${context.rawInput.packageData.devclass}": ${dependenciesWithoutManifest.length} TRM ${dependenciesWithoutManifest.length === 1 ? 'dependency has' : 'dependencies have'} no manifest.`);
             }

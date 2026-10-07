@@ -49,7 +49,7 @@ export class ActionLockScope {
             try {
                 await SystemConnector.releaseActionLocks(fresh, this.ownerToken);
             } catch (cleanupError) {
-                Logger.warning(`Could not clean up uncertain action lock acquisition: ${String(cleanupError)}`);
+                Logger.warning(`Could not clean up uncertain action lock acquisition: ${String(cleanupError)}`, { important: true });
             }
             throw error;
         }
@@ -68,7 +68,7 @@ export class ActionLockScope {
         } catch (error) {
             // Locks never expire: name them so they can be deleted with /ATRM/ACT_LOCK_ADMIN.
             const resources = keys.map(key => `${key.resourceType} ${key.resourceName}`).join(", ");
-            Logger.warning(`Could not release ${this.actionName} action locks owned by ${this.ownerToken} (${resources}): ${error instanceof Error ? error.message : String(error)}. Delete them with program /ATRM/ACT_LOCK_ADMIN.`);
+            Logger.warning(`Could not release ${this.actionName} action locks owned by ${this.ownerToken} (${resources}): ${error instanceof Error ? error.message : String(error)}. Delete them with program /ATRM/ACT_LOCK_ADMIN.`, { important: true });
             throw error;
         }
         this.held.clear();

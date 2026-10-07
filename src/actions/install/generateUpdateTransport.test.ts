@@ -153,8 +153,8 @@ describe('generateUpdateTransport revert', () => {
             expect(SystemConnector.createPackage).not.toHaveBeenCalled();
             expect(Transport.upload).not.toHaveBeenCalled();
             expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
-            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE were not restored'));
-            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9BKP was not restored'));
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE were not restored'), { important: true });
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9BKP was not restored'), { important: true });
         });
 
         test('still deletes the unreleased cleanup transports', async () => {
@@ -349,7 +349,7 @@ describe('generateUpdateTransport revert', () => {
             await generateUpdateTransport.run(ctx);
 
             expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
-            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('customizing of the installed release is kept'));
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('customizing of the installed release is kept'), { important: true });
         });
 
     });
@@ -367,7 +367,7 @@ describe('generateUpdateTransport revert', () => {
 
         await expect(generateUpdateTransport.run(ctx)).resolves.toBeUndefined();
 
-        expect(warning).toHaveBeenCalledWith(expect.stringContaining('not authorized to generate cleanup transports'));
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('not authorized to generate cleanup transports'), { important: true });
         expect(dummy.release).toHaveBeenCalled();
         expect(dummy.delete).not.toHaveBeenCalled();
         expect(Transport.upload).not.toHaveBeenCalled();
@@ -633,7 +633,7 @@ describe('generateUpdateTransport revert', () => {
             await expect(generateUpdateTransport.revert(ctx)).rejects.toThrow('ZTRM_DELE_ONE still contains 1 objects');
 
             expect(Transport.createToc).not.toHaveBeenCalled();
-            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not delete SAP package ZTRM_DELE_ONE'));
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not delete SAP package ZTRM_DELE_ONE'), { important: true });
         });
 
         test('a failed deletion transport is deleted when still possible and the failure surfaced', async () => {
@@ -675,7 +675,7 @@ describe('generateUpdateTransport revert', () => {
             await expect(generateUpdateTransport.run(ctx)).resolves.toBeUndefined();
 
             const staging = ctx.revert.stagingPackages[0];
-            expect(warning).toHaveBeenCalledWith(expect.stringContaining(`SAP package ${staging}, created for the cleanup, was left on TST`));
+            expect(warning).toHaveBeenCalledWith(expect.stringContaining(`SAP package ${staging}, created for the cleanup, was left on TST`), { important: true });
             expect(SystemConnector.tadirInterface).toHaveBeenLastCalledWith(expect.objectContaining({ objName: 'Z_GONE', devclass: '$OLD' }));
         });
     });

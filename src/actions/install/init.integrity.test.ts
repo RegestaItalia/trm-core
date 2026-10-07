@@ -53,7 +53,7 @@ describe('install release integrity', () => {
 
     test('aborts before any system change when the fetched release does not match', async () => {
         await expect(init.run(context('locked-sha'))).rejects.toThrow('Cannot continue due to security issues.');
-        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Expected SHA is locked-sha'));
+        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('Expected SHA is locked-sha'), { important: true });
         expect(SystemConnector.isTransportLayerExist).not.toHaveBeenCalled();
     });
 

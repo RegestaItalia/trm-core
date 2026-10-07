@@ -57,7 +57,7 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
         } catch (error) {
             firstError ||= error;
             if (context.revert.landscapeReleaseStarted) {
-                Logger.warning(`Released landscape transport ${transport.trkorr} may be in the ${targetSystem} import queue: check it in STMS.`);
+                Logger.warning(`Released landscape transport ${transport.trkorr} may be in the ${targetSystem} import queue: check it in STMS.`, { important: true });
             }
         }
         if (firstError) {

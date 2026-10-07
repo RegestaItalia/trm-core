@@ -132,8 +132,8 @@ describe('generateLandscapeTransport rollback', () => {
         await execute('test', [generateLandscapeTransport], ctx);
 
         expect(landscape.addObjects).not.toHaveBeenCalled();
-        expect(warning).toHaveBeenCalledWith(expect.stringContaining('/TEST/'));
-        expect(warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9OTHER'));
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('/TEST/'), { important: true });
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9OTHER'), { important: true });
         expect(ctx.output.transport).toBe(landscape);
     });
 

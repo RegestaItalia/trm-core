@@ -230,7 +230,7 @@ export class TrmArtifact {
                 data.manifest.setSrcFolder(data.srcFolder);
             } catch (e) {
                 Logger.error(e.toString(), true);
-                Logger.error(`Couldn't add source code to TRM artifact!`);
+                Logger.error(`Couldn't add source code to TRM artifact!`, { important: true });
             }
         }
 

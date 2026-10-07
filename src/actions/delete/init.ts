@@ -81,7 +81,7 @@ export const init: Step<DeleteWorkflowContext> = {
                 throw new Error(`Delete aborted. ${reason}.`);
             }
         } else if (installed.isDirty()) {
-            Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted!`);
+            Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted!`, { important: true });
         }
 
         //4- check/set system target

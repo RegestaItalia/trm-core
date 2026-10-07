@@ -41,7 +41,7 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
         if(missingEntries.length > 0){
             missingEntries.forEach(o => {
                 const fields = Object.entries(o.entry).map(([field, value]) => `${field} = ${value}`).join(', ');
-                Logger.error(`Required entry not found in table ${o.table}: ${fields}`);
+                Logger.error(`Required entry not found in table ${o.table}: ${fields}`, { important: true });
             });
             if(missingEntries.length === 1){
                 throw new Error(`Install aborted. ${missingEntries.length} system requirement is not met!`);

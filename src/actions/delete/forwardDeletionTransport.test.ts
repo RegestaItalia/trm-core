@@ -67,7 +67,7 @@ describe('forwardDeletionTransport', () => {
 
         expect(ctx.revert.deleInTargetTms).toBe(true);
         expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('QAS import queue'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('QAS import queue'), { important: true });
     });
 
     test('a later failure leaves the deletion transport in another system queue with a warning', async () => {
@@ -77,7 +77,7 @@ describe('forwardDeletionTransport', () => {
         await expect(execute('test', [forwardDeletionTransport, failing], ctx)).rejects.toThrow();
 
         expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE'), { important: true });
         expect(ctx.output.targetSystem).toBeUndefined();
     });
 

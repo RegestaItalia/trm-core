@@ -43,8 +43,8 @@ describe('install checkSapEntries step', () => {
         });
         await expect(checkSapEntries.run(context())).rejects.toThrow('Install aborted. 2 system requirements are not met!');
         expect((Logger.error as jest.Mock).mock.calls).toEqual([
-            ['Required entry not found in table ZTAB: ID = B, NAME = X'],
-            ['Required entry not found in table ZOTHER: KEY = 1']
+            ['Required entry not found in table ZTAB: ID = B, NAME = X', { important: true }],
+            ['Required entry not found in table ZOTHER: KEY = 1', { important: true }]
         ]);
     });
 });

@@ -116,9 +116,9 @@ describe('releaseLandscapeTransport rollback', () => {
 
         expect(transport.delete).not.toHaveBeenCalled();
         expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9LAND'));
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE'));
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('QAS import queue'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9LAND'), { important: true });
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE'), { important: true });
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('QAS import queue'), { important: true });
     });
 
     test('a failed release whose status cannot be read is reported with a warning', async () => {
@@ -128,7 +128,7 @@ describe('releaseLandscapeTransport rollback', () => {
 
         await expect(execute('test', [releaseLandscapeTransport], ctx)).rejects.toThrow();
 
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9LAND'));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9LAND'), { important: true });
     });
 
     test('a failed queue removal of the released transport is surfaced', async () => {

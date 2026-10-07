@@ -542,7 +542,7 @@ export class Transport {
                 rc = 0;
             }
             if (whileResult === "WARNING") {
-                Logger.warning(`${Transport.getTransportIcon()}  ${this.trkorr} released with warning.`);
+                Logger.warning(`${Transport.getTransportIcon()}  ${this.trkorr} released with warning.`, { important: true });
                 rc = 4;
             }
         }
@@ -880,22 +880,22 @@ export class Transport {
     private static _printImportResult(trkorr: TRKORR, rc: number, message: string, test: boolean): void {
         switch (rc) {
             case -1:
-                Logger.error(`${trkorr} import has no return code!`, test);
+                Logger.error(`${trkorr} import has no return code!`, { debug: test, important: true });
                 break;
             case 0:
                 Logger.success(`${trkorr} import ended with success${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 4:
-                Logger.warning(`${trkorr} import ended with warning${message ? ' -> ' + message : '.'}`, test);
+                Logger.warning(`${trkorr} import ended with warning${message ? ' -> ' + message : '.'}`, { debug: test, important: true });
                 break;
             case 8:
-                Logger.error(`${trkorr} import ended with error (check ${chalk.bold('STMS')})${message ? ' -> ' + message : '.'}`, test);
+                Logger.error(`${trkorr} import ended with error (check ${chalk.bold('STMS')})${message ? ' -> ' + message : '.'}`, { debug: test, important: true });
                 break;
             case 12:
-                Logger.error(`${trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, test);
+                Logger.error(`${trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, { debug: test, important: true });
                 break;
             case 16:
-                Logger.error(`${trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, test);
+                Logger.error(`${trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, { debug: test, important: true });
                 break;
         }
     }

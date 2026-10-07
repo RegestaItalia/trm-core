@@ -67,7 +67,7 @@ export class PostActivity {
                 v3: message.msgv3,
                 v4: message.msgv4,
             });
-            Logger.msgty(message.msgty, parsedMessage, silent);
+            Logger.msgty(message.msgty, parsedMessage, { debug: silent, important: ['A', 'E', 'W'].includes(message.msgty) });
         }
     }
 

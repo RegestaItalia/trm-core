@@ -84,7 +84,7 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
                         tableEntry
                     });
                 });
-                Logger.error(`Required ${context.output.sapEntries[table].length} entries in ${table}, but table or view was not found`, !context.rawInput.printOptions.information);
+                Logger.error(`Required ${context.output.sapEntries[table].length} entries in ${table}, but table or view was not found`, { debug: !context.rawInput.printOptions.information, important: true });
             } else {
                 var printTableHead: string[] = ['Table name'];
                 var printTableData: string[][] = [];

@@ -488,7 +488,7 @@ export class RegistryV2 implements AbstractRegistry {
             }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to fetch package ${fullName} ${version}: ${(e as AxiosError).message}`);
+            Logger.error(`Failed to fetch package ${fullName} ${version}: ${(e as AxiosError).message}`, { important: true });
             throw e;
         }
 
@@ -713,15 +713,15 @@ export class RegistryV2 implements AbstractRegistry {
             }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to download deletion transport: ${(e as AxiosError).message}`);
+            Logger.error(`Failed to download deletion transport: ${(e as AxiosError).message}`, { important: true });
             throw e;
         }
 
         const checksum = createHash('sha512').update(buffer).digest('base64');
         if (checksum !== transportDownload.checksum) {
-            Logger.error(`SECURITY ISSUE! Deletion transport integrity does NOT match!`);
-            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`);
-            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`);
+            Logger.error(`SECURITY ISSUE! Deletion transport integrity does NOT match!`, { important: true });
+            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`, { important: true });
+            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`, { important: true });
             throw new Error(`Cannot continue due to security issues.`);
         }
 
@@ -804,14 +804,14 @@ export class RegistryV2 implements AbstractRegistry {
             }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to download transport ${label}: ${(e as AxiosError).message}`);
+            Logger.error(`Failed to download transport ${label}: ${(e as AxiosError).message}`, { important: true });
             throw e;
         }
         const checksum = createHash("sha512").update(buffer).digest("base64");
         if (checksum !== transportDownload.checksum) {
-            Logger.error(`SECURITY ISSUE! Transport ${label} integrity does NOT match!`);
-            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`);
-            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`);
+            Logger.error(`SECURITY ISSUE! Transport ${label} integrity does NOT match!`, { important: true });
+            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`, { important: true });
+            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`, { important: true });
             throw new Error(`Cannot continue due to security issues.`);
         }
         const zip = new AdmZip.default(buffer);
