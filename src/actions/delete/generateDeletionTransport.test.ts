@@ -40,7 +40,7 @@ jest.mock('../../transport', () => {
         addComment = jest.fn().mockResolvedValue(undefined);
         constructor(public trkorr: string) { MockTransport.instances.push(this); }
     }
-    return { Transport: MockTransport, TrmTransportIdentifier: { CUST: 'CUST', LANG: 'LANG' } };
+    return { Transport: MockTransport, TrmTransportIdentifier: { CUST: 'CUST', LANG: 'LANG' }, getE071KOwner: jest.requireActual('../../transport/E071KOwner').getE071KOwner };
 });
 
 import { Inquirer, Logger } from 'trm-commons';
@@ -267,9 +267,14 @@ describe('generateDeletionTransport', () => {
         const objects = [
             { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' },
             // Landscape transport: CUST entries copied with their keys.
-            { pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' }
+            { pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' },
+            // View maintenance entry: its keys point to the view's table.
+            { pgmid: 'R3TR', object: 'VDAT', objName: 'ZCUST_VIEW' }
         ];
-        const keys = [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' }];
+        const keys = [
+            { pgmid: 'R3TR', object: 'TABU', objname: 'ZCUST_TABLE', mastertype: 'TABU', mastername: 'ZCUST_TABLE' },
+            { pgmid: 'R3TR', object: 'TABU', objname: 'ZCUST_VIEW_TABLE', mastertype: 'VDAT', mastername: 'ZCUST_VIEW' }
+        ];
         const deletedOf = (dummy: any) => dummy.addObjects.mock.calls.flatMap(([entries]: any[]) => entries.map((o: any) => `${o.object} ${o.objName}`));
 
         function custContext() {

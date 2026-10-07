@@ -18,6 +18,7 @@ jest.mock('../../transport', () => {
     }
     return {
         Transport: MockTransport,
+        getE071KOwner: jest.requireActual('../../transport/E071KOwner').getE071KOwner,
         TrmTransportIdentifier: { DEVC: 'DEVC', TADIR: 'TADIR', LANG: 'LANG', CUST: 'CUST' }
     };
 });
@@ -65,9 +66,21 @@ describe('validateCustomizingTransport (via setCustomizingTransports step)', () 
         (Transport as any).configure('TESTK900002', {
             trfunction: 'K',
             e071: [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZTABLE' }],
-            e071k: [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZTABLE' }]
+            e071k: [{ pgmid: 'R3TR', object: 'TABU', objname: 'ZTABLE', mastertype: 'TABU', mastername: 'ZTABLE' }]
         });
         const ctx = context(['TESTK900002']);
+
+        await expect(setCustomizingTransports.run(ctx)).resolves.not.toThrow();
+        expect(ctx.runtime.customizing.new).toHaveLength(1);
+    });
+
+    test('accepts a K transport carrying view maintenance whose keys belong to the view', async () => {
+        (Transport as any).configure('TESTK900007', {
+            trfunction: 'K',
+            e071: [{ pgmid: 'R3TR', object: 'VDAT', objName: 'ZVIEW' }],
+            e071k: [{ pgmid: 'R3TR', object: 'TABU', objname: 'ZVIEW_TABLE', mastertype: 'VDAT', mastername: 'ZVIEW' }]
+        });
+        const ctx = context(['TESTK900007']);
 
         await expect(setCustomizingTransports.run(ctx)).resolves.not.toThrow();
         expect(ctx.runtime.customizing.new).toHaveLength(1);
@@ -91,7 +104,7 @@ describe('validateCustomizingTransport (via setCustomizingTransports step)', () 
                 { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' },
                 { pgmid: 'R3TR', object: 'TABU', objName: 'ZTABLE' }
             ],
-            e071k: [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZTABLE' }]
+            e071k: [{ pgmid: 'R3TR', object: 'TABU', objname: 'ZTABLE', mastertype: 'TABU', mastername: 'ZTABLE' }]
         });
         const ctx = context(['TESTK900004']);
 

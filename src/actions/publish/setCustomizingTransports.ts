@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { Inquirer, Logger } from "trm-commons";
 import { PublishWorkflowContext } from ".";
-import { Transport, TrmTransportIdentifier } from "../../transport";
+import { getE071KOwner, Transport, TrmTransportIdentifier } from "../../transport";
 
 type CustomizingTransport = {
     trkorr: string;
@@ -23,7 +23,7 @@ const validateCustomizingTransport = async (transport: Transport): Promise<void>
             const [e071, e071k] = await Promise.all([item.getE071(), item.getE071K()]);
             const realObject = e071
                 .filter(o => o.pgmid !== '*')
-                .find(o => !e071k.some(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName));
+                .find(o => !e071k.map(getE071KOwner).some(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName));
             if (realObject) {
                 throw new Error(`Transport request must be of type customizing (${realObject.pgmid} ${realObject.object} ${realObject.objName} is not table content)`);
             }

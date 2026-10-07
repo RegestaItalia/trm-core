@@ -79,4 +79,18 @@ describe('Transport status cache', () => {
         await expect(transport.release(false, true)).rejects.toThrow('release failed');
         await expect(transport.isReleased()).resolves.toBe(true);
     });
+
+    test('getE071K reads the E071K columns, including the owning master object', async () => {
+        (SystemConnector.readTable as jest.Mock).mockResolvedValueOnce([]);
+
+        await new Transport(TRKORR).getE071K();
+
+        expect(SystemConnector.readTable).toHaveBeenCalledWith('E071K', [
+            { fieldName: 'PGMID' },
+            { fieldName: 'OBJECT' },
+            { fieldName: 'OBJNAME' },
+            { fieldName: 'MASTERTYPE' },
+            { fieldName: 'MASTERNAME' }
+        ], `TRKORR EQ '${TRKORR}'`);
+    });
 });

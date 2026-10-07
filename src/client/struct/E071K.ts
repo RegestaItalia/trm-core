@@ -4,5 +4,7 @@ export type E071K = {
     trkorr?: TRKORR,
     pgmid: PGMID,
     object: TROBJTYPE,
-    objName: TROBJ_NAME
+    objname: TROBJ_NAME,
+    mastertype?: TROBJTYPE,
+    mastername?: TROBJ_NAME
 }

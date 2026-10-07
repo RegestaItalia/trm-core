@@ -17,6 +17,7 @@ import chalk from "chalk";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
 
+
 const RELEASE_LOG_STEPS: { id: string, name: string, namePadding: string }[] = [
     { id: 'ETP182', name: 'CHECK WRITEABILITY OF BUFFERS', namePadding: '' },
     { id: 'ETP183', name: 'EXPORT PREPARATION', namePadding: '           ' },
@@ -101,7 +102,9 @@ export class Transport {
             const fields: RFC_DB_FLD[] = [
                 { fieldName: 'PGMID' },
                 { fieldName: 'OBJECT' },
-                { fieldName: 'OBJ_NAME' }
+                { fieldName: 'OBJNAME' },
+                { fieldName: 'MASTERTYPE' },
+                { fieldName: 'MASTERNAME' }
             ];
             this._e071k = await SystemConnector.readTable('E071K', fields,
                 `TRKORR EQ '${this.trkorr}'`

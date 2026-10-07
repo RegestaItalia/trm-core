@@ -1,6 +1,6 @@
 import { Inquirer, Logger } from "trm-commons";
 import { InstallTransport, SystemConnector } from "../../../systemConnector";
-import { Transport, TrmTransportIdentifier } from "../../../transport";
+import { getE071KOwner, Transport, TrmTransportIdentifier } from "../../../transport";
 import { TransportBinary, TrmPackage } from "../../../trmPackage";
 import { AbstractRegistry, RegistryDeletionTransportUnauthorizedError } from "../../../registry";
 import { packageDataFromTdevc, getPackageNamespace } from "../../../commons";
@@ -333,7 +333,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         // transports) is deleted by key through the customizing transports below. Added without
         // its keys, it would request the deletion of the whole table object.
         const keyedObjects = new Set(installed.getTransport() && installedTransportObjects.length > 0
-            ? (await installed.getTransport().getE071K()).map(objectKey)
+            ? (await installed.getTransport().getE071K()).map(key => objectKey(getE071KOwner(key)))
             : []);
         // A namespace may be used by packages outside this installation: it's only deleted
         // through the usage check below, never because the installed transport carries it.

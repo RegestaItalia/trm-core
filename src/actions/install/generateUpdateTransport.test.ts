@@ -41,7 +41,7 @@ jest.mock('../../transport', () => {
         addComment = jest.fn().mockResolvedValue(undefined);
         constructor(public trkorr: string) { MockTransport.instances.push(this); }
     }
-    return { Transport: MockTransport, TrmTransportIdentifier: { CUST: 'CUST', LANG: 'LANG' } };
+    return { Transport: MockTransport, TrmTransportIdentifier: { CUST: 'CUST', LANG: 'LANG' }, getE071KOwner: jest.requireActual('../../transport/E071KOwner').getE071KOwner };
 });
 
 import { Inquirer, Logger } from 'trm-commons';
