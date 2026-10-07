@@ -24,6 +24,11 @@ const RELEASE_LOG_STEPS: { id: string, name: string, namePadding: string }[] = [
 ];
 
 export class Transport {
+    /**
+     * Maximum time to wait for a release log to report every export step.
+     */
+    public static releaseLogTimeoutMs: number = 30 * 60 * 1000;
+
     private _fileNames: FileNames;
     private _e070: E070;
     private _e071: E071[];
@@ -478,61 +483,79 @@ export class Transport {
 
         var exitWhile = false;
         var whileResult: 'ERROR' | 'WARNING' | 'SUCCESS' = null;
+        const deadline = Date.now() + Transport.releaseLogTimeoutMs;
 
-        while (!exitWhile) {
-            var logResult: ReleaseLogStep[] = [];
-            try {
-                const logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
-                fs.writeFileSync(localPath, logBinary);
-                logResult = await (new R3transLogParser(localPath)).getReleaseLog();
-                fs.unlinkSync(localPath);
-            } catch (e) {
-                logResult = [];
-            }
-
-            const stepResults = steps.map(step => {
-                const logStep = logResult.find(o => o.id === step.id) || { name: step.name, exitCode: null as number };
-                return {
-                    step,
-                    stageName: logStep.name + step.namePadding,
-                    exitCode: logStep.exitCode,
-                    parsedExitCode: R3transLogParser.parseExitCode(logStep.exitCode)
-                };
-            });
-
-            exitWhile = stepResults.every(o => o.exitCode !== null);
-
-            if (stepResults.some(o => o.parsedExitCode.type === 'SUCCESS')) {
-                whileResult = 'SUCCESS';
-            }
-            if (stepResults.some(o => o.parsedExitCode.type === 'WARNING')) {
-                whileResult = 'WARNING';
-            }
-            if (stepResults.some(o => o.parsedExitCode.type === 'ERROR')) {
-                whileResult = 'ERROR';
-            }
-
-            for (const { step, stageName, exitCode, parsedExitCode } of stepResults) {
-                if (parsedExitCode.type === 'UNKNOWN') {
-                    step.progress++;
-                } else if (step.progress < 99) {
-                    step.progress = 100;
+        try {
+            //the log is downloaded into the temporary folder: a local file system error is not "log not ready yet"
+            fs.mkdirSync(tmpFolder, { recursive: true });
+            while (!exitWhile && Date.now() < deadline) {
+                var logResult: ReleaseLogStep[] = [];
+                var logBinary: Buffer;
+                try {
+                    logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
+                } catch (e) {
+                    //log not written yet
+                    logBinary = undefined;
                 }
-                step.bar.update(step.progress, {
-                    stage: stageName,
-                    exitCode: exitCode || '',
-                    result: parsedExitCode.type !== 'UNKNOWN' ? parsedExitCode.value : 'In progress'
-                });
-            }
+                if (logBinary) {
+                    fs.writeFileSync(localPath, logBinary);
+                    try {
+                        logResult = await (new R3transLogParser(localPath)).getReleaseLog();
+                    } catch (e) {
+                        //log incomplete
+                        logResult = [];
+                    } finally {
+                        fs.rmSync(localPath, { force: true });
+                    }
+                }
 
-            await setTimeout(1000); //each second
+                const stepResults = steps.map(step => {
+                    const logStep = logResult.find(o => o.id === step.id) || { name: step.name, exitCode: null as number };
+                    return {
+                        step,
+                        stageName: logStep.name + step.namePadding,
+                        exitCode: logStep.exitCode,
+                        parsedExitCode: R3transLogParser.parseExitCode(logStep.exitCode)
+                    };
+                });
+
+                exitWhile = stepResults.every(o => o.exitCode !== null);
+
+                if (stepResults.some(o => o.parsedExitCode.type === 'SUCCESS')) {
+                    whileResult = 'SUCCESS';
+                }
+                if (stepResults.some(o => o.parsedExitCode.type === 'WARNING')) {
+                    whileResult = 'WARNING';
+                }
+                if (stepResults.some(o => o.parsedExitCode.type === 'ERROR')) {
+                    whileResult = 'ERROR';
+                }
+
+                for (const { step, stageName, exitCode, parsedExitCode } of stepResults) {
+                    if (parsedExitCode.type === 'UNKNOWN') {
+                        step.progress++;
+                    } else if (step.progress < 99) {
+                        step.progress = 100;
+                    }
+                    step.bar.update(step.progress, {
+                        stage: stageName,
+                        exitCode: exitCode || '',
+                        result: parsedExitCode.type !== 'UNKNOWN' ? parsedExitCode.value : 'In progress'
+                    });
+                }
+
+                if (!exitWhile) {
+                    await setTimeout(1000); //each second
+                }
+            }
+        } finally {
+            multibar.stop();
         }
-        multibar.stop();
 
         var error: Error;
         var rc: number;
         if (!exitWhile) {
-            error = new Error(`Timed out waiting for release.`);
+            error = new Error(`Timed out waiting for transport ${this.trkorr} release log "${filePaths.releaseLog}".`);
         } else {
             if (whileResult === "ERROR") {
                 error = new Error(`Error occurred during transport ${this.trkorr} release.`);
