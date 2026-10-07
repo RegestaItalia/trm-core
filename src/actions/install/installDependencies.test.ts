@@ -15,6 +15,7 @@ import execute from '@simonegaffurini/sammarksworkflow';
 import { Inquirer, Logger } from 'trm-commons';
 import { installDependency } from '..';
 import { installDependencies } from './installDependencies';
+import { installWithRollback } from '.';
 
 function context() {
     return {
@@ -133,6 +134,19 @@ describe('nested dependency rollback ownership', () => {
         expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
             { originalDevclass: 'ZPARENT', installDevclass: 'ZRENAMED' }
         ]);
+    });
+
+    test('dependency installs inherit the namespaces locked by the parent', async () => {
+        const ctx = context();
+        ctx.runtime.lockedNamespaces = ['/ACME/'];
+        (installDependency as jest.Mock).mockImplementation(async (_input, runner) => {
+            await runner({ packageData: { name: 'dep' } });
+            return { alreadyInstalled: true };
+        });
+
+        await execute('test', [installDependencies], ctx);
+
+        expect(installWithRollback).toHaveBeenCalledWith({ packageData: { name: 'dep' } }, ['/ACME/']);
     });
 
     test('one dependency rollback failure does not skip earlier dependencies', async () => {

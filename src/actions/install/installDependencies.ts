@@ -88,7 +88,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
                 //the parent's mappings were resolved for its own devclasses: the dependency resolves its own
                 inputData.installData.installDevclass.replacements = [];
-                const result = await InstallDependencyWkf(inputData, installWithRollback);
+                const result = await InstallDependencyWkf(inputData, input => installWithRollback(input, context.runtime.lockedNamespaces || []));
                 if (result.alreadyInstalled) {
                     continue;
                 }

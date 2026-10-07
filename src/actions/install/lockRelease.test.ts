@@ -64,4 +64,10 @@ describe("install action-lock release", () => {
         await expect(installWithRollback(inputData)).rejects.toThrow("workflow failed");
         expect(release).toHaveBeenCalledTimes(1);
     });
+
+    test("a retained install receives the namespaces locked by its parent", async () => {
+        (executeRetainedWorkflow as jest.Mock).mockResolvedValue({ context: { output: { manifest: { name: "pkg" } } }, rollback: jest.fn() });
+        await installWithRollback(inputData, ["/ACME/"]);
+        expect((executeRetainedWorkflow as jest.Mock).mock.calls[0][2].inheritedNamespaceLocks).toEqual(["/ACME/"]);
+    });
 });

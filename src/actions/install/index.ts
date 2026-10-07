@@ -238,7 +238,11 @@ type WorkflowRuntime = {
     dependencyRollbacks: Array<() => Promise<void>>,
     dependencyReleases: Array<() => Promise<void>>,
     rootDevclassBeforeImport?: TDEVC,
-    stopWarningShown: boolean
+    stopWarningShown: boolean,
+    /** Release objects found on the system by check-transports, accepted before locking. */
+    existingObjects?: TADIR[],
+    /** Custom namespaces locked by this install or by the install it is a dependency of. */
+    lockedNamespaces?: string[]
 }
 
 
@@ -305,6 +309,8 @@ export type InstallActionOutput = {
 /** Internal state shared by package-install workflow steps and rollback handlers. */
 export interface InstallWorkflowContext extends IActionContext {
     lockScope?: ActionLockScope,
+    /** Custom namespaces already locked by the parent installs of a dependency install. */
+    inheritedNamespaceLocks?: string[],
     /** Original action input; optional groups are normalized during initialization. */
     rawInput: InstallActionInput,
     /** Resolved release, package hierarchy, transports, dependencies, and system metadata. */
@@ -364,13 +370,13 @@ const installWorkflow = [
         updatePackageData
 ];
 
-async function runInstall(inputData: InstallActionInput, retainRollback: boolean): Promise<{
+async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = []): Promise<{
     output: InstallActionOutput,
     rollback?: () => Promise<void>,
     release?: () => Promise<void>
 }> {
     const lockScope = new ActionLockScope(WORKFLOW_NAME);
-    const context: InstallWorkflowContext = { rawInput: inputData, lockScope };
+    const context: InstallWorkflowContext = { rawInput: inputData, lockScope, inheritedNamespaceLocks };
     //a local artifact is locked under the package it installs, as a remote install of it would be
     const lockPackage = await resolveInstallPackage(inputData.packageData.registry, inputData.packageData.name);
     await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);
@@ -426,12 +432,15 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     };
 }
 
-/** Internal transactional entry point used when a parent install must retain rollback ownership. */
-export async function installWithRollback(inputData: InstallActionInput): Promise<{
+/**
+ * Internal transactional entry point used when a parent install must retain rollback ownership.
+ * `inheritedNamespaceLocks` are the namespaces the parent installs hold locked until they finish.
+ */
+export async function installWithRollback(inputData: InstallActionInput, inheritedNamespaceLocks: string[] = []): Promise<{
     output: InstallActionOutput,
     rollback: () => Promise<void>,
     release: () => Promise<void>
 }> {
-    const retained = await runInstall(inputData, true);
+    const retained = await runInstall(inputData, true, inheritedNamespaceLocks);
     return { output: retained.output, rollback: retained.rollback, release: retained.release };
 }

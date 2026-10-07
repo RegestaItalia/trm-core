@@ -61,12 +61,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** a failure in `add-namespace`/`generate-devclass`/`generate-update-transport`/`prepare-devc` rolls back dependencies (possibly deleting a namespace) before the parent's packages in that namespace are cleaned.
 - **Fix:** move parent cleanup into a revert after `install-dependencies`.
 
-### ACT-2026-38 — Medium — Technical — Safety checks run before locks; namespaces are never locked
-
-- **Where:** step order in [`install/index.ts#L304`](../../src/actions/install/index.ts#L304); the `NAMESPACE` lock type in [`actionLocks.ts#L6`](../../src/actions/commons/utils/actionLocks.ts#L6) is unused.
-- **Failure:** existence and lock checks plus prompts happen before `lock-resources`; two installs can both create a namespace and one's rollback deletes it.
-- **Fix:** lock (including the namespace) before the checks, or re-validate after locking.
-
 ### ACT-2026-45 — Low — Functional — Root release is not checked against the lockfile
 
 - **Where:** `checks.lockfile` is only consumed for dependencies; [`install/init.ts#L87`](../../src/actions/install/init.ts#L87) ignores the requested version for local files.
@@ -91,7 +85,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 8 | `check-dependencies` | Queues missing and incompatible dependencies separately, with the installed version; a downgrade must be confirmed by the dependency install ([ACT-2026-81](install-dependency.md), resolved). |
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
 | 10 | `set-install-devclass` | Stored and explicit mappings of devclasses not in the release are dropped before use ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved); wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
-| 11 | `lock-resources` | Runs after safety checks; namespace never locked (ACT-2026-38). The package lock uses the resolved install registry, so local and remote installs of the same package block each other ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). |
+| 11 | `lock-resources` | Locks the custom install namespace, unless a parent install already holds it, then repeats the object-lock check and fails on objects created since `check-transports` (warns with `noExistingObjects`) ([ACT-2026-38](#act-2026-38--resolved--safety-checks-are-repeated-once-locked-the-install-namespace-is-locked), resolved). The package lock uses the resolved install registry, so local and remote installs of the same package block each other ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). |
 | 12 | `install-dependencies` | Each dependency install starts with no package mappings and resolves its own ([ACT-2026-22](#act-2026-22--resolved--dependency-installs-no-longer-inherit-the-parents-package-mappings), resolved); transitive installs not merged back (ACT-2026-24). |
 | 13 | `add-namespace` | Namespace derived from the target root package, or from the only reserved namespace used by a subpackage; more than one reserved namespace is rejected before any system change ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 14 | `generate-devclass` | A dependency's mappings no longer include the parent's root ([ACT-2026-22](#act-2026-22--resolved--dependency-installs-no-longer-inherit-the-parents-package-mappings), resolved); stale stored mappings no longer reach it ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
@@ -117,6 +111,18 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-38 — Resolved — Safety checks are repeated once locked; the install namespace is locked
+
+`lock-resources` now locks the install namespace when it is a custom (`/XXX/`) namespace, so two
+installs can no longer both find it missing and create it, with one's rollback deleting it while the
+other uses it. A dependency install receives the namespaces its parent installs hold
+(`installWithRollback`'s `inheritedNamespaceLocks`) and does not lock them again, as the parent keeps
+them locked until the whole install finishes. Once the locks are held, the step repeats the checks of
+`check-transports` that another action could have invalidated: objects locked in a transport abort
+the install, and objects created on the system since the existence check abort it too (a warning with
+`noExistingObjects`). The interactive checks and prompts still run before locking, and the delete and
+upgrade cleanup do not lock the namespaces they delete ([source](../../src/actions/install/lockResources.ts#L74)).
+
 ### ACT-2026-39 — Resolved — `prepare-cust` revert attempts every customizing transport
 
 The `prepare-cust` revert now catches the failure of each `revertPreparedTransport` call, for the

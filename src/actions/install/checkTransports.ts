@@ -7,6 +7,39 @@ import { SystemConnector } from "../../systemConnector";
 import { E071, TADIR, TDEVC, TransportEntries } from "../../client";
 import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons";
 
+/** Throws when any of the objects is locked in a SAP transport request. */
+export async function checkObjectsLocks(e071: E071[]): Promise<void> {
+    const locks = await SystemConnector.getObjectsLocks(e071.map(o => {
+        return {
+            PGMID: o.pgmid,
+            OBJECT: o.object,
+            OBJ_NAME: o.objName
+        };
+    }));
+    if (locks.length > 0) {
+        locks.forEach(l => {
+            Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`);
+        });
+        throw new Error(`Install aborted. To continue, all objects must be released`);
+    }
+}
+
+/** Returns the objects of the release that already exist on the target system. */
+export async function findExistingObjects(context: InstallWorkflowContext, tadir: TADIR[]): Promise<TADIR[]> {
+    const checkTadir = tadir.map(o => {
+        return {
+            ...o, ...{
+                devclass: context.runtime.isTrmServer || context.runtime.isTrmRest ? adjustTrmServerRestDevclass(o.devclass) : o.devclass
+            }
+        }
+    });
+    if (!SystemConnector.getSupportedBulk().getTransportObjects) {
+        return SystemConnector.getExistingObjects(checkTadir);
+    } else {
+        return SystemConnector.getExistingObjectsBulk(checkTadir);
+    }
+}
+
 /**
  * Workflow step that validates artifact transports and classifies them by TRM identifier.
  * A package must contain exactly one DEVC transport and one TADIR transport.
@@ -202,21 +235,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         //6- check objects aren't locked
         //all e071 type R3TR, excluding DEVC. DEVC will be checked for locks later when user may decide new package names
         Logger.loading(`Checking objects locks...`);
-        const locks = await SystemConnector.getObjectsLocks(mergedE071.map(o => {
-            return {
-                PGMID: o.pgmid,
-                OBJECT: o.object,
-                OBJ_NAME: o.objName
-            };
-        }));
-        if (locks.length > 0) {
-            locks.forEach(l => {
-                Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`);
-            });
-            throw new Error(`Install aborted. To continue, all objects must be released`);
-        } else {
-            Logger.log(`All objects released, DEVC locks will be checked later`, true);
-        }
+        await checkObjectsLocks(mergedE071);
+        Logger.log(`All objects released, DEVC locks will be checked later`, true);
 
         //7- check all object types are supported
         Logger.loading(`Checking objects support...`);
@@ -232,19 +252,9 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         }
 
         //8- check objects existance
-        let existingObjects: TADIR[] = [];
-        const checkTadir = mergedTADIR.map(o => {
-            return {
-                ...o, ...{
-                    devclass: context.runtime.isTrmServer || context.runtime.isTrmRest ? adjustTrmServerRestDevclass(o.devclass) : o.devclass
-                }
-            }
-        });
-        if (!SystemConnector.getSupportedBulk().getTransportObjects) {
-            existingObjects = await SystemConnector.getExistingObjects(checkTadir);
-        } else {
-            existingObjects = await SystemConnector.getExistingObjectsBulk(checkTadir);
-        }
+        const existingObjects = await findExistingObjects(context, mergedTADIR);
+        // lock-resources checks again, once locked, that no other object appeared
+        context.runtime.existingObjects = existingObjects;
         Logger.log(`TADIR object that already exist in system: ${JSON.stringify(existingObjects)}`, true);
         //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
         let throwExistingObjectsError = false;
