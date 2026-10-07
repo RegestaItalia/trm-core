@@ -522,7 +522,7 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async getDest(): Promise<string> {
+    public async getDest(): Promise<components.SYSYSID> {
         const result = (await this._axiosInstance.get('/get_dest', {
             params: {
                 rfcdest: this.rfcdest

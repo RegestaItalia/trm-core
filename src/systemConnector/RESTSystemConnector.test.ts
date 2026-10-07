@@ -31,11 +31,49 @@ describe("RESTSystemConnector", () => {
         expect(logged).not.toContain("s3cr3t-pw");
     });
 
+    describe("system ID", () => {
+        const login = () => ({ user: "developer", passwd: "pw", lang: "EN", client: "001" } as any);
+        const mockClient = (client: any) => {
+            const { RESTClient } = jest.requireMock("../client");
+            (RESTClient as jest.Mock).mockImplementation(() => client);
+        };
+
+        beforeEach(() => {
+            jest.spyOn(Logger, "log").mockImplementation(() => undefined);
+            jest.spyOn(Logger, "loading").mockImplementation(() => undefined);
+            jest.spyOn(Logger, "success").mockImplementation(() => undefined);
+            jest.spyOn(Logger, "error").mockImplementation(() => undefined);
+        });
+
+        test("is not available before connect", () => {
+            mockClient({});
+            const connector = new RESTSystemConnector({ endpoint: "http://vhcala4hci:50000" }, login());
+            expect(() => connector.getDest()).toThrow(/connect to the system first/);
+        });
+
+        test("is read from the system on connect", async () => {
+            const client = { open: jest.fn().mockResolvedValue(undefined), getDest: jest.fn().mockResolvedValue("A4H") };
+            mockClient(client);
+            const connector = new RESTSystemConnector({ endpoint: "http://vhcala4hci:50000" }, login());
+            await connector.connect(true);
+            expect(client.getDest).toHaveBeenCalledTimes(1);
+            expect(connector.getDest()).toBe("A4H");
+        });
+
+        test("connect fails when the system ID can't be read", async () => {
+            const client = { open: jest.fn().mockResolvedValue(undefined), getDest: jest.fn().mockRejectedValue(new Error("boom")) };
+            mockClient(client);
+            const connector = new RESTSystemConnector({ endpoint: "http://vhcala4hci:50000" }, login());
+            await expect(connector.connect(true)).rejects.toThrow("boom");
+            expect(() => connector.getDest()).toThrow(/connect to the system first/);
+        });
+    });
+
     describe("endpoint normalization", () => {
         const login = () => ({ user: "developer", passwd: "pw", lang: "EN", client: "001" } as any);
         const endpointOf = (endpoint: string) => {
             jest.spyOn(Logger, "log").mockImplementation(() => undefined);
-            return new RESTSystemConnector({ endpoint }, login()).getDest();
+            return new RESTSystemConnector({ endpoint }, login()).getConnectionData().endpoint;
         };
 
         test.each([

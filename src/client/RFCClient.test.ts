@@ -144,3 +144,37 @@ describe('RFCClient deleteTmsTransport', () => {
         expect(call).toHaveBeenCalledWith('/ATRM/DEL_TRANSPORT_TMS', { TRKORR: 'DEVK9DELE', SYSTEM: 'QAS' }, undefined);
     });
 });
+
+describe('RFCClient getDest', () => {
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('reads the system ID from trm-server', async () => {
+        const call = mockCalls({
+            '/ATRM/GET_DEST': () => ({ DEST: 'A4H' })
+        });
+
+        await expect(createClient(call).getDest()).resolves.toBe('A4H');
+        expect(call).toHaveBeenCalledTimes(1);
+    });
+
+    it.each(['FU_NOT_FOUND', 'TRM_RFC_UNAUTHORIZED'])('falls back to RFC_SYSTEM_INFO on %s', async (key) => {
+        const call = mockCalls({
+            '/ATRM/GET_DEST': () => { throw { key }; },
+            'RFC_SYSTEM_INFO': () => ({ RFCSI_EXPORT: { RFCSYSID: 'A4H' } })
+        });
+
+        await expect(createClient(call).getDest()).resolves.toBe('A4H');
+        expect(call.mock.calls.map(c => c[0])).toEqual(['/ATRM/GET_DEST', 'RFC_SYSTEM_INFO']);
+    });
+
+    it('does not fall back on other errors', async () => {
+        const call = mockCalls({
+            '/ATRM/GET_DEST': () => { throw { key: 'GENERIC' }; }
+        });
+
+        await expect(createClient(call).getDest()).rejects.toBeInstanceOf(RFCClientError);
+        expect(call.mock.calls.map(c => c[0])).toEqual(['/ATRM/GET_DEST']);
+    });
+});

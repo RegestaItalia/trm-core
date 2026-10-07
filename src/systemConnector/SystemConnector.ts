@@ -60,7 +60,7 @@ export namespace SystemConnector {
         return systemConnector.getConnectionData();
     }
 
-    export function getDest(): string {
+    export function getDest(): components.SYSYSID {
         checkSystemConnector();
         return systemConnector.getDest();
     }

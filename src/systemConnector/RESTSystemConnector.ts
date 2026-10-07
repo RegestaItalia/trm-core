@@ -51,7 +51,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
         return this._client.releaseActionLocks(keys, ownerToken);
     }
-    private _dest: string;
+    private _dest: components.SYSYSID;
     private _lang: string;
     private _user: string;
     protected _client: RESTClient;
@@ -96,8 +96,14 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this.getDest();
     }
 
-    public getDest(): string {
-        return this._dest || this._connection.endpoint;
+    /**
+     * System ID, read from the system on connect.
+     */
+    public getDest(): components.SYSYSID {
+        if (!this._dest) {
+            throw new Error(`System ID not available: connect to the system first.`);
+        }
+        return this._dest;
     }
 
     protected getLangu(c: boolean): string {
@@ -157,13 +163,13 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     public async connect(silent: boolean = false): Promise<void> {
-        Logger.loading(`Connecting to ${this.getDest()}...`, silent);
+        Logger.loading(`Connecting to ${this._connection.endpoint}...`, silent);
         try {
             await this._client.open();
             this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
         } catch (e) {
-            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, silent);
+            Logger.error(`Connection to ${this._connection.endpoint} as ${this._user} failed.`, silent);
             throw e;
         }
     }

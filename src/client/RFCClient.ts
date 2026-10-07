@@ -591,6 +591,20 @@ export class RFCClient implements IClient {
         return result['objectText'];
     }
 
+    public async getDest(): Promise<components.SYSYSID> {
+        try {
+            const result = await this._call("/ATRM/GET_DEST");
+            return result['dest'];
+        } catch (e) {
+            //trm-server not installed, outdated or not authorized: read the system ID with the standard RFC
+            if (e instanceof RFCClientError && (e.exceptionType === 'FU_NOT_FOUND' || e.exceptionType === 'TRM_RFC_UNAUTHORIZED')) {
+                const result = await this._call("RFC_SYSTEM_INFO");
+                return result['rfcsiExport']['rfcsysid'];
+            }
+            throw e;
+        }
+    }
+
     public async getTrmServerVersion(): Promise<string> {
         const result = await this._call("/ATRM/VERSION");
         return result['version'];

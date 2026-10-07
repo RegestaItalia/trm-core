@@ -41,6 +41,7 @@ export * from "./RS38L_FNAME";
 export * from "./PNAME";
 export * from "./TRFUNCTION";
 export * from "./RFCDEST";
+export * from "./SYSYSID";
 export * from "./NAMESPACE";
 export * from "./TRNLICENSE";
 export * from "./NSP_TEXT";

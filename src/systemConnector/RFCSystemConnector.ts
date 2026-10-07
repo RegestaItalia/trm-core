@@ -19,6 +19,7 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
         return this._client.releaseActionLocks(keys, ownerToken);
     }
+    private _dest: components.SYSYSID;
     private _lang: string;
     private _user: string;
     protected _client: RFCClient;
@@ -42,15 +43,23 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
     }
 
     public getNewConnection(): ISystemConnector {
-        return new RFCSystemConnector(this._connection, this._login, this._traceDir, this._globalNodeModulesPath);
+        const connector = new RFCSystemConnector(this._connection, this._login, this._traceDir, this._globalNodeModulesPath);
+        connector._dest = this._dest;
+        return connector;
     }
 
     protected getSysname(): string {
         return this.getDest();
     }
 
-    public getDest(): string {
-        return this._connection.dest;
+    /**
+     * System ID, read from the system on connect.
+     */
+    public getDest(): components.SYSYSID {
+        if (!this._dest) {
+            throw new Error(`System ID not available: connect to the system first.`);
+        }
+        return this._dest;
     }
 
     protected getLangu(c: boolean): string {
@@ -109,13 +118,21 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._user;
     }
 
+    private getConnectionLabel(): string {
+        if (this._connection.saprouter) {
+            return `${this._connection.ashost} thru ${this._connection.saprouter}`;
+        }
+        return this._connection.ashost;
+    }
+
     public async connect(silent: boolean = false): Promise<void> {
-        Logger.loading(`Connecting to ${this.getDest()}...`, silent);
+        Logger.loading(`Connecting to ${this.getConnectionLabel()}...`, silent);
         try {
             await this._client.open();
+            this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
         } catch (e) {
-            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, silent);
+            Logger.error(`Connection to ${this.getConnectionLabel()} as ${this._user} failed.`, silent);
             throw e;
         }
     }

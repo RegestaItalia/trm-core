@@ -30,7 +30,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     isStateless: boolean,
     getNewConnection(): ISystemConnector,
     getConnectionData: () => RFCConnection | RESTConnection,
-    getDest: () => string,
+    getDest: () => components.SYSYSID,
     getLogonLanguage: (c: boolean) => string,
     getLogonUser: () => string,
     connect: (silent: boolean) => Promise<void>,
