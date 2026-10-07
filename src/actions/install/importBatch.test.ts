@@ -10,6 +10,7 @@ jest.mock('../../systemConnector', () => ({
         tadirInterface: jest.fn(),
         deleteTemporaryPackage: jest.fn(),
         getDevclass: jest.fn().mockResolvedValue(undefined),
+        getDefaultTransportLayer: jest.fn(),
         getSupportedBulk: jest.fn().mockReturnValue({}),
         getExistingObjects: jest.fn().mockResolvedValue([])
     }
@@ -886,5 +887,87 @@ describe('importBatch rollback checkpoint', () => {
             expect(context.revert.existingObjectsBackupTransport).toBeUndefined();
             expect(context.revert.existingObjectsTadir).toEqual(existingTadir);
         });
+    });
+});
+
+describe('importBatch package transport layers', () => {
+    beforeEach(() => {
+        jest.restoreAllMocks();
+        jest.clearAllMocks();
+        for (const method of ['loading', 'log', 'success', 'warning', 'error'] as const) {
+            jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
+        }
+        (SystemConnector.getDevclass as jest.Mock).mockResolvedValue(undefined);
+        (SystemConnector.getSupportedBulk as jest.Mock).mockReturnValue({});
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([]);
+    });
+
+    function layerContext() {
+        const context = makeContext(jest.fn());
+        context.rawInput.installData.installDevclass.transportLayer = undefined;
+        context.runtime.transports.lang.instance = undefined;
+        context.runtime.transports.cust = [];
+        return context;
+    }
+
+    test('packages kept with their original name get the system default layer, read before the import', async () => {
+        const events: string[] = [];
+        (SystemConnector.getDefaultTransportLayer as jest.Mock).mockImplementation(async () => { events.push('default'); return 'ZDEF'; });
+        (Transport.importMultiple as jest.Mock).mockImplementation(async () => { events.push('import'); });
+
+        await importBatch.run(layerContext());
+
+        expect(events).toEqual(['default', 'import']);
+        expect(SystemConnector.getDefaultTransportLayer).toHaveBeenCalledTimes(1);
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZROOT', 'ZDEF');
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZSUB', 'ZDEF');
+    });
+
+    test('a package already on the system keeps its layer, read before the import overwrites it', async () => {
+        const context = layerContext();
+        context.runtime.update = { getDevclass: () => 'ZROOT' };
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+            devclass === 'ZROOT' ? { devclass, pdevclass: 'ZOLD' } : undefined);
+        (Transport.importMultiple as jest.Mock).mockImplementation(async () => {
+            (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZROOT', pdevclass: 'SOURCE' });
+        });
+        (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZDEF');
+
+        await importBatch.run(context);
+
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZROOT', 'ZOLD');
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZSUB', 'ZDEF');
+        expect(context.revert.packageTransportLayers).toEqual([{ devclass: 'ZROOT', transportLayer: 'ZOLD' }]);
+    });
+
+    test('the input layer wins and no default is read', async () => {
+        const context = layerContext();
+        context.rawInput.installData.installDevclass.transportLayer = 'ZIN';
+
+        await importBatch.run(context);
+
+        expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZROOT', 'ZIN');
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZSUB', 'ZIN');
+    });
+
+    test('a system without a default layer fails before anything is imported', async () => {
+        (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('');
+
+        await expect(importBatch.run(layerContext())).rejects.toThrow('System has no default transport layer, specify one.');
+
+        expect(Transport.importMultiple).not.toHaveBeenCalled();
+        expect(SystemConnector.setPackageTransportLayer).not.toHaveBeenCalled();
+    });
+
+    test('local packages get no transport layer', async () => {
+        const context = layerContext();
+        context.runtime.transports.devc.binaries.entries.tdevc = [{ devclass: '$ROOT' }];
+        context.runtime.package.hierarchy.devclass = '$ROOT';
+
+        await importBatch.run(context);
+
+        expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('$ROOT', '');
     });
 });

@@ -5,6 +5,7 @@ import { getPackageHierarchy, getParentFromHierarchy, packageDataFromTdevc } fro
 import type { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
+import { getDefaultTransportLayer } from "./defaultTransportLayer";
 
 /**
  * Workflow step that validates target SAP packages and creates any that are missing.
@@ -66,19 +67,8 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         if (generate.length > 0) {
             const dlvunit = context.runtime.namespace === '$' ? 'LOCAL' : 'HOME';
             if (dlvunit !== 'LOCAL' && !context.rawInput.installData.installDevclass.transportLayer) {
-                Logger.loading(`Checking transport layer...`);
-                let defaultTransportLayer: string;
-                try {
-                    defaultTransportLayer = await SystemConnector.getDefaultTransportLayer();
-                } catch (e) {
-                    Logger.error(e.toString(), true);
-                    throw new Error(`Couldn't determine system's default transport layer.`);
-                }
-                if (!defaultTransportLayer) {
-                    throw new Error(`System has no default transport layer, specify one.`);
-                }
-                context.rawInput.installData.installDevclass.transportLayer = defaultTransportLayer;
-                Logger.log(`Setting transport layer to default: ${defaultTransportLayer}`, true);
+                context.rawInput.installData.installDevclass.transportLayer = await getDefaultTransportLayer();
+                Logger.log(`Setting transport layer to default: ${context.rawInput.installData.installDevclass.transportLayer}`, true);
             }
             if (!context.runtime.stopWarningShown) {
                 context.runtime.stopWarningShown = true;
