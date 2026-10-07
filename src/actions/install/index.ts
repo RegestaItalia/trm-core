@@ -282,6 +282,8 @@ type WorkflowRevert = {
     dele?: TransportBinary,
     deleImportStarted?: boolean,
     deleInTargetTms?: boolean,
+    /** Set before the landscape transport is released, as SAP may export it and still fail. */
+    landscapeReleaseStarted?: boolean,
     cleanupOriginalTadir?: TADIR[],
     cleanupTemporaryPackages?: TDEVC[],
     updateCleanupTransport?: Transport,

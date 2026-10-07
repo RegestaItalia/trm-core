@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
-import { forwardDeletionTransport, isDeletionForwardable, revertForwardedDeletionTransport, withScopedPrefix } from "../commons/utils";
+import { forwardDeletionTransport, isDeletionForwardable, removeFromImportQueue, revertForwardedDeletionTransport, withScopedPrefix } from "../commons/utils";
 
 /**
  * Workflow step that releases the generated landscape transport, when present.
@@ -32,6 +32,8 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
 
             //2- release
             Logger.loading(`Releasing...`);
+            // Mark before the release: SAP may export the transport and still fail.
+            context.revert.landscapeReleaseStarted = true;
             await context.output.transport.release(true, false, context.rawInput.contextData.logTemporaryFolder);
         });
     },
@@ -42,13 +44,21 @@ export const releaseLandscapeTransport: Step<InstallWorkflowContext> = {
         } catch (error) {
             firstError = error;
         }
+        const transport = context.output.transport;
+        const targetSystem = context.rawInput.installData.landscapeTransport.targetSystem;
         try {
-            if (await context.output.transport.canBeDeleted()) {
-                await context.output.transport.delete();
+            if (await transport.canBeDeleted()) {
+                await transport.delete();
                 context.output.transport = undefined;
+            } else if (context.revert.landscapeReleaseStarted) {
+                // A released transport can't be deleted: take it out of the target import queue instead.
+                await removeFromImportQueue(transport.trkorr, targetSystem, `Released landscape transport`);
             }
         } catch (error) {
             firstError ||= error;
+            if (context.revert.landscapeReleaseStarted) {
+                Logger.warning(`Released landscape transport ${transport.trkorr} may be in the ${targetSystem} import queue: check it in STMS.`);
+            }
         }
         if (firstError) {
             throw firstError;

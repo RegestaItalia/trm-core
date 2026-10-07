@@ -716,10 +716,24 @@ export async function forwardDeletionTransport(context: PackageCleanupContext, t
     await SystemConnector.forwardTransport(context.revert.dele.trkorr, targetSystem, SystemConnector.getDest(), true);
 }
 
+/**
+ * Removes a transport from the import queue of `targetSystem`. Only the queue of the connected
+ * system can be changed: another system's queue would need its credentials, so the operator is
+ * warned to remove it manually. Returns whether the transport was removed.
+ */
+export async function removeFromImportQueue(trkorr: string, targetSystem: string, description: string): Promise<boolean> {
+    if (normalize(targetSystem) === normalize(SystemConnector.getDest())) {
+        await SystemConnector.deleteTmsTransport(trkorr, targetSystem);
+        return true;
+    }
+    Logger.warning(`${description} ${trkorr} may be in the ${targetSystem} import queue: remove it manually in STMS (it can't be removed from ${SystemConnector.getDest()}).`);
+    return false;
+}
+
 /** Removes the deletion transport from the target system import queue, when it was forwarded. */
 export async function revertForwardedDeletionTransport(context: PackageCleanupContext, targetSystem: string): Promise<void> {
     if (context.revert.deleInTargetTms) {
-        await SystemConnector.deleteTmsTransport(context.revert.dele.trkorr, targetSystem);
+        await removeFromImportQueue(context.revert.dele.trkorr, targetSystem, `Deletion transport`);
     }
 }
 

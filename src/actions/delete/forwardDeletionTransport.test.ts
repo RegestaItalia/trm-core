@@ -35,6 +35,7 @@ describe('forwardDeletionTransport', () => {
         jest.spyOn(Logger, 'loading').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'success').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
+        jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'setPrefix').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'getPrefix').mockReturnValue(undefined);
         jest.spyOn(Inquirer, 'setPrefix').mockImplementation(() => undefined as never);
@@ -65,17 +66,29 @@ describe('forwardDeletionTransport', () => {
         await expect(execute('test', [forwardDeletionTransport], ctx)).rejects.toThrow();
 
         expect(ctx.revert.deleInTargetTms).toBe(true);
-        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK9DELE', 'QAS');
+        expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('QAS import queue'));
     });
 
-    test('a later failure removes the deletion transport from the target queue', async () => {
+    test('a later failure leaves the deletion transport in another system queue with a warning', async () => {
         const ctx = context();
         const failing = { name: 'fail', run: async () => { throw new Error('later failure'); } };
 
         await expect(execute('test', [forwardDeletionTransport, failing], ctx)).rejects.toThrow();
 
-        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK9DELE', 'QAS');
+        expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE'));
         expect(ctx.output.targetSystem).toBeUndefined();
+    });
+
+    test('a deletion transport forwarded to the connected system is removed from its queue', async () => {
+        const ctx = context({ targetSystem: 'DEV' });
+        const failing = { name: 'fail', run: async () => { throw new Error('later failure'); } };
+
+        await expect(execute('test', [forwardDeletionTransport, failing], ctx)).rejects.toThrow();
+
+        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK9DELE', 'DEV');
+        expect(Logger.warning).not.toHaveBeenCalled();
     });
 
     test('revert does nothing when the transport was never forwarded', async () => {
