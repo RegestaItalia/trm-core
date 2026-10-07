@@ -99,15 +99,28 @@ export const prepareCust: Step<InstallWorkflowContext> = {
         if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
             return;
         }
+        // Each customizing transport is independent: attempt all of them, then surface the first failure.
+        let firstError: unknown;
         for (const cust of [...context.revert.transports.cust].reverse()) {
             const generated = context.revert.createdTransports.cust.find(transport => transport.trkorr === cust.trkorr);
-            await revertPreparedTransport(generated, cust);
+            try {
+                await revertPreparedTransport(generated, cust);
+            } catch (error) {
+                firstError ||= error;
+            }
         }
         for (const generated of [...context.revert.createdTransports.cust].reverse()) {
             const hasSnapshot = context.revert.transports.cust.some(snapshot => snapshot.trkorr === generated.trkorr);
             if (!hasSnapshot) {
-                await revertPreparedTransport(generated, undefined);
+                try {
+                    await revertPreparedTransport(generated, undefined);
+                } catch (error) {
+                    firstError ||= error;
+                }
             }
+        }
+        if (firstError) {
+            throw firstError;
         }
     }
 }

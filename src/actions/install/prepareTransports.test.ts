@@ -156,4 +156,24 @@ describe('install prepare transport rollback', () => {
             expect(Transport.upload).not.toHaveBeenCalled();
         });
     });
+
+    test('a failing customizing revert does not skip the remaining customizing transports', async () => {
+        const ctx = context(registryTransport);
+        const dummies = ['DEVK9C1', 'DEVK9C2', 'DEVK9C3'].map(trkorr => {
+            const transport = new Transport(trkorr) as any;
+            transport.trkorr = trkorr;
+            transport.canBeDeleted.mockResolvedValue(true);
+            transport.delete.mockResolvedValue(undefined);
+            return transport;
+        });
+        dummies[2].delete.mockRejectedValue(new Error('first failure'));
+        dummies[1].delete.mockRejectedValue(new Error('second failure'));
+        ctx.revert.createdTransports.cust.push(...dummies);
+
+        await expect(prepareCust.revert(ctx)).rejects.toThrow('first failure');
+
+        for (const transport of dummies) {
+            expect(transport.delete).toHaveBeenCalledTimes(1);
+        }
+    });
 });
