@@ -279,6 +279,15 @@ type WorkflowRevert = {
     importedEntries?: E071[],
     /** Imported customizing transports, copied into the rollback cleanup transport with their keys. */
     importedCustomizing?: Transport[],
+    /**
+     * Imported objects, SAP packages included, that were already on the system before the import,
+     * with their previous TADIR row. The rollback cleanup never deletes them.
+     */
+    existingObjectsTadir?: TADIR[],
+    /** Transport of copies backing up {@link WorkflowRevert.existingObjectsTadir}, tracked before it is released. */
+    existingObjectsBackupTransport?: Transport,
+    /** Previous version of the existing objects, re-imported once the rollback cleanup succeeded. */
+    existingObjectsBackup?: TransportBinary,
     packageHierarchy?: TDEVC[],
     packageTransportLayers?: Array<{ devclass: DEVCLASS, transportLayer: string }>,
     createdTransports?: {

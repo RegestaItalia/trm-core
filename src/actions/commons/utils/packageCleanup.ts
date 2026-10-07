@@ -224,7 +224,11 @@ async function restoreCleanupAssignments(context: PackageCleanupContext, restore
     await restoreTadirAssignments(context.revert.cleanupOriginalTadir || []);
 }
 
-async function restoreTadirAssignments(originals: TADIR[]): Promise<void> {
+/**
+ * Assigns the objects that still exist back to their previous TADIR rows. Every object is
+ * attempted; the first failure is thrown afterwards.
+ */
+export async function restoreTadirAssignments(originals: TADIR[]): Promise<void> {
     if (originals.length === 0) {
         return;
     }

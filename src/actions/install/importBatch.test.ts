@@ -9,7 +9,9 @@ jest.mock('../../systemConnector', () => ({
         clearPackageSuperpackage: jest.fn(),
         tadirInterface: jest.fn(),
         deleteTemporaryPackage: jest.fn(),
-        getDevclass: jest.fn().mockResolvedValue(undefined)
+        getDevclass: jest.fn().mockResolvedValue(undefined),
+        getSupportedBulk: jest.fn().mockReturnValue({}),
+        getExistingObjects: jest.fn().mockResolvedValue([])
     }
 }));
 
@@ -198,6 +200,8 @@ describe('importBatch rollback checkpoint', () => {
         });
 
         jest.spyOn(SystemConnector, 'getDest').mockReturnValue('TST');
+        (SystemConnector.getSupportedBulk as jest.Mock).mockReturnValue({});
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([]);
         jest.spyOn(SystemConnector, 'isStateless').mockReturnValue(false);
         jest.spyOn(SystemConnector, 'closeConnection').mockImplementation(() => fail('closeConnection'));
         jest.spyOn(SystemConnector, 'connect').mockImplementation(() => fail('connect'));
@@ -686,5 +690,201 @@ describe('importBatch rollback checkpoint', () => {
 
         expect(events).toContain('cleanup.delete');
         expect(events).not.toContain('restore-old-payload');
+    });
+
+    describe('objects already on the system before the import', () => {
+        let backupTransport: any;
+
+        function makeExistingContext() {
+            const context = makeContext(registryDelete);
+            context.runtime.transports.tadir.binaries.entries.e071 = [
+                { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' },
+                { pgmid: 'R3TR', object: 'TABL', objName: 'Z_EXISTING_TABLE' },
+                { pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL' },
+                { pgmid: 'LIMU', object: 'REPS', objName: 'Z_ONE' }
+            ];
+            context.runtime.transports.devc.binaries.entries.e071 = [
+                { pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT' },
+                { pgmid: 'R3TR', object: 'DEVC', objName: '$LOCAL' },
+                { pgmid: 'R3TR', object: 'DEVC', objName: 'ZGENERATED' },
+                { pgmid: 'R3TR', object: 'NSPC', objName: '/TEST/' }
+            ];
+            context.runtime.transports.lang = undefined;
+            context.runtime.transports.cust = [];
+            context.revert.sapPackages = ['ZGENERATED'];
+            return context;
+        }
+
+        const existingTadir = [
+            { pgmid: 'R3TR', object: 'TABL', objName: 'Z_EXISTING_TABLE', devclass: 'ZCUSTOMER', srcsystem: 'DEV', author: 'USER' },
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT', devclass: 'ZROOT', srcsystem: 'DEV', author: 'USER' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL', devclass: '$LOCAL', srcsystem: 'DEV', author: 'USER' },
+            { pgmid: 'R3TR', object: 'DEVC', objName: '$LOCAL', devclass: '$LOCAL', srcsystem: 'DEV', author: 'USER' }
+        ];
+
+        beforeEach(() => {
+            backupTransport = {
+                trkorr: 'DEVK9BKP',
+                addObjects: jest.fn(async () => fail('backup.addObjects')),
+                release: jest.fn(async () => fail('backup.release')),
+                download: jest.fn(async () => {
+                    await fail('backup.download');
+                    return { binaries: { header: Buffer.from('bh'), data: Buffer.from('bd') } };
+                }),
+                delete: jest.fn(async () => fail('backup.delete')),
+                canBeDeleted: jest.fn(async () => {
+                    await fail('backup.canBeDeleted');
+                    return true;
+                })
+            };
+            jest.spyOn(Transport, 'createToc').mockImplementation(async (data: any) => {
+                if (data.text.includes('(BKP)')) {
+                    await fail('backup.createToc');
+                    return backupTransport;
+                }
+                await fail('cleanup.createToc');
+                return cleanupTransport;
+            });
+            jest.spyOn(Transport, 'upload').mockImplementation(async (trkorr: string) => {
+                const name = trkorr === 'DEVK9BKP' ? 'backup' : 'cleanup';
+                await fail(`${name}.upload`);
+                return {
+                    trkorr,
+                    import: async (test: boolean) => fail(test ? `${name}.import.test` : `${name}.import.live`)
+                } as unknown as Transport;
+            });
+            (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async (objects: any[]) => {
+                await fail('getExistingObjects');
+                return existingTadir.filter(existing => objects.some(object => object.object === existing.object && object.objName === existing.objName));
+            });
+        });
+
+        async function runExisting(point: string, failAfterStep = true): Promise<any> {
+            failurePoint = point;
+            const context = makeExistingContext();
+            const restore = {
+                name: 'prepared-transport',
+                run: async () => undefined,
+                revert: async () => {
+                    if (!context.revert.cleanupImported || context.revert.cleanupSucceeded) {
+                        events.push('restore-old-payload');
+                    }
+                }
+            };
+            const laterFailure = { name: 'later-failure', run: async () => { throw new Error('failure after importBatch'); } };
+            await expect(execute('test', failAfterStep ? [restore, importBatch, laterFailure] : [restore, importBatch], context)).rejects.toThrow();
+            return context;
+        }
+
+        test('only imported R3TR objects not generated by the install are checked', async () => {
+            const context = makeExistingContext();
+            await importBatch.run(context);
+
+            const checked = (SystemConnector.getExistingObjects as jest.Mock).mock.calls[0][0].map((o: any) => `${o.object} ${o.objName}`);
+            expect(checked).toEqual(['PROG Z_ONE', 'TABL Z_EXISTING_TABLE', 'PROG Z_LOCAL', 'DEVC ZROOT', 'DEVC $LOCAL']);
+        });
+
+        test('existing objects and packages are backed up before the import', async () => {
+            const context = makeExistingContext();
+            await importBatch.run(context);
+
+            expect(backupTransport.addObjects).toHaveBeenCalledWith([
+                { pgmid: 'R3TR', object: 'TABL', objName: 'Z_EXISTING_TABLE' },
+                { pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT' }
+            ], false);
+            expect(events.indexOf('backup.release')).toBeLessThan(events.indexOf('importMultiple'));
+            expect(context.revert.existingObjectsBackup.trkorr).toBe('DEVK9BKP');
+            expect(context.revert.existingObjectsTadir).toEqual(existingTadir);
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Z_LOCAL'), { important: true });
+        });
+
+        test('rollback keeps existing objects out of the cleanup and restores them after it', async () => {
+            const context = await runExisting('unused');
+
+            const entries = cleanupTransport.addObjects.mock.calls[0][0];
+            expect(entries).toEqual(expect.arrayContaining([
+                { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' },
+                { pgmid: 'LIMU', object: 'REPS', objName: 'Z_ONE' },
+                { pgmid: 'R3TR', object: 'DEVC', objName: 'ZGENERATED' },
+                { pgmid: 'R3TR', object: 'NSPC', objName: '/TEST/' }
+            ]));
+            expect(entries).toHaveLength(4);
+            expect(SystemConnector.deleteTemporaryPackage).not.toHaveBeenCalledWith('$LOCAL');
+            expect(context.revert.cleanupSucceeded).toBe(true);
+            expect(events.indexOf('cleanup.import.live')).toBeLessThan(events.indexOf('backup.import.live'));
+            expect(events.indexOf('backup.import.live')).toBeLessThan(events.indexOf('restore-old-payload'));
+            for (const object of existingTadir) {
+                expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(object);
+            }
+        });
+
+        test.each([
+            'cleanup.addObjects',
+            'registry.delete',
+            'cleanup.import.live'
+        ])('a failed cleanup at %s does not restore the backup over the imported objects', async point => {
+            const context = await runExisting(point);
+
+            expect(context.revert.cleanupSucceeded).toBe(false);
+            expect(events).not.toContain('backup.upload');
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9BKP'), { important: true });
+        });
+
+        test('a failed backup restore still restores the TADIR rows and surfaces the failure', async () => {
+            const context = makeExistingContext();
+            failurePoint = 'backup.import.live';
+            const laterFailure = { name: 'later-failure', run: async () => { throw new Error('later'); } };
+
+            await expect(execute('test', [importBatch, laterFailure], context)).rejects.toThrow('later');
+
+            expect(events).toContain('backup.import.live');
+            for (const object of existingTadir) {
+                expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(object);
+            }
+        });
+
+        test('a failed backup restore is reported by the step revert', async () => {
+            const context = makeExistingContext();
+            await importBatch.run(context);
+            failurePoint = 'backup.import.live';
+
+            await expect(importBatch.revert(context)).rejects.toThrow('failure at backup.import.live');
+
+            expect(context.revert.cleanupSucceeded).toBe(true);
+            expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(existingTadir[0]);
+        });
+
+        test.each([
+            'getExistingObjects',
+            'backup.createToc',
+            'backup.release',
+            'backup.download'
+        ])('a failure backing up at %s aborts before the import and leaves existing objects alone', async point => {
+            const context = await runExisting(point, false);
+
+            expect(Transport.importMultiple).not.toHaveBeenCalled();
+            expect(events).not.toContain('backup.upload');
+            const entries = cleanupTransport.addObjects.mock.calls[0]?.[0] || [];
+            expect(entries).not.toContainEqual({ pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' });
+            expect(entries).not.toContainEqual({ pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT' });
+            expect(entries).toContainEqual({ pgmid: 'R3TR', object: 'DEVC', objName: 'ZGENERATED' });
+            if (point === 'backup.release') {
+                expect(backupTransport.delete).toHaveBeenCalled();
+            }
+            expect(context.revert.cleanupSucceeded).toBe(true);
+        });
+
+        test('no backup transport is created when every existing object is refused', async () => {
+            const context = makeExistingContext();
+            backupTransport.addObjects.mockRejectedValue(new Error('not transportable'));
+
+            await importBatch.run(context);
+
+            expect(backupTransport.delete).toHaveBeenCalledTimes(1);
+            expect(backupTransport.release).not.toHaveBeenCalled();
+            expect(context.revert.existingObjectsBackup).toBeUndefined();
+            expect(context.revert.existingObjectsBackupTransport).toBeUndefined();
+            expect(context.revert.existingObjectsTadir).toEqual(existingTadir);
+        });
     });
 });
