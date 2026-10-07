@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-56 — High — Functional — Overwriting a local artifact treats it as the latest release
-
-- **Where:** [`FileSystem.ts#L94`](../../src/registry/FileSystem.ts#L94) returns `dist_tags.latest = 'latest'` and ignores the name; [`publish/init.ts#L169`](../../src/actions/publish/init.ts#L169).
-- **Failure:** `inc('latest')` is `null` (non-interactive fails later with "Package version missing"); the file's manifest is merged regardless of package name; its CUST transports are classified as retained, skipped by generation, and ignored by `FileSystem.publish`, so customizing silently disappears.
-- **Fix:** do not treat the target file as latest for LOCAL, or validate its name and return the real version.
-
 ### ACT-2026-59 — Medium — Functional — Non-interactive engines are validated non-strictly
 
 - **Where:** [`setManifestValues.ts#L63`](../../src/actions/publish/setManifestValues.ts#L63); strict validation only in prompt branches.
@@ -46,7 +40,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Order | Step | Result |
 |---:|---|---|
 | 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
-| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); local overwrite misreads the file (ACT-2026-56); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
+| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); a local publish never reads the overwritten target file as its latest release (ACT-2026-56, resolved); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
 | 6 | `set-manifest-values` | non-strict engines (ACT-2026-59). The public-registry length limits on description, website and git are checked in the prompts and again on the normalized manifest, so non-interactive and copied values are enforced too (ACT-2026-65, resolved). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
@@ -58,6 +52,15 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-56 — Resolved — High — Functional — Overwriting a local artifact treats it as the latest release
+
+`init` no longer reads the target file of a local publish as the latest release
+([source](../../src/actions/publish/init.ts#L155)). Every local artifact is a standalone publication:
+the version defaults to `1.0.0` when omitted, and no manifest values or customizing transports are
+inherited from the overwritten file. Before, `FileSystem.getPackage` reported the file as release
+`latest` whatever its package name, so `inc('latest')` failed, the file's manifest was merged into the
+new one, and its customizing transports were classified as retained and silently dropped.
+
 ### ACT-2026-65 — Resolved — Low — Functional — Public-registry metadata limits are enforced only in prompts
 
 The public-registry limits (description 50, website and git 100 characters) are defined once and

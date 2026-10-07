@@ -153,13 +153,19 @@ export const init: Step<PublishWorkflowContext> = {
         //on automatic version, manual validation by user
         Logger.loading(`Validating version...`);
         var automaticVersion: boolean = false;
-        try {
-            context.runtime.latest.data = await context.rawInput.packageData.registry.getPackage(context.rawInput.packageData.name, 'latest');
-        } catch (e) {
-            if (e instanceof RegistryPackageNotFoundError) {
-                Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL);
-            } else {
-                throw e;
+        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
+            //the target file is overwritten, it's not a previous release of this package:
+            //every local artifact is a standalone publication
+            Logger.log(`Local publish: target file is not read as latest release`, true);
+        } else {
+            try {
+                context.runtime.latest.data = await context.rawInput.packageData.registry.getPackage(context.rawInput.packageData.name, 'latest');
+            } catch (e) {
+                if (e instanceof RegistryPackageNotFoundError) {
+                    Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`);
+                } else {
+                    throw e;
+                }
             }
         }
         if (context.runtime.latest.data) {
