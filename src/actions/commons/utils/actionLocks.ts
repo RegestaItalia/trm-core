@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "crypto";
 import { Logger } from "trm-commons";
+import { ClientError } from "../../../client";
 import { AbstractRegistry } from "../../../registry";
 import { ActionLockKey, SystemConnector } from "../../../systemConnector";
 
@@ -45,6 +46,13 @@ export class ActionLockScope {
         try {
             await SystemConnector.acquireActionLocks(fresh, this.ownerToken, this.actionName);
         } catch (error) {
+            if (error instanceof ClientError && error.sapMessage) {
+                // SAP answered and rejected the request: nothing was locked for this owner.
+                if (/lock held/i.test(error.message)) {
+                    error.message = `${error.message}. If no other TRM action is running, the lock was left by an interrupted action: delete it with program /ATRM/ACT_LOCK_ADMIN.`;
+                }
+                throw error;
+            }
             // A response can fail after SAP commits. Release only rows owned by this token.
             try {
                 await SystemConnector.releaseActionLocks(fresh, this.ownerToken);

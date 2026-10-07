@@ -1,4 +1,5 @@
 import { ActionLockScope, actionLockKey, packageLockResource, withActionLockScope, withLockRelease } from "./actionLocks";
+import { ClientError } from "../../../client";
 import { SystemConnector } from "../../../systemConnector";
 import { Logger } from "trm-commons";
 
@@ -42,6 +43,22 @@ describe("persistent action lock scope", () => {
         const scope = new ActionLockScope("install");
         await expect(scope.acquire([{ type: "DEVCLASS", name: "Z_A" }])).rejects.toThrow("response lost");
         expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    test("a lock held by another owner is rejected by SAP: no cleanup, stale-lock hint", async () => {
+        acquire.mockRejectedValueOnce(new ClientError("ENQUEUE_ERROR", { class: "00", no: "001" }, "Action lock held: PACKAGE pkg [registry] by USER"));
+        const scope = new ActionLockScope("publish");
+        await expect(scope.acquire([{ type: "PACKAGE", name: "pkg [registry]" }])).rejects.toThrow(
+            "Action lock held: PACKAGE pkg [registry] by USER. If no other TRM action is running, the lock was left by an interrupted action: delete it with program /ATRM/ACT_LOCK_ADMIN."
+        );
+        expect(release).not.toHaveBeenCalled();
+    });
+
+    test("other SAP rejections are rethrown unchanged without cleanup", async () => {
+        acquire.mockRejectedValueOnce(new ClientError("NO_AUTH", { class: "00", no: "001" }, "Not authorized"));
+        const scope = new ActionLockScope("install");
+        await expect(scope.acquire([{ type: "DEVCLASS", name: "Z_A" }])).rejects.toThrow(/^Not authorized$/);
+        expect(release).not.toHaveBeenCalled();
     });
 
     test("cleanup runs after the work fails and never masks its error", async () => {
