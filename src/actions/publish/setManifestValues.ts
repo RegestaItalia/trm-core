@@ -633,6 +633,14 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                 throw new Error(`Invalid version range "${dependency?.version ?? ''}" for dependency "${dependency?.name ?? ''}".`);
             }
         }
+        //prompts validate strictly, but non-interactive, copied and unedited engines are not prompted:
+        //unknown keys or properties would be published and never enforced
+        if (context.runtime.manifest.engines && typeof context.runtime.manifest.engines === 'object' && Object.keys(context.runtime.manifest.engines).length > 0) {
+            const enginesErrors = validateEngines(context.runtime.manifest.engines, { strict: true });
+            if (enginesErrors.length > 0) {
+                throw new Error(`Invalid engines declaration: ${enginesErrors[0]}`);
+            }
+        }
         context.runtime.manifest = Manifest.normalize(context.runtime.manifest);
         //prompts already check the limits, but non-interactive and copied values are not prompted
         for (const field of Object.keys(PUBLIC_REGISTRY_LIMITS) as (keyof typeof PUBLIC_REGISTRY_LIMITS)[]) {

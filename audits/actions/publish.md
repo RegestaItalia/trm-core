@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-59 — Medium — Functional — Non-interactive engines are validated non-strictly
-
-- **Where:** [`setManifestValues.ts#L63`](../../src/actions/publish/setManifestValues.ts#L63); strict validation only in prompt branches.
-- **Failure:** an unknown top-level key is published and makes every install fail "update TRM"; an unknown constraint property (typo) is dropped and never enforced.
-- **Fix:** validate caller-supplied engines strictly in non-interactive mode.
-
 ### ACT-2026-60 — Medium — Functional — `preRelease` is ignored on automatic versions
 
 - **Where:** [`publish/init.ts#L169`](../../src/actions/publish/init.ts#L169) vs L176–183.
@@ -43,7 +37,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); a local publish never reads the overwritten target file as its latest release (ACT-2026-56, resolved); prerelease ignored on automatic version (ACT-2026-60); prompted version not cleaned (ACT-2026-67). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
 | 5 | `set-customizing-transports` | Retained transports cannot be dropped non-interactively (ACT-2026-63). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
-| 6 | `set-manifest-values` | non-strict engines (ACT-2026-59). The public-registry length limits on description, website and git are checked in the prompts and again on the normalized manifest, so non-interactive and copied values are enforced too (ACT-2026-65, resolved). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
+| 6 | `set-manifest-values` | Engines are validated strictly on the final manifest, whatever their source (ACT-2026-59, resolved). The public-registry length limits on description, website and git are checked in the prompts and again on the normalized manifest, so non-interactive and copied values are enforced too (ACT-2026-65, resolved). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
 | 7 | `set-optional-release-data` | No issue found. |
 | 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
 | 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts re-read the status after an earlier delete ([ACT-2026-17](shared.md), resolved). |
@@ -52,6 +46,15 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 15 | `update-package-data` | Accepted best-effort behavior. |
 
 ## Resolved findings
+### ACT-2026-59 — Resolved — Medium — Functional — Non-interactive engines are validated non-strictly
+
+`set-manifest-values` validates the engines strictly before normalizing the manifest, whatever their
+source: caller input, values copied from the latest release, or engines left unedited at the prompt
+([source](../../src/actions/publish/setManifestValues.ts#L636)). An unknown engine check or an unknown
+constraint property now fails the publish before any transport is generated. Before, only the prompt
+editors validated strictly: an unknown top-level key was published and made every install fail
+asking to update TRM, and a misspelled constraint property was dropped and never enforced.
+
 ### ACT-2026-56 — Resolved — High — Functional — Overwriting a local artifact treats it as the latest release
 
 `init` no longer reads the target file of a local publish as the latest release

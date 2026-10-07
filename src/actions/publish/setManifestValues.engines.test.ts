@@ -178,4 +178,33 @@ describe('publish setManifestValues engines prompt', () => {
         expect(validate(JSON.stringify({ components: { '<<COMPONENT>>': { release: '<<release range>>' } } }))).not.toBe(true);
         expect(validate(JSON.stringify(SYSTEM_ENGINES))).toBe(true);
     });
+
+    test('non-interactive: an unknown engine check is rejected', async () => {
+        const ctx = context({ noInquirer: true, engines: { component: { SAP_BASIS: true } } });
+        await expect(setManifestValues.run(ctx)).rejects.toThrow('Invalid engines declaration: engines.component: unknown engine check.');
+        expect(ctx.runtime.manifestXml).toBeUndefined();
+    });
+
+    test('non-interactive: an unknown constraint property is rejected', async () => {
+        const ctx = context({ noInquirer: true, engines: { components: { SAP_BASIS: { releas: '>=758' } } } });
+        await expect(setManifestValues.run(ctx)).rejects.toThrow('unknown property "releas"');
+    });
+
+    test('non-interactive: engines copied from the latest release are validated strictly', async () => {
+        const ctx = context({ noInquirer: true, latestEngines: { components: { SAP_BASIS: true }, future: {} } });
+        await expect(setManifestValues.run(ctx)).rejects.toThrow('engines.future: unknown engine check.');
+    });
+
+    test('non-interactive: valid engines are normalized and published', async () => {
+        const ctx = context({ noInquirer: true, engines: { components: { sap_basis: { release: '>=758' } } } });
+        await setManifestValues.run(ctx);
+        expect(ctx.runtime.manifest.engines).toEqual({ components: { SAP_BASIS: { release: '>=758' } } });
+    });
+
+    test('UI: unedited engines are validated strictly', async () => {
+        (Inquirer.isUi as jest.Mock).mockReturnValue(true);
+        mockPrompt({ editEngines: false });
+        const ctx = context({ engines: { tables: [{ table: 'T000', where: [{ field: 'MANDT', value: '000', operator: 'EQ' }] }] } });
+        await expect(setManifestValues.run(ctx)).rejects.toThrow('unknown property "operator"');
+    });
 });
