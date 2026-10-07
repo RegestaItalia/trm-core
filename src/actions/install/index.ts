@@ -263,6 +263,8 @@ type WorkflowRevert = {
     cleanupSucceeded?: boolean,
     importStarted?: boolean,
     importedEntries?: E071[],
+    /** Imported customizing transports, copied into the rollback cleanup transport with their keys. */
+    importedCustomizing?: Transport[],
     packageHierarchy?: TDEVC[],
     packageTransportLayers?: Array<{ devclass: DEVCLASS, transportLayer: string }>,
     createdTransports?: {

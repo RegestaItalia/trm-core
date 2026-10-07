@@ -58,7 +58,8 @@ const importedEntries = [
 
 function makeImportedTransport(index: number): Transport {
     return {
-        trkorr: `DEVK90000${index}`
+        trkorr: `DEVK90000${index}`,
+        getE070: jest.fn().mockResolvedValue({ trkorr: `DEVK90000${index}` })
     } as unknown as Transport;
 }
 
@@ -157,6 +158,7 @@ describe('importBatch rollback checkpoint', () => {
                 await fail('cleanup.addObjects');
                 this.entries.push(...entries);
             }),
+            addObjectsFromTransport: jest.fn(async (trkorr: string) => fail(`cleanup.addObjectsFromTransport.${trkorr}`)),
             removeComments: jest.fn(async () => fail('cleanup.removeComments')),
             getE071: jest.fn(async function () {
                 await fail('cleanup.getE071');
@@ -310,6 +312,43 @@ describe('importBatch rollback checkpoint', () => {
             { pgmid: 'R3TR', object: 'NSPC', objName: '/TEST/' }
         ]));
         expect(entries).toHaveLength(5);
+    });
+
+    test('imported customizing is copied into the cleanup transport instead of added without its keys', async () => {
+        const context = makeContext(registryDelete);
+        context.runtime.transports.cust[0].binaries.entries.e071 = [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' }];
+        failurePoint = 'connect';
+        const restore = { name: 'restore', run: async () => undefined, revert: async () => undefined };
+
+        await expect(execute('test', [restore, importBatch], context)).rejects.toThrow();
+
+        expect(cleanupTransport.addObjects.mock.calls[0][0]).not.toContainEqual({ pgmid: 'R3TR', object: 'TABU', objName: 'ZCUST_TABLE' });
+        expect(cleanupTransport.addObjectsFromTransport).toHaveBeenCalledWith('DEVK900003');
+        expect(events.indexOf('cleanup.addObjectsFromTransport.DEVK900003')).toBeLessThan(events.indexOf('registry.delete'));
+        expect(context.revert.cleanupSucceeded).toBe(true);
+    });
+
+    test('customizing transport not imported on the system is skipped', async () => {
+        const context = makeContext(registryDelete);
+        (context.runtime.transports.cust[0].instance.getE070 as jest.Mock).mockResolvedValue(undefined);
+        failurePoint = 'importMultiple';
+        const restore = { name: 'restore', run: async () => undefined, revert: async () => undefined };
+
+        await expect(execute('test', [restore, importBatch], context)).rejects.toThrow('failure at importMultiple');
+
+        expect(cleanupTransport.addObjectsFromTransport).not.toHaveBeenCalled();
+        expect(context.revert.cleanupSucceeded).toBe(true);
+    });
+
+    test('a failed customizing copy still releases the cleanup and temporary packages but blocks old payload restore', async () => {
+        const context = await runFailure('cleanup.addObjectsFromTransport.DEVK900003', 'allowed', true);
+
+        expect(cleanupTransport.addObjects).toHaveBeenCalledTimes(1);
+        expect(registryDelete).toHaveBeenCalledTimes(1);
+        expect(SystemConnector.deleteTemporaryPackage).toHaveBeenCalledWith('$TMP');
+        expect(context.revert.cleanupImported).toBe(true);
+        expect(context.revert.cleanupSucceeded).toBe(false);
+        expect(events).not.toContain('restore-old-payload');
     });
 
     test('excludes a transport slot from import and from the revert checkpoint when it was never actually uploaded', async () => {

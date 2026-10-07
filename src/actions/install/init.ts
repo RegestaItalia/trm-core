@@ -74,6 +74,7 @@ export const init: Step<InstallWorkflowContext> = {
             cleanupSucceeded: false,
             importStarted: false,
             importedEntries: [],
+            importedCustomizing: [],
             packageHierarchy: [],
             packageTransportLayers: [],
             createdTransports: { cust: [] },
