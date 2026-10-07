@@ -3,7 +3,7 @@ import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { createHash } from "crypto";
-import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
+import { registryKey } from "../../registry";
 
 /**
  * Workflow step that records the published release in the origin system's TRM package table.
@@ -25,7 +25,7 @@ export const updatePackageData: Step<PublishWorkflowContext> = {
                 ?? createHash("sha512").update(context.output.trmArtifact.binary).digest("base64");
             await SystemConnector.updateTrmPackageData({
                 package_name: context.rawInput.packageData.name,
-                package_registry: context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : context.rawInput.packageData.registry.endpoint,
+                package_registry: registryKey(context.rawInput.packageData.registry),
                 manifest: Buffer.from(context.runtime.manifestXml, 'utf8'),
                 trkorr: context.runtime.transports.tadir.trkorr,
                 integrity: integrity,

@@ -10,7 +10,7 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import type { TrmPackageUpdateData } from "./ISystemConnector";
-import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
+import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType, registryKey } from "../registry";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
 
@@ -432,7 +432,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async getInstallPackages(packageName: string, registry: AbstractRegistry): Promise<InstallPackage[]> {
-    const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
+    const registryEndpoint = registryKey(registry);
     return await this.readTable(INSTALL_DEVCLASS_VIEW,
       [{ fieldName: 'ORIGINAL_DEVCLASS' }, { fieldName: 'INSTALL_DEVCLASS' }],
       `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
@@ -440,7 +440,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async getInstallTransports(packageName: string, registry: AbstractRegistry): Promise<InstallTransport[]> {
-    const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
+    const registryEndpoint = registryKey(registry);
     return await this.readTable(INSTALL_TRANSPORTS_TABLE,
       [{ fieldName: 'TRKORR' }, { fieldName: 'TRM_TYPE' }],
       `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
@@ -470,7 +470,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getPackageIntegrity(oPackage: TrmPackage): Promise<string> {
     const packageName = oPackage.packageName;
-    const registryEndpoint = oPackage.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : oPackage.registry.endpoint;
+    const registryEndpoint = registryKey(oPackage.registry);
     const aIntegrity: { integrity: string }[] = await this.readTable('ZTRM_INTEGRITY',
       [{ fieldName: 'INTEGRITY' }],
       `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`

@@ -1,4 +1,4 @@
-import { AbstractRegistry, FileSystem, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../../registry";
+import { AbstractRegistry, FileSystem, RegistryType, registryKey } from "../../../registry";
 
 /**
  * Returns the package an install is recorded under: a local (.trm) artifact is recorded under the
@@ -27,5 +27,5 @@ export async function resolveInstallRegistry(registry: AbstractRegistry): Promis
  * Registry key stored in the TRM install tables for a resolved install registry.
  */
 export function installRegistryKey(registry: AbstractRegistry): string {
-    return registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
+    return registryKey(registry);
 }
