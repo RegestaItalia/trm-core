@@ -16,6 +16,7 @@ import { Inquirer, Logger } from 'trm-commons';
 import { installDependency } from '..';
 import { installDependencies } from './installDependencies';
 import { installWithRollback } from '.';
+import { TrmPackage } from '../../trmPackage';
 
 function context() {
     return {
@@ -134,6 +135,29 @@ describe('nested dependency rollback ownership', () => {
         expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
             { originalDevclass: 'ZPARENT', installDevclass: 'ZRENAMED' }
         ]);
+    });
+
+    test('on upgrade, dependency installs see the parent with the manifest being installed', async () => {
+        const ctx = context();
+        const installedParent = { packageName: 'parent', manifest: { value: { name: 'parent', version: '1.0.0' } } };
+        const otherPackage = { packageName: 'other', manifest: { value: { name: 'other', version: '1.0.0' } } };
+        ctx.rawInput.contextData.systemPackages = [installedParent, otherPackage];
+        ctx.runtime.update = installedParent;
+        ctx.runtime.package = { data: { manifest: { name: 'parent', version: '2.0.0', dependencies: [{ name: 'dep-one', version: '^2.0.0' }] } } };
+        (TrmPackage.compare as jest.Mock).mockImplementation((a, b) => a.packageName === b.packageName);
+        (installDependency as jest.Mock)
+            .mockResolvedValueOnce({ alreadyInstalled: true })
+            .mockResolvedValueOnce({ alreadyInstalled: true });
+
+        await execute('test', [installDependencies], ctx);
+
+        for (const [input] of (installDependency as jest.Mock).mock.calls) {
+            const [parent, other] = input.contextData.systemPackages;
+            expect(parent.manifest.value).toEqual(ctx.runtime.package.data.manifest);
+            expect(other.manifest.value).toEqual({ name: 'other', version: '1.0.0' });
+        }
+        expect(installedParent.manifest.value).toEqual({ name: 'parent', version: '1.0.0' });
+        (TrmPackage.compare as jest.Mock).mockImplementation(() => false);
     });
 
     test('dependency installs inherit the namespaces locked by the parent', async () => {

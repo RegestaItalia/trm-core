@@ -88,6 +88,15 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                 delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
                 //the parent's mappings were resolved for its own devclasses: the dependency resolves its own
                 inputData.installData.installDevclass.replacements = [];
+                //on upgrade, the dependency must see the parent's new requirements, not the installed ones
+                if (context.runtime.update) {
+                    const parentPackage = inputData.contextData.systemPackages.find(
+                        systemPackage => TrmPackage.compare(systemPackage, context.runtime.update)
+                    );
+                    if (parentPackage) {
+                        parentPackage.manifest = new Manifest(_.cloneDeep(context.runtime.package.data.manifest));
+                    }
+                }
                 const result = await InstallDependencyWkf(inputData, input => installWithRollback(input, context.runtime.lockedNamespaces || []));
                 if (result.alreadyInstalled) {
                     continue;

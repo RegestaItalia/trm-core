@@ -7,12 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-23 — High — Functional — Upgrades needing a new dependency major are blocked
-
-- **Where:** nested installs receive the snapshot holding the parent's installed manifest ([`installDependencies.ts#L82`](../../src/actions/install/installDependencies.ts#L82)); [`checkDependants.ts#L50`](../../src/actions/install/checkDependants.ts#L50).
-- **Failure:** P v1 (D ^1) installed; installing P v2 (D ^2) upgrades D, whose `check-dependants` finds P v1 requiring ^1 and aborts. Installing D directly fails the same way; there is no skip option.
-- **Fix:** replace the in-flight parent's manifest in the nested snapshot, or exclude it from the dependants check.
-
 ### ACT-2026-24 — High — Technical — Transitive installs are not merged into the parent snapshot
 
 - **Where:** [`installDependencies.ts#L82`](../../src/actions/install/installDependencies.ts#L82), [`#L99`](../../src/actions/install/installDependencies.ts#L99).
@@ -72,7 +66,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 1 | `check-server-auth` | Fails closed on any result other than a granted authorization ([ACT-2026-12](shared.md), resolved). |
 | 2 | `set-system-packages` | Snapshot includes local-registry packages ([ACT-2026-15](shared.md), resolved) and is never refreshed for transitive installs (ACT-2026-24). |
 | 3 | `init` | The input name is replaced with the fetched manifest name, used for the mapping and transport lookups and writes ([ACT-2026-16](shared.md), resolved); a local (`.trm`) artifact is resolved to the registry it was published to (`runtime.installRegistry`), used for the mapping and transport lookups ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). An explicit transport layer is validated; the system default is no longer looked up here ([ACT-2026-42](#act-2026-42--resolved--transport-layer-is-required-only-for-generated-transportable-packages), resolved). Revert is the only cleanup point for early failures (ACT-2026-37). |
-| 4 | `check-dependants` | Correct on its own, but blocks nested dependency upgrades against the parent's old manifest (ACT-2026-23). |
+| 4 | `check-dependants` | A nested dependency upgrade is checked against the manifest the parent is installing, not its installed one ([ACT-2026-23](#act-2026-23--resolved--nested-dependency-upgrades-are-checked-against-the-parents-new-manifest), resolved); a direct upgrade still aborts while an installed dependant requires an incompatible range. |
 | 5 | `check-transports` | The update root devclass is taken from the package being updated, never from a same-named package of another registry ([ACT-2026-15](shared.md), resolved); when the installed root devclass is unknown, existing objects need confirmation interactively, and non-interactive mode fails unless `noExistingObjects` is set ([ACT-2026-36](#act-2026-36--resolved--non-interactive-upgrade-fails-closed-when-the-root-devclass-is-unknown), resolved). |
 | 6 | `check-sap-entries` | See [check-sap-entries findings](check-sap-entries.md); each missing entry is logged at error level before aborting. |
 | 7 | `check-engines` | No install-specific issue; a failed `anyOf` lists each alternative's unmet requirements ([ACT-2026-76](check-engines.md), resolved). |
@@ -80,7 +74,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | 9 | `check-dependency-cycles` | Walks the dependencies the install would recurse into (compatible installed dependencies end the walk; others resolve to the release a dependency install would select) and aborts on a self or cyclic dependency before anything is locked or installed ([ACT-2026-82](install-dependency.md), resolved). Skipped with `noDependencies`. |
 | 10 | `set-install-devclass` | Stored and explicit mappings of devclasses not in the release are dropped before use ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved); wrong namespace carry-over (ACT-2026-33), partial input discards stored mappings (ACT-2026-35); an unknown installed root devclass falls back to the stored root replacement, or skips the namespace carry-over ([ACT-2026-41](#act-2026-41--resolved--unknown-installed-root-devclass-no-longer-throws), resolved). Rejects target names using more than one reserved namespace ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 11 | `lock-resources` | Locks the custom install namespace, unless a parent install already holds it, then repeats the object-lock check and fails on objects created since `check-transports` (warns with `noExistingObjects`) ([ACT-2026-38](#act-2026-38--resolved--safety-checks-are-repeated-once-locked-the-install-namespace-is-locked), resolved). The package lock uses the resolved install registry, so local and remote installs of the same package block each other ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). |
-| 12 | `install-dependencies` | Each dependency install starts with no package mappings and resolves its own ([ACT-2026-22](#act-2026-22--resolved--dependency-installs-no-longer-inherit-the-parents-package-mappings), resolved); transitive installs not merged back (ACT-2026-24). |
+| 12 | `install-dependencies` | On upgrade, each dependency install receives the parent's new manifest in its package snapshot ([ACT-2026-23](#act-2026-23--resolved--nested-dependency-upgrades-are-checked-against-the-parents-new-manifest), resolved). Each dependency install starts with no package mappings and resolves its own ([ACT-2026-22](#act-2026-22--resolved--dependency-installs-no-longer-inherit-the-parents-package-mappings), resolved); transitive installs not merged back (ACT-2026-24). |
 | 13 | `add-namespace` | Namespace derived from the target root package, or from the only reserved namespace used by a subpackage; more than one reserved namespace is rejected before any system change ([ACT-2026-34](#act-2026-34--resolved--install-namespace-is-derived-from-the-root-and-limited-to-one), resolved). |
 | 14 | `generate-devclass` | A dependency's mappings no longer include the parent's root ([ACT-2026-22](#act-2026-22--resolved--dependency-installs-no-longer-inherit-the-parents-package-mappings), resolved); stale stored mappings no longer reach it ([ACT-2026-25](#act-2026-25--resolved--stored-mappings-of-removed-devclasses-are-ignored), resolved). Resolves the system default transport layer only when transportable packages must be created, before any package is created; local (`$`) packages are created without a layer (ACT-2026-42, resolved). |
 | 15 | `generate-update-transport` | Runs for local (`.trm`) upgrades too, generating the deletion transport through the artifact's real registry ([ACT-2026-32](#act-2026-32--resolved--local-registry-upgrades-clean-up-obsolete-objects), resolved); revert restores nothing over objects left by a failed cleanup of the imported objects ([ACT-2026-08](shared.md), resolved); after a complete restore it deletes the `$` installation's staging package, which the rollback of the imported objects no longer transports ([ACT-2026-09](shared.md), resolved). Deletes the installed release's customizing by key, without asking, before the new customizing is imported, unless `noCust` ([ACT-2026-48](delete.md), resolved). |
@@ -105,6 +99,15 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-23 — Resolved — Nested dependency upgrades are checked against the parent's new manifest
+
+On an upgrade, `install-dependencies` replaces the parent's manifest in each dependency install's
+cloned package snapshot with the manifest being installed
+([source](../../src/actions/install/installDependencies.ts#L91)). Installing P v2 (D ^2) over P v1
+(D ^1) now upgrades D, as `check-dependants` reads P's new range; other installed dependants still
+requiring D ^1 keep blocking the upgrade. The parent's own snapshot is unchanged. Installing D
+directly while P v1 is installed still aborts by design: P must be upgraded first.
+
 ### ACT-2026-29 — Resolved — A released landscape transport is removed from the connected system's queue, otherwise reported
 
 `release-install-transports` marks `landscapeReleaseStarted` before the release (SAP may export the
@@ -162,7 +165,7 @@ mappings `set-install-devclass` resolved for the parent's devclasses never reach
 dependency's own `set-install-devclass` therefore reads its stored mappings and maps only its own
 devclasses: `generate-devclass` no longer sees the parent's root, the `$` consistency check and
 namespace derivation apply to the dependency alone, and the parent's rows are not persisted as the
-dependency's ([source](../../src/actions/install/installDependencies.ts#L88)).
+dependency's ([source](../../src/actions/install/installDependencies.ts#L91)).
 
 ### ACT-2026-32 — Resolved — Local-registry upgrades clean up obsolete objects
 
