@@ -3,8 +3,7 @@ import { Transport } from "../../transport";
 import { TrmPackage } from "../../trmPackage";
 import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
-import { checkServerAuth, IActionContext, setSystemPackages, workflowCallbacks } from "../commons";
-import execute from "@simonegaffurini/sammarksworkflow";
+import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
 import { ActionLockScope, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource } from "../commons/utils";
 import { InstallPackageReplacements } from "../install";
 import { init } from "./init";
@@ -219,7 +218,7 @@ async function runDelete(inputData: DeleteActionInput, retainRollback: boolean, 
                 }
             };
         }
-        const result = await execute<DeleteWorkflowContext>(WORKFLOW_NAME, deleteWorkflow, context, workflowCallbacks);
+        const result = await executeWorkflow<DeleteWorkflowContext>(WORKFLOW_NAME, deleteWorkflow, context, workflowCallbacks);
         await release();
         return { output: result.output };
     } catch (error) {

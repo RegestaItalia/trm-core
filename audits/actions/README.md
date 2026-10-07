@@ -40,8 +40,8 @@ feature, missing case).
 | `install-dependency` | 6 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 24 | 1 | 4 | 8 | 3 | [Package install](install.md) |
 | `publish` | 15 | 0 | 1 | 3 | 4 | [Package publish](publish.md) |
-| Shared steps/callbacks | 12 | 1 | 1 | 8 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **2** | **7** | **20** | **11** | |
+| Shared steps/callbacks | 12 | 1 | 1 | 7 | 4 | [Shared infrastructure](shared.md) |
+| **Total** | | **2** | **7** | **19** | **11** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
@@ -59,7 +59,8 @@ Two earlier resolutions turned out to be ineffective and are superseded by new f
 `@simonegaffurini/sammarksworkflow` 1.3.2-fork3 pushes a step into the executed list *before*
 running it, so a failing step's own `revert` runs first, followed by earlier steps in reverse order.
 A revert that throws is passed to `onRevertFailed` and the remaining reverts continue; the caller
-always receives the original `WorkflowError` (the defined `WorkflowRevertError` is never thrown).
+always receives the original `WorkflowError` (the engine never throws its `WorkflowRevertError`; TRM
+actions run it through `executeWorkflow`, which does when a revert fails, see [ACT-2026-10](shared.md)).
 Filters run outside the try block, and filtered-out steps are never reverted.
 
 ## Highest-priority remediation

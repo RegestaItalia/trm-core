@@ -1,8 +1,7 @@
-import execute from "@simonegaffurini/sammarksworkflow";
 import { init } from "./init";
 import { analyze } from "./analyze";
 import { TrmManifest } from "../../manifest";
-import { workflowCallbacks } from "../commons";
+import { executeWorkflow, workflowCallbacks } from "../commons";
 
 /** Input used to verify a manifest's required SAP table entries. */
 export interface CheckSapEntriesActionInput {
@@ -90,7 +89,7 @@ export async function checkSapEntries(inputData: CheckSapEntriesActionInput): Pr
         init,
         analyze
     ];
-    const result = await execute<CheckSapEntriesWorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await executeWorkflow<CheckSapEntriesWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
     }, workflowCallbacks);
     return result.output;

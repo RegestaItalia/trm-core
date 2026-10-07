@@ -1,7 +1,6 @@
-import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
-import { checkServerAuth, workflowCallbacks } from "..";
+import { checkServerAuth, executeWorkflow, workflowCallbacks } from "..";
 import { TRKORR } from "../../client";
 import { download } from "./download";
 
@@ -51,7 +50,7 @@ export async function cg3y(inputData: Cg3yActionInput): Promise<Cg3yActionOutput
         checkServerAuth,
         download
     ];
-    const result = await execute<Cg3yWorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await executeWorkflow<Cg3yWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
     }, workflowCallbacks);
     return {

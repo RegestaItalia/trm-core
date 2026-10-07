@@ -1,5 +1,4 @@
-import execute from "@simonegaffurini/sammarksworkflow";
-import { checkServerAuth, workflowCallbacks } from "..";
+import { checkServerAuth, executeWorkflow, workflowCallbacks } from "..";
 import { parseTransportArchive, upload } from "./upload";
 import { ActionLockScope, withActionLockScope } from "../commons/utils";
 import { TRKORR } from "../../client";
@@ -93,7 +92,7 @@ export async function cg3z(inputData: Cg3zActionInput): Promise<Cg3zActionOutput
     inputData.contextData ??= {};
     inputData.uploadData ??= {};
     return withActionLockScope(lockScope, async () => {
-        const result = await execute<Cg3zWorkflowContext>(WORKFLOW_NAME, workflow, {
+        const result = await executeWorkflow<Cg3zWorkflowContext>(WORKFLOW_NAME, workflow, {
             rawInput: inputData,
             runtime: {}
         }, workflowCallbacks);

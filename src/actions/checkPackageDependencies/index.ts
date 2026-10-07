@@ -1,8 +1,7 @@
-import execute from "@simonegaffurini/sammarksworkflow";
 import { inspect } from "util";
 import { Logger } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
-import { IActionContext, setSystemPackages, workflowCallbacks } from "../commons";
+import { IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
 import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { init } from "./init";
 import { analyze } from "./analyze";
@@ -109,7 +108,7 @@ export async function checkPackageDependencies(inputData: CheckPackageDependenci
         setSystemPackages,
         analyze
     ];
-    const result = await execute<CheckPackageDependenciesWorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await executeWorkflow<CheckPackageDependenciesWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
     }, workflowCallbacks);
     return result.output;

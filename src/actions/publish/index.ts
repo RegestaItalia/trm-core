@@ -1,6 +1,5 @@
-import execute from "@simonegaffurini/sammarksworkflow";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
-import { checkServerAuth, IActionContext, setSystemPackages, workflowCallbacks } from "..";
+import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "..";
 import { ReleaseType } from "semver";
 import { DEVCLASS, TADIR, TR_TARGET, TRKORR, TRNSPACET, TRNSPACETT, ZTY_SER_OBJ } from "../../client";
 import { TrmManifest, TrmManifestBase } from "../../manifest";
@@ -272,7 +271,7 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
     const lockScope = new ActionLockScope(WORKFLOW_NAME);
     await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
     return withActionLockScope(lockScope, async () => {
-        const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
+        const result = await executeWorkflow<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
             rawInput: inputData,
             lockScope
         }, workflowCallbacks);

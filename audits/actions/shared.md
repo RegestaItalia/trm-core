@@ -18,12 +18,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 - **Failure:** re-importing the pre-deletion copy or the retained-table backup ends with RC 8/12, yet the revert logs "restored" and resolves. Staging cleanup then proceeds and the TRM record is restored over missing objects; the rollback looks clean.
 - **Fix:** throw when the restore RC exceeds the threshold so the best-effort pass reports it.
 
-### ACT-2026-10 — Medium — Technical — Rollback failures never reach the caller
-
-- **Where:** engine `execute` (revert catch); [`workflowCallbacks.ts#L35`](../../src/actions/commons/workflowCallbacks.ts#L35) only logs.
-- **Failure:** steps follow "surface the first failure", but the action still throws the original step error, so CLI and API callers cannot distinguish a clean rollback from an inconsistent system.
-- **Fix:** collect revert errors in the callbacks and attach them to (or throw a `WorkflowRevertError` for) the action failure.
-
 ### ACT-2026-11 — Medium — Technical — Action-lock release is mishandled
 
 - **Where:** [`actionLocks.ts#L72`](../../src/actions/commons/utils/actionLocks.ts#L72), [`install/index.ts#L378`](../../src/actions/install/index.ts#L378), [`delete/index.ts#L155`](../../src/actions/delete/index.ts#L155).
@@ -95,7 +89,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 |---|---|
 | `check-server-auth` | Fails open on non-`ClientError` failures and caches failures (ACT-2026-12). |
 | `set-system-packages` | Excludes local-registry packages (ACT-2026-15); writes into caller input (ACT-2026-20). |
-| `workflowCallbacks` | Revert failures are only logged and never reach the caller (ACT-2026-10); prefixes overwritten instead of restored (ACT-2026-18). |
+| `workflowCallbacks` | Every action runs through `executeWorkflow`, which collects each revert failure and, after the rollback, throws an `ActionWorkflowRevertError` (a `WorkflowRevertError`) with the step failure and all of them; a clean rollback still throws the step failure (ACT-2026-10, resolved); prefixes overwritten instead of restored (ACT-2026-18). |
 | `setTransportTarget` | Zero-target rejection is correct; the returned target is not normalized (ACT-2026-13). |
 | `setLandscapeTarget` | No issue found. |
 | `stopWarning` | No issue found. |
@@ -109,6 +103,22 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | Package-name lookups | Raw input name used for case-sensitive queries (ACT-2026-16). |
 
 ## Resolved findings
+### ACT-2026-10 — Resolved — Medium — Technical — Rollback failures never reach the caller
+
+Every action workflow (and `executeRetainedWorkflow`) runs through `executeWorkflow`
+([source](../../src/actions/commons/workflowCallbacks.ts#L66)). It wraps the callbacks per
+execution and collects every `onRevertFailed` error as a `WorkflowError` before calling the
+original callback. When the engine rethrows the step failure after a rollback with failures, it
+throws an `ActionWorkflowRevertError` instead
+([source](../../src/actions/commons/workflowCallbacks.ts#L48)): a `WorkflowRevertError` whose
+`originalWorkflowError` is the step failure, `revertErrors` holds every revert failure in rollback
+order, and the message lists them all. `stepName`/`originalException` describe the first revert
+failure. A clean rollback still throws the step's `WorkflowError`, so callers can tell the two
+apart. The engine's ES5 error classes return a plain `Error`, so the subclass restores its
+prototype chain for `instanceof`, and the step failure is recognized by shape. A retained journal
+rolled back by a parent action still throws its first failure, which reaches the parent's own
+`ActionWorkflowRevertError`.
+
 ### ACT-2026-09 — Resolved — Medium — Functional — `ZTRM_DELE_*` staging package leaks on install upgrades
 
 The staging package is tracked in `revert.stagingPackages` instead of `revert.sapPackages`, so

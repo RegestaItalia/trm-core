@@ -5,8 +5,7 @@ import { Transport } from "../../transport";
 import { TransportBinary, TrmPackage } from "../../trmPackage";
 import { TrmManifest, TrmManifestDependency } from "../../manifest";
 import { PackageHierarchy } from "../../commons";
-import { checkServerAuth, IActionContext, setSystemPackages, workflowCallbacks } from "../commons";
-import execute from "@simonegaffurini/sammarksworkflow";
+import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
 import { init } from "./init";
 import { checkTransports } from "./checkTransports";
 import { checkSapEntries } from "./checkSapEntries";
@@ -413,7 +412,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
                 }
             };
         }
-        const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
+        const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
         await release();
         return { output: result.output };
     } catch (error) {

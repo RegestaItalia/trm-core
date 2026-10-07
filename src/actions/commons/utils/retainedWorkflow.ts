@@ -1,4 +1,5 @@
-import execute, { Step } from "@simonegaffurini/sammarksworkflow";
+import { Step } from "@simonegaffurini/sammarksworkflow";
+import { executeWorkflow } from "../workflowCallbacks";
 
 /** Executes a workflow and retains a one-shot, best-effort rollback journal after success. */
 export async function executeRetainedWorkflow<T extends object>(
@@ -15,7 +16,7 @@ export async function executeRetainedWorkflow<T extends object>(
             completed.push(step);
         }
     }));
-    const result = await execute<T>(name, tracked, context, callbacks);
+    const result = await executeWorkflow<T>(name, tracked, context, callbacks || {});
     let rolledBack = false;
     return {
         context: result,

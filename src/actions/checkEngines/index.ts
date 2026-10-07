@@ -1,8 +1,7 @@
-import execute from "@simonegaffurini/sammarksworkflow";
 import { init } from "./init";
 import { analyze } from "./analyze";
 import { TrmManifest, TrmManifestEngines } from "../../manifest";
-import { workflowCallbacks } from "../commons";
+import { executeWorkflow, workflowCallbacks } from "../commons";
 import { CVERS, PRDVERS } from "../../client/struct";
 
 /** Input used to verify a manifest's engines (SAP release/components, products, notes, tables). */
@@ -90,7 +89,7 @@ export async function checkEngines(inputData: CheckEnginesActionInput): Promise<
         init,
         analyze
     ];
-    const result = await execute<CheckEnginesWorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await executeWorkflow<CheckEnginesWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData
     }, workflowCallbacks);
     return result.output;

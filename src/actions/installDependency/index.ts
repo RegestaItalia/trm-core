@@ -1,6 +1,5 @@
-import execute from "@simonegaffurini/sammarksworkflow";
 import { AbstractRegistry } from "../../registry";
-import { IActionContext, InstallActionInput, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages, workflowCallbacks } from "..";
+import { IActionContext, InstallActionInput, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages, executeWorkflow, workflowCallbacks } from "..";
 import { init } from "./init";
 import { findInstallRelease } from "./findInstallRelease";
 import { installRelease } from "./installRelease";
@@ -106,7 +105,7 @@ export async function installDependency(inputData: InstallDependencyActionInput,
         confirmDowngrade,
         installRelease
     ];
-    const result = await execute<InstallDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
+    const result = await executeWorkflow<InstallDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
         rawInput: inputData,
         installRunner
     }, workflowCallbacks);
