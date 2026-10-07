@@ -338,7 +338,10 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         // A namespace may be used by packages outside this installation: it's only deleted
         // through the usage check below, never because the installed transport carries it.
         const previousNamespaces = installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object)) && isNamespace(object));
-        const previousTransportObjects = installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object)) && !isNamespace(object));
+        // Translations (LANG rows, e.g. a landscape transport carrying the LANG transport) are deleted
+        // with their objects: SAP rejects them as deletion entries.
+        const previousTransportObjects = installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object))
+            && !isNamespace(object) && normalize(object.pgmid) !== 'LANG');
         const incomingObjects = target.incomingObjects;
         // Tables shipped again by the new release are adjusted by its import instead of
         // being dropped and re-created, which would lose their data.

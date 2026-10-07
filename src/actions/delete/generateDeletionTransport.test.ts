@@ -126,6 +126,19 @@ describe('generateDeletionTransport', () => {
         expect(ctx.output.transport).toBe(imported);
     });
 
+    test('translation rows of the installed transport are not deletion entries', async () => {
+        const { ctx, dummy } = runContext([
+            { pgmid: 'R3TR', object: 'DTEL', objName: 'Z_DTEL' },
+            // Landscape transport carrying the LANG transport: SAP rejects LANG rows in a deletion.
+            { pgmid: 'LANG', object: 'DTED', objName: 'Z_DTEL' }
+        ]);
+
+        await generateDeletionTransport.run(ctx);
+
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.pgmid} ${o.object} ${o.objName}`));
+        expect(deleted).toEqual(['R3TR DTEL Z_DTEL', 'R3TR DEVC Z_ROOT']);
+    });
+
     test('deletes the namespace together with its last package', async () => {
         const { ctx, dummy } = runContext([
             { pgmid: 'R3TR', object: 'CLAS', objName: '/NS/CLASS' }
