@@ -63,7 +63,12 @@ export interface PackageCleanupContext {
         previousInstallPackages: InstallPackageReplacements[],
         /** Transports recorded for the installed release; its customizing comes from the `CUST` ones. */
         previousInstallTransports?: InstallTransport[],
-        dele?: Transport
+        dele?: Transport,
+        /**
+         * Objects already deleted by this run (the deletes of the TRM packages installed underneath):
+         * the system may still list them for a while after their deletion transport import.
+         */
+        deletedObjects?: Pick<E071, 'pgmid' | 'object' | 'objName'>[]
     },
     revert?: PackageCleanupRevert
 }
@@ -371,9 +376,13 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
 
         // Installation mappings do not include subpackages created locally afterwards.
         // Inspect the live hierarchy even when the installation keeps its root package.
+        const deletedKeys = new Set((context.runtime.deletedObjects || []).map(objectKey));
         const packageParents = new Map<string, string>();
         for (const devclass of Array.from(previousDevclasses.values())) {
             for (const subpackage of await SystemConnector.getSubpackages(devclass)) {
+                if (deletedKeys.has(objectKey({ pgmid: 'R3TR', object: 'DEVC', objName: subpackage.devclass }))) {
+                    continue;
+                }
                 const key = normalize(subpackage.devclass);
                 previousDevclasses.set(key, subpackage.devclass);
                 if (subpackage.parentcl) {
@@ -436,7 +445,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             for (const member of group) {
                 for (const object of await SystemConnector.getDevclassObjects(previousDevclasses.get(member), false)) {
                     // Package definitions follow the decision for the whole subtree; namespaces the usage check.
-                    if (!isDevclass(object) && !isNamespace(object)) {
+                    if (!isDevclass(object) && !isNamespace(object) && !deletedKeys.has(objectKey(object))) {
                         objectsAfterImport.set(objectKey(object), object);
                     }
                 }

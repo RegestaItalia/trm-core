@@ -120,6 +120,13 @@ export const deleteNestedPackages: Step<DeleteWorkflowContext> = {
                 }, deletingPackages.filter(pkg => pkg !== nested), context.lockScope);
                 context.runtime.nestedRollbacks.push(result.rollback);
                 context.runtime.nestedReleases.push(result.release);
+                // The SAP buffers may still list them: the cleanup of this package must not delete them again.
+                if (result.output.transport) {
+                    context.runtime.deletedObjects = [
+                        ...(context.runtime.deletedObjects || []),
+                        ...(await result.output.transport.getE071()).filter(object => object.pgmid !== '*')
+                    ];
+                }
             } finally {
                 Logger.setPrefix(originalLPrefix);
                 Inquirer.setPrefix(originalIPrefix);

@@ -126,6 +126,31 @@ describe('generateDeletionTransport', () => {
         expect(ctx.output.transport).toBe(imported);
     });
 
+    test('objects deleted by the nested package deletes are not deleted again', async () => {
+        const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
+        // The SAP buffers still list the nested package and its objects after their deletion.
+        ctx.runtime.deletedObjects = [
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'Z_NESTED' },
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_NESTED_CLASS' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_STALE' }
+        ];
+        (SystemConnector.getSubpackages as jest.Mock).mockImplementation(async (devclass: string) =>
+            devclass === 'Z_ROOT' ? [{ devclass: 'Z_NESTED', parentcl: 'Z_ROOT' }] : []);
+        (SystemConnector.getDevclassObjects as jest.Mock).mockImplementation(async (devclass: string) => devclass === 'Z_ROOT'
+            ? [
+                { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS', devclass },
+                { pgmid: 'R3TR', object: 'PROG', objName: 'Z_STALE', devclass },
+                { pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL', devclass }
+            ]
+            : [{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_NESTED_CLASS', devclass }]);
+
+        await generateDeletionTransport.run(ctx);
+
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted.sort()).toEqual(['CLAS Z_CLASS', 'DEVC Z_ROOT', 'PROG Z_LOCAL']);
+        expect(SystemConnector.getDevclassObjects).not.toHaveBeenCalledWith('Z_NESTED', false);
+    });
+
     test('translation rows of the installed transport are not deletion entries', async () => {
         const { ctx, dummy } = runContext([
             { pgmid: 'R3TR', object: 'DTEL', objName: 'Z_DTEL' },

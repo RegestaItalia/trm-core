@@ -3,6 +3,7 @@ import { Transport } from "../../transport";
 import { TrmPackage } from "../../trmPackage";
 import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
+import { E071 } from "../../client";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
 import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource } from "../commons/utils";
 import { InstallPackageReplacements } from "../install";
@@ -98,7 +99,9 @@ type WorkflowRuntime = {
     /** Rollbacks of the deletes of the TRM packages installed under this one, in execution order. */
     nestedRollbacks: Array<() => Promise<void>>,
     /** Lock releases of the deletes of the TRM packages installed under this one. */
-    nestedReleases: Array<() => Promise<void>>
+    nestedReleases: Array<() => Promise<void>>,
+    /** Objects removed by the deletion transports of the TRM packages installed under this one. */
+    deletedObjects?: E071[]
 }
 
 type WorkflowRevert = PackageCleanupRevert & {

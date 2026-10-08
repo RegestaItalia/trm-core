@@ -95,6 +95,24 @@ describe('deleteNestedPackages', () => {
         expect(ctx.rawInput.contextData.systemPackages).toEqual([pkg, unrelated]);
     });
 
+    test('records the objects removed by the nested deletion transports', async () => {
+        const { ctx } = nestedContext();
+        const nestedResult: any = result('nested');
+        nestedResult.output.transport = { getE071: jest.fn(async () => [
+            { pgmid: '*', object: 'ZTRM', objName: 'name=nested' },
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'ZNESTED' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'ZNESTED_PROG' }
+        ]) };
+        (deleteWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockResolvedValueOnce(result('sibling'));
+
+        await deleteNestedPackages.run(ctx);
+
+        expect(ctx.runtime.deletedObjects).toEqual([
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'ZNESTED' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'ZNESTED_PROG' }
+        ]);
+    });
+
     test('a failed nested delete rolls back the ones already deleted', async () => {
         const { ctx, nested } = nestedContext();
         const nestedResult = result('nested');

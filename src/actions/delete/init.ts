@@ -125,7 +125,8 @@ export const init: Step<DeleteWorkflowContext> = {
             stopWarningShown: false,
             nestedPackages,
             nestedRollbacks: [],
-            nestedReleases: []
+            nestedReleases: [],
+            deletedObjects: []
         };
         context.output = {
             manifest: installed.manifest.get(),
