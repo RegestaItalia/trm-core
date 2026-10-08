@@ -9,7 +9,7 @@ import { ENGINES_UI_COLUMNS, EnginesUiSection, enginesToUiRows, uiRowsToEngines,
 import { LOCAL_RESERVED_KEYWORD } from "../../registry/FileSystem";
 import _ from 'lodash';
 import { TrmPackage } from "../../trmPackage";
-import { SystemConnector } from "../../systemConnector";
+import { SystemConnector, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
 
 //maximum lengths accepted by the public registry
 const PUBLIC_REGISTRY_LIMITS = {
@@ -23,6 +23,53 @@ function checkPublicRegistryLimit(context: PublishWorkflowContext, field: keyof 
         return `Maximum length: ${PUBLIC_REGISTRY_LIMITS[field]} characters`;
     }
     return true;
+}
+
+function isDependencyPackage(trmPackage: TrmPackage, dependency: TrmManifestDependency): boolean {
+    if (!dependency?.name || !trmPackage.compareName(dependency.name)) {
+        return false;
+    }
+    const registry = (dependency.registry || '').trim().toLowerCase();
+    if (!registry || registry === PUBLIC_RESERVED_KEYWORD) {
+        return trmPackage.registry.getRegistryType() === RegistryType.PUBLIC;
+    }
+    return (trmPackage.registry.endpoint || '').trim().toLowerCase() === registry;
+}
+
+/**
+ * Returns the post activity classes whose ABAP package is not part of the published package,
+ * of a declared TRM dependency or of trm-server.
+ */
+async function getNotShippedPostActivities(context: PublishWorkflowContext): Promise<{ name: string, devclass: string }[]> {
+    const ownDevclasses = new Set<string>();
+    (context.runtime.sapPackage?.objects || []).forEach(o => {
+        if (o.devclass) {
+            ownDevclasses.add(o.devclass);
+        }
+        if (o.pgmid === 'R3TR' && o.object === 'DEVC' && o.objName) {
+            ownDevclasses.add(o.objName);
+        }
+    });
+    if (context.rawInput.packageData.devclass) {
+        ownDevclasses.add(context.rawInput.packageData.devclass);
+    }
+    const systemPackages = context.rawInput.contextData?.systemPackages || [];
+    const providerDevclasses = new Set<string>(systemPackages.filter(p =>
+        (p.compareName(TRM_SERVER_PACKAGE_NAME) && p.registry.getRegistryType() === RegistryType.PUBLIC) ||
+        (context.runtime.manifest.dependencies || []).some(d => isDependencyPackage(p, d))
+    ).map(p => p.getDevclass()).filter(Boolean));
+
+    const notShipped: { name: string, devclass: string }[] = [];
+    for (const name of _.uniq(context.runtime.manifest.postActivities.map(o => o.name).filter(Boolean))) {
+        const tadir = await SystemConnector.getObject('R3TR', 'CLAS', name);
+        if (!tadir?.devclass || ownDevclasses.has(tadir.devclass) || providerDevclasses.has(tadir.devclass)) {
+            continue;
+        }
+        if (!providerDevclasses.has(await SystemConnector.getRootDevclass(tadir.devclass))) {
+            notShipped.push({ name, devclass: tadir.devclass });
+        }
+    }
+    return notShipped;
 }
 
 /**
@@ -629,6 +676,15 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                     context.runtime.manifest.engines = JSON.parse(inq.engines);
                 }
             }
+        }
+
+        //post activities run on the target system after import: a class not shipped by this package,
+        //its dependencies or trm-server makes the install fail there
+        if (Array.isArray(context.runtime.manifest.postActivities) && context.runtime.manifest.postActivities.length > 0) {
+            const notShipped = await getNotShippedPostActivities(context);
+            notShipped.forEach(o => {
+                Logger.warning(`Post activity class "${o.name}" belongs to ABAP package "${o.devclass}", which is not shipped by this package or its dependencies: install will fail on systems where it doesn't exist.`, { important: true });
+            });
         }
 
         //7- normalize manifest values
