@@ -49,7 +49,7 @@ export class ActionLockScope {
             if (error instanceof ClientError && error.sapMessage) {
                 // SAP answered and rejected the request: nothing was locked for this owner.
                 if (/lock held/i.test(error.message)) {
-                    error.message = `${error.message}. If no other TRM action is running, the lock was left by an interrupted action: delete it with program /ATRM/ACT_LOCK_ADMIN.`;
+                    error.message = `${error.message}. If no other TRM action is running, the lock was left by an interrupted action: delete it with transaction /ATRM/LOCK.`;
                 }
                 throw error;
             }

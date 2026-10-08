@@ -49,7 +49,7 @@ describe("persistent action lock scope", () => {
         acquire.mockRejectedValueOnce(new ClientError("ENQUEUE_ERROR", { class: "00", no: "001" }, "Action lock held: PACKAGE pkg [registry] by USER"));
         const scope = new ActionLockScope("publish");
         await expect(scope.acquire([{ type: "PACKAGE", name: "pkg [registry]" }])).rejects.toThrow(
-            "Action lock held: PACKAGE pkg [registry] by USER. If no other TRM action is running, the lock was left by an interrupted action: delete it with program /ATRM/ACT_LOCK_ADMIN."
+            "Action lock held: PACKAGE pkg [registry] by USER. If no other TRM action is running, the lock was left by an interrupted action: delete it with transaction /ATRM/LOCK."
         );
         expect(release).not.toHaveBeenCalled();
     });
