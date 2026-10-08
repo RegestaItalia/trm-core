@@ -74,9 +74,9 @@ export class ActionLockScope {
         try {
             await SystemConnector.releaseActionLocks(keys, this.ownerToken);
         } catch (error) {
-            // Locks never expire: name them so they can be deleted with /ATRM/ACT_LOCK_ADMIN.
+            // Locks never expire: name them so they can be deleted with transaction /ATRM/LOCK.
             const resources = keys.map(key => `${key.resourceType} ${key.resourceName}`).join(", ");
-            Logger.warning(`Could not release ${this.actionName} action locks owned by ${this.ownerToken} (${resources}): ${error instanceof Error ? error.message : String(error)}. Delete them with program /ATRM/ACT_LOCK_ADMIN.`, { important: true });
+            Logger.warning(`Could not release ${this.actionName} action locks owned by ${this.ownerToken} (${resources}): ${error instanceof Error ? error.message : String(error)}. Delete them with transaction /ATRM/LOCK.`, { important: true });
             throw error;
         }
         this.held.clear();
