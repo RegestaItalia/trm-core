@@ -24,14 +24,18 @@ jest.mock('../../transport', () => ({
     }
 }));
 
-jest.mock('../../registry', () => ({
-    ...jest.requireActual('../../registry/RegistryType'),
-    RegistryDeletionTransportUnauthorizedError: class RegistryDeletionTransportUnauthorizedError extends Error {
-        constructor(public registryEndpoint: string, public originalError: unknown) {
-            super(`Deletion denied by ${registryEndpoint}`);
+jest.mock('../../registry', () => {
+    class RegistryDeletionTransportUnavailableError extends Error { }
+    return {
+        ...jest.requireActual('../../registry/RegistryType'),
+        RegistryDeletionTransportUnavailableError,
+        RegistryDeletionTransportUnauthorizedError: class RegistryDeletionTransportUnauthorizedError extends RegistryDeletionTransportUnavailableError {
+            constructor(public registryEndpoint: string, public originalError: unknown) {
+                super(`Deletion denied by ${registryEndpoint}`);
+            }
         }
-    }
-}));
+    };
+});
 
 import execute from '@simonegaffurini/sammarksworkflow';
 import { Logger } from 'trm-commons';

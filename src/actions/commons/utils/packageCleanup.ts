@@ -2,7 +2,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { InstallTransport, SystemConnector } from "../../../systemConnector";
 import { getE071KOwner, Transport, TrmTransportIdentifier } from "../../../transport";
 import { TransportBinary, TrmPackage } from "../../../trmPackage";
-import { AbstractRegistry, RegistryDeletionTransportUnauthorizedError } from "../../../registry";
+import { AbstractRegistry, RegistryDeletionTransportUnavailableError } from "../../../registry";
 import { packageDataFromTdevc, getPackageNamespace } from "../../../commons";
 import { DEVCLASS, E071, TADIR, TDEVC } from "../../../client";
 import { randomBytes } from "crypto";
@@ -696,16 +696,16 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         try {
             await releaseDeletionTransport(dummy, context.rawInput.packageData.registry, context);
         } catch (e) {
-            if (!(e instanceof RegistryDeletionTransportUnauthorizedError)) {
+            if (!(e instanceof RegistryDeletionTransportUnavailableError)) {
                 throw e;
             }
             //at this point the dummy is already released, transport cannot be deleted but it's a harmless release of a transport of copies.
             await restoreCleanupAssignments(context, true);
             if (target.requireDeletion) {
-                Logger.error(`User is not authorized to generate deletion transports.`, { important: true });
+                Logger.error(e.message, { important: true });
                 throw e;
             }
-            Logger.warning(`User is not authorized to generate cleanup transports. Manual cleanup of previous release install might be necessary.`, { important: true });
+            Logger.warning(`${e.message} Manual cleanup of previous release install might be necessary.`, { important: true });
             // Deleting the staging package needs a deletion transport too.
             if (stagingDevclass) {
                 Logger.warning(`SAP package ${stagingDevclass}, created for the cleanup, was left on ${SystemConnector.getDest()}: delete it manually.`, { important: true });

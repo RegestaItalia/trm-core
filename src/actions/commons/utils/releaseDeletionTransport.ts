@@ -1,7 +1,7 @@
 import { Inquirer, Logger } from "trm-commons";
 import { BinaryTransport, Transport } from "../../../transport";
 import { SystemConnector } from "../../../systemConnector";
-import { AbstractRegistry, RegistryDeletionTransportUnauthorizedError } from "../../../registry";
+import { AbstractRegistry, RegistryDeletionTransportUnavailableError } from "../../../registry";
 import type { PackageCleanupContext } from "./packageCleanup";
 import { resolveInstallRegistry } from "./installRegistry";
 
@@ -34,7 +34,7 @@ export async function releaseDeletionTransport(
     } catch (e) {
         // The transport is already released and can't be deleted: it's a harmless transport of copies.
         // Nothing was imported, so there is nothing to restore and nothing to forward.
-        if (e instanceof RegistryDeletionTransportUnauthorizedError && retainSnapshot) {
+        if (e instanceof RegistryDeletionTransportUnavailableError && retainSnapshot) {
             context.revert.dele = undefined;
         }
         throw e;

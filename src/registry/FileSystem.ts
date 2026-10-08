@@ -10,6 +10,7 @@ import { BinaryTransport } from "../transport";
 import { createHash } from "crypto";
 import { TransportEntries } from "../client";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
+import { RegistryDeletionTransportUnavailableError } from "./RegistryDeletionTransportUnavailableError";
 
 export const LOCAL_RESERVED_KEYWORD = 'local';
 
@@ -190,7 +191,7 @@ export class FileSystem implements AbstractRegistry {
     }
 
     public async delete(_transport: BinaryTransport): Promise<BinaryTransport> {
-        throw new Error(`File system can't generate deletion transports!`);
+        throw new RegistryDeletionTransportUnavailableError(LOCAL_RESERVED_KEYWORD, `Local packages (.trm files) can't generate deletion transports.`);
     }
 
     /**

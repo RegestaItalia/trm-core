@@ -47,7 +47,9 @@ jest.mock('../../transport', () => {
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
-import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { FileSystem, RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
 import { isDeletionForwardable } from '../commons/utils';
 import { deleteTemporaryCleanupPackages, generateUpdateTransport } from './generateUpdateTransport';
 
@@ -354,6 +356,22 @@ describe('generateUpdateTransport revert', () => {
 
     });
 
+    test('a local (.trm) release that cannot generate a deletion transport only warns: the upgrade continues', async () => {
+        const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+        ctx.runtime.update.getDevclass = () => 'Z_ROOT';
+        jest.spyOn(SystemConnector, 'getSubpackages').mockResolvedValue([]);
+        jest.spyOn(SystemConnector, 'getDevclassObjects').mockResolvedValue([]);
+        ctx.rawInput.packageData.registry.delete = (tocBinaries: any) => new FileSystem(join(tmpdir(), 'package.trm')).delete(tocBinaries);
+        const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+
+        await expect(generateUpdateTransport.run(ctx)).resolves.toBeUndefined();
+
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining("Local packages (.trm files) can't generate deletion transports."), { important: true });
+        expect(dummy.delete).not.toHaveBeenCalled();
+        expect(Transport.upload).not.toHaveBeenCalled();
+        expect(isDeletionForwardable(ctx)).toBe(false);
+    });
+
     test('an unauthorized deletion transport only warns: the upgrade continues without forwarding it', async () => {
         const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
         ctx.runtime.update.getDevclass = () => 'Z_ROOT';
@@ -367,7 +385,7 @@ describe('generateUpdateTransport revert', () => {
 
         await expect(generateUpdateTransport.run(ctx)).resolves.toBeUndefined();
 
-        expect(warning).toHaveBeenCalledWith(expect.stringContaining('not authorized to generate cleanup transports'), { important: true });
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('not authorized to generate deletion transports'), { important: true });
         expect(dummy.release).toHaveBeenCalled();
         expect(dummy.delete).not.toHaveBeenCalled();
         expect(Transport.upload).not.toHaveBeenCalled();
