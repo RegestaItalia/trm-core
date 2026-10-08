@@ -519,7 +519,7 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
         if (!context.rawInput.contextData.noInquirer) {
             const inqDefault3 = context.runtime.manifest.sapEntries || {};
             const inq = await Inquirer.prompt([{
-                message: `Do you want to manually required SAP objects?`,
+                message: `Do you want to manually edit the required SAP objects?`,
                 type: 'confirm',
                 name: 'editSapEntries',
                 default: false

@@ -12,6 +12,18 @@ describe('RESTClient deleteTmsTransport', () => {
     });
 });
 
+describe('RESTClient deleteTemporaryPackage', () => {
+    it('calls the trm-rest method that exists, otherwise the server answers METHOD_CALL_EXCEPTION', async () => {
+        const client = Object.create(RESTClient.prototype) as RESTClient;
+        const del = jest.fn().mockResolvedValue({});
+        (client as any)._axiosInstance = { delete: del };
+
+        await client.deleteTemporaryPackage(' $local ');
+
+        expect(del).toHaveBeenCalledWith('/delete_tmp_package', { data: { devclass: '$LOCAL' } });
+    });
+});
+
 describe('RESTClient getExistingObjectsBulk', () => {
     it('sends the object names as TADIR OBJ_NAME, otherwise the server matches nothing', async () => {
         const client = Object.create(RESTClient.prototype) as RESTClient;

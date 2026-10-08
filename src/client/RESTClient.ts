@@ -385,7 +385,7 @@ export class RESTClient implements IClient {
     }
 
     public async deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
-        await this._axiosInstance.delete('/delete_package', {
+        await this._axiosInstance.delete('/delete_tmp_package', {
             data: {
                 devclass: devclass.trim().toUpperCase()
             }
