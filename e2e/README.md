@@ -19,7 +19,7 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
 - **SAP namespaces:**
   - Customer packages are `Z…` (e.g. `ZE2E_UPG`). Local `$…` packages are only install targets: publishing from them
     is not supported.
-  - `/ABAPGIT/` is the only custom namespace allowed for namespace tests (publish, install, delete, and import or
+  - `/ABAPGIT/` and `/AWSSAMP/` are the only custom namespaces allowed for namespace tests (publish, install, delete, and import or
     removal of the namespace itself).
   - Never publish or install into the namespace of TRM itself (`/ATRM/`). trm-server and trm-rest aren't fixtures.
 - **Keep packages small:** a handful of objects each, at most one subpackage level and no superpackages. Test
@@ -50,7 +50,7 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
    - The TRM packages table is clean or known.
    - Transport targets and layers, and installed languages (for translations).
    - Whether customizing changes are allowed in the client.
-   - The state of `/ABAPGIT/` in the namespace table (it may need removing to test a namespace import).
+   - The state of `/ABAPGIT/` and `/AWSSAMP/` in the namespace table .
    - The registry answers, with the e2e token.
 3. **Note gaps of the system itself** (e.g. missing customizing that breaks ADT) and how you work around them. They
    go in the report's environment section, never in the open issues.
@@ -64,7 +64,7 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
   - local `.trm` files;
   - dependency graphs;
   - delete edge cases (dependants, dirty packages, nested TRM packages);
-  - namespaces and renames into `$`/`Z`/`/ABAPGIT/` targets;
+  - namespaces and renames into `$`/`Z`/`/ABAPGIT/`/`/AWSSAMP/` targets;
   - engines and SAP entries;
   - interrupted runs and action locks.
 - **Write the plan down:** for each scenario, the goal, the fixture, the steps and the expected result. Keep the order
@@ -72,7 +72,7 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
 
 ## 3. Build fixtures: the single-system pattern
 On one system, the publisher and the installer are the same system:
-1. **Develop:** create the source objects in `ZE2E_*` (or `/ABAPGIT/E2E_*`) packages on a request, then release it.
+1. **Develop:** create the source objects in `ZE2E_*` (or `/ABAPGIT/E2E_*`/`/AWSSAMP/E2E_*`) packages on a request, then release it.
    Use arc-1, or WebGUI for what ADT can't create (see [SAP_TOOLING.md](SAP_TOOLING.md)). Create translations
    in the translation environment (SE63/LXE): the LANG transport only picks them up from there.
 2. **Publish the versions:** publish v1, change the objects, publish v2, and so on, back to back.
