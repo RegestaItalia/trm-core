@@ -13,3 +13,6 @@ src/e2e
 scripts/e2e-revert-matrix.sh
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
+# e2e: run workspace and final reports (the e2e docs and harness are committed)
+e2e/work/
+E2E_REPORT*.md

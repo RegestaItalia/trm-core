@@ -1,0 +1,14 @@
+{
+    "description": "E2E package",
+    "website": "",
+    "git": "",
+    "authors": "E2E Tester",
+    "keywords": "e2e",
+    "license": "MIT",
+    "editPostActivities": false,
+    "editDependencies": false,
+    "editSapEntries": false,
+    "editEngines": false,
+    "editReadme": false,
+    "editChangelog": false
+}
