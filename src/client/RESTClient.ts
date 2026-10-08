@@ -465,7 +465,8 @@ export class RESTClient implements IClient {
 
     public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
         await this._axiosInstance.put('/set_install_devc', {
-            package: data.package,
+            // JSON carries the manifest xstring as base64: a Buffer would serialize as an object and be stored empty.
+            package: { ...data.package, manifest: data.package.manifest?.toString('base64') },
             package_exists: data.packageExists ? 'X' : ' ',
             installdevc: data.installDevc,
             installtr: data.installTr || []

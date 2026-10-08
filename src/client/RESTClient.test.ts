@@ -26,3 +26,21 @@ describe('RESTClient getExistingObjectsBulk', () => {
         });
     });
 });
+
+describe('RESTClient restoreInstallMetadata', () => {
+    it('sends the manifest as base64, otherwise the restored row has no manifest', async () => {
+        const client = Object.create(RESTClient.prototype) as RESTClient;
+        const put = jest.fn().mockResolvedValue({});
+        (client as any)._axiosInstance = { put };
+        const row = { package_name: 'pkg', package_registry: 'public', manifest: Buffer.from('<xml/>', 'utf8'), trkorr: 'DEVK900001', integrity: 'sha', devclass: 'ZPKG' };
+
+        await client.restoreInstallMetadata({ package: row, packageExists: true, installDevc: [] });
+
+        expect(put).toHaveBeenCalledWith('/set_install_devc', {
+            package: { ...row, manifest: Buffer.from('<xml/>', 'utf8').toString('base64') },
+            package_exists: 'X',
+            installdevc: [],
+            installtr: []
+        });
+    });
+});
