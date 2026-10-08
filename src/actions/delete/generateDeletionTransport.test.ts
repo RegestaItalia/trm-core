@@ -18,6 +18,7 @@ jest.mock('../../systemConnector', () => ({
         getDefaultTransportLayer: jest.fn(),
         getNamespace: jest.fn(),
         getNamespacePackages: jest.fn(),
+        addNamespace: jest.fn(),
         getDest: jest.fn(() => 'TST')
     }
 }));
@@ -163,6 +164,47 @@ describe('generateDeletionTransport', () => {
         expect(SystemConnector.deleteTemporaryPackage).toHaveBeenCalledWith('$LOCAL');
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not delete local SAP package(s) $LOCAL (package API failed)'), { important: true });
         expect(imported.import).toHaveBeenCalled();
+    });
+
+    test('objects of a missing namespace in a local package are staged in that namespace, imported for the delete', async () => {
+        const { ctx, dummy } = runContext([
+            { pgmid: 'R3TR', object: 'CLAS', objName: '/X/CL_A' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_PROG' }
+        ], '$LOCAL');
+        ctx.runtime.update.manifest.get = () => ({
+            name: 'pkg', version: '1.0.0',
+            namespace: { ns: '/X/', replicense: 'license', texts: [{ language: 'E', description: 'X', owner: 'owner' }] }
+        });
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+            devclass === '$LOCAL' ? { devclass, dlvunit: 'LOCAL' } : undefined);
+        (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZTST');
+        (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async objects => objects.map((o: any) => ({ ...o, devclass: '$LOCAL' })));
+        (SystemConnector.deleteTemporaryPackage as jest.Mock).mockResolvedValue(undefined);
+
+        await generateDeletionTransport.run(ctx);
+
+        expect(SystemConnector.addNamespace).toHaveBeenCalledWith('/X/', 'license', [{ namespace: '/X/', spras: 'E', descriptn: 'X', owner: 'owner' }]);
+        const staging: string[] = ctx.revert.stagingPackages;
+        expect(staging).toHaveLength(2);
+        const namespaceStaging = staging.find(o => o.startsWith('/X/TRMD_'));
+        const plainStaging = staging.find(o => o.startsWith('ZTRM_DELE_'));
+        expect(namespaceStaging.length).toBeLessThanOrEqual(30);
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: '/X/CL_A', devclass: namespaceStaging }));
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: 'Z_PROG', devclass: plainStaging }));
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted).toEqual(expect.arrayContaining([`DEVC ${namespaceStaging}`, `DEVC ${plainStaging}`, 'NSPC /X/']));
+        expect(ctx.revert.temporaryNamespaces).toEqual(['/X/']);
+    });
+
+    test('objects of a missing namespace without a known repair license abort before staging', async () => {
+        const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: '/X/CL_A' }], '$LOCAL');
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+            devclass === '$LOCAL' ? { devclass, dlvunit: 'LOCAL' } : undefined);
+        (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async objects => objects.map((o: any) => ({ ...o, devclass: '$LOCAL' })));
+
+        await expect(generateDeletionTransport.run(ctx)).rejects.toThrow("Namespace /X/ doesn't exist in TST and its repair license is unknown");
+        expect(SystemConnector.addNamespace).not.toHaveBeenCalled();
+        expect(SystemConnector.createPackage).not.toHaveBeenCalled();
     });
 
     test('translation rows of the installed transport are not deletion entries', async () => {

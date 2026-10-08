@@ -18,6 +18,7 @@ jest.mock('../../systemConnector', () => ({
         getDefaultTransportLayer: jest.fn(),
         getNamespace: jest.fn(),
         getNamespacePackages: jest.fn(),
+        addNamespace: jest.fn(),
         getDest: jest.fn(() => 'TST')
     }
 }));
@@ -626,6 +627,29 @@ describe('generateUpdateTransport revert', () => {
             expect(tadirOrder).toBeLessThan((Transport.createToc as jest.Mock).mock.invocationCallOrder[0]);
         });
 
+        test('deletes the namespaces imported for the staging after its packages', async () => {
+            const ctx = stagingRevertContext();
+            ctx.revert.temporaryNamespaces = ['/X/'];
+            (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ trnspacet: {} });
+            (SystemConnector.getNamespacePackages as jest.Mock).mockResolvedValue([]);
+
+            await generateUpdateTransport.revert(ctx);
+
+            expect(stagedDeletions()).toEqual(['ZTRM_DELE_ONE', '/X/']);
+            expect(ctx.rawInput.packageData.registry.delete).toHaveBeenCalledTimes(2);
+        });
+
+        test('keeps an imported namespace still used by a package, and surfaces it', async () => {
+            const ctx = stagingRevertContext();
+            ctx.revert.temporaryNamespaces = ['/X/'];
+            (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ trnspacet: {} });
+            (SystemConnector.getNamespacePackages as jest.Mock).mockResolvedValue([{ devclass: '/X/OTHER' }]);
+
+            await expect(generateUpdateTransport.revert(ctx)).rejects.toThrow('Namespace /X/ is still used by SAP packages /X/OTHER');
+
+            expect(stagedDeletions()).toEqual(['ZTRM_DELE_ONE']);
+        });
+
         test('is kept when restoring object assignments fails', async () => {
             const ctx = stagingRevertContext();
             (SystemConnector.tadirInterface as jest.Mock).mockRejectedValue(new Error('assignment failed'));
@@ -694,7 +718,7 @@ describe('generateUpdateTransport revert', () => {
             await expect(generateUpdateTransport.run(ctx)).resolves.toBeUndefined();
 
             const staging = ctx.revert.stagingPackages[0];
-            expect(warning).toHaveBeenCalledWith(expect.stringContaining(`SAP package ${staging}, created for the cleanup, was left on TST`), { important: true });
+            expect(warning).toHaveBeenCalledWith(expect.stringContaining(`SAP package(s) ${staging}, created for the cleanup, were left on TST`), { important: true });
             expect(SystemConnector.tadirInterface).toHaveBeenLastCalledWith(expect.objectContaining({ objName: 'Z_GONE', devclass: '$OLD' }));
         });
     });
