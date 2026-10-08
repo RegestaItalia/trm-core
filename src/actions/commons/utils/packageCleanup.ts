@@ -4,7 +4,7 @@ import { getE071KOwner, Transport, TrmTransportIdentifier } from "../../../trans
 import { TransportBinary, TrmPackage } from "../../../trmPackage";
 import { AbstractRegistry, RegistryDeletionTransportUnavailableError } from "../../../registry";
 import { packageDataFromTdevc, getPackageNamespace } from "../../../commons";
-import { DEVCLASS, E071, TADIR, TDEVC } from "../../../client";
+import { DEVCLASS, E071, TADIR, TDEVC, ZTRM_OBJ_LOCK } from "../../../client";
 import { randomBytes } from "crypto";
 import type { InstallPackageReplacements } from "../../install";
 import { releaseDeletionTransport } from "./releaseDeletionTransport";
@@ -137,6 +137,153 @@ export function getPackagesInstalledIn(systemPackages: TrmPackage[], installed: 
         const devclass = normalize(pkg.getDevclass() || '');
         return devclass && devclass !== installedDevclass && devclasses.has(devclass);
     });
+}
+
+/**
+ * Objects of the installed transport the cleanup deletes, and the namespaces it carries.
+ */
+async function readInstalledTransportObjects(installed: TrmPackage): Promise<{ previousNamespaces: E071[], previousTransportObjects: E071[] }> {
+    const installedTransportObjects = installed.getTransport()
+        ? await installed.getTransport().getE071()
+        : [];
+    // Table content (entries with E071K keys, e.g. a landscape transport carrying the CUST
+    // transports) is deleted by key through the customizing transports. Added without
+    // its keys, it would request the deletion of the whole table object.
+    const keyedObjects = new Set(installed.getTransport() && installedTransportObjects.length > 0
+        ? (await installed.getTransport().getE071K()).map(key => objectKey(getE071KOwner(key)))
+        : []);
+    return {
+        // A namespace may be used by packages outside this installation: it's only deleted
+        // through the usage check, never because the installed transport carries it.
+        previousNamespaces: installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object)) && isNamespace(object)),
+        // Translations (LANG rows, e.g. a landscape transport carrying the LANG transport) are deleted
+        // with their objects: SAP rejects them as deletion entries.
+        previousTransportObjects: installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object))
+            && !isNamespace(object) && normalize(object.pgmid) !== 'LANG')
+    };
+}
+
+type InstallationTree = {
+    /** SAP packages of the installation, live subpackages included, by normalized name. */
+    previousDevclasses: Map<string, string>,
+    /** Normalized SAP packages recorded by the install (mappings and installed transport). */
+    installedDevclasses: Set<string>,
+    /** Normalized parent of each live subpackage. */
+    packageParents: Map<string, string>,
+    /** Other TRM packages installed in the installation's SAP packages, by normalized SAP package. */
+    otherInstallations: Map<string, TrmPackage>,
+    /** Whether a SAP package belongs to another TRM package installed underneath. */
+    isOtherInstallation: (devclass: string) => boolean
+};
+
+/** SAP packages of an installed release, as they are on the system now. */
+async function readInstallationTree(
+    installed: TrmPackage,
+    previousInstallPackages: InstallPackageReplacements[],
+    previousTransportObjects: CleanupObject[],
+    deletedObjects: CleanupObject[],
+    systemPackages: TrmPackage[]
+): Promise<InstallationTree> {
+    const previousDevclasses = new Map<string, string>();
+    previousInstallPackages.forEach(replacement => {
+        previousDevclasses.set(normalize(replacement.installDevclass), replacement.installDevclass);
+    });
+    // Older installations that kept the publisher package names have no replacement rows.
+    if (previousDevclasses.size === 0 && installed.getDevclass()) {
+        const previousRoot = installed.getDevclass();
+        previousDevclasses.set(normalize(previousRoot), previousRoot);
+    }
+    previousTransportObjects.forEach(object => {
+        if (isDevclass(object)) {
+            previousDevclasses.set(normalize(object.objName), object.objName);
+        }
+    });
+    const installedDevclasses = new Set(previousDevclasses.keys());
+
+    // Installation mappings do not include subpackages created locally afterwards.
+    // Inspect the live hierarchy even when the installation keeps its root package.
+    const deletedKeys = new Set(deletedObjects.map(objectKey));
+    const packageParents = new Map<string, string>();
+    for (const devclass of Array.from(previousDevclasses.values())) {
+        for (const subpackage of await SystemConnector.getSubpackages(devclass)) {
+            if (deletedKeys.has(objectKey({ pgmid: 'R3TR', object: 'DEVC', objName: subpackage.devclass }))) {
+                continue;
+            }
+            const key = normalize(subpackage.devclass);
+            previousDevclasses.set(key, subpackage.devclass);
+            if (subpackage.parentcl) {
+                packageParents.set(key, normalize(subpackage.parentcl));
+            }
+        }
+    }
+
+    // Other TRM packages installed underneath have their own lifecycle and are ignored: the delete
+    // action deletes them first, an upgrade removes everything else. Their ancestors stay as packages.
+    const otherInstallations = new Map(getPackagesInstalledIn(
+        systemPackages, installed, new Set(previousDevclasses.keys())
+    ).map(pkg => [normalize(pkg.getDevclass()), pkg]));
+    const isOtherInstallation = (devclass: string): boolean => {
+        const visited = new Set<string>();
+        let current = normalize(devclass);
+        while (current && !visited.has(current)) {
+            if (otherInstallations.has(current)) {
+                return true;
+            }
+            visited.add(current);
+            current = packageParents.get(current);
+        }
+        return false;
+    };
+    return { previousDevclasses, installedDevclasses, packageParents, otherInstallations, isOtherInstallation };
+}
+
+/**
+ * Installed objects now in a SAP package outside the installation, or in the SAP package of
+ * another TRM package installed underneath.
+ */
+async function readRelocatedObjects(
+    objects: CleanupObject[],
+    tree: Pick<InstallationTree, 'previousDevclasses' | 'isOtherInstallation'>
+): Promise<TADIR[]> {
+    return (await SystemConnector.getExistingObjects(objects
+        .filter(object => normalize(object.pgmid) === 'R3TR' && !isDevclass(object))
+        .map(object => ({ pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: '' }))))
+        .filter(object => object.devclass && (!tree.previousDevclasses.has(normalize(object.devclass)) || tree.isOtherInstallation(object.devclass)));
+}
+
+/**
+ * Locks on those of `objects` that removing `installed` certainly deletes: the objects of its
+ * installed transport still in its SAP packages. These would abort the cleanup at its objects
+ * lock check, so they can be checked before asking anything. Objects added locally or moved
+ * outside the installation are left out, as the cleanup may keep them.
+ */
+export async function getInstalledObjectsLocks(
+    installed: TrmPackage,
+    previousInstallPackages: InstallPackageReplacements[],
+    systemPackages: TrmPackage[],
+    objects: CleanupObject[]
+): Promise<ZTRM_OBJ_LOCK[]> {
+    if (objects.length === 0) {
+        return [];
+    }
+    const { previousTransportObjects } = await readInstalledTransportObjects(installed);
+    const installedKeys = new Set(previousTransportObjects.map(objectKey));
+    const candidates = new Map(objects
+        .filter(object => installedKeys.has(objectKey(object)))
+        .map(object => [objectKey(object), object]));
+    if (candidates.size === 0) {
+        return [];
+    }
+    const tree = await readInstallationTree(installed, previousInstallPackages, previousTransportObjects, [], systemPackages);
+    (await readRelocatedObjects(Array.from(candidates.values()), tree)).forEach(object => candidates.delete(objectKey(object)));
+    if (candidates.size === 0) {
+        return [];
+    }
+    return SystemConnector.getObjectsLocks(Array.from(candidates.values(), object => ({
+        PGMID: object.pgmid,
+        OBJECT: object.object,
+        OBJ_NAME: object.objName
+    })));
 }
 
 /** Deletes every temporary package, reporting the first failure after the cleanup pass. */
@@ -421,22 +568,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             target: SystemConnector.getDest()
         });
         context.revert.updateCleanupTransport = dummy;
-        const installedTransportObjects = installed.getTransport()
-            ? await installed.getTransport().getE071()
-            : [];
-        // Table content (entries with E071K keys, e.g. a landscape transport carrying the CUST
-        // transports) is deleted by key through the customizing transports below. Added without
-        // its keys, it would request the deletion of the whole table object.
-        const keyedObjects = new Set(installed.getTransport() && installedTransportObjects.length > 0
-            ? (await installed.getTransport().getE071K()).map(key => objectKey(getE071KOwner(key)))
-            : []);
-        // A namespace may be used by packages outside this installation: it's only deleted
-        // through the usage check below, never because the installed transport carries it.
-        const previousNamespaces = installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object)) && isNamespace(object));
-        // Translations (LANG rows, e.g. a landscape transport carrying the LANG transport) are deleted
-        // with their objects: SAP rejects them as deletion entries.
-        const previousTransportObjects = installedTransportObjects.filter(object => !keyedObjects.has(objectKey(object))
-            && !isNamespace(object) && normalize(object.pgmid) !== 'LANG');
+        const { previousNamespaces, previousTransportObjects } = await readInstalledTransportObjects(installed);
         const incomingObjects = target.incomingObjects;
         // Tables shipped again by the new release are adjusted by its import instead of
         // being dropped and re-created, which would lose their data.
@@ -447,57 +579,15 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         const retainedKeys = new Set(retainedTables.map(objectKey));
         retainedTables.forEach(object => Logger.log(`Keeping table ${object.objName} (present in new release)`, true));
         const currentDevclasses = new Set(target.keptDevclasses.map(normalize));
-        const previousDevclasses = new Map<string, string>();
-        context.runtime.previousInstallPackages.forEach(replacement => {
-            previousDevclasses.set(normalize(replacement.installDevclass), replacement.installDevclass);
-        });
-        // Older installations that kept the publisher package names have no replacement rows.
-        if (previousDevclasses.size === 0 && installed.getDevclass()) {
-            const previousRoot = installed.getDevclass();
-            previousDevclasses.set(normalize(previousRoot), previousRoot);
-        }
-        previousTransportObjects.forEach(object => {
-            if (isDevclass(object)) {
-                previousDevclasses.set(normalize(object.objName), object.objName);
-            }
-        });
-        const installedDevclasses = new Set(previousDevclasses.keys());
-        const generatedDevclasses = new Set(context.revert.sapPackages.map(normalize));
-
-        // Installation mappings do not include subpackages created locally afterwards.
-        // Inspect the live hierarchy even when the installation keeps its root package.
         const deletedKeys = new Set((context.runtime.deletedObjects || []).map(objectKey));
-        const packageParents = new Map<string, string>();
-        for (const devclass of Array.from(previousDevclasses.values())) {
-            for (const subpackage of await SystemConnector.getSubpackages(devclass)) {
-                if (deletedKeys.has(objectKey({ pgmid: 'R3TR', object: 'DEVC', objName: subpackage.devclass }))) {
-                    continue;
-                }
-                const key = normalize(subpackage.devclass);
-                previousDevclasses.set(key, subpackage.devclass);
-                if (subpackage.parentcl) {
-                    packageParents.set(key, normalize(subpackage.parentcl));
-                }
-            }
-        }
-
-        // Other TRM packages installed underneath have their own lifecycle and are ignored: the delete
-        // action deletes them first, an upgrade removes everything else. Their ancestors stay as packages.
-        const otherInstallations = new Map(getPackagesInstalledIn(
-            context.rawInput.contextData?.systemPackages || [], installed, new Set(previousDevclasses.keys())
-        ).map(pkg => [normalize(pkg.getDevclass()), pkg]));
-        const isOtherInstallation = (devclass: string): boolean => {
-            const visited = new Set<string>();
-            let current = normalize(devclass);
-            while (current && !visited.has(current)) {
-                if (otherInstallations.has(current)) {
-                    return true;
-                }
-                visited.add(current);
-                current = packageParents.get(current);
-            }
-            return false;
-        };
+        const { previousDevclasses, installedDevclasses, packageParents, otherInstallations, isOtherInstallation } = await readInstallationTree(
+            installed,
+            context.runtime.previousInstallPackages,
+            previousTransportObjects,
+            context.runtime.deletedObjects || [],
+            context.rawInput.contextData?.systemPackages || []
+        );
+        const generatedDevclasses = new Set(context.revert.sapPackages.map(normalize));
         otherInstallations.forEach(pkg => Logger.log(`Ignoring SAP package ${pkg.getDevclass()}: TRM package ${pkg.packageName} is installed there`, true));
 
         // Local additions remain cleanup candidates even when reused as incoming targets.
@@ -625,10 +715,10 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
 
         // Installed objects moved to a package outside this installation (customer development)
         // are kept unless confirmed; those now in another TRM package belong to it and are kept.
-        const relocatedObjects = (await SystemConnector.getExistingObjects(previousTransportObjects
-            .filter(object => normalize(object.pgmid) === 'R3TR' && !isDevclass(object) && !retainedKeys.has(objectKey(object)))
-            .map(object => ({ pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: '' }))))
-            .filter(object => object.devclass && (!previousDevclasses.has(normalize(object.devclass)) || isOtherInstallation(object.devclass)));
+        const relocatedObjects = await readRelocatedObjects(
+            previousTransportObjects.filter(object => !retainedKeys.has(objectKey(object))),
+            { previousDevclasses, isOtherInstallation }
+        );
         const movedKeys = new Set<string>();
         const movedObjects = relocatedObjects.filter(object => {
             if (!isOtherInstallation(object.devclass)) {

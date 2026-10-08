@@ -49,6 +49,7 @@ import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
 import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
 import { generateDeletionTransport } from './generateDeletionTransport';
+import { getInstalledObjectsLocks } from '../commons/utils';
 
 function runContext(previous: any[], devclass = 'Z_ROOT', keyed: any[] = []) {
     const dummy = new Transport('DEVK9DELE') as any;
@@ -705,5 +706,63 @@ describe('generateDeletionTransport', () => {
 
             expect(stage.delete).toHaveBeenCalledTimes(1);
         });
+    });
+});
+
+describe('getInstalledObjectsLocks', () => {
+    function installed(previous: any[], devclass = 'Z_ROOT') {
+        return {
+            getTransport: () => ({ getE071: async () => previous, getE071K: async () => [] }),
+            getDevclass: () => devclass
+        } as any;
+    }
+    const mappings = [{ originalDevclass: 'Z_ORIG', installDevclass: 'Z_ROOT' }];
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([{ devclass: 'Z_NESTED', parentcl: 'Z_ROOT' }]);
+        (SystemConnector.getObjectsLocks as jest.Mock).mockImplementation(async objects => objects.map((o: any) => ({
+            pgmid: o.PGMID, object: o.OBJECT, objName: o.OBJ_NAME, trkorr: 'DEVK9EDIT'
+        })));
+        const devclasses: Record<string, string> = { Z_KEPT: 'Z_ROOT', Z_MOVED: 'Z_CUSTOM', Z_OTHER: 'Z_NESTED' };
+        (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async objects => objects
+            .map((o: any) => ({ ...o, devclass: devclasses[o.objName] })));
+    });
+
+    test('only checks installed objects the cleanup deletes for sure', async () => {
+        const pkg = installed([
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_KEPT' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_OTHER' },
+            { pgmid: 'LIMU', object: 'METH', objName: 'ZCL_X                         M' }
+        ]);
+        const nested = { packageName: 'nested', getDevclass: () => 'Z_NESTED' } as any;
+
+        const locks = await getInstalledObjectsLocks(pkg, mappings, [pkg, nested], [
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_KEPT' },
+            // Moved outside the installation, or into another TRM package: the cleanup may keep them.
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_OTHER' },
+            // Added locally: the extra objects cleanup can be declined.
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL' },
+            { pgmid: 'LIMU', object: 'METH', objName: 'ZCL_X                         M' }
+        ]);
+
+        expect(SystemConnector.getObjectsLocks).toHaveBeenCalledWith([
+            { PGMID: 'R3TR', OBJECT: 'PROG', OBJ_NAME: 'Z_KEPT' },
+            { PGMID: 'LIMU', OBJECT: 'METH', OBJ_NAME: 'ZCL_X                         M' }
+        ]);
+        expect(locks.map(lock => lock.objName)).toEqual(['Z_KEPT', 'ZCL_X                         M']);
+    });
+
+    test('nothing the cleanup deletes for sure: no lock lookup', async () => {
+        const pkg = installed([{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' }]);
+
+        expect(await getInstalledObjectsLocks(pkg, mappings, [pkg], [
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL' }
+        ])).toEqual([]);
+        expect(await getInstalledObjectsLocks(pkg, mappings, [pkg], [])).toEqual([]);
+        expect(SystemConnector.getObjectsLocks).not.toHaveBeenCalled();
     });
 });

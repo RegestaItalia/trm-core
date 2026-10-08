@@ -11,12 +11,18 @@ jest.mock('../../systemConnector', () => ({
     }
 }));
 
+jest.mock('../commons/utils', () => ({
+    ...jest.requireActual('../commons/utils'),
+    getInstalledObjectsLocks: jest.fn()
+}));
+
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { RegistryProvider, RegistryType } from '../../registry';
 import { TrmPackage } from '../../trmPackage';
 import { init } from './init';
 import { checkDependants } from './checkDependants';
+import * as cleanupUtils from '../commons/utils';
 
 function registry(type: RegistryType = RegistryType.PUBLIC) {
     if (type === RegistryType.PUBLIC) {
@@ -63,6 +69,7 @@ describe('delete init', () => {
         jest.spyOn(Logger, 'table').mockImplementation(() => undefined as never);
         (SystemConnector.getTransportTargets as jest.Mock).mockResolvedValue(['QAS']);
         (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([]);
+        (cleanupUtils.getInstalledObjectsLocks as jest.Mock).mockResolvedValue([]);
         (SystemConnector.getInstallPackages as jest.Mock).mockResolvedValue([{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }]);
         (SystemConnector.getInstallTransports as jest.Mock).mockResolvedValue([{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }]);
     });
@@ -206,6 +213,29 @@ describe('delete init', () => {
 
         expect(Logger.table).toHaveBeenCalledWith(['Transport', 'Description', 'Object'], [['TSTK900001', 'Local fix', 'R3TR PROG ZPROG']]);
         expect((Logger.table as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(prompt.mock.invocationCallOrder[0]);
+    });
+
+    test('changed objects still locked abort before the dirty confirmation', async () => {
+        const pkg = installed('pkg');
+        pkg.setDirtyEntries([{ trkorr: 'TSTK900001', pgmid: 'R3TR', object: 'PROG', objName: 'ZPROG', as4Text: 'Local fix' }]);
+        const locks = (cleanupUtils.getInstalledObjectsLocks as jest.Mock)
+            .mockResolvedValue([{ pgmid: 'R3TR', object: 'PROG', objName: 'ZPROG', trkorr: 'TSTK900001' }]);
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+        const ctx = context('pkg', [pkg], undefined, false);
+
+        await expect(init.run(ctx))
+            .rejects.toThrow('Delete aborted. To continue, all cleanup objects and SAP packages must be released');
+
+        expect(locks).toHaveBeenCalledWith(pkg, [{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }], [pkg], pkg.getDirtyEntries());
+        expect(Logger.error).toHaveBeenCalledWith('R3TR PROG ZPROG is currently locked in transport TSTK900001', { important: true });
+        expect(prompt).not.toHaveBeenCalled();
+        expect(SystemConnector.getTransportTargets).not.toHaveBeenCalled();
+    });
+
+    test('clean packages skip the changed objects locks check', async () => {
+        await init.run(context('pkg', [installed('pkg')]));
+
+        expect(cleanupUtils.getInstalledObjectsLocks).not.toHaveBeenCalled();
     });
 
     test('ignoreDirty deletes dirty packages without prompts', async () => {

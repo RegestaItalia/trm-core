@@ -6,7 +6,7 @@ import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { setLandscapeTarget } from "../commons/prompts";
 import { getNestedPackages, withoutNestedDirtyEntries } from "./deleteNestedPackages";
-import { logDirtyEntries } from "../commons/utils";
+import { getInstalledObjectsLocks, logDirtyEntries } from "../commons/utils";
 
 /**
  * Workflow step that finds the installed package and initializes rollback state.
@@ -82,8 +82,24 @@ export const init: Step<DeleteWorkflowContext> = {
             previousInstallPackages.map(replacement => replacement.installDevclass)
         );
 
-        //5- dirty check: the TRM packages installed under it confirm their own changes
-        const dirtyEntries = await withoutNestedDirtyEntries(installed.getDirtyEntries(), nestedPackages.all);
+        //5- dirty check: changes still being edited would fail the cleanup objects lock check,
+        //so check them before asking anything
+        const allDirtyEntries = installed.getDirtyEntries();
+        if (allDirtyEntries.length > 0) {
+            Logger.loading(`Checking changed objects locks...`, true);
+            const locks = await getInstalledObjectsLocks(
+                installed,
+                previousInstallPackages,
+                context.rawInput.contextData.systemPackages,
+                allDirtyEntries
+            );
+            if (locks.length > 0) {
+                locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true }));
+                throw new Error(`Delete aborted. To continue, all cleanup objects and SAP packages must be released`);
+            }
+        }
+        //the TRM packages installed under it confirm their own changes
+        const dirtyEntries = await withoutNestedDirtyEntries(allDirtyEntries, nestedPackages.all);
         if (dirtyEntries.length > 0 && !context.rawInput.deleteData.checks.ignoreDirty) {
             const reason = `${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted`;
             Logger.warning(`${reason}!`);
