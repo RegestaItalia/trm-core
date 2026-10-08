@@ -43,6 +43,16 @@ How to build fixtures, inspect the system and patch trm-server/trm-rest during a
   trm-server TADIR interface.
 - **A stuck session:** a stateful ADT session that keeps failing (e.g. CSRF errors) needs the MCP server to reconnect.
 
+## Translations
+- **Where they come from:** the LANG transport built at publish collects translations through the translation
+  environment (LXE, by package), not from the text tables. Texts written in another language with arc-1 (e.g. a
+  logon in that language) or by editing text tables directly aren't picked up, so the LANG transport stays empty.
+- **How to create them:** translate the fixture objects in WebGUI with SE63 (or the LXE tools), into a language
+  installed on the system, before publishing.
+- **Check before publishing:** confirm the translations exist on the SAP side and are visible to the translation
+  environment for the fixture package. An empty LANG transport is a fixture problem, not a trm-core finding, until
+  proven otherwise.
+
 ## Patching trm-server or trm-rest
 - **Scope:** allowed when a campaign fix belongs on the server.
 - **Before patching:** read the current source (ADT, or WebGUI when ADT fails). Prefer extending existing fallbacks to

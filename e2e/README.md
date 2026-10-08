@@ -40,6 +40,9 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
 ## 1. Prepare
 1. **Read the branch:** read the changes under test (e.g. `git log main..`, `git diff --stat main...`) and the open
    audits for known risks.
+   - **Last e2e commit:** when the operator gives the commit of the last campaign, also read the changes since then
+     (`git log <commit>..`, `git diff --stat <commit>`). Scenarios that already passed may need repeating when those
+     changes touch the code paths they cover. Plan the reruns and say in the report which ones were repeated and why.
 2. **Check the environment, read-only:**
    - The connection works.
    - trm-server and trm-rest are installed and their versions are known.
@@ -69,7 +72,8 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
 ## 3. Build fixtures: the single-system pattern
 On one system, the publisher and the installer are the same system:
 1. **Develop:** create the source objects in `ZE2E_*` (or `/ABAPGIT/E2E_*`) packages on a request, then release it.
-   Use arc-1, or WebGUI for what ADT can't create (see [SAP_TOOLING.md](SAP_TOOLING.md)).
+   Use arc-1, or WebGUI for what ADT can't create (see [SAP_TOOLING.md](SAP_TOOLING.md)). Create translations
+   in the translation environment (SE63/LXE): the LANG transport only picks them up from there.
 2. **Publish the versions:** publish v1, change the objects, publish v2, and so on, back to back.
 3. **Clean the dev copy:** publishing records the package as installed on the system, so an install would say
    "already installed". Delete the dev copy with the trm-core `deletePackage` action, or delete the objects,

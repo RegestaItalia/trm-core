@@ -73,6 +73,8 @@ One `###` section per scenario, titled `### S<n>: <name> (<packages>), <status>`
 
 Each scenario contains:
 - **Goal:** the risk it covers.
+- **Rerun reason:** only for a scenario repeated from an earlier campaign (see the last e2e commit in the README): the
+  changes since that commit that made the rerun necessary.
 - **Fixture:** packages, objects (types and names), versions, customizing and translations, and how they were built.
 - **Narrative:** concise bullets of what happened, with the prompts seen (exact texts for UX-relevant ones), the
   failures (exact messages), the root causes and the fix commits.
