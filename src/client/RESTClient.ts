@@ -126,7 +126,7 @@ export class RESTClient implements IClient {
                         rfcClientError.messageError = messageError.toString();
                     }
                     rfcClientError.messageLog = parseMessageLog(responseData.log);
-                    Logger.error(rfcClientError.toString(), true);
+                    Logger.log(rfcClientError.toString(), true);
                     logMessageLog(rfcClientError);
                     throw rfcClientError;
                 });

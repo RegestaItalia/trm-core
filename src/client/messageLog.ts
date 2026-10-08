@@ -15,6 +15,6 @@ export function parseMessageLog(raw: any): string[] | undefined {
 
 export function logMessageLog(error: ClientError): void {
     if (error.messageLog && error.messageLog.length > 0) {
-        Logger.error(`Exception log:\n${error.messageLog.join('\n')}`, true);
+        Logger.log(`Exception log:\n${error.messageLog.join('\n')}`, true);
     }
 }

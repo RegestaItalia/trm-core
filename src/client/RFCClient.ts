@@ -167,7 +167,7 @@ export class RFCClient implements IClient {
                 if (sapMessage.no && sapMessage.class) {
                     rfcClientError.messageLog = await this._getExceptionLog(fm, e.key);
                 }
-                Logger.error(rfcClientError.toString(), true);
+                Logger.log(rfcClientError.toString(), true);
                 logMessageLog(rfcClientError);
                 throw rfcClientError;
             }

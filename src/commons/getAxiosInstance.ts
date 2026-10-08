@@ -39,7 +39,7 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         Logger.log(`${sCtx} AXIOS request ${internalId}: ${sRequest}`, true);
         return request;
     }, (error) => {
-        Logger.error(`${sCtx} AXIOS request error: ${error}`, true);
+        Logger.log(`${sCtx} AXIOS request error: ${error}`, true);
         return Promise.reject(error);
     });
     instance.interceptors.response.use((response) => {
@@ -85,10 +85,10 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
             oError.status = error.response.status;
             oError.response = error.response.data || {};
             oError.axiosError = error;
-            Logger.error(`${sCtx} response id ${internalId} error: ${error} (${JSON.stringify(sError)})`, true);
+            Logger.log(`${sCtx} response id ${internalId} error: ${error} (${JSON.stringify(sError)})`, true);
             return Promise.reject(oError);
         } else {
-            Logger.error(`${sCtx} response error: ${error}`, true);
+            Logger.log(`${sCtx} response error: ${error}`, true);
             return Promise.reject(error);
         }
     });

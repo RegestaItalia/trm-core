@@ -63,7 +63,7 @@ describe('RFCClient exception log', () => {
         expect(error.message).toBe('Forward failed V1');
         expect(error.messageLog).toEqual(['tp line 1', 'tp line 2']);
         expect(call.mock.calls.map(c => c[0])).toEqual(['/ATRM/FORWARD_TR', 'RFC_READ_TABLE', '/ATRM/GET_EXCEPTION_LOG']);
-        expect(Logger.error).toHaveBeenCalledWith('Exception log:\ntp line 1\ntp line 2', true);
+        expect(Logger.log).toHaveBeenCalledWith('Exception log:\ntp line 1\ntp line 2', true);
     });
 
     it('keeps the original error when the exception log function is missing', async () => {
@@ -93,7 +93,7 @@ describe('RFCClient exception log', () => {
         const error = await client.forwardTransport('A4HK900001', 'QAS', 'DEV').catch(e => e);
 
         expect(error.messageLog).toBeUndefined();
-        expect(Logger.error).not.toHaveBeenCalledWith(expect.stringContaining('Exception log'), true);
+        expect(Logger.log).not.toHaveBeenCalledWith(expect.stringContaining('Exception log'), true);
     });
 
     it('does not read the exception log for unauthorized calls', async () => {
