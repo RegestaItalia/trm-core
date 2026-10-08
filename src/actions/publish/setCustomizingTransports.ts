@@ -213,9 +213,18 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
                         }
                     } else if (typeof option === "object") {
                         const selectedTrkorr = option.trkorr;
-                        enrichedCustomizing = enrichedCustomizing.filter(
-                            transport => transport.trkorr !== selectedTrkorr
-                        );
+                        //a retained transport carries the customizing of the latest release: dropping it is not undone by re-adding a request
+                        const remove = !latestByTrkorr.has(selectedTrkorr) || (await Inquirer.prompt({
+                            message: `${selectedTrkorr} carries customizing of the latest release. Remove it from this release?`,
+                            name: "remove",
+                            type: "confirm",
+                            default: false
+                        })).remove;
+                        if (remove) {
+                            enrichedCustomizing = enrichedCustomizing.filter(
+                                transport => transport.trkorr !== selectedTrkorr
+                            );
+                        }
                     }
                 } while (option !== DONE_OPTION);
             }

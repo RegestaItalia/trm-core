@@ -157,4 +157,65 @@ describe('interactive customizing transport selection', () => {
         expect(ctx.runtime.customizing.retained).toEqual([{ trkorr: 'TESTK900010', description: 'retained' }]);
         expect(ctx.runtime.customizing.new).toHaveLength(0);
     });
+
+    function retainedContext() {
+        const ctx = context([]);
+        ctx.rawInput.contextData.noInquirer = false;
+        ctx.runtime.latest.data.transports = [{ trkorr: 'TESTK900010', type: 'CUST', description: 'retained' }];
+        return ctx;
+    }
+    const retained = { trkorr: 'TESTK900010', description: 'retained' };
+
+    test('keeps a selected retained transport when removal is declined', async () => {
+        const ctx = retainedContext();
+        let confirm: any;
+        (Inquirer.prompt as jest.Mock).mockReset()
+            .mockResolvedValueOnce({ continue: true })
+            .mockResolvedValueOnce({ option: retained })
+            .mockImplementationOnce(async (question: any) => {
+                confirm = question;
+                return { remove: false };
+            })
+            .mockResolvedValueOnce({ option: 'done' });
+
+        await setCustomizingTransports.run(ctx);
+
+        expect(confirm.type).toBe('confirm');
+        expect(confirm.default).toBe(false);
+        expect(confirm.message).toContain('TESTK900010');
+        expect(ctx.runtime.customizing.retained).toEqual([retained]);
+    });
+
+    test('removes a selected retained transport when removal is confirmed', async () => {
+        const ctx = retainedContext();
+        (Inquirer.prompt as jest.Mock).mockReset()
+            .mockResolvedValueOnce({ continue: true })
+            .mockResolvedValueOnce({ option: retained })
+            .mockResolvedValueOnce({ remove: true })
+            .mockResolvedValueOnce({ option: 'done' });
+
+        await setCustomizingTransports.run(ctx);
+
+        expect(ctx.runtime.customizing.retained).toHaveLength(0);
+        expect(ctx.runtime.customizing.new).toHaveLength(0);
+    });
+
+    test('removes a selected new transport without confirmation', async () => {
+        (Transport as any).configure('TESTK900011', {
+            trfunction: 'W',
+            e071: [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZTABLE' }],
+            e071k: []
+        });
+        const ctx = context(['TESTK900011']);
+        ctx.rawInput.contextData.noInquirer = false;
+        (Inquirer.prompt as jest.Mock).mockReset()
+            .mockResolvedValueOnce({ continue: true })
+            .mockResolvedValueOnce({ option: { trkorr: 'TESTK900011', description: 'description' } })
+            .mockResolvedValueOnce({ option: 'done' });
+
+        await setCustomizingTransports.run(ctx);
+
+        expect(Inquirer.prompt).toHaveBeenCalledTimes(3);
+        expect(ctx.runtime.customizing.new).toHaveLength(0);
+    });
 });
