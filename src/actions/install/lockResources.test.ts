@@ -63,6 +63,20 @@ describe("install lock coverage", () => {
         expect(resources.some((resource: any) => resource.type === "NAMESPACE")).toBe(false);
     });
 
+    test("TRM comment rows are not locked: a dependency would collide with its parent install", async () => {
+        const ctx = context();
+        ctx.runtime.transports.tadir.binaries.entries.e071.push(
+            { pgmid: "*", object: "ZTRM", objName: "name=package-a" },
+            { pgmid: "*", object: "ZTRM", objName: "version=1.0.0" }
+        );
+
+        await lockResources.run(ctx);
+
+        const resources = ctx.lockScope.acquire.mock.calls[0][0];
+        expect(resources.filter((resource: any) => resource.type === "OBJECT" && resource.name.startsWith("*"))).toEqual([]);
+        expect(resources).toContainEqual({ type: "OBJECT", name: "R3TR CLAS Z_SHARED" });
+    });
+
     test("locks the custom install namespace", async () => {
         const ctx = context([{ originalDevclass: "Z_SOURCE", installDevclass: "/ACME/TARGET" }]);
 

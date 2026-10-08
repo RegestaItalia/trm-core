@@ -585,7 +585,8 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             return;
         }
         await context.lockScope.acquire([
-            ...Array.from(deletionObjects.values(), objectLockResource),
+            // TRM comment rows are not objects and are shared by every package.
+            ...Array.from(deletionObjects.values()).filter(object => normalize(object.pgmid) !== '*').map(objectLockResource),
             ...Array.from(deletionObjects.values())
                 .filter(isDevclass)
                 .map(object => ({ type: "DEVCLASS" as const, name: object.objName }))

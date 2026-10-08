@@ -48,7 +48,9 @@ export const lockResources: Step<InstallWorkflowContext> = {
             if (slot.binaries?.trkorr) {
                 resources.push({ type: "TRANSPORT", name: slot.binaries.trkorr });
             }
-            for (const entry of slot.binaries?.entries?.e071 || []) {
+            // TRM comment rows (pgmid *, e.g. "version=1.0.0") are not objects: every package has them,
+            // so a dependency would collide with the lock its parent install holds.
+            for (const entry of (slot.binaries?.entries?.e071 || []).filter(entry => entry.pgmid.trim() !== '*')) {
                 const original = entry.objName.trim().toUpperCase();
                 const target = entry.pgmid.trim().toUpperCase() === "R3TR" && entry.object.trim().toUpperCase() === "DEVC"
                     ? replacements.get(original) || original
