@@ -40,6 +40,11 @@ export async function findExistingObjects(context: InstallWorkflowContext, tadir
     }
 }
 
+/** Labels a customizing transport by number, so transports with the same description can be told apart. */
+function custLabel(transport: { trkorr: string, description?: string }): string {
+    return transport.description ? `${transport.trkorr} "${transport.description}"` : transport.trkorr;
+}
+
 /**
  * Workflow step that validates artifact transports and classifies them by TRM identifier.
  * A package must contain exactly one DEVC transport and one TADIR transport.
@@ -102,7 +107,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                         type: 'select',
                         message: `Select customizing to import`,
                         choices: custTransports.map(o => ({
-                            name: o.description || o.trkorr,
+                            name: custLabel(o),
                             value: o.trkorr
                         })),
                         default: custTransports.map(o => o.trkorr)
@@ -114,7 +119,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     const importCust = (await Inquirer.prompt({
                         name: 'importCust',
                         type: 'confirm',
-                        message: `Do you want to import customizing "${cust.description}"?`,
+                        message: `Do you want to import customizing ${custLabel(cust)}?`,
                         default: true
                     })).importCust;
                     if (!importCust) {

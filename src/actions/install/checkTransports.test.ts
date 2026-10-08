@@ -171,3 +171,81 @@ describe('check-transports existing objects on update', () => {
         expect(Logger.error).not.toHaveBeenCalled();
     });
 });
+
+describe('check-transports customizing prompts', () => {
+    function context() {
+        const entries = {
+            DEVC1: { tdevc: [{ devclass: 'ZROOT', parentcl: '' }] },
+            TADIR1: {
+                e071: [{ pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_NEW' }],
+                tadir: [{ pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_NEW', devclass: 'ZROOT' }]
+            },
+            CUST1: { e071: [] },
+            CUST2: { e071: [] }
+        };
+        return {
+            rawInput: {
+                packageData: {
+                    name: 'pkg',
+                    registry: { transportEntries: jest.fn(async (_name, _version, trkorr) => entries[trkorr]) }
+                },
+                contextData: { noInquirer: false, systemPackages: [] },
+                installData: {
+                    import: { noLang: true },
+                    checks: {}
+                }
+            },
+            runtime: {
+                isLocal: false,
+                isTrmServer: false,
+                isTrmRest: false,
+                update: undefined,
+                package: {
+                    data: {
+                        manifest: { name: 'pkg', version: '1.1.0' },
+                        transports: [
+                            { trkorr: 'DEVC1', type: 'DEVC' },
+                            { trkorr: 'TADIR1', type: 'TADIR' },
+                            { trkorr: 'CUST1', type: 'CUST', description: 'Same text' },
+                            { trkorr: 'CUST2', type: 'CUST', description: 'Same text' }
+                        ]
+                    }
+                },
+                transports: { cust: [] },
+                transportEntries: { tdevct: [] }
+            }
+        } as any;
+    }
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        for (const method of ['loading', 'log', 'warning', 'error'] as const) {
+            jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
+        }
+        (SystemConnector.getObjectsLocks as jest.Mock).mockResolvedValue([]);
+        (SystemConnector.getObjectsList as jest.Mock).mockResolvedValue([{ pgmid: 'R3TR', object: 'CLAS' }]);
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    test('confirm prompts name the transport when descriptions are equal', async () => {
+        jest.spyOn(Inquirer, 'isUi').mockReturnValue(false);
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ importCust: true } as any);
+        await checkTransports.run(context());
+        const messages = prompt.mock.calls.map(c => (c[0] as any).message);
+        expect(messages).toEqual([
+            'Do you want to import customizing CUST1 "Same text"?',
+            'Do you want to import customizing CUST2 "Same text"?'
+        ]);
+    });
+
+    test('select choices name the transport when descriptions are equal', async () => {
+        jest.spyOn(Inquirer, 'isUi').mockReturnValue(true);
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ importCust: ['CUST1', 'CUST2'] } as any);
+        await checkTransports.run(context());
+        expect((prompt.mock.calls[0][0] as any).choices.map(o => o.name)).toEqual(['CUST1 "Same text"', 'CUST2 "Same text"']);
+    });
+});
