@@ -14,6 +14,7 @@ import { checkDependencies } from "./checkDependencies";
 import { checkDependencyCycles } from "./checkDependencyCycles";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
+import { checkInstallDevclass } from "./checkInstallDevclass";
 import { addNamespace } from "./addNamespace";
 import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../../client";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
@@ -382,6 +383,7 @@ const installWorkflow = [
         checkDependencies,
         checkDependencyCycles,
         setInstallDevclass,
+        checkInstallDevclass,
         lockResources,
         installDependencies,
         cleanupCheckpoint,
