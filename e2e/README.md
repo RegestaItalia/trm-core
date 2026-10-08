@@ -4,14 +4,15 @@ How to run end-to-end tests of trm-core against a real SAP system and a real reg
 report the results.
 - [HARNESS.md](HARNESS.md): the scripts that run actions and answer prompts.
 - [SAP_TOOLING.md](SAP_TOOLING.md): how to build fixtures and inspect the system with arc-1 and SAP WebGUI.
-- [REPORT_CONTRACT.md](REPORT_CONTRACT.md): what the final report must contain, including how to replicate each run.
+- [REPORT_CONTRACT.md](REPORT_CONTRACT.md): what the final report must contain: the passed scenarios and the open
+  issues.
 
 The goal is to improve trm-core: find flaws and poor UX on real systems and fix them. Fix only what needs fixing.
 
 ## Ground rules
 - **Disposable environment:**
   - The SAP system and the registry are test instances that can be broken without consequences. No cleanup is needed
-    after the campaign. The report still records the final state.
+    after the campaign. Each campaign starts on a fresh instance.
   - Never point a campaign at a system or registry that matters.
 - **Package names:** `@test/` is the only allowed scope (e.g. `@test/e2e-upg`). Install only packages published by
   the same campaign.
@@ -40,9 +41,9 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
 ## 1. Prepare
 1. **Read the branch:** read the changes under test (e.g. `git log main..`, `git diff --stat main...`) and the open
    audits for known risks.
-   - **Last e2e commit:** when the operator gives the commit of the last campaign, also read the changes since then
-     (`git log <commit>..`, `git diff --stat <commit>`). Scenarios that already passed may need repeating when those
-     changes touch the code paths they cover. Plan the reruns and say in the report which ones were repeated and why.
+   - **Previous report:** read `E2E_REPORT.md` before overwriting it (see the report contract):
+     - its passed scenarios are rerun, unless the operator excludes some;
+     - its open issues are carried over; rerun the replication of each one marked `fixed externally, to verify`.
 2. **Check the environment, read-only:**
    - The connection works.
    - trm-server and trm-rest are installed and their versions are known.
@@ -52,7 +53,7 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
    - The state of `/ABAPGIT/` in the namespace table (it may need removing to test a namespace import).
    - The registry answers, with the e2e token.
 3. **Note gaps of the system itself** (e.g. missing customizing that breaks ADT) and how you work around them. They
-   go in the report's environment section, never in the fix list.
+   go in the report's environment section, never in the open issues.
 
 ## 2. Plan the scenarios
 - **Spend little on simple cases:** one or two smoke scenarios (publish, install, delete) are enough. Focus on what is
@@ -84,7 +85,8 @@ Publish limits: the registry may rate-limit publishes (e.g. a few per hour per u
 and plan around the limit. A 429 only arrives at the final registry call, after the SAP-side work.
 
 ## 4. Run
-- **One spec per step:** answer each prompt deliberately, and keep the prompt texts for the UX review.
+- **One spec per step:** answer each prompt deliberately, and read every prompt and message as a user would. A UX
+  defect stops the run like any other failure: fix it now, don't note it for later.
 - **Gather evidence after every step**, on the SAP side (SQL through arc-1, logs through `tool.sh`):
   - **Objects and packages:** TADIR/TDEVC, including the package transport layer and the superpackage.
   - **Transports:** E070/E071/E071K of the landscape and deletion transports (TRM comment rows `* ZTRM name=/version=`),
@@ -105,7 +107,7 @@ and plan around the limit. A 429 only arrives at the final registry call, after 
     failures. Never change the system while an action runs, unless that's the test.
 
 ## 5. Fix loop
-When a run shows a defect or poor UX:
+When a run shows a defect or a UX defect (see [Classifying findings](REPORT_CONTRACT.md#classifying-findings)):
 1. **Stop** after that run. Leave the system as it is and find the root cause from the logs and the SAP evidence.
 2. **Choose where to fix it:** in trm-core, or in trm-server/trm-rest when the cause is there. Registry backend
    defects are only reported (see Ground rules).
@@ -124,10 +126,10 @@ When a run shows a defect or poor UX:
    STMS.
 6. **Commit** on the branch under test, one commit per defect, with a message that explains the user-visible failure.
 7. **Rerun** the scenario and confirm the fix on the system. When a fix is verified only by unit tests, say so in the
-   report.
+   scenario.
 
 Repairs the campaign itself needs (a corrupted record, stale locks, a namespace to restore) are done with the
-connector (`tool.sh`, scratch probes) or SAP tools, and reported. They are not fixes.
+connector (`tool.sh`, scratch probes) or SAP tools. They are not fixes.
 
 ## 6. Report
 Write the report as described in [REPORT_CONTRACT.md](REPORT_CONTRACT.md):

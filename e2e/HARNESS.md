@@ -92,4 +92,4 @@ grep '@@DONE' e2e/work/logs/s3-upgrade-v2.out      # @@DONE OK <s> | @@DONE FAIL
 
 For a one-off check (repairing a record, calling one connector method), copy `tool.ts` into a scratch folder
 outside the repository. It needs the same environment as `tool.sh` (`NODE_PATH`, `TS_NODE_PROJECT`,
-`TS_NODE_TRANSPILE_ONLY`, run from the repository root). Report every such intervention in the campaign report.
+`TS_NODE_TRANSPILE_ONLY`, run from the repository root). When a scenario needs such an intervention, list it in its steps.
