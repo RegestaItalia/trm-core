@@ -57,13 +57,13 @@ function getHighestPrerelease(versions: string[], baseVersion: string, identifie
  * 
  * 3- check publish authorization (if public registry)
  * 
- * 4- ensure package version and visibility can be published
+ * 4- set sap package
  * 
- * 5- set visibility if not already provided
+ * 5- ensure package version and visibility can be published
  * 
- * 6- validate minimum publish data with registry
+ * 6- set visibility if not already provided
  * 
- * 7- set sap package
+ * 7- validate minimum publish data with registry
  * 
  * 8- read namespace
  * 
@@ -144,7 +144,45 @@ export const init: Step<PublishWorkflowContext> = {
             }
         }
 
-        //4- ensure package version and visibility can be published
+        //4- set sap package
+        //resolved before the registry checks and prompts: an invalid package (e.g. temporary) stops publish right away
+        //if not provided, derive it from the system package (previous publish), then prompt (if allowed)
+        //supplied or derived values are normalized and validated, prompted values are validated by the prompt
+        var packageNeedsValidation: boolean = true;
+        if (!context.rawInput.packageData.devclass) {
+            const trmPackage = context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry)));
+            if (trmPackage) {
+                context.rawInput.packageData.devclass = trmPackage.getDevclass();
+            }
+
+            if (!context.rawInput.contextData.noInquirer) {
+                context.rawInput.packageData.devclass = (await Inquirer.prompt({
+                    type: 'input',
+                    message: 'ABAP package',
+                    name: 'devclass',
+                    default: context.rawInput.packageData.devclass,
+                    validate: async (input: string) => {
+                        return await validateDevclass(input, false);
+                    }
+                })).devclass;
+                packageNeedsValidation = false;
+            } else if (!context.rawInput.packageData.devclass) {
+                throw new Error(`packageData.devclass is required when it cannot be derived from a previous publish and interactive prompts are disabled.`);
+            }
+        }
+        context.rawInput.packageData.devclass = context.rawInput.packageData.devclass.trim().toUpperCase();
+        Logger.log(`Publish devclass set to "${context.rawInput.packageData.devclass}"`, true);
+
+        if (packageNeedsValidation) {
+            Logger.loading(`Validating...`);
+            const validate = await validateDevclass(context.rawInput.packageData.devclass, false);
+            if (validate && validate !== true) {
+                throw new Error(validate);
+            }
+            Logger.info(`ABAP package: "${context.rawInput.packageData.devclass}"`);
+        }
+
+        //5- ensure package version and visibility can be published
         //if it's the first package publish assume it's valid (validate publish will throw error later, in case something is wrong with it)
         //default to 1.0.0 if no version was provided
         //if the package already exists, check this version was not released yet
@@ -241,7 +279,7 @@ export const init: Step<PublishWorkflowContext> = {
             }
         }
 
-        //5- set visibility if not already provided
+        //6- set visibility if not already provided
         var isPrivate: boolean | undefined = undefined;
         if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
             isPrivate = true;
@@ -267,47 +305,10 @@ export const init: Step<PublishWorkflowContext> = {
             }
         }
 
-        //6- validate minimum publish data with registry
+        //7- validate minimum publish data with registry
         //this is the bare minimum: if it fails there is no need to continue with publish
         Logger.loading(`Validating...`);
         await context.rawInput.packageData.registry.validatePublish(context.rawInput.packageData.name, context.rawInput.packageData.version, isPrivate);
-
-        //7- set sap package
-        //if not provided, derive it from the system package (previous publish), then prompt (if allowed)
-        //supplied or derived values are normalized and validated, prompted values are validated by the prompt
-        var packageNeedsValidation: boolean = true;
-        if (!context.rawInput.packageData.devclass) {
-            const trmPackage = context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry)));
-            if (trmPackage) {
-                context.rawInput.packageData.devclass = trmPackage.getDevclass();
-            }
-
-            if (!context.rawInput.contextData.noInquirer) {
-                context.rawInput.packageData.devclass = (await Inquirer.prompt({
-                    type: 'input',
-                    message: 'ABAP package',
-                    name: 'devclass',
-                    default: context.rawInput.packageData.devclass,
-                    validate: async (input: string) => {
-                        return await validateDevclass(input, false);
-                    }
-                })).devclass;
-                packageNeedsValidation = false;
-            } else if (!context.rawInput.packageData.devclass) {
-                throw new Error(`packageData.devclass is required when it cannot be derived from a previous publish and interactive prompts are disabled.`);
-            }
-        }
-        context.rawInput.packageData.devclass = context.rawInput.packageData.devclass.trim().toUpperCase();
-        Logger.log(`Publish devclass set to "${context.rawInput.packageData.devclass}"`, true);
-
-        if (packageNeedsValidation) {
-            Logger.loading(`Validating...`);
-            const validate = await validateDevclass(context.rawInput.packageData.devclass, false);
-            if (validate && validate !== true) {
-                throw new Error(validate);
-            }
-            Logger.info(`ABAP package: "${context.rawInput.packageData.devclass}"`);
-        }
 
         Logger.loading(`Reading ${context.rawInput.packageData.devclass} objects...`);
         context.runtime.sapPackage.objects = await SystemConnector.getDevclassObjects(context.rawInput.packageData.devclass, true);

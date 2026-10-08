@@ -15,6 +15,7 @@ import { SystemConnector } from '../../systemConnector';
 import { validateDevclass } from '../../validators';
 import { RegistryPackageNotFoundError, RegistryType } from '../../registry';
 import { TrmPackage } from '../../trmPackage';
+import { Inquirer } from 'trm-commons';
 import { init } from './init';
 
 describe('publish devclass resolution', () => {
@@ -91,5 +92,22 @@ describe('publish devclass resolution', () => {
         const ctx = context(undefined, [new TrmPackage('pkg', registry).setDevclass('ZROOT')]);
         await expect(init.run(ctx)).rejects.toThrow('does not exist');
         expect(SystemConnector.getDevclassObjects).not.toHaveBeenCalled();
+    });
+    test('refuses a temporary package before the registry checks and the visibility prompt', async () => {
+        (validateDevclass as jest.Mock).mockResolvedValueOnce('Temporary packages cannot be released. Move content to a transportable package.');
+        const remoteRegistry = {
+            getRegistryType: () => RegistryType.PRIVATE,
+            getPackage: jest.fn(async () => { throw new RegistryPackageNotFoundError('pkg', 'latest', 'remote', undefined); }),
+            validatePublish: jest.fn(async () => undefined)
+        } as any;
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+        const ctx = context('$TMP');
+        ctx.rawInput.packageData.registry = remoteRegistry;
+        ctx.rawInput.contextData.noInquirer = false;
+        await expect(init.run(ctx)).rejects.toThrow('Temporary packages cannot be released');
+        expect(validateDevclass).toHaveBeenCalledWith('$TMP', false);
+        expect(remoteRegistry.getPackage).not.toHaveBeenCalled();
+        expect(remoteRegistry.validatePublish).not.toHaveBeenCalled();
+        expect(prompt).not.toHaveBeenCalled();
     });
 });
