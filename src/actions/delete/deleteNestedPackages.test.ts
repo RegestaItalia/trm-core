@@ -9,9 +9,14 @@ jest.mock('../../systemConnector', () => ({
     }
 }));
 
+jest.mock('../../transport', () => ({
+    Transport: jest.fn()
+}));
+
 import { Inquirer, Logger } from 'trm-commons';
 import { deleteWithRollback } from '.';
-import { deleteNestedPackages } from './deleteNestedPackages';
+import { Transport } from '../../transport';
+import { deleteNestedPackages, withoutNestedDirtyEntries } from './deleteNestedPackages';
 
 function trmPackage(name: string, devclass: string) {
     return { packageName: name, registry: { endpoint: 'public' }, getDevclass: () => devclass } as any;
@@ -117,5 +122,42 @@ describe('deleteNestedPackages', () => {
 
         expect(nestedResult.rollback).toHaveBeenCalledTimes(1);
         expect(siblingResult.rollback.mock.invocationCallOrder[0]).toBeLessThan(nestedResult.rollback.mock.invocationCallOrder[0]);
+    });
+});
+
+describe('withoutNestedDirtyEntries', () => {
+    const owners: Record<string, string> = { NESTEDK01: 'nested', OWNK01: 'pkg', USERK01: undefined };
+
+    function entry(trkorr: string, objName: string) {
+        return { trkorr, pgmid: 'R3TR', object: 'PROG', objName, as4Text: '' };
+    }
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (Transport as unknown as jest.Mock).mockImplementation((trkorr: string) => ({
+            getTrmPackageName: jest.fn(async () => owners[trkorr])
+        }));
+    });
+
+    test('drops the install transports and the own changes of nested packages', async () => {
+        const nested = { packageName: 'nested', getDirtyEntries: () => [entry('USERK01', 'ZNESTED_EDIT')] } as any;
+        const entries = [
+            entry('NESTEDK01', 'ZNESTED_PROG'),
+            entry('USERK01', 'ZNESTED_EDIT'),
+            entry('USERK01', 'ZPKG_EDIT'),
+            entry('OWNK01', 'ZPKG_PROG')
+        ];
+
+        await expect(withoutNestedDirtyEntries(entries, [nested])).resolves.toEqual([
+            entry('USERK01', 'ZPKG_EDIT'),
+            entry('OWNK01', 'ZPKG_PROG')
+        ]);
+    });
+
+    test('keeps every entry without nested packages', async () => {
+        const entries = [entry('NESTEDK01', 'ZNESTED_PROG')];
+
+        await expect(withoutNestedDirtyEntries(entries, [])).resolves.toBe(entries);
+        expect(Transport).not.toHaveBeenCalled();
     });
 });

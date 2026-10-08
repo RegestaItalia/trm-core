@@ -182,7 +182,7 @@ export const init: Step<InstallWorkflowContext> = {
                     if (context.runtime.update.isDirty()) {
                         let ignoreDirty = false;
                         Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
-                        logDirtyEntries(context.runtime.update);
+                        logDirtyEntries(context.runtime.update.getDirtyEntries());
                         if (!context.rawInput.contextData.noInquirer) {
                             ignoreDirty = (await Inquirer.prompt({
                                 message: `Continue with install?`,
@@ -207,7 +207,7 @@ export const init: Step<InstallWorkflowContext> = {
                 }
                 if (context.runtime.update.isDirty()) {
                     Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
-                    logDirtyEntries(context.runtime.update);
+                    logDirtyEntries(context.runtime.update.getDirtyEntries());
                 }
             }
         } else {

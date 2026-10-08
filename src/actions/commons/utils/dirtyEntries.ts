@@ -1,12 +1,11 @@
 import { Logger } from "trm-commons";
-import { TrmPackage } from "../../../trmPackage";
+import { ZTRM_DIRTY } from "../../../client";
 
 /**
  * Lists the changes made on the target system to an installed package,
  * so the user can tell what a delete or an overwrite would discard.
  */
-export function logDirtyEntries(trmPackage: TrmPackage): void {
-    const entries = trmPackage.getDirtyEntries();
+export function logDirtyEntries(entries: ZTRM_DIRTY[]): void {
     if (entries.length === 0) {
         return;
     }

@@ -9,7 +9,7 @@ jest.mock('../commons/utils', () => ({
 
 import { Logger } from "trm-commons";
 import { executeWorkflow } from "../commons";
-import { executeRetainedWorkflow } from "../commons/utils";
+import { ActionLockScope, executeRetainedWorkflow } from "../commons/utils";
 import { SystemConnector } from "../../systemConnector";
 import { deletePackage, deleteWithRollback } from ".";
 
@@ -61,5 +61,28 @@ describe("delete action-lock release", () => {
         (executeRetainedWorkflow as jest.Mock).mockRejectedValue(new Error("workflow failed"));
         await expect(deleteWithRollback(inputData, [])).rejects.toThrow("workflow failed");
         expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    test("a nested delete locks in its parent scope and leaves the release to the parent", async () => {
+        const parent = new ActionLockScope("delete");
+        await parent.acquire([{ type: "DEVCLASS", name: "ZNESTED" }]);
+        const rollback = jest.fn().mockResolvedValue(undefined);
+        (executeRetainedWorkflow as jest.Mock).mockImplementation(async (_name, _workflow, context) => {
+            // The parent cleanup of the same SAP package must not collide with the nested delete.
+            await context.lockScope.acquire([{ type: "DEVCLASS", name: "ZNESTED" }]);
+            return { context: { output: { manifest: { name: "pkg" } } }, rollback };
+        });
+
+        const retained = await deleteWithRollback(inputData, [], parent);
+        await parent.acquire([{ type: "DEVCLASS", name: "ZNESTED" }]);
+        await retained.rollback();
+        await retained.release();
+
+        expect(acquire).toHaveBeenCalledTimes(2);
+        expect(acquire.mock.calls[1][1]).toBe(acquire.mock.calls[0][1]);
+        expect(release).not.toHaveBeenCalled();
+        await parent.release();
+        expect(release).toHaveBeenCalledTimes(1);
+        expect(release.mock.calls[0][0]).toHaveLength(2);
     });
 });

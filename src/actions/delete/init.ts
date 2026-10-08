@@ -5,7 +5,7 @@ import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from 
 import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { setLandscapeTarget } from "../commons/prompts";
-import { getNestedPackages } from "./deleteNestedPackages";
+import { getNestedPackages, withoutNestedDirtyEntries } from "./deleteNestedPackages";
 import { logDirtyEntries } from "../commons/utils";
 
 /**
@@ -65,10 +65,29 @@ export const init: Step<DeleteWorkflowContext> = {
             && (installed.packageName === TRM_SERVER_PACKAGE_NAME || installed.packageName === TRM_REST_PACKAGE_NAME)) {
             throw new Error(`Delete aborted. ${installed.packageName} is required by TRM and can't be deleted.`);
         }
-        if (installed.isDirty() && !context.rawInput.deleteData.checks.ignoreDirty) {
+
+        //4- read install data
+        //install mappings are queried case-sensitively: use the stored name and registry, not the input
+        const previousInstallPackages = await SystemConnector.getInstallPackages(
+            installed.packageName,
+            installed.registry
+        );
+        const previousInstallTransports = await SystemConnector.getInstallTransports(
+            installed.packageName,
+            installed.registry
+        );
+        const nestedPackages = await getNestedPackages(
+            context.rawInput.contextData.systemPackages,
+            installed,
+            previousInstallPackages.map(replacement => replacement.installDevclass)
+        );
+
+        //5- dirty check: the TRM packages installed under it confirm their own changes
+        const dirtyEntries = await withoutNestedDirtyEntries(installed.getDirtyEntries(), nestedPackages.all);
+        if (dirtyEntries.length > 0 && !context.rawInput.deleteData.checks.ignoreDirty) {
             const reason = `${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted`;
             Logger.warning(`${reason}!`);
-            logDirtyEntries(installed);
+            logDirtyEntries(dirtyEntries);
             if (context.rawInput.contextData.noInquirer) {
                 throw new Error(`Delete aborted. ${reason}: set the ignoreDirty check to delete it without prompts.`);
             }
@@ -81,12 +100,12 @@ export const init: Step<DeleteWorkflowContext> = {
             if (!ignoreDirty) {
                 throw new Error(`Delete aborted. ${reason}.`);
             }
-        } else if (installed.isDirty()) {
+        } else if (dirtyEntries.length > 0) {
             Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted!`, { important: true });
-            logDirtyEntries(installed);
+            logDirtyEntries(dirtyEntries);
         }
 
-        //4- check/set system target
+        //6- check/set system target
         //objects of a temporary package only exist on this system
         if (!(installed.getDevclass() || '').trim().startsWith('$')) {
             context.rawInput.deleteData.landscapeTransport.targetSystem = await setLandscapeTarget(
@@ -97,26 +116,14 @@ export const init: Step<DeleteWorkflowContext> = {
             );
         }
 
-        //5- fill context data
-        //install mappings are queried case-sensitively: use the stored name and registry, not the input
-        const previousInstallPackages = await SystemConnector.getInstallPackages(
-            installed.packageName,
-            installed.registry
-        );
+        //7- fill context data
         context.runtime = {
             update: installed,
             previousInstallPackages,
-            previousInstallTransports: await SystemConnector.getInstallTransports(
-                installed.packageName,
-                installed.registry
-            ),
+            previousInstallTransports,
             dele: undefined,
             stopWarningShown: false,
-            nestedPackages: await getNestedPackages(
-                context.rawInput.contextData.systemPackages,
-                installed,
-                previousInstallPackages.map(replacement => replacement.installDevclass)
-            ),
+            nestedPackages,
             nestedRollbacks: [],
             nestedReleases: []
         };

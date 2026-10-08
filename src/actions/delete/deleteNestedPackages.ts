@@ -5,6 +5,8 @@ import { deleteWithRollback } from ".";
 import { SystemConnector } from "../../systemConnector";
 import { TrmPackage } from "../../trmPackage";
 import { getPackagesInstalledIn } from "../commons/utils";
+import { Transport } from "../../transport";
+import { ZTRM_DIRTY } from "../../client";
 
 function normalize(value: string): string {
     return value.trim().toUpperCase();
@@ -51,6 +53,27 @@ export async function getNestedPackages(
 }
 
 /**
+ * Dirty entries of the deleted package that belong to the TRM packages installed under it:
+ * their installs (landscape transports) and their own changes, which their delete confirms.
+ */
+export async function withoutNestedDirtyEntries(entries: ZTRM_DIRTY[], nested: TrmPackage[]): Promise<ZTRM_DIRTY[]> {
+    if (entries.length === 0 || nested.length === 0) {
+        return entries;
+    }
+    const nestedNames = new Set(nested.map(pkg => pkg.packageName));
+    const nestedEntries = new Set(nested.flatMap(pkg => pkg.getDirtyEntries())
+        .map(o => `${o.trkorr}|${o.pgmid}|${o.object}|${o.objName}`));
+    const nestedTransports = new Set<string>();
+    for (const trkorr of new Set(entries.map(o => o.trkorr))) {
+        if (nestedNames.has(await new Transport(trkorr).getTrmPackageName())) {
+            nestedTransports.add(trkorr);
+        }
+    }
+    return entries.filter(o => !nestedTransports.has(o.trkorr)
+        && !nestedEntries.has(`${o.trkorr}|${o.pgmid}|${o.object}|${o.objName}`));
+}
+
+/**
  * Workflow step that deletes the TRM packages installed in the SAP packages of the deleted one.
  *
  * Their SAP packages are deleted with the package anyway: running the delete action for each
@@ -94,7 +117,7 @@ export const deleteNestedPackages: Step<DeleteWorkflowContext> = {
                         checks: { ...context.rawInput.deleteData.checks },
                         landscapeTransport: { ...context.rawInput.deleteData.landscapeTransport }
                     }
-                }, deletingPackages.filter(pkg => pkg !== nested));
+                }, deletingPackages.filter(pkg => pkg !== nested), context.lockScope);
                 context.runtime.nestedRollbacks.push(result.rollback);
                 context.runtime.nestedReleases.push(result.release);
             } finally {

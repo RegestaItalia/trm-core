@@ -170,12 +170,14 @@ const deleteWorkflow = [
     removePackageData
 ];
 
-async function runDelete(inputData: DeleteActionInput, retainRollback: boolean, deletingPackages: TrmPackage[]): Promise<{
+async function runDelete(inputData: DeleteActionInput, retainRollback: boolean, deletingPackages: TrmPackage[], parentLockScope?: ActionLockScope): Promise<{
     output: DeleteActionOutput,
     rollback?: () => Promise<void>,
     release?: () => Promise<void>
 }> {
-    const lockScope = new ActionLockScope(WORKFLOW_NAME);
+    // A nested delete locks in its parent scope: the parent cleanup locks the same SAP packages
+    // and objects again, and the parent releases them all once it has finished.
+    const lockScope = parentLockScope || new ActionLockScope(WORKFLOW_NAME);
     const context: DeleteWorkflowContext = { rawInput: inputData, lockScope, deletingPackages };
     await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
     const release = async (): Promise<void> => {
@@ -187,10 +189,12 @@ async function runDelete(inputData: DeleteActionInput, retainRollback: boolean, 
                 firstError ||= error;
             }
         }
-        try {
-            await lockScope.release();
-        } catch (error) {
-            firstError ||= error;
+        if (!parentLockScope) {
+            try {
+                await lockScope.release();
+            } catch (error) {
+                firstError ||= error;
+            }
         }
         if (firstError) throw firstError;
     };
@@ -235,12 +239,13 @@ async function runDelete(inputData: DeleteActionInput, retainRollback: boolean, 
  * the package is deleted, its locks stay held until `release`, and `rollback` restores it.
  *
  * @param deletingPackages Other packages deleted by the same run, ignored as dependants.
+ * @param parentLockScope Lock scope of the parent delete: its locks are taken in it and released by the parent.
  */
-export async function deleteWithRollback(inputData: DeleteActionInput, deletingPackages: TrmPackage[]): Promise<{
+export async function deleteWithRollback(inputData: DeleteActionInput, deletingPackages: TrmPackage[], parentLockScope?: ActionLockScope): Promise<{
     output: DeleteActionOutput,
     rollback: () => Promise<void>,
     release: () => Promise<void>
 }> {
-    const retained = await runDelete(inputData, true, deletingPackages);
+    const retained = await runDelete(inputData, true, deletingPackages, parentLockScope);
     return { output: retained.output, rollback: retained.rollback, release: retained.release };
 }
