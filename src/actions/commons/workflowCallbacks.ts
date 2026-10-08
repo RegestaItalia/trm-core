@@ -40,6 +40,30 @@ export const workflowCallbacks: WorkflowCallbacks<any> = {
     },
 };
 
+function isWorkflowError(error: any): error is WorkflowError {
+    // Checked by shape: the engine's ES5 error classes don't support `instanceof`.
+    return typeof error?.stepName === 'string' && 'originalException' in error;
+}
+
+function errorMessage(error: any): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * The engine builds the message as `Workflow error executing '<step>': <String(exception)>`, which
+ * repeats the inner error class ("Error: ...") and, for nested workflows, every outer prefix.
+ * Describe the failing step path once, followed by the root cause message.
+ */
+function describeWorkflowError(error: WorkflowError): string {
+    const steps: string[] = [];
+    var cause: any = error;
+    while (isWorkflowError(cause) && !(cause as WorkflowRevertError).originalWorkflowError) {
+        steps.push(cause.stepName);
+        cause = cause.originalException;
+    }
+    return `Workflow error executing '${steps.join("' > '")}': ${errorMessage(cause)}`;
+}
+
 /**
  * Thrown by {@link executeWorkflow} when a step fails and one or more rollback steps fail too.
  * `originalWorkflowError` is the step failure; `revertErrors` holds every rollback failure, in
@@ -52,8 +76,8 @@ export class ActionWorkflowRevertError extends WorkflowRevertError {
         Object.setPrototypeOf(this, new.target.prototype);
         this.name = 'ActionWorkflowRevertError';
         this.message = [
-            `Workflow error executing '${originalWorkflowError.stepName}': ${originalWorkflowError.originalException}`,
-            ...revertErrors.map(revertError => `Additionally, error reverting step '${revertError.stepName}': ${revertError.originalException}`)
+            describeWorkflowError(originalWorkflowError),
+            ...revertErrors.map(revertError => `Additionally, error reverting step '${revertError.stepName}': ${errorMessage(revertError.originalException)}`)
         ].join('\n');
     }
 }
@@ -79,10 +103,16 @@ export async function executeWorkflow<T extends StepContext>(
             }
         });
     } catch (error) {
-        // Reverts only run after a step failure, which the engine always rethrows as a WorkflowError
-        // (checked by shape: its ES5 classes don't support `instanceof`).
-        if (revertErrors.length > 0 && typeof error?.stepName === 'string' && 'originalException' in error) {
-            throw new ActionWorkflowRevertError(error, revertErrors);
+        // Reverts only run after a step failure, which the engine always rethrows as a WorkflowError.
+        if (isWorkflowError(error)) {
+            if (revertErrors.length > 0) {
+                throw new ActionWorkflowRevertError(error, revertErrors);
+            }
+            const message = describeWorkflowError(error);
+            if (typeof error.stack === 'string' && error.stack.startsWith(`${error.name}: ${error.message}`)) {
+                error.stack = `${error.name}: ${message}${error.stack.slice(`${error.name}: ${error.message}`.length)}`;
+            }
+            error.message = message;
         }
         throw error;
     }

@@ -85,7 +85,7 @@ describe("persistent action lock scope", () => {
             expect(warning).toHaveBeenCalledTimes(1);
             expect(warning.mock.calls[0][0]).toContain(owner);
             expect(warning.mock.calls[0][0]).toContain("DEVCLASS Z_A");
-            expect(warning.mock.calls[0][0]).toContain("/ATRM/ACT_LOCK_ADMIN");
+            expect(warning.mock.calls[0][0]).toContain("/ATRM/LOCK");
             await scope.release();
             expect(release).toHaveBeenCalledTimes(2);
         } finally {
