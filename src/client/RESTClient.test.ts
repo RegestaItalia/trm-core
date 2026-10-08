@@ -44,3 +44,24 @@ describe('RESTClient restoreInstallMetadata', () => {
         });
     });
 });
+
+describe('RESTClient SAP errors without a message', () => {
+    it('report the exception reason instead of an unreadable message', async () => {
+        const client = Object.create(RESTClient.prototype) as RESTClient;
+        let onError: (error: any) => Promise<any>;
+        const getMessage = jest.spyOn(client, 'getMessage');
+        (client as any)._axiosInstance = {
+            get: jest.fn().mockResolvedValue({ status: 200 }),
+            interceptors: { response: { use: jest.fn((_ok, ko) => { onError = ko; }) } }
+        };
+        (client as any).endpoint = 'http://sap';
+        await client.open();
+
+        const error = await onError({
+            response: { status: 500, statusText: 'METHOD_CALL_EXCEPTION', data: { message: { msgid: '', msgno: '000', msgv1: '', msgv2: '', msgv3: '', msgv4: '' } } }
+        }).catch(e => e);
+
+        expect(error.message).toBe('SAP error METHOD_CALL_EXCEPTION (no message)');
+        expect(getMessage).not.toHaveBeenCalled();
+    });
+});

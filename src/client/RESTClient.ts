@@ -110,7 +110,10 @@ export class RESTClient implements IClient {
                             v4: responseData.message.msgv4
                         };
                         try {
-                            message = await this.getMessage(sapMessage);
+                            // An exception raised without a message: its reason is the response status text.
+                            message = `${responseData.message.msgid || ''}`.trim()
+                                ? await this.getMessage(sapMessage)
+                                : `SAP error ${axiosError.response.statusText || axiosError.response.status} (no message)`;
                         } catch (k) {
                             messageError = k;
                             message = `Couldn't read error message ${responseData.message.msgid} ${responseData.message.msgno} ${responseData.message.msgv1} ${responseData.message.msgv2} ${responseData.message.msgv3} ${responseData.message.msgv4}`;

@@ -696,7 +696,12 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             }
             context.revert.cleanupTemporaryPackages.push({ ...pkg });
         }
-        await deleteTemporaryCleanupPackages(temporaryPackages);
+        try {
+            await deleteTemporaryCleanupPackages(temporaryPackages);
+        } catch (e) {
+            // Their objects are already in the deletion transport: an empty local package is a harmless leftover.
+            Logger.warning(`Could not delete local SAP package(s) ${temporaryPackages.map(o => o.objName).join(', ')} (${e instanceof Error ? e.message : String(e)}): delete them manually.`, { important: true });
+        }
 
         //guard: clean and rebuild comments
         await dummy.removeComments();

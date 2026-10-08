@@ -151,6 +151,20 @@ describe('generateDeletionTransport', () => {
         expect(SystemConnector.getDevclassObjects).not.toHaveBeenCalledWith('Z_NESTED', false);
     });
 
+    test('a local package that cannot be deleted is left empty with a warning', async () => {
+        const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }], '$LOCAL');
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+            devclass === '$LOCAL' ? { devclass, dlvunit: 'LOCAL' } : undefined);
+        (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZTST');
+        (SystemConnector.deleteTemporaryPackage as jest.Mock).mockRejectedValue(new Error('package API failed'));
+
+        await generateDeletionTransport.run(ctx);
+
+        expect(SystemConnector.deleteTemporaryPackage).toHaveBeenCalledWith('$LOCAL');
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not delete local SAP package(s) $LOCAL (package API failed)'), { important: true });
+        expect(imported.import).toHaveBeenCalled();
+    });
+
     test('translation rows of the installed transport are not deletion entries', async () => {
         const { ctx, dummy } = runContext([
             { pgmid: 'R3TR', object: 'DTEL', objName: 'Z_DTEL' },
