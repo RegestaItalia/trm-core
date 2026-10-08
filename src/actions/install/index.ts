@@ -253,7 +253,9 @@ type WorkflowRuntime = {
     /** Release objects found on the system by check-transports, accepted before locking. */
     existingObjects?: TADIR[],
     /** Custom namespaces locked by this install or by the install it is a dependency of. */
-    lockedNamespaces?: string[]
+    lockedNamespaces?: string[],
+    /** Required SAP entries missing on the system: the install is aborted by check-engines, with the unmet engines. */
+    missingSapEntries?: number
 }
 
 

@@ -33,7 +33,7 @@ describe('install checkSapEntries step', () => {
         expect(Logger.error).not.toHaveBeenCalled();
     });
 
-    test('logs each missing entry at error level before aborting', async () => {
+    test('logs each missing entry at error level and leaves the abort to check-engines', async () => {
         workflowMock.mockResolvedValue({
             sapEntries: {},
             sapEntriesStatus: {
@@ -41,7 +41,9 @@ describe('install checkSapEntries step', () => {
                 ZOTHER: [{ status: false, entry: { KEY: '1' } }]
             }
         });
-        await expect(checkSapEntries.run(context())).rejects.toThrow('Install aborted. 2 system requirements are not met!');
+        const ctx = context();
+        await expect(checkSapEntries.run(ctx)).resolves.toBeUndefined();
+        expect(ctx.runtime.missingSapEntries).toBe(2);
         expect((Logger.error as jest.Mock).mock.calls).toEqual([
             ['Required entry not found in table ZTAB: ID = B, NAME = X', { important: true }],
             ['Required entry not found in table ZOTHER: KEY = 1', { important: true }]

@@ -3,6 +3,15 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { checkEngines as CheckEnginesWkf, CheckEnginesActionInput, EngineCheckResult } from "../checkEngines";
 
+function requirementsError(missingSapEntries: number, notMetEngines: number): Error {
+    const parts = [
+        missingSapEntries > 0 ? `${missingSapEntries} system ${missingSapEntries === 1 ? 'requirement' : 'requirements'}` : '',
+        notMetEngines > 0 ? `${notMetEngines} engine ${notMetEngines === 1 ? 'requirement' : 'requirements'}` : ''
+    ].filter(Boolean);
+    const total = missingSapEntries + notMetEngines;
+    return new Error(`Install aborted. ${parts.join(' and ')} ${total === 1 ? 'is' : 'are'} not met!`);
+}
+
 function isAnyOf(result: EngineCheckResult): boolean {
     return result.path === 'anyOf' || result.path.endsWith('.anyOf');
 }
@@ -28,7 +37,10 @@ function getAnyOfDetails(results: EngineCheckResult[], anyOf: EngineCheckResult)
 export const checkEngines: Step<InstallWorkflowContext> = {
     name: 'check-engines',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.installData.checks.noEngines) {
+        if (context.runtime.missingSapEntries > 0) {
+            // Aborts the install for the missing SAP entries.
+            return true;
+        } else if (context.rawInput.installData.checks.noEngines) {
             Logger.log(`Skipping engines check (user input)`, true);
             return false;
         } else if (!context.runtime.package.data.manifest.engines) {
@@ -39,6 +51,10 @@ export const checkEngines: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
+        const missingSapEntries = context.runtime.missingSapEntries || 0;
+        if (context.rawInput.installData.checks.noEngines || !context.runtime.package.data.manifest.engines) {
+            throw requirementsError(missingSapEntries, 0);
+        }
         //1- execute check engines workflow
         const inputData: CheckEnginesActionInput = {
             contextData: {
@@ -66,13 +82,11 @@ export const checkEngines: Step<InstallWorkflowContext> = {
                     });
                 }
             });
-            if (notMet.length === 1) {
-                throw new Error(`Install aborted. ${notMet.length} engine requirement is not met!`);
-            } else {
-                throw new Error(`Install aborted. ${notMet.length} engine requirements are not met!`);
-            }
-        } else {
-            Logger.success(`Engines checked.`);
+            throw requirementsError(missingSapEntries, notMet.length);
+        }
+        Logger.success(`Engines checked.`);
+        if (missingSapEntries > 0) {
+            throw requirementsError(missingSapEntries, 0);
         }
     }
 }

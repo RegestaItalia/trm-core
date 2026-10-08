@@ -88,4 +88,32 @@ describe('install checkEngines step', () => {
         expect(workflow.indexOf('checkEngines')).toBeLessThan(workflow.indexOf('lockResources'));
         expect(workflow.indexOf('checkEngines')).toBeLessThan(workflow.indexOf('installDependencies'));
     });
+
+    test('missing SAP entries abort the install even without engines', async () => {
+        const ctx = context(null);
+        ctx.runtime.missingSapEntries = 1;
+        expect(await checkEngines.filter(ctx)).toBe(true);
+        await expect(checkEngines.run(ctx)).rejects.toThrow('Install aborted. 1 system requirement is not met!');
+        expect(workflowMock).not.toHaveBeenCalled();
+    });
+
+    test('missing SAP entries and unmet engines are reported together', async () => {
+        workflowMock.mockResolvedValue({
+            passed: false,
+            results: [
+                { path: 'components.SAP_BASIS', required: true, ok: false, requirement: 'installed' },
+                { path: 'notes.1', required: true, ok: false, requirement: 'implemented' }
+            ]
+        });
+        const ctx = context();
+        ctx.runtime.missingSapEntries = 2;
+        await expect(checkEngines.run(ctx)).rejects.toThrow('Install aborted. 2 system requirements and 2 engine requirements are not met!');
+    });
+
+    test('missing SAP entries abort the install when the engines are met', async () => {
+        workflowMock.mockResolvedValue({ passed: true, results: [] });
+        const ctx = context();
+        ctx.runtime.missingSapEntries = 1;
+        await expect(checkEngines.run(ctx)).rejects.toThrow('Install aborted. 1 system requirement is not met!');
+    });
 });

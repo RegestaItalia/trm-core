@@ -4,7 +4,8 @@ import { Logger } from "trm-commons";
 import { checkSapEntries as CheckSapEntriesWkf, CheckSapEntriesActionInput } from "../checkSapEntries";
 
 /**
- * Workflow step that blocks installation when required SAP table entries are missing.
+ * Workflow step that checks the required SAP table entries: missing ones block the installation
+ * in check-engines, together with the unmet engines.
  * 
  * 1- execute check sap entries workflow
  * 
@@ -43,11 +44,8 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
                 const fields = Object.entries(o.entry).map(([field, value]) => `${field} = ${value}`).join(', ');
                 Logger.error(`Required entry not found in table ${o.table}: ${fields}`, { important: true });
             });
-            if(missingEntries.length === 1){
-                throw new Error(`Install aborted. ${missingEntries.length} system requirement is not met!`);
-            }else{
-                throw new Error(`Install aborted. ${missingEntries.length} system requirements are not met!`);
-            }
+            // Aborted by check-engines, so unmet engines are reported in the same run.
+            context.runtime.missingSapEntries = missingEntries.length;
         }else{
             Logger.success(`SAP entries checked.`);
         }
