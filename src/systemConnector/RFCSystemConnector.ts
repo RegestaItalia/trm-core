@@ -39,11 +39,15 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         if (!this._connection.saprouter) {
             delete this._connection.saprouter;
         }
-        this._client = new RFCClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir, this._globalNodeModulesPath);
+        this._client = this.createClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir, this._globalNodeModulesPath);
+    }
+
+    protected createClient(rfcClientArgs: RFCConnection & Login, cLangu: string, traceDir?: string, globalNodeModulesPath?: string): RFCClient {
+        return new RFCClient(rfcClientArgs, cLangu, traceDir, globalNodeModulesPath);
     }
 
     public getNewConnection(): ISystemConnector {
-        const connector = new RFCSystemConnector(this._connection, this._login, this._traceDir, this._globalNodeModulesPath);
+        const connector = new (this.constructor as typeof RFCSystemConnector)(this._connection, this._login, this._traceDir, this._globalNodeModulesPath);
         connector._dest = this._dest;
         return connector;
     }

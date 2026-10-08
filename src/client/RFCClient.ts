@@ -15,6 +15,11 @@ import { logMessageLog, parseMessageLog } from "./messageLog";
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
 
+/**
+ * Loads a node-rfc compatible library (a module exporting the RFC `Client`).
+ */
+export type RFCLibraryLoader = () => Promise<any>;
+
 function getErrorMessage(error: unknown): string {
     return error instanceof Error ? error.message : String(error);
 }
@@ -45,7 +50,7 @@ export class RFCClient implements IClient {
     protected _rfcClient: any;
     private _connectionResponseLogged = false;
 
-    constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string, private _globalNodeModulesPath?: string) {
+    constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string, private _globalNodeModulesPath?: string, private _rfcLibraryLoader?: RFCLibraryLoader) {
         try {
             process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
         } catch (e) {
@@ -56,14 +61,21 @@ export class RFCClient implements IClient {
         Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
     }
 
+    private async getRfcLibrary(): Promise<any> {
+        if (this._rfcLibraryLoader) {
+            return this._rfcLibraryLoader();
+        }
+        const libPath = path.join(this._globalNodeModulesPath || getGlobalNodeModules(), nodeRfcLib);
+        Logger.log(`Node RFC lib path: ${libPath}`, true);
+        if (!existsSync(libPath)) {
+            throw new RFCClientError("ZRFC_LIB_NOT_FOUND", null, null, `${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
+        }
+        return import(libPath);
+    }
+
     private async getRfcClient(): Promise<any> {
         if (!this._rfcClient) {
-            const libPath = path.join(this._globalNodeModulesPath || getGlobalNodeModules(), nodeRfcLib);
-            Logger.log(`Node RFC lib path: ${libPath}`, true);
-            if (!existsSync(libPath)) {
-                throw new RFCClientError("ZRFC_LIB_NOT_FOUND", null, null, `${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
-            }
-            this._rfcClient = new (await import(libPath)).Client(this._rfcClientArgs);
+            this._rfcClient = new (await this.getRfcLibrary()).Client(this._rfcClientArgs);
         }
         return this._rfcClient;
     }

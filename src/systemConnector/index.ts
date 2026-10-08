@@ -13,3 +13,4 @@ export * from "./RESTSystemConnector";
 export * from "./RESTConnection";
 export * from "./SystemConnectorSupportedBulk";
 export * from "./RFCSystemConnector";
+export * from "./OpenRFCSystemConnector";
