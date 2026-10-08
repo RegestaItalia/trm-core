@@ -7,7 +7,7 @@ import { eq, gt, valid } from "semver";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
 import { setLandscapeTarget } from "../commons/prompts";
-import { resolveInstallPackage } from "../commons/utils";
+import { logDirtyEntries, resolveInstallPackage } from "../commons/utils";
 
 /**
  * Workflow step that fetches the release, validates install settings, and initializes rollback state.
@@ -182,7 +182,7 @@ export const init: Step<InstallWorkflowContext> = {
                     if (context.runtime.update.isDirty()) {
                         let ignoreDirty = false;
                         Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
-                        Logger.warning(`Consider analyzing dirty entries before overwrite.`);
+                        logDirtyEntries(context.runtime.update);
                         if (!context.rawInput.contextData.noInquirer) {
                             ignoreDirty = (await Inquirer.prompt({
                                 message: `Continue with install?`,
@@ -207,6 +207,7 @@ export const init: Step<InstallWorkflowContext> = {
                 }
                 if (context.runtime.update.isDirty()) {
                     Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
+                    logDirtyEntries(context.runtime.update);
                 }
             }
         } else {

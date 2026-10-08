@@ -6,6 +6,7 @@ import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { setLandscapeTarget } from "../commons/prompts";
 import { getNestedPackages } from "./deleteNestedPackages";
+import { logDirtyEntries } from "../commons/utils";
 
 /**
  * Workflow step that finds the installed package and initializes rollback state.
@@ -66,11 +67,11 @@ export const init: Step<DeleteWorkflowContext> = {
         }
         if (installed.isDirty() && !context.rawInput.deleteData.checks.ignoreDirty) {
             const reason = `${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted`;
+            Logger.warning(`${reason}!`);
+            logDirtyEntries(installed);
             if (context.rawInput.contextData.noInquirer) {
                 throw new Error(`Delete aborted. ${reason}: set the ignoreDirty check to delete it without prompts.`);
             }
-            Logger.warning(`${reason}!`);
-            Logger.warning(`Consider analyzing dirty entries before delete.`);
             const { ignoreDirty } = await Inquirer.prompt({
                 message: `Continue with delete?`,
                 type: 'confirm',
@@ -82,6 +83,7 @@ export const init: Step<DeleteWorkflowContext> = {
             }
         } else if (installed.isDirty()) {
             Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted!`, { important: true });
+            logDirtyEntries(installed);
         }
 
         //4- check/set system target

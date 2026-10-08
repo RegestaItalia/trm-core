@@ -60,6 +60,7 @@ describe('delete init', () => {
         jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'error').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'loading').mockImplementation(() => undefined as never);
+        jest.spyOn(Logger, 'table').mockImplementation(() => undefined as never);
         (SystemConnector.getTransportTargets as jest.Mock).mockResolvedValue(['QAS']);
         (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([]);
         (SystemConnector.getInstallPackages as jest.Mock).mockResolvedValue([{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }]);
@@ -194,6 +195,17 @@ describe('delete init', () => {
         jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ ignoreDirty: false });
         await expect(init.run(context('pkg', [installed('pkg', { dirty: true })], undefined, false)))
             .rejects.toThrow('Delete aborted. pkg has changes made on TST that will be deleted.');
+    });
+
+    test('dirty entries are listed before the confirmation', async () => {
+        const pkg = installed('pkg');
+        pkg.setDirtyEntries([{ trkorr: 'TSTK900001', pgmid: 'R3TR', object: 'PROG', objName: 'ZPROG', as4Text: 'Local fix' }]);
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ ignoreDirty: false });
+
+        await expect(init.run(context('pkg', [pkg], undefined, false))).rejects.toThrow('Delete aborted.');
+
+        expect(Logger.table).toHaveBeenCalledWith(['Transport', 'Description', 'Object'], [['TSTK900001', 'Local fix', 'R3TR PROG ZPROG']]);
+        expect((Logger.table as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(prompt.mock.invocationCallOrder[0]);
     });
 
     test('ignoreDirty deletes dirty packages without prompts', async () => {
