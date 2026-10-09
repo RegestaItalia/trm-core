@@ -11,7 +11,8 @@ export function logDirtyEntries(entries: ZTRM_DIRTY[]): void {
     }
     Logger.table(['Transport', 'Description', 'Object'], entries.map(o => [
         o.trkorr,
-        o.as4Text || '',
+        // RFC rows are camel-cased (as4Text), REST rows keep the server field name (as4text)
+        o.as4Text || (o as ZTRM_DIRTY & { as4text?: string }).as4text || '',
         `${o.pgmid} ${o.object} ${o.objName}`
     ]));
 }
