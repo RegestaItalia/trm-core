@@ -32,8 +32,8 @@ function nextPrerelease(version: string, identifier?: string): string | null {
  */
 async function checkOtherTrmPackages(context: PublishWorkflowContext): Promise<void> {
     const devclass = context.rawInput.packageData.devclass;
-    const ownPackage = new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry);
-    const others = (context.rawInput.contextData.systemPackages || []).filter(o => !TrmPackage.compare(o, ownPackage) && o.getDevclass());
+    // The same package name published to another registry (e.g. a .trm file of the same release) is the same package here.
+    const others = (context.rawInput.contextData.systemPackages || []).filter(o => !o.compareName(context.rawInput.packageData.name) && o.getDevclass());
     if (others.length === 0) {
         return;
     }

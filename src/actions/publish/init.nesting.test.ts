@@ -91,6 +91,11 @@ describe('publish of an ABAP package nested with another TRM package', () => {
         );
     });
 
+    test('the same package published to another registry is not another TRM package', async () => {
+        const otherRegistry = { ...registry, compare: () => false } as any;
+        await expect(init.run(context('ZPARENT', [new TrmPackage('pkg', otherRegistry).setDevclass('ZPARENT')]))).rejects.toThrow('stop');
+    });
+
     test('a new release of the same TRM package and unrelated TRM packages are allowed', async () => {
         await expect(init.run(context('ZPARENT', [
             new TrmPackage('pkg', registry).setDevclass('ZPARENT'),
