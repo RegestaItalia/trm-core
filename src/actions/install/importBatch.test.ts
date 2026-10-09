@@ -486,6 +486,29 @@ describe('importBatch rollback checkpoint', () => {
         expect(context.revert.cleanupSucceeded).not.toBe(false);
     });
 
+    test('a namespace refusing the staging package falls back to a customer staging package', async () => {
+        const context = makeContext(registryDelete);
+        context.revert.sapPackages = [];
+        context.revert.namespace = undefined;
+        context.revert.importedEntries = [{ pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG' }];
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValueOnce([{ pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG', devclass: '/NS/ORIGINAL' }]);
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ trnspacet: { namespace: '/NS/' } });
+        (SystemConnector.createPackage as jest.Mock).mockImplementation(async (pkg: any) => {
+            if (pkg.devclass.startsWith('/NS/')) {
+                throw new Error('No valid change license exists for namespace /NS/');
+            }
+        });
+        cleanupTransport.addObjects = jest.fn(async function (entries: any[]) { this.entries.push(...entries); });
+
+        await deleteImportedEntries(context);
+
+        const staging = context.revert.stagingPackages.find((devclass: string) => devclass.startsWith('ZTRM_DELE_'));
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: '/NS/PROG', devclass: staging }));
+        expect(cleanupTransport.entries).toContainEqual({ pgmid: 'R3TR', object: 'DEVC', objName: staging });
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue(undefined);
+        (SystemConnector.createPackage as jest.Mock).mockReset();
+    });
+
     test('an object that cannot be staged does not stop the cleanup of the others', async () => {
         const context = makeContext(registryDelete);
         context.revert.sapPackages = ['ZGEN'];
