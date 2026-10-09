@@ -12,7 +12,10 @@ jest.mock('../../systemConnector', () => ({
         getDevclass: jest.fn().mockResolvedValue(undefined),
         getDefaultTransportLayer: jest.fn(),
         getSupportedBulk: jest.fn().mockReturnValue({}),
-        getExistingObjects: jest.fn().mockResolvedValue([])
+        getExistingObjects: jest.fn().mockResolvedValue([]),
+        getNamespace: jest.fn().mockResolvedValue(undefined),
+        createPackage: jest.fn(),
+        getLogonUser: jest.fn(() => 'TESTER')
     }
 }));
 
@@ -459,6 +462,28 @@ describe('importBatch rollback checkpoint', () => {
         // failure, so a later revert step doesn't restore old data on top of objects
         // that remain in the system.
         expect(context.revert.cleanupSucceeded).toBe(false);
+    });
+
+    test('imported objects still in a package that does not exist are staged, then deleted with the staging package', async () => {
+        // A renamed install imports into the original package names: a failure before the import is finalized
+        // leaves the objects assigned to a package that was never created.
+        const context = makeContext(registryDelete);
+        context.revert.sapPackages = [];
+        context.revert.namespace = undefined;
+        context.revert.importedEntries = [{ pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG' }];
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValueOnce([{ pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG', devclass: '/NS/ORIGINAL' }]);
+        cleanupTransport.addObjects = jest.fn(async function (entries: any[]) { this.entries.push(...entries); });
+
+        await deleteImportedEntries(context);
+
+        const staging = context.revert.stagingPackages[0];
+        expect(staging).toMatch(/^ZTRM_DELE_/);
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith({ pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG', devclass: staging, srcsystem: 'TRM' });
+        expect(cleanupTransport.entries).toEqual(expect.arrayContaining([
+            { pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG' },
+            { pgmid: 'R3TR', object: 'DEVC', objName: staging }
+        ]));
+        expect(context.revert.cleanupSucceeded).not.toBe(false);
     });
 
     test('temporary imported package uses dedicated deletion API and is omitted from cleanup transport', async () => {

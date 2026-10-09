@@ -590,7 +590,7 @@ async function importStagingNamespace(context: PackageCleanupContext, namespace:
 }
 
 /** Creates a short-lived transportable package, in `namespace` when set, so CTS can export local objects. */
-async function createStagingPackage(context: PackageCleanupContext, namespace: string): Promise<string> {
+export async function createStagingPackage(context: Pick<PackageCleanupContext, 'revert'>, namespace: string): Promise<string> {
     const prefix = namespace ? `${namespace}TRMD_` : 'ZTRM_DELE_';
     // DEVCLASS allows 30 characters.
     const hexLength = Math.min(16, 30 - prefix.length);

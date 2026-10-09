@@ -19,7 +19,8 @@ jest.mock('../../systemConnector', () => ({
         clearPackageSuperpackage: jest.fn(),
         setPackageSuperpackage: jest.fn(),
         deleteTemporaryPackage: jest.fn(),
-        getDefaultTransportLayer: jest.fn()
+        getDefaultTransportLayer: jest.fn(),
+        getExistingObjects: jest.fn(async () => [])
     }
 }));
 
