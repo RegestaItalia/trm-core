@@ -18,6 +18,7 @@ jest.mock('../../systemConnector', () => ({
         getDefaultTransportLayer: jest.fn(),
         getNamespace: jest.fn(),
         getNamespacePackages: jest.fn(),
+        readTable: jest.fn(async () => [{ role: 'C' }]),
         addNamespace: jest.fn(),
         getDest: jest.fn(() => 'TST')
     }
@@ -254,6 +255,18 @@ describe('generateDeletionTransport', () => {
 
         const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
         expect(deleted).toEqual(['CLAS /NS/CLASS', 'DEVC /NS/ROOT', 'NSPC /NS/']);
+    });
+
+    test('never deletes a producer namespace, even with its last package', async () => {
+        const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: '/NS/CL_A' }], '/NS/ROOT');
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ trnspacet: { namespace: '/NS/' } });
+        (SystemConnector.getNamespacePackages as jest.Mock).mockResolvedValue([{ devclass: '/NS/ROOT' }]);
+        (SystemConnector.readTable as jest.Mock).mockResolvedValueOnce([{ role: 'P' }]);
+
+        await generateDeletionTransport.run(ctx);
+
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted).not.toContain('NSPC /NS/');
     });
 
     test('keeps a namespace shipped by the installed transport while other SAP packages use it', async () => {

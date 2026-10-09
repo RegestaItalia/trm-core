@@ -18,6 +18,7 @@ jest.mock('../../systemConnector', () => ({
         getDefaultTransportLayer: jest.fn(),
         getNamespace: jest.fn(),
         getNamespacePackages: jest.fn(),
+        readTable: jest.fn(async () => [{ role: 'C' }]),
         addNamespace: jest.fn(),
         getDest: jest.fn(() => 'TST')
     }

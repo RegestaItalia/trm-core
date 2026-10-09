@@ -559,6 +559,12 @@ async function confirmCustomizingDeletion(context: PackageCleanupContext, target
     }
 }
 
+/** Whether `namespace` has the producer role (P) on the system: its objects are developed here. */
+async function isProducerNamespace(namespace: string): Promise<boolean> {
+    const rows: { role: string }[] = await SystemConnector.readTable('TRNSPACE', [{ fieldName: 'ROLE' }], `NAMESPACE EQ '${namespace.replace(/'/g, "''")}'`);
+    return rows.some(row => normalize(row.role || '') === 'P');
+}
+
 /**
  * Imports a custom namespace missing on the system, with the repair license of the installed
  * release, so its objects can be staged in a package of the namespace.
@@ -765,6 +771,11 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             }
             try {
                 if (!(await SystemConnector.getNamespace(namespace))) {
+                    continue;
+                }
+                // A producer namespace is developed on this system (TRM imports namespaces as recipient, role C): never delete it.
+                if (await isProducerNamespace(namespace)) {
+                    Logger.log(`Keeping namespace ${namespace}: it's a producer namespace of ${SystemConnector.getDest()}`, true);
                     continue;
                 }
                 const remainingPackages = (await SystemConnector.getNamespacePackages(namespace))
