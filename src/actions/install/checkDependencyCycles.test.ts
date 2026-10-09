@@ -10,6 +10,7 @@ const registry = {
     })
 };
 jest.mock('../../registry', () => ({
+    ...jest.requireActual('../../registry/RegistryType'),
     RegistryProvider: { getRegistry: jest.fn(() => registry) }
 }));
 jest.mock('..', () => ({ installDependency: jest.fn() }));
@@ -75,6 +76,16 @@ describe('install checkDependencyCycles step', () => {
         release('c', '1.1.0');
         const systemPackages = [installed('c', '1.0.0'), installed('a', '1.0.0', [['c', '^1.0.0']])];
         await expect(checkDependencyCycles.run(context([['c', '^1.1.0']], systemPackages))).resolves.toBeUndefined();
+    });
+
+    test('a dependency installed from a .trm file is not installed again from the registry', async () => {
+        release('c', '1.0.0');
+        const local = { endpoint: 'local', name: 'local', compare: (other: any) => other.endpoint === 'local', getRegistryType: () => 3 };
+        const registryWithName = Object.assign(registry, { name: 'public', getRegistryType: () => 1 });
+        const systemPackages = [new TrmPackage('c', local as any, { get: () => ({ name: 'c', version: '1.0.0' }) } as any)];
+        await expect(checkDependencyCycles.run(context([['c', '^1.0.0']], systemPackages)))
+            .rejects.toThrow('Install aborted: dependency "c" must be installed from registry public, but it\'s installed from a .trm file. Delete it, then install again.');
+        expect(registryWithName.getPackage).not.toHaveBeenCalled();
     });
 
     test('a self dependency is rejected', async () => {

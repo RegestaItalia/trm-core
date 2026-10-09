@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { TrmManifest } from "../../manifest";
-import { RegistryProvider } from "../../registry";
+import { RegistryProvider, RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { selectDependencyRelease } from "../installDependency/findInstallRelease";
 import { getInstalledDependency } from "../commons/utils";
@@ -70,6 +70,12 @@ export const checkDependencyCycles: Step<InstallWorkflowContext> = {
                         planned.push({ trmPackage, version: installed.installedVersion, kept: true, requiredBy, versionRange: dependency.version });
                     }
                     continue;
+                }
+                //the same package installed from another registry (e.g. a .trm file) owns the objects: it can't be installed again
+                const otherRegistry = systemPackages.find(o => o.compareName(trmPackage.packageName) && !o.compareRegistry(trmPackage.registry));
+                if (otherRegistry) {
+                    const source = (registry: TrmPackage['registry']) => registry.getRegistryType() === RegistryType.LOCAL ? 'a .trm file' : `registry ${registry.name}`;
+                    throw new Error(`Install aborted: dependency "${trmPackage.packageName}" must be installed from ${source(trmPackage.registry)}, but it's installed from ${source(otherRegistry.registry)}. Delete it, then install again.`);
                 }
                 const cycleStart = path.findIndex(o => TrmPackage.compare(o, trmPackage));
                 if (cycleStart >= 0) {
