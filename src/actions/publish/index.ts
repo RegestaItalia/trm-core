@@ -1,3 +1,4 @@
+import { PackageDependencies } from "../../dependencies";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "..";
 import { ReleaseType } from "semver";
@@ -174,6 +175,8 @@ type EnrichedTransport = {
 }
 
 type WorkflowRuntime = {
+    /** Dependency analysis of the ABAP package, run once before the publish questions. */
+    packageDependencies?: PackageDependencies,
     latest: {
         data: Package
     },

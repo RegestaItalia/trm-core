@@ -12,6 +12,7 @@ import { validateDevclass } from "../../validators";
 import { DotAbapGit } from "../../abapgit";
 import { minimatch } from "minimatch";
 import { getOwningInstallation } from "../commons/utils";
+import { checkPackageDependencies } from "./findDependencies";
 
 function nextPrerelease(version: string, identifier?: string): string | null {
     const pre = prerelease(version);
@@ -212,6 +213,11 @@ export const init: Step<PublishWorkflowContext> = {
 
         //an ABAP package belongs to at most one TRM package: the tree can't contain, or be inside, another one
         await checkOtherTrmPackages(context);
+
+        //dependencies the release can't have refuse the publish before the version and visibility questions
+        if (!context.rawInput.publishData.noDependenciesDetection && !context.rawInput.contextData.noInquirer) {
+            await checkPackageDependencies(context);
+        }
 
         //5- ensure package version and visibility can be published
         //if it's the first package publish assume it's valid (validate publish will throw error later, in case something is wrong with it)

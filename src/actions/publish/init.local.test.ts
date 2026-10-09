@@ -3,7 +3,8 @@ jest.mock('../../systemConnector', () => ({
         getDevclassObjects: jest.fn(),
         getNamespace: jest.fn(),
         getAbapgitSource: jest.fn(),
-        getObjectsLocks: jest.fn()
+        getObjectsLocks: jest.fn(),
+        getPackageDependencies: jest.fn(async () => ({ trmPackageDependencies: [], abapPackageDependencies: [] }))
     }
 }));
 jest.mock('../../validators', () => ({
@@ -115,5 +116,16 @@ describe('publish version resolution', () => {
         const ctx = context(RegistryType.PRIVATE, undefined, false);
         await run(ctx);
         expect(ctx.rawInput.packageData.version).toBe('3.2.2');
+    });
+
+    test('a dependency on a local TRM package refuses the publish before any question', async () => {
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+        (SystemConnector.getPackageDependencies as jest.Mock).mockResolvedValueOnce({
+            trmPackageDependencies: [{ trmPackage: { packageName: 'local-dep', registry: { getRegistryType: () => RegistryType.LOCAL } } }],
+            abapPackageDependencies: []
+        });
+        const ctx = context(RegistryType.PRIVATE, undefined, false);
+        await expect(init.run(ctx)).rejects.toThrow('Cannot deliver to registry a TRM package with a local TRM package.');
+        expect(prompt).not.toHaveBeenCalled();
     });
 });

@@ -1,9 +1,45 @@
+import { PackageDependencies } from "../../dependencies";
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { RegistryType } from "../../registry";
 import { SystemConnector } from "../../systemConnector";
 import * as _ from "lodash";
+
+/**
+ * Analyzes the dependencies of the ABAP package once, and rejects those a release can't have:
+ * non-TRM customer packages, and local (.trm) TRM packages. Run before the publish questions,
+ * so a refused publish asks nothing.
+ */
+export async function checkPackageDependencies(context: PublishWorkflowContext): Promise<PackageDependencies> {
+    if (context.runtime.packageDependencies) {
+        return context.runtime.packageDependencies;
+    }
+    const dependencies = await SystemConnector.getPackageDependencies(context.rawInput.packageData.devclass, true);
+    const trmDependencies = dependencies.trmPackageDependencies;
+    const trmLocalDependencies = trmDependencies.filter(o => o.trmPackage.registry.getRegistryType() === RegistryType.LOCAL);
+    const customDependencies = dependencies.abapPackageDependencies.filter(o => o.isCustomerPackage);
+
+    //2- find dependencies with custom packages
+    if (customDependencies.length > 0) {
+        Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${customDependencies.length} non-TRM ${customDependencies.length === 1 ? 'package' : 'packages'}:`, { important: true });
+        customDependencies.forEach((d, i) => {
+            Logger.error(`  (${i + 1}/${customDependencies.length}) ${d.abapPackage.devclass}`, { important: true });
+        });
+        throw new Error(`Consider publishing them as TRM packages or refactor your development to avoid the dependency.`);
+    }
+
+    //3- find dependencies with local trm packages
+    if (trmLocalDependencies.length > 0) {
+        Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${trmLocalDependencies.length} TRM local ${trmLocalDependencies.length === 1 ? 'package' : 'packages'}:`, { important: true });
+        trmLocalDependencies.forEach((d, i) => {
+            Logger.error(`  (${i + 1}/${trmLocalDependencies.length}) ${d.trmPackage.packageName}`, { important: true });
+        });
+        throw new Error(`Cannot deliver to registry a TRM package with a local TRM package.`);
+    }
+    context.runtime.packageDependencies = dependencies;
+    return dependencies;
+}
 
 /**
  * Workflow step that detects TRM dependencies from the source package hierarchy.
@@ -29,34 +65,14 @@ export const findDependencies: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        //1- execute find dependencies on ABAP package
-        const dependencies = await SystemConnector.getPackageDependencies(context.rawInput.packageData.devclass, true);
+        //1- execute find dependencies on ABAP package (2- and 3- are checked with it)
+        const dependencies = await checkPackageDependencies(context);
         const trmDependencies = dependencies.trmPackageDependencies;
-        const trmLocalDependencies = trmDependencies.filter(o => o.trmPackage.registry.getRegistryType() === RegistryType.LOCAL);
         const sapDependencies = dependencies.abapPackageDependencies.filter(o => !o.isCustomerPackage);
         const sapObjectsUsed = sapDependencies.reduce(
             (sum, dep) => sum + dep.entries.reduce((s, e) => s + e.dependency.length, 0),
             0
         );
-        const customDependencies = dependencies.abapPackageDependencies.filter(o => o.isCustomerPackage);
-
-        //2- find dependencies with custom packages
-        if (customDependencies.length > 0) {
-            Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${customDependencies.length} non-TRM ${customDependencies.length === 1 ? 'package' : 'packages'}:`, { important: true });
-            customDependencies.forEach((d, i) => {
-                Logger.error(`  (${i + 1}/${customDependencies.length}) ${d.abapPackage.devclass}`, { important: true });
-            });
-            throw new Error(`Consider publishing them as TRM packages or refactor your development to avoid the dependency.`);
-        }
-
-        //3- find dependencies with local trm packages
-        if (trmLocalDependencies.length > 0) {
-            Logger.error(`Package "${context.rawInput.packageData.devclass}" has dependencies with ${trmLocalDependencies.length} TRM local ${trmLocalDependencies.length === 1 ? 'package' : 'packages'}:`, { important: true });
-            trmLocalDependencies.forEach((d, i) => {
-                Logger.error(`  (${i + 1}/${trmLocalDependencies.length}) ${d.trmPackage.packageName}`, { important: true });
-            });
-            throw new Error(`Cannot deliver to registry a TRM package with a local TRM package.`);
-        }
 
         Logger.info(`Package "${context.rawInput.packageData.devclass}" has ${trmDependencies.length} TRM package ${trmDependencies.length === 1 ? 'dependency' : 'dependencies'} and references/uses ${sapObjectsUsed} SAP ${sapObjectsUsed === 1 ? 'object' : 'objects'}.`);
 
