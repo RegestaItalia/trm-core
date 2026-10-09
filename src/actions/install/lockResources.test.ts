@@ -1,6 +1,7 @@
 jest.mock("./checkTransports", () => ({
     checkObjectsLocks: jest.fn(),
-    findExistingObjects: jest.fn()
+    findExistingObjects: jest.fn(),
+    existenceCheckObjects: jest.requireActual("./checkTransports").existenceCheckObjects
 }));
 
 import { Logger } from "trm-commons";

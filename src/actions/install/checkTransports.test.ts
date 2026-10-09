@@ -87,6 +87,21 @@ describe('check-transports existing objects with unknown root devclass', () => {
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('1 object(s) already exist'), { important: true });
     });
 
+    test('SAP packages of the release are not checked: the install packages are chosen later', async () => {
+        const ctx = context({ noInquirer: false });
+        ctx.runtime.update = undefined;
+        (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async objects => objects.filter((o: any) => o.object === 'DEVC'));
+        (SystemConnector.getObjectsList as jest.Mock).mockResolvedValue([{ pgmid: 'R3TR', object: 'DEVC' }]);
+        ctx.rawInput.packageData.registry.transportEntries = jest.fn(async (_name: string, _version: string, trkorr: string) => trkorr === 'TADIR1'
+            ? { e071: [{ pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT' }], tadir: [{ pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT', devclass: 'ZROOT' }] }
+            : { tdevc: [{ devclass: 'ZROOT', parentcl: '' }] });
+
+        await checkTransports.run(ctx);
+
+        expect(SystemConnector.getExistingObjects).not.toHaveBeenCalled();
+        expect(ctx.runtime.existingObjects).toEqual([]);
+    });
+
     test('a first install names the objects that already exist', async () => {
         const ctx = context({ noInquirer: false });
         ctx.runtime.update = undefined;

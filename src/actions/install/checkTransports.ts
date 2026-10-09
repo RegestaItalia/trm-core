@@ -41,6 +41,15 @@ export async function findExistingObjects(context: InstallWorkflowContext, tadir
     }
 }
 
+/**
+ * Objects of the release whose existence blocks an install. SAP packages are left out: the release
+ * carries their original names, while the install packages are chosen later and checked by
+ * check-install-devclass.
+ */
+export function existenceCheckObjects(tadir: TADIR[]): TADIR[] {
+    return tadir.filter(o => !(o.pgmid.trim().toUpperCase() === 'R3TR' && o.object.trim().toUpperCase() === 'DEVC'));
+}
+
 /** Labels a customizing transport by number, so transports with the same description can be told apart. */
 function custLabel(transport: { trkorr: string, description?: string }): string {
     return transport.description ? `${transport.trkorr} "${transport.description}"` : transport.trkorr;
@@ -260,7 +269,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         }
 
         //8- check objects existance
-        const existingObjects = await findExistingObjects(context, mergedTADIR);
+        const checkedTadir = existenceCheckObjects(mergedTADIR);
+        const existingObjects = checkedTadir.length > 0 ? await findExistingObjects(context, checkedTadir) : [];
         // lock-resources checks again, once locked, that no other object appeared
         context.runtime.existingObjects = existingObjects;
         Logger.log(`TADIR object that already exist in system: ${JSON.stringify(existingObjects)}`, true);

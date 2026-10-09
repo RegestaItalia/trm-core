@@ -4,7 +4,7 @@ import { InstallWorkflowContext } from ".";
 import { E071, TADIR } from "../../client";
 import { LockResource, objectLockResource, packageLockResource } from "../commons/utils";
 import { getInstallNamespace } from "./addNamespace";
-import { checkObjectsLocks, findExistingObjects } from "./checkTransports";
+import { checkObjectsLocks, existenceCheckObjects, findExistingObjects } from "./checkTransports";
 
 function objectKey(object: { pgmid: string, object: string, objName: string }): string {
     return `${object.pgmid.trim().toUpperCase()} ${object.object.trim().toUpperCase()} ${object.objName.trim().toUpperCase()}`;
@@ -79,7 +79,8 @@ export const lockResources: Step<InstallWorkflowContext> = {
         await checkObjectsLocks(e071);
         Logger.loading(`Checking objects existence...`, true);
         const accepted = new Set((context.runtime.existingObjects || []).map(objectKey));
-        const appeared = (await findExistingObjects(context, tadir)).filter(o => !accepted.has(objectKey(o)));
+        const checkedTadir = existenceCheckObjects(tadir);
+        const appeared = (checkedTadir.length > 0 ? await findExistingObjects(context, checkedTadir) : []).filter(o => !accepted.has(objectKey(o)));
         if (appeared.length > 0) {
             const noExistingObjects = context.rawInput.installData.checks?.noExistingObjects;
             appeared.forEach(o => {
