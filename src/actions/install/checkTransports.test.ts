@@ -5,7 +5,8 @@ jest.mock('../../systemConnector', () => ({
         getObjectsList: jest.fn(),
         getSupportedBulk: jest.fn(() => ({ getTransportObjects: false, getExistingObjects: false })),
         getExistingObjects: jest.fn(),
-        getSubpackages: jest.fn()
+        getSubpackages: jest.fn(),
+        getDevclass: jest.fn()
     }
 }));
 
@@ -91,6 +92,20 @@ describe('check-transports existing objects with unknown root devclass', () => {
         ctx.runtime.update = undefined;
         await expect(checkTransports.run(ctx)).rejects.toThrow(
             '1 object(s) already exist on target system TST, install without object check (expert mode):\nR3TR CLAS ZCL_FOREIGN'
+        );
+    });
+
+    test('a first install names the installed TRM package that contains the existing objects', async () => {
+        const ctx = context({ noInquirer: false });
+        ctx.runtime.update = undefined;
+        // ZOTHER is a subpackage of ZOWNER, the root of installed TRM package "owner".
+        ctx.rawInput.contextData.systemPackages = [{ packageName: 'owner', getDevclass: () => 'ZOWNER' }];
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async devclass =>
+            ({ ZOTHER: { devclass: 'ZOTHER', parentcl: 'ZOWNER' } } as any)[devclass]);
+        await expect(checkTransports.run(ctx)).rejects.toThrow(
+            '1 object(s) already exist on target system TST, install without object check (expert mode):\n'
+            + 'R3TR CLAS ZCL_FOREIGN (TRM package owner)\n'
+            + '"owner" still contains these objects: upgrade it to a release that no longer ships them, or delete it, then install again.'
         );
     });
 

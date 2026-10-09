@@ -6,6 +6,7 @@ import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { E071, TADIR, TDEVC, TransportEntries } from "../../client";
 import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons";
+import { getOwningInstallation } from "../commons/utils";
 
 /** Throws when any of the objects is locked in a SAP transport request. */
 export async function checkObjectsLocks(e071: E071[]): Promise<void> {
@@ -264,7 +265,20 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
         let throwExistingObjectsError = false;
         if (existingObjects.length > 0) {
-            const sObjs = existingObjects.map(o => `${o.pgmid} ${o.object} ${o.objName}`).join('\n');
+            // Name the installed TRM package that contains each existing object: it can't be taken over silently.
+            const owners = new Map<TADIR, string>();
+            for (const o of existingObjects) {
+                const owner = o.devclass ? await getOwningInstallation(o.devclass, context.rawInput.contextData.systemPackages || [], context.runtime.update) : undefined;
+                if (owner) {
+                    owners.set(o, owner.packageName);
+                }
+            }
+            const label = (o: TADIR) => `${o.pgmid} ${o.object} ${o.objName}${owners.has(o) ? ` (TRM package ${owners.get(o)})` : ''}`;
+            const ownerNames = [...new Set(owners.values())];
+            const ownersHint = ownerNames.length > 0
+                ? `\n${ownerNames.map(o => `"${o}"`).join(', ')} still ${ownerNames.length === 1 ? 'contains' : 'contain'} these objects: upgrade ${ownerNames.length === 1 ? 'it' : 'them'} to a release that no longer ships them, or delete ${ownerNames.length === 1 ? 'it' : 'them'}, then install again.`
+                : '';
+            const sObjs = existingObjects.map(label).join('\n') + ownersHint;
             if (context.runtime.update) {
                 //the installed package being updated (a same-named package of another registry is a different package)
                 const rootPackage = context.runtime.update;
@@ -277,15 +291,15 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                                 Logger.log(`${o.pgmid} ${o.object} ${o.objName} already in system but devclass ${o.devclass} is part of the same trm package in update`, true);
                             } else {
                                 if (context.rawInput.installData.checks.noExistingObjects) {
-                                    Logger.warning(`${o.pgmid} ${o.object} ${o.objName} already exist on target system ${SystemConnector.getDest()}`, { important: true });
+                                    Logger.warning(`${label(o)} already exist on target system ${SystemConnector.getDest()}`, { important: true });
                                 } else {
-                                    Logger.error(`${o.pgmid} ${o.object} ${o.objName} already exist on target system ${SystemConnector.getDest()}`, { important: true });
+                                    Logger.error(`${label(o)} already exist on target system ${SystemConnector.getDest()}`, { important: true });
                                 }
                                 throwExistingObjectsError = true;
                             }
                         });
                         if (throwExistingObjectsError && !context.rawInput.installData.checks.noExistingObjects) {
-                            throw new Error(`Cannot overwrite existing objects.`);
+                            throw new Error(`Cannot overwrite existing objects.${ownersHint}`);
                         }
                     } else {
                         if (context.rawInput.installData.checks.noExistingObjects) {
