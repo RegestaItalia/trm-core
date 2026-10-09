@@ -7,7 +7,7 @@ jest.mock('../../systemConnector', () => ({
 
 import { Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
-import { checkInstallDevclass } from './checkInstallDevclass';
+import { checkInstallDevclass, validateInstallDevclass } from './checkInstallDevclass';
 
 // parent -> children
 const TDEVC: Record<string, string[]> = {
@@ -106,5 +106,34 @@ describe('check-install-devclass', () => {
         const update = trmPackage('a', 'ZA');
         const ctx = context({ ZORIG: 'ZA', ZORIG_SUB: 'ZB_SUB' }, [update, trmPackage('b', 'ZB')], update);
         await expect(checkInstallDevclass.run(ctx)).rejects.toThrow('ABAP package ZB_SUB belongs to installed TRM package "b"');
+    });
+});
+
+describe('install package prompt validation', () => {
+    const parentOf = (devclass: string) => Object.keys(TDEVC).find(parent => TDEVC[parent].includes(devclass)) || '';
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        (SystemConnector.getSubpackages as jest.Mock).mockImplementation(async (devclass: string) => subpackages(devclass).map(o => ({ devclass: o })));
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) => TDEVC[devclass] ? { devclass, parentcl: parentOf(devclass) } : undefined);
+    });
+
+    test('a package inside another installed TRM package is rejected, so the prompt asks again', async () => {
+        await expect(validateInstallDevclass(context({}, [trmPackage('a', 'ZA')]), 'ZB_SUB')).resolves.toBe(
+            'ABAP package ZB_SUB belongs to installed TRM package "a": choose a package outside of it.'
+        );
+    });
+
+    test('an existing package containing another installed TRM package is rejected', async () => {
+        await expect(validateInstallDevclass(context({}, [trmPackage('c', 'ZC')]), 'ZPARENT')).resolves.toBe(
+            'ABAP package ZPARENT contains package ZC of installed TRM package "c": choose a package outside of it.'
+        );
+    });
+
+    test('free and new packages, and the own tree on update, are accepted', async () => {
+        const own = trmPackage('own', 'ZA');
+        await expect(validateInstallDevclass(context({}, [own, trmPackage('c', 'ZC')]), 'ZFREE')).resolves.toBe(true);
+        await expect(validateInstallDevclass(context({}, [own, trmPackage('c', 'ZC')]), 'ZNEW')).resolves.toBe(true);
+        await expect(validateInstallDevclass(context({}, [own], own), 'ZA_SUB')).resolves.toBe(true);
     });
 });

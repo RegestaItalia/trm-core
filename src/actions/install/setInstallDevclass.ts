@@ -4,6 +4,7 @@ import { adjustTrmServerRestDevclass, getPackageNamespace } from "../../commons"
 import { SystemConnector } from "../../systemConnector";
 import { Logger, Inquirer, Question } from "trm-commons";
 import { flattenDevclasses, getInstallNamespace } from "./addNamespace";
+import { validateInstallDevclass } from "./checkInstallDevclass";
 
 function escapeRegExp(value: string): string {
     return value.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
@@ -155,9 +156,10 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                         name: originalDevclass,
                         default: adaptDevclassName,
                         message: `ABAP Package "${adaptDevclassName}" will be imported. Do you want to rename it?`,
-                        validate: (input) => {
+                        validate: async (input) => {
                             //return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
-                            return _validateDevclass(input);
+                            const valid = _validateDevclass(input);
+                            return valid === true ? await validateInstallDevclass(context, input.trim().toUpperCase()) : valid;
                         }
                     });
                 }
@@ -167,9 +169,10 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                     name: originalDevclass,
                     default: replacement.installDevclass,
                     message: `Rename ABAP Package "${replacement.installDevclass}"`,
-                    validate: (input) => {
+                    validate: async (input) => {
                         //return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
-                        return _validateDevclass(input);
+                        const valid = _validateDevclass(input);
+                        return valid === true ? await validateInstallDevclass(context, input.trim().toUpperCase()) : valid;
                     }
                 });
             }

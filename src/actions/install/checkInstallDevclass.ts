@@ -4,9 +4,33 @@ import { Logger } from "trm-commons";
 import { DEVCLASS } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { flattenDevclasses } from "./addNamespace";
+import { getOwningInstallation } from "../commons/utils";
 
 async function getTree(devclass: DEVCLASS): Promise<DEVCLASS[]> {
     return [devclass, ...(await SystemConnector.getSubpackages(devclass)).map(o => o.devclass)];
+}
+
+/**
+ * Validates one install package name chosen by the user, so the prompt can ask again: it must be
+ * outside the SAP packages of the other installed TRM packages and, when it exists, contain none of
+ * their root packages. check-install-devclass repeats the check on the final choice.
+ */
+export async function validateInstallDevclass(context: InstallWorkflowContext, devclass: DEVCLASS): Promise<true | string> {
+    const systemPackages = context.rawInput.contextData.systemPackages || [];
+    const owner = await getOwningInstallation(devclass, systemPackages, context.runtime.update);
+    if (owner) {
+        return `ABAP package ${devclass} belongs to installed TRM package "${owner.packageName}": choose a package outside of it.`;
+    }
+    if (await SystemConnector.getDevclass(devclass)) {
+        const roots = new Map(systemPackages.filter(o => o !== context.runtime.update && o.getDevclass()).map(o => [o.getDevclass().trim().toUpperCase(), o]));
+        for (const subpackage of await SystemConnector.getSubpackages(devclass)) {
+            const nested = roots.get(subpackage.devclass.trim().toUpperCase());
+            if (nested) {
+                return `ABAP package ${devclass} contains package ${subpackage.devclass} of installed TRM package "${nested.packageName}": choose a package outside of it.`;
+            }
+        }
+    }
+    return true;
 }
 
 /**
