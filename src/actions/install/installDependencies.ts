@@ -44,9 +44,13 @@ export const installDependencies: Step<InstallWorkflowContext> = {
             }
         });
 
-        //2- prompt install
+        //2- prompt install (not again for dependencies a parent install already confirmed)
         let confirmInstall = true;
-        if(!context.rawInput.contextData.noInquirer){
+        const approved = context.rawInput.installData.approvedDependencies || [];
+        const alreadyApproved = context.runtime.dependencies.every(o => approved.includes(o.dependency.name));
+        if (alreadyApproved) {
+            Logger.log(`Dependencies already confirmed by the parent install`, true);
+        } else if(!context.rawInput.contextData.noInquirer){
             confirmInstall = (await Inquirer.prompt({
                 type: 'confirm',
                 default: true,
@@ -88,6 +92,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                     contextData: _.cloneDeep(context.rawInput.contextData),
                     installData: _.cloneDeep(context.rawInput.installData)
                 };
+                inputData.installData.approvedDependencies = [...new Set([...approved, ...context.runtime.dependencies.map(o => o.dependency.name)])];
                 delete inputData.installData.installDevclass.keepOriginal; //force input value if inquirer allows
                 //the parent's mappings were resolved for its own devclasses: the dependency resolves its own
                 inputData.installData.installDevclass.replacements = [];

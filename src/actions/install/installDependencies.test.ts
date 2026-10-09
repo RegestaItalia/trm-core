@@ -117,6 +117,33 @@ describe('nested dependency rollback ownership', () => {
         expect(Logger.setPrefix).toHaveBeenLastCalledWith(undefined);
     });
 
+    test('dependencies a parent install already confirmed are not asked again, and are passed on', async () => {
+        const ctx = context();
+        ctx.rawInput.contextData.noInquirer = false;
+        ctx.rawInput.installData.approvedDependencies = ['dep-one', 'dep-two', 'dep-zero'];
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+        jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
+        (installDependency as jest.Mock).mockResolvedValue({ alreadyInstalled: true });
+
+        await installDependencies.run(ctx);
+
+        expect(prompt).not.toHaveBeenCalled();
+        expect((installDependency as jest.Mock).mock.calls[0][0].installData.approvedDependencies).toEqual(['dep-one', 'dep-two', 'dep-zero']);
+    });
+
+    test('a dependency not confirmed by the parent is asked', async () => {
+        const ctx = context();
+        ctx.rawInput.contextData.noInquirer = false;
+        ctx.rawInput.installData.approvedDependencies = ['dep-one'];
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ confirmInstall: true });
+        (installDependency as jest.Mock).mockResolvedValue({ alreadyInstalled: true });
+
+        await installDependencies.run(ctx);
+
+        expect(prompt).toHaveBeenCalledTimes(1);
+        expect((installDependency as jest.Mock).mock.calls[0][0].installData.approvedDependencies).toEqual(['dep-one', 'dep-two']);
+    });
+
     test('dependencies do not inherit the parent package mappings', async () => {
         const ctx = context();
         ctx.rawInput.installData.installDevclass = {

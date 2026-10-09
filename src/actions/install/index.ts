@@ -75,6 +75,12 @@ export type InstallActionInputContextData = {
 /** Options controlling package validation, transport import, and target package mapping. */
 export type InstallActionInputInstallData = {
     /**
+     * Set by an install for the dependency installs it runs: the dependencies the user already
+     * confirmed. A dependency install doesn't ask again for these.
+     */
+    approvedDependencies?: string[];
+
+    /**
      * Import-related data.
      */
     import?: {
