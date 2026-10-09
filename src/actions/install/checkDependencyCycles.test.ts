@@ -62,6 +62,21 @@ describe('install checkDependencyCycles step', () => {
         jest.spyOn(Inquirer, 'getPrefix').mockReturnValue(undefined);
     });
 
+    test('replacing an installed dependency another installed package still needs is rejected before any prompt', async () => {
+        release('c', '1.0.0');
+        release('c', '2.0.0');
+        const systemPackages = [installed('c', '1.0.0'), installed('a', '1.0.0', [['c', '^1.0.0']])];
+        await expect(checkDependencyCycles.run(context([['c', '^2.0.0']], systemPackages)))
+            .rejects.toThrow('Install aborted: dependency "c" would be replaced with v2.0.0, but installed package "a" requires ^1.0.0. Upgrade "a" first.');
+    });
+
+    test('replacing an installed dependency compatible with the other installed packages is allowed', async () => {
+        release('c', '1.0.0');
+        release('c', '1.1.0');
+        const systemPackages = [installed('c', '1.0.0'), installed('a', '1.0.0', [['c', '^1.0.0']])];
+        await expect(checkDependencyCycles.run(context([['c', '^1.1.0']], systemPackages))).resolves.toBeUndefined();
+    });
+
     test('a self dependency is rejected', async () => {
         await expect(checkDependencyCycles.run(context([['root', '^1.0.0']])))
             .rejects.toThrow('cyclic dependency detected "root" -> "root"');

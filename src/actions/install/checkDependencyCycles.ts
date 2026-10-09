@@ -30,6 +30,8 @@ type PlannedDependency = {
  *
  * 1- walk the dependency graph and abort on the first cycle or version conflict
  *
+ * 2- abort when a replaced dependency no longer satisfies another installed package
+ *
 */
 export const checkDependencyCycles: Step<InstallWorkflowContext> = {
     name: 'check-dependency-cycles',
@@ -82,5 +84,20 @@ export const checkDependencyCycles: Step<InstallWorkflowContext> = {
         };
 
         await visit(context.runtime.package.data.manifest, [root]);
+
+        //2- a dependency installed in another version must still satisfy the other installed packages requiring it
+        const changed = planned.filter(plan => !plan.kept);
+        for (const installedPackage of systemPackages) {
+            if (TrmPackage.compare(installedPackage, root) || changed.some(plan => TrmPackage.compare(plan.trmPackage, installedPackage))) {
+                continue;
+            }
+            for (const dependency of installedPackage.manifest?.get()?.dependencies || []) {
+                const plan = changed.find(o => TrmPackage.compare(o.trmPackage, new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry))));
+                if (plan && getInstalledDependency(systemPackages, plan.trmPackage, plan.versionRange).status !== 'notFound'
+                    && !satisfies(plan.version, dependency.version, { includePrerelease: true })) {
+                    throw new Error(`Install aborted: dependency "${plan.trmPackage.packageName}" would be replaced with v${plan.version}, but installed package "${installedPackage.packageName}" requires ${dependency.version}. Upgrade "${installedPackage.packageName}" first.`);
+                }
+            }
+        }
     }
 }
