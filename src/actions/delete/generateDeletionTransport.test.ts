@@ -513,6 +513,26 @@ describe('generateDeletionTransport', () => {
             expect(deletedOf(dummy)).toContain('PROG Z_MOVED');
         });
 
+        test('objects now in the SAP packages of a separately installed TRM package are kept without asking', async () => {
+            const { ctx, dummy } = movedContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            // Z_OTHER is a subpackage of Z_B, the root of installed TRM package "b".
+            ctx.rawInput.contextData.systemPackages = [
+                { packageName: 'pkg', getDevclass: () => 'Z_ROOT' },
+                { packageName: 'b', getDevclass: () => 'Z_B' }
+            ];
+            (SystemConnector.getDevclass as jest.Mock).mockImplementation(async devclass =>
+                ({ Z_OTHER: { devclass: 'Z_OTHER', parentcl: 'Z_B' }, Z_B: { devclass: 'Z_B', parentcl: '' } } as any)[devclass]);
+            const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteMovedObjects: true });
+            const info = jest.spyOn(Logger, 'info').mockImplementation(() => undefined as never);
+
+            await generateDeletionTransport.run(ctx);
+
+            expect(deletedOf(dummy)).not.toContain('PROG Z_MOVED');
+            expect(prompt).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'deleteMovedObjects' }));
+            expect(info).toHaveBeenCalledWith('Keeping R3TR PROG Z_MOVED: it belongs to TRM package b (SAP package Z_OTHER).');
+        });
+
         test('a failed lookup aborts before any change and rollback deletes the transport', async () => {
             const { ctx, dummy, acquire } = movedContext();
             (SystemConnector.getExistingObjects as jest.Mock).mockRejectedValue(new Error('TADIR read failed'));

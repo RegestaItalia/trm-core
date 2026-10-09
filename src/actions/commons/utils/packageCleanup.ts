@@ -11,6 +11,7 @@ import { releaseDeletionTransport } from "./releaseDeletionTransport";
 import { restoreTransport } from "./restoreTransport";
 import { withScopedPrefix } from "./withScopedPrefix";
 import { ActionLockScope, objectLockResource } from "./actionLocks";
+import { getOwningInstallation } from "./owningInstallation";
 
 type CleanupObject = Pick<E071, 'pgmid' | 'object' | 'objName'>;
 
@@ -720,14 +721,22 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             { previousDevclasses, isOtherInstallation }
         );
         const movedKeys = new Set<string>();
-        const movedObjects = relocatedObjects.filter(object => {
-            if (!isOtherInstallation(object.devclass)) {
-                return true;
+        const movedObjects: TADIR[] = [];
+        for (const object of relocatedObjects) {
+            if (isOtherInstallation(object.devclass)) {
+                Logger.log(`Keeping ${object.pgmid} ${object.object} ${object.objName}: it's in SAP package ${object.devclass} of another TRM package`, true);
+                movedKeys.add(objectKey(object));
+                continue;
             }
-            Logger.log(`Keeping ${object.pgmid} ${object.object} ${object.objName}: it's in SAP package ${object.devclass} of another TRM package`, true);
-            movedKeys.add(objectKey(object));
-            return false;
-        });
+            // An object now shipped by another installed TRM package belongs to it: never offer to delete it.
+            const owner = await getOwningInstallation(object.devclass, context.rawInput.contextData?.systemPackages || [], installed);
+            if (owner) {
+                Logger.info(`Keeping ${object.pgmid} ${object.object} ${object.objName}: it belongs to TRM package ${owner.packageName} (SAP package ${object.devclass}).`);
+                movedKeys.add(objectKey(object));
+                continue;
+            }
+            movedObjects.push(object);
+        }
         if (movedObjects.length > 0) {
             movedObjects.forEach(object => Logger.warning(`${object.pgmid} ${object.object} ${object.objName} was moved to SAP package ${object.devclass}, outside this installation`));
             const { deleteMovedObjects } = context.rawInput.contextData.noInquirer

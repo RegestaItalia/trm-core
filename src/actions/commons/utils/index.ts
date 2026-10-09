@@ -7,3 +7,4 @@ export * from "./packageCleanup";
 export * from "./installedDependency";
 export * from "./installRegistry";
 export * from "./dirtyEntries";
+export * from "./owningInstallation";
