@@ -130,6 +130,26 @@ describe('generateDeletionTransport', () => {
         expect(ctx.output.transport).toBe(imported);
     });
 
+    test('without mapping rows (a published development copy) live subpackages are not extra objects', async () => {
+        const { ctx, dummy } = runContext([
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ROOT_PROG' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SUB_PROG' }
+        ]);
+        ctx.runtime.previousInstallPackages = [];
+        ctx.rawInput.contextData.noInquirer = false;
+        (SystemConnector.getSubpackages as jest.Mock).mockImplementation(async devclass =>
+            devclass === 'Z_ROOT' ? [{ devclass: 'Z_SUB', parentcl: 'Z_ROOT' }] : []);
+        (SystemConnector.getDevclassObjects as jest.Mock).mockImplementation(async devclass =>
+            devclass === 'Z_SUB' ? [{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_SUB_PROG' }] : [{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_ROOT_PROG' }]);
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+
+        await generateDeletionTransport.run(ctx);
+
+        expect(prompt).not.toHaveBeenCalled();
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted).toEqual(expect.arrayContaining(['PROG Z_ROOT_PROG', 'PROG Z_SUB_PROG', 'DEVC Z_ROOT', 'DEVC Z_SUB']));
+    });
+
     test('objects deleted by the nested package deletes are not deleted again', async () => {
         const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
         // The SAP buffers still list the nested package and its objects after their deletion.

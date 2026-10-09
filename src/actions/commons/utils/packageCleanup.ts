@@ -224,6 +224,11 @@ async function readInstallationTree(
             if (subpackage.parentcl) {
                 packageParents.set(key, normalize(subpackage.parentcl));
             }
+            // Without mapping rows (a published development copy, or an older installation that kept the
+            // publisher names) the installed transport doesn't list the SAP packages: the live ones are the installation's.
+            if (previousInstallPackages.length === 0) {
+                installedDevclasses.add(key);
+            }
         }
     }
 
