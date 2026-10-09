@@ -16,7 +16,8 @@ function flattenDevclasses(pkg: PackageHierarchy): string[] {
 function incomingCustomizingRows(context: InstallWorkflowContext): CustomizingRow[] {
     return (context.runtime.transports?.cust || []).flatMap(cust => {
         const entries: any = cust.binaries?.entries || {};
-        const keys: CustomizingRow[] = (entries.e071k || []).map((key: any) => ({
+        // Registry entries are camel-cased: E071K becomes e071K.
+        const keys: CustomizingRow[] = (entries.e071K || entries.e071k || []).map((key: any) => ({
             table: (key.objname || key.mastername || '').trim(),
             tabkey: (key.tabkey || '').trim()
         }));

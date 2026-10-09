@@ -340,7 +340,7 @@ describe('generateUpdateTransport revert', () => {
         test('rows rewritten by the incoming customizing are deleted without asking', async () => {
             const { ctx, dummy } = custContext();
             ctx.rawInput.contextData.noInquirer = false;
-            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW', entries: { e071k: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }] } } }];
+            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW', entries: { e071K: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }] } } }];
             const prompt = jest.spyOn(Inquirer, 'prompt');
 
             await generateUpdateTransport.run(ctx);
@@ -357,7 +357,7 @@ describe('generateUpdateTransport revert', () => {
                 { table: 'ZCUST_TABLE', tabkey: '100K1' }, { table: 'ZCUST_TABLE', tabkey: '100K2' }, { table: 'ZOTHER', tabkey: '100X' }
             ] };
             ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW', entries: {
-                e071k: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }],
+                e071K: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }],
                 e071: [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZOTHER', objfunc: '' }]
             } } }];
             const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: true });
@@ -373,7 +373,7 @@ describe('generateUpdateTransport revert', () => {
         test('a generic key is confirmed even when the incoming release ships customizing', async () => {
             const { ctx } = custContext();
             ctx.rawInput.contextData.noInquirer = false;
-            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW', entries: { e071k: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }] } } }];
+            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW', entries: { e071K: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }] } } }];
             (Transport as any).customizingKeys = { DEVK9CUST1: [{ table: 'ZCUST_TABLE', tabkey: '100*' }] };
             jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: false });
 
