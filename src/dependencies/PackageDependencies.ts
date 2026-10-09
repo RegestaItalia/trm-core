@@ -34,6 +34,7 @@ export class PackageDependencies {
     public readonly trmPackageDependencies: TrmPackageDependency[] = [];
     public readonly abapPackageDependencies: AbapPackageDependency[] = [];
     private devclasses: DEVCLASS[];
+    private ancestors: DEVCLASS[];
 
     constructor(public readonly devclass: DEVCLASS) { }
 
@@ -73,7 +74,13 @@ export class PackageDependencies {
                     }
                 }
             }
+            // The root package's definition points to its superpackages: they're not shipped, and
+            // install places the root wherever the user chooses.
+            const isRootDefinition = o.object === 'DEVC' && o.objName === this.devclass;
             for (const sapPackage of o.sapPackages) {
+                if (isRootDefinition && (await this.getAncestors()).includes(sapPackage.package)) {
+                    continue;
+                }
                 for (const dep of sapPackage.dependencies) {
                     // only if the abap package is not a subpackage of the one analyzed
                     if (!(await this.getDevclasses()).includes(sapPackage.package)) {
@@ -119,6 +126,18 @@ export class PackageDependencies {
         logProgress.stop();
 
         return this;
+    }
+
+    private async getAncestors(): Promise<DEVCLASS[]> {
+        if (!this.ancestors) {
+            this.ancestors = [];
+            let parent = (await SystemConnector.getDevclass(this.devclass))?.parentcl;
+            while (parent && !this.ancestors.includes(parent)) {
+                this.ancestors.push(parent);
+                parent = (await SystemConnector.getDevclass(parent))?.parentcl;
+            }
+        }
+        return this.ancestors;
     }
 
     private async getDevclasses(): Promise<DEVCLASS[]> {
