@@ -6,6 +6,7 @@ import { installRegistryKey } from "../commons/utils";
 import { Manifest } from "../../manifest";
 import { ZTRM_INSTALLDEVC, ZTRM_INSTALLTR } from "../../client";
 import { TrmTransportIdentifier } from "../../transport";
+import { keepsInstalledCustomizing } from "./generateUpdateTransport";
 
 function installTransportRows(packageName: string, packageRegistry: string, transports: { trkorr: string, trmType: string }[]): ZTRM_INSTALLTR[] {
     return transports.map(transport => ({
@@ -58,10 +59,18 @@ export const updatePackageData: Step<InstallWorkflowContext> = {
 
         const installDevc = installDevcRows(context.rawInput.packageData.name, packageRegistry, context.rawInput.installData.installDevclass.replacements);
         // Only transports imported on this system: uninstall and update delete their customizing.
+        // An upgrade that kept the installed customizing still owns the rows of the previous transports.
+        const importedCust = (context.runtime.transports.cust || [])
+            .filter(cust => cust.instance)
+            .map(cust => ({ trkorr: cust.instance.trkorr, trmType: TrmTransportIdentifier.CUST }));
+        const keptCust = context.runtime.update && keepsInstalledCustomizing(context)
+            ? (context.runtime.previousInstallTransports || [])
+                .filter(o => (o.trmType || '').trim().toUpperCase() === TrmTransportIdentifier.CUST && !importedCust.some(k => k.trkorr === o.trkorr))
+                .map(o => ({ trkorr: o.trkorr, trmType: TrmTransportIdentifier.CUST }))
+            : [];
         const installTr = installTransportRows(context.rawInput.packageData.name, packageRegistry, [
-            ...(context.runtime.transports.cust || [])
-                .filter(cust => cust.instance)
-                .map(cust => ({ trkorr: cust.instance.trkorr, trmType: TrmTransportIdentifier.CUST })),
+            ...keptCust,
+            ...importedCust,
             ...(context.runtime.transports.lang?.instance
                 ? [{ trkorr: context.runtime.transports.lang.instance.trkorr, trmType: TrmTransportIdentifier.LANG }]
                 : [])

@@ -113,6 +113,28 @@ export class Transport {
         return this._e071k;
     }
 
+    /**
+     * Table content carried by the transport: one entry per E071K key, and one entry without key
+     * (the whole table content) per TABU object that has no key list.
+     */
+    public async getCustomizingKeys(): Promise<{ table: string, tabkey?: string }[]> {
+        const keys: { objname: string, mastername?: string, tabkey: string }[] = await SystemConnector.readTable('E071K', [
+            { fieldName: 'OBJNAME' },
+            { fieldName: 'MASTERNAME' },
+            { fieldName: 'TABKEY' }
+        ], `TRKORR EQ '${this.trkorr}'`);
+        const objects: { object: string, objName: string, objfunc: string }[] = await SystemConnector.readTable('E071', [
+            { fieldName: 'OBJECT' },
+            { fieldName: 'OBJ_NAME' },
+            { fieldName: 'OBJFUNC' }
+        ], `TRKORR EQ '${this.trkorr}'`);
+        return [
+            ...keys.map(o => ({ table: (o.objname || o.mastername || '').trim(), tabkey: (o.tabkey || '').trim() })),
+            ...objects.filter(o => (o.object || '').trim().toUpperCase() === 'TABU' && (o.objfunc || '').trim().toUpperCase() !== 'K')
+                .map(o => ({ table: (o.objName || '').trim() }))
+        ];
+    }
+
     public async getE07T(): Promise<E07T[]> {
         if (!this._e07t) {
             const fields: RFC_DB_FLD[] = [

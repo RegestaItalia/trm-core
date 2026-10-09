@@ -98,7 +98,12 @@ export type PackageCleanupTarget = {
      * When `true`, the customizing rows shipped by the installed release are kept.
      * Otherwise they are always deleted, without asking.
      */
-    keepCustomizing?: boolean
+    keepCustomizing?: boolean,
+    /**
+     * When `true`, the incoming release imports customizing that rewrites the rows it still ships:
+     * only generic keys are confirmed. Otherwise every deleted row is listed and confirmed.
+     */
+    reshipsCustomizing?: boolean
 }
 
 function normalize(value: string): string {
@@ -498,6 +503,51 @@ async function getCustomizingSources(context: PackageCleanupContext, target: Pac
 }
 
 /**
+ * Lists the customizing rows the cleanup deletes and asks to continue: always for a generic key or a
+ * whole table, which also delete rows not shipped by the package (default no); otherwise only when
+ * the incoming release doesn't ship customizing that rewrites them (default yes).
+ * Without prompts, it only warns.
+ */
+async function confirmCustomizingDeletion(context: PackageCleanupContext, target: PackageCleanupTarget, sources: string[]): Promise<void> {
+    const rows: { table: string, tabkey?: string }[] = [];
+    for (const trkorr of sources) {
+        rows.push(...await new Transport(trkorr).getCustomizingKeys());
+    }
+    const generic = rows.filter(row => row.tabkey === undefined || row.tabkey.includes('*'));
+    if (target.reshipsCustomizing && generic.length === 0) {
+        Logger.log(`Deleting ${rows.length} customizing rows rewritten by the incoming release`, true);
+        return;
+    }
+    const listed = target.reshipsCustomizing ? generic : rows;
+    if (listed.length === 0) {
+        return;
+    }
+    const label = (row: { table: string, tabkey?: string }) => row.tabkey === undefined ? `${row.table} (all rows)` : `${row.table} ${row.tabkey}`;
+    const shown = listed.slice(0, 20).map(label);
+    if (listed.length > shown.length) {
+        shown.push(`...and ${listed.length - shown.length} more`);
+    }
+    const name = context.rawInput.packageData.name;
+    const version = context.runtime.update.manifest.get().version;
+    const message = generic.length > 0
+        ? `${generic.length} customizing ${generic.length === 1 ? 'entry' : 'entries'} of ${name} v${version} ${generic.length === 1 ? 'uses' : 'use'} a generic key or a whole table: every matching row will be deleted, including rows not shipped by ${name}`
+        : `${listed.length} customizing ${listed.length === 1 ? 'row' : 'rows'} shipped by ${name} v${version} will be deleted`;
+    Logger.warning(`${message}:\n${shown.join('\n')}`, { important: true });
+    if (context.rawInput.contextData?.noInquirer) {
+        return;
+    }
+    const { deleteCustomizing } = await Inquirer.prompt({
+        name: 'deleteCustomizing',
+        type: 'confirm',
+        message: `${message}. Continue?`,
+        default: generic.length === 0
+    });
+    if (!deleteCustomizing) {
+        throw new Error(`${target.actionName} aborted.`);
+    }
+}
+
+/**
  * Imports a custom namespace missing on the system, with the repair license of the installed
  * release, so its objects can be staged in a package of the namespace.
  */
@@ -754,6 +804,9 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         }
 
         const customizingSources = await getCustomizingSources(context, target);
+        if (customizingSources.length > 0) {
+            await confirmCustomizingDeletion(context, target, customizingSources);
+        }
 
         const additionalObjects = [...extraObjectsToDelete.values(), ...packagesToDelete.map(devclass => ({
             pgmid: 'R3TR',

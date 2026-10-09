@@ -69,6 +69,35 @@ describe('install package metadata writes', () => {
         expect(transportsOrder).toBeLessThan((SystemConnector.updateTrmPackageData as jest.Mock).mock.invocationCallOrder[0]);
     });
 
+    test('an upgrade that kept the installed customizing still records its transports', async () => {
+        const ctx = context();
+        ctx.runtime.update = { packageName: 'pkg' };
+        ctx.runtime.skippedCust = ['DEVK900004'];
+        ctx.runtime.previousInstallTransports = [
+            { trkorr: 'DEVK9OLDC', trmType: 'CUST' },
+            { trkorr: 'DEVK9OLDL', trmType: 'LANG' }
+        ];
+
+        await updatePackageData.run(ctx);
+
+        expect(SystemConnector.setInstallTransports).toHaveBeenCalledWith('pkg', 'public', [
+            { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK9OLDC', trm_type: 'CUST' },
+            { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK900003', trm_type: 'CUST' },
+            { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK900002', trm_type: 'LANG' }
+        ]);
+    });
+
+    test('an upgrade that imported all the new customizing records only the new transports', async () => {
+        const ctx = context();
+        ctx.runtime.update = { packageName: 'pkg' };
+        ctx.runtime.skippedCust = [];
+        ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9OLDC', trmType: 'CUST' }];
+
+        await updatePackageData.run(ctx);
+
+        expect((SystemConnector.setInstallTransports as jest.Mock).mock.calls[0][2].map((o: any) => o.trkorr)).toEqual(['DEVK900003', 'DEVK900002']);
+    });
+
     const storedRow = {
         package_name: 'pkg', package_registry: 'public', manifest: Buffer.from('<old/>'),
         trkorr: 'DEVK900000', integrity: 'old-sha', devclass: 'ZROOT'

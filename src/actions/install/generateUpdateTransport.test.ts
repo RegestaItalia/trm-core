@@ -33,6 +33,8 @@ jest.mock('../../transport', () => {
         static existing = new Set<string>();
         getE070 = jest.fn(async () => MockTransport.existing.has(this.trkorr) ? { trkorr: this.trkorr } : undefined);
         addObjectsFromTransport = jest.fn().mockResolvedValue(undefined);
+        static customizingKeys: Record<string, { table: string, tabkey?: string }[]> = {};
+        getCustomizingKeys = jest.fn(async () => MockTransport.customizingKeys[this.trkorr] || [{ table: 'ZCUST_TABLE', tabkey: '100K1' }]);
         canBeDeleted = jest.fn(async () => MockTransport.deletable);
         delete = jest.fn().mockResolvedValue(undefined);
         addObjects = jest.fn().mockResolvedValue(undefined);
@@ -335,15 +337,38 @@ describe('generateUpdateTransport revert', () => {
             expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
         });
 
-        test('is deleted without asking, even when prompts are enabled', async () => {
+        test('rows rewritten by the incoming customizing are deleted without asking', async () => {
             const { ctx, dummy } = custContext();
             ctx.rawInput.contextData.noInquirer = false;
+            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW' } }];
             const prompt = jest.spyOn(Inquirer, 'prompt');
 
             await generateUpdateTransport.run(ctx);
 
             expect(prompt).not.toHaveBeenCalled();
             expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
+        });
+
+        test('rows no longer shipped by the incoming release are listed and confirmed', async () => {
+            const { ctx, dummy } = custContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: true });
+
+            await generateUpdateTransport.run(ctx);
+
+            expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ name: 'deleteCustomizing', default: true }));
+            expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
+        });
+
+        test('a generic key is confirmed even when the incoming release ships customizing', async () => {
+            const { ctx } = custContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW' } }];
+            (Transport as any).customizingKeys = { DEVK9CUST1: [{ table: 'ZCUST_TABLE', tabkey: '100*' }] };
+            jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: false });
+
+            await expect(generateUpdateTransport.run(ctx)).rejects.toThrow('Update aborted.');
+            (Transport as any).customizingKeys = {};
         });
 
         test('is kept when the new customizing is not imported', async () => {
@@ -353,6 +378,16 @@ describe('generateUpdateTransport revert', () => {
 
             expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
             expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('customizing of the installed release is kept'), { important: true });
+        });
+
+        test('is kept when the user declined to import a customizing transport of the new release', async () => {
+            const { ctx, dummy } = custContext({});
+            ctx.runtime.skippedCust = ['DEVK9CUST2'];
+
+            await generateUpdateTransport.run(ctx);
+
+            expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith('Customizing transports are skipped (DEVK9CUST2): the customizing of the installed release is kept.', { important: true });
         });
 
     });

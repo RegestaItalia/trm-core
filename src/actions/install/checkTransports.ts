@@ -134,6 +134,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
             skippedCust = custTransports.map(o => o.trkorr);
         }
 
+        context.runtime.skippedCust = skippedCust;
+
         //3- get entries of requested transports
         if (context.runtime.isLocal) {
             Logger.loading(`Extracting package transports contents...`);

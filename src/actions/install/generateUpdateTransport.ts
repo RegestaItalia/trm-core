@@ -13,6 +13,15 @@ function flattenDevclasses(pkg: PackageHierarchy): string[] {
 }
 
 /**
+ * Whether an upgrade keeps the customizing of the installed release: customizing of the incoming
+ * release is skipped (noCust) or one of its transports was not imported. Deleting the installed
+ * rows would then leave them missing.
+ */
+export function keepsInstalledCustomizing(context: InstallWorkflowContext): boolean {
+    return !!context.rawInput.installData?.import?.noCust || (context.runtime.skippedCust || []).length > 0;
+}
+
+/**
  * Workflow step that creates a transport for objects removed by an upgrade.
  * It's necessary when:
  *   - upgrading/downgrading a package: to ensure old entries are cleaned up
@@ -41,8 +50,10 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
         // Read the target lazily: a failure reading the previous release must still be tracked first.
         const installDevclass = context.rawInput.installData?.installDevclass;
         const importData = context.rawInput.installData?.import;
-        if (importData?.noCust) {
-            Logger.warning(`Customizing transports are skipped: the customizing of the installed release is kept.`, { important: true });
+        const keepCustomizing = keepsInstalledCustomizing(context);
+        if (keepCustomizing) {
+            const skipped = context.runtime.skippedCust || [];
+            Logger.warning(`Customizing transports are skipped${skipped.length > 0 ? ` (${skipped.join(', ')})` : ''}: the customizing of the installed release is kept.`, { important: true });
         }
         await cleanupInstalledPackage(context, {
             get incomingObjects() {
@@ -58,7 +69,10 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             requireDeletion: false,
             // Old customizing is deleted before the new customizing is imported: rows the new
             // release still ships are written again. Without that import, nothing would restore them.
-            keepCustomizing: !!importData?.noCust
+            keepCustomizing,
+            get reshipsCustomizing() {
+                return (context.runtime.transports?.cust || []).length > 0;
+            }
         });
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {

@@ -32,6 +32,8 @@ jest.mock('../../transport', () => {
         static existing = new Set<string>();
         getE070 = jest.fn(async () => MockTransport.existing.has(this.trkorr) ? { trkorr: this.trkorr } : undefined);
         addObjectsFromTransport = jest.fn().mockResolvedValue(undefined);
+        static customizingKeys: Record<string, { table: string, tabkey?: string }[]> = {};
+        getCustomizingKeys = jest.fn(async () => MockTransport.customizingKeys[this.trkorr] || [{ table: 'ZCUST_TABLE', tabkey: '100K1' }]);
         canBeDeleted = jest.fn(async () => false);
         delete = jest.fn().mockResolvedValue(undefined);
         addObjects = jest.fn().mockResolvedValue(undefined);
@@ -421,15 +423,44 @@ describe('generateDeletionTransport', () => {
             expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9CUST1 is no longer on TST'), { important: true });
         });
 
-        test('the rows are deleted without asking, even when prompts are enabled', async () => {
+        test('the rows are listed and confirmed before they are deleted', async () => {
             const { ctx, dummy } = custContext();
             ctx.rawInput.contextData.noInquirer = false;
-            const prompt = jest.spyOn(Inquirer, 'prompt');
+            const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: true });
 
             await generateDeletionTransport.run(ctx);
 
-            expect(prompt).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith('1 customizing row shipped by pkg v1.0.0 will be deleted:\nZCUST_TABLE 100K1', { important: true });
+            expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ name: 'deleteCustomizing', default: true }));
             expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
+        });
+
+        test('declining the customizing deletion aborts before anything is changed', async () => {
+            const { ctx, dummy, acquire } = custContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: false });
+
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('Delete aborted.');
+            expect(acquire).not.toHaveBeenCalled();
+            expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
+            expect(dummy.addObjects).not.toHaveBeenCalled();
+        });
+
+        test('a generic key is confirmed with default no, naming the rows not shipped by the package', async () => {
+            const { ctx } = custContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            (Transport as any).customizingKeys = { DEVK9CUST1: [{ table: 'ZCUST_TABLE', tabkey: '100*' }, { table: 'ZWHOLE' }] };
+            const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: true });
+
+            await generateDeletionTransport.run(ctx);
+            (Transport as any).customizingKeys = {};
+
+            expect(prompt).toHaveBeenCalledWith(expect.objectContaining({
+                name: 'deleteCustomizing',
+                default: false,
+                message: '2 customizing entries of pkg v1.0.0 use a generic key or a whole table: every matching row will be deleted, including rows not shipped by pkg. Continue?'
+            }));
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('ZCUST_TABLE 100*\nZWHOLE (all rows)'), { important: true });
         });
 
         test('customizing alone still generates the deletion transport', async () => {

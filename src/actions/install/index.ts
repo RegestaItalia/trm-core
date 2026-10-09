@@ -251,6 +251,8 @@ type WorkflowRuntime = {
     systemPackagesBeforeDependencies?: TrmPackage[],
     rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean,
+    /** Customizing transports of the release the user chose not to import (or skipped by noCust / non-interactive mode). */
+    skippedCust?: string[],
     /** Release objects found on the system by check-transports, accepted before locking. */
     existingObjects?: TADIR[],
     /** Custom namespaces locked by this install or by the install it is a dependency of. */
