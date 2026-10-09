@@ -482,6 +482,22 @@ describe('generateUpdateTransport revert', () => {
         });
     });
 
+    test('an installed object moved to a customer package and shipped again is left to the import, without asking', async () => {
+        const moved = { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' };
+        const { ctx, dummy } = runContext([moved, { pgmid: 'R3TR', object: 'PROG', objName: 'Z_OLD' }], [{ ...moved, devclass: 'Z_ROOT' }]);
+        ctx.rawInput.contextData.noInquirer = false;
+        jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects =>
+            objects.filter((o: any) => o.objName === 'Z_MOVED').map((o: any) => ({ ...o, devclass: 'Z_CUSTOMER' })) as any);
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+
+        await generateUpdateTransport.run(ctx);
+
+        expect(prompt).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'deleteMovedObjects' }));
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted).toContain('PROG Z_OLD');
+        expect(deleted).not.toContain('PROG Z_MOVED');
+    });
+
     test('tables still shipped by the new release are kept and backed up instead of deleted', async () => {
         const { ctx, dummy, backup, acquire } = runContext([
             { pgmid: 'R3TR', object: 'TABL', objName: 'Z_KEPT' },

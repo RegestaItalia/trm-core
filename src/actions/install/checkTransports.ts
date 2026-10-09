@@ -275,7 +275,6 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         context.runtime.existingObjects = existingObjects;
         Logger.log(`TADIR object that already exist in system: ${JSON.stringify(existingObjects)}`, true);
         //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
-        let throwExistingObjectsError = false;
         if (existingObjects.length > 0) {
             // Name the installed TRM package that contains each existing object: it can't be taken over silently.
             const owners = new Map<TADIR, string>();
@@ -298,20 +297,46 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     const rootDevclass = rootPackage.getDevclass();
                     if (rootDevclass) {
                         const subpackages = (await SystemConnector.getSubpackages(rootDevclass)).map(o => o.devclass);
-                        existingObjects.forEach(o => {
+                        const outside = existingObjects.filter(o => {
                             if (subpackages.includes(o.devclass) || rootDevclass === o.devclass) {
                                 Logger.log(`${o.pgmid} ${o.object} ${o.objName} already in system but devclass ${o.devclass} is part of the same trm package in update`, true);
+                                return false;
+                            }
+                            return true;
+                        });
+                        // Objects of the installed release that the customer moved to another (non-TRM) SAP package:
+                        // overwriting them moves them back, so it can be confirmed. Anything else can't be taken over.
+                        const installedKeys = new Set(outside.length > 0 && rootPackage.getTransport()
+                            ? (await rootPackage.getTransport().getE071()).map(e => `${e.pgmid}|${e.object}|${e.objName}`.toUpperCase())
+                            : []);
+                        const movedOut = outside.filter(o => !owners.has(o) && installedKeys.has(`${o.pgmid}|${o.object}|${o.objName}`.toUpperCase()));
+                        const foreign = outside.filter(o => !movedOut.includes(o));
+                        const noExistingObjects = context.rawInput.installData.checks.noExistingObjects;
+                        foreign.forEach(o => {
+                            if (noExistingObjects) {
+                                Logger.warning(`${label(o)} already exist on target system ${SystemConnector.getDest()}`, { important: true });
                             } else {
-                                if (context.rawInput.installData.checks.noExistingObjects) {
-                                    Logger.warning(`${label(o)} already exist on target system ${SystemConnector.getDest()}`, { important: true });
-                                } else {
-                                    Logger.error(`${label(o)} already exist on target system ${SystemConnector.getDest()}`, { important: true });
-                                }
-                                throwExistingObjectsError = true;
+                                Logger.error(`${label(o)} already exist on target system ${SystemConnector.getDest()}`, { important: true });
                             }
                         });
-                        if (throwExistingObjectsError && !context.rawInput.installData.checks.noExistingObjects) {
+                        if (foreign.length > 0 && !noExistingObjects) {
                             throw new Error(`Cannot overwrite existing objects.${ownersHint}`);
+                        }
+                        if (movedOut.length > 0 && !noExistingObjects) {
+                            const movedList = movedOut.map(o => `${o.pgmid} ${o.object} ${o.objName} (now in SAP package ${o.devclass})`).join('\n');
+                            Logger.warning(`${movedOut.length} object(s) of the installed release were moved outside its SAP packages:\n${movedList}`, { important: true });
+                            if (context.rawInput.contextData.noInquirer) {
+                                throw new Error(`Cannot overwrite objects moved outside ${rootPackage.packageName}: confirm interactively, or install with the noExistingObjects check.`);
+                            }
+                            const { overwriteMoved } = await Inquirer.prompt({
+                                name: 'overwriteMoved',
+                                type: 'confirm',
+                                message: `Overwrite them and move them back into the SAP packages of ${rootPackage.packageName}?`,
+                                default: false
+                            });
+                            if (!overwriteMoved) {
+                                throw new Error(`Install aborted.`);
+                            }
                         }
                     } else {
                         if (context.rawInput.installData.checks.noExistingObjects) {

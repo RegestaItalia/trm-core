@@ -200,6 +200,44 @@ describe('check-transports existing objects on update', () => {
         expect(SystemConnector.getSubpackages).toHaveBeenCalledWith('ZROOT');
         expect(Logger.error).not.toHaveBeenCalled();
     });
+
+    describe('an object of the installed release moved to a customer package', () => {
+        const moved = { pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_OWN', devclass: 'ZCUSTOMER' };
+        function movedContext(installed: string[] = ['ZCL_OWN']) {
+            const ctx = context();
+            ctx.runtime.update.getTransport = () => ({ getE071: async () => installed.map(objName => ({ pgmid: 'R3TR', object: 'CLAS', objName })) });
+            (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([moved]);
+            return ctx;
+        }
+
+        test('is overwritten when the user confirms', async () => {
+            const ctx = movedContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ overwriteMoved: true } as any);
+            await expect(checkTransports.run(ctx)).resolves.toBeUndefined();
+            expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ name: 'overwriteMoved', default: false }));
+            expect(Logger.warning).toHaveBeenCalledWith('1 object(s) of the installed release were moved outside its SAP packages:\nR3TR CLAS ZCL_OWN (now in SAP package ZCUSTOMER)', { important: true });
+        });
+
+        test('declining aborts the install', async () => {
+            const ctx = movedContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ overwriteMoved: false } as any);
+            await expect(checkTransports.run(ctx)).rejects.toThrow('Install aborted.');
+        });
+
+        test('without prompts it is refused', async () => {
+            await expect(checkTransports.run(movedContext())).rejects.toThrow('Cannot overwrite objects moved outside pkg: confirm interactively, or install with the noExistingObjects check.');
+        });
+
+        test('an existing object that the installed release did not ship is still refused', async () => {
+            const ctx = movedContext([]);
+            ctx.rawInput.contextData.noInquirer = false;
+            const prompt = jest.spyOn(Inquirer, 'prompt');
+            await expect(checkTransports.run(ctx)).rejects.toThrow('Cannot overwrite existing objects.');
+            expect(prompt).not.toHaveBeenCalled();
+        });
+    });
 });
 
 describe('check-transports customizing prompts', () => {

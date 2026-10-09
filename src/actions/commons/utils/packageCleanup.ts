@@ -788,6 +788,12 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         const movedKeys = new Set<string>();
         const movedObjects: TADIR[] = [];
         for (const object of relocatedObjects) {
+            // Shipped again by the incoming release: its import overwrites them and moves them back (confirmed at check-transports).
+            if (incomingKeys.has(objectKey(object))) {
+                Logger.log(`Keeping ${object.pgmid} ${object.object} ${object.objName}: the incoming release overwrites it`, true);
+                movedKeys.add(objectKey(object));
+                continue;
+            }
             if (isOtherInstallation(object.devclass)) {
                 Logger.log(`Keeping ${object.pgmid} ${object.object} ${object.objName}: it's in SAP package ${object.devclass} of another TRM package`, true);
                 movedKeys.add(objectKey(object));
