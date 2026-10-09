@@ -486,6 +486,31 @@ describe('importBatch rollback checkpoint', () => {
         expect(context.revert.cleanupSucceeded).not.toBe(false);
     });
 
+    test('an object that cannot be staged does not stop the cleanup of the others', async () => {
+        const context = makeContext(registryDelete);
+        context.revert.sapPackages = ['ZGEN'];
+        context.revert.namespace = undefined;
+        context.revert.importedEntries = [{ pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG' }];
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValueOnce([{ pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG', devclass: '/NS/ORIGINAL' }]);
+        (SystemConnector.tadirInterface as jest.Mock).mockImplementation(async (object: any) => {
+            if (object.objName === '/NS/PROG') {
+                throw new Error('Object PROG /NS/PROG cannot be assigned to package');
+            }
+        });
+        cleanupTransport.addObjects = jest.fn(async function (entries: any[]) {
+            if (entries.some(entry => entry.objName === '/NS/PROG')) {
+                throw new Error('Package /NS/ORIGINAL does not exist');
+            }
+            this.entries.push(...entries);
+        });
+
+        await expect(deleteImportedEntries(context)).rejects.toThrow('Package /NS/ORIGINAL does not exist');
+
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Could not stage R3TR PROG /NS/PROG'));
+        expect(cleanupTransport.entries).toContainEqual({ pgmid: 'R3TR', object: 'DEVC', objName: 'ZGEN' });
+        (SystemConnector.tadirInterface as jest.Mock).mockReset();
+    });
+
     test('temporary imported package uses dedicated deletion API and is omitted from cleanup transport', async () => {
         const context = makeContext(registryDelete);
         context.revert.sapPackages = [];
