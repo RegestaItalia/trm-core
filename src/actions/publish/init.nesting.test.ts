@@ -85,6 +85,12 @@ describe('publish of an ABAP package nested with another TRM package', () => {
         expect(registry.validatePublish).not.toHaveBeenCalled();
     });
 
+    test('the root package of another TRM package is refused, suggesting a new release of it', async () => {
+        await expect(init.run(context('ZCHILD', [new TrmPackage('child', registry).setDevclass('ZCHILD')]))).rejects.toThrow(
+            'ABAP package ZCHILD is already published as TRM package "child": publish a new release of "child", or publish from another package.'
+        );
+    });
+
     test('a new release of the same TRM package and unrelated TRM packages are allowed', async () => {
         await expect(init.run(context('ZPARENT', [
             new TrmPackage('pkg', registry).setDevclass('ZPARENT'),

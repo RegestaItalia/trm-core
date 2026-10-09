@@ -39,6 +39,9 @@ async function checkOtherTrmPackages(context: PublishWorkflowContext): Promise<v
     }
     const owner = await getOwningInstallation(devclass, others);
     if (owner) {
+        if (owner.getDevclass().trim().toUpperCase() === devclass) {
+            throw new Error(`ABAP package ${devclass} is already published as TRM package "${owner.packageName}": publish a new release of "${owner.packageName}", or publish from another package.`);
+        }
         throw new Error(`ABAP package ${devclass} is part of TRM package "${owner.packageName}" (SAP package ${owner.getDevclass()}): publish from a package outside of it.`);
     }
     const roots = new Map(others.map(o => [o.getDevclass().trim().toUpperCase(), o]));
