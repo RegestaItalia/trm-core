@@ -699,9 +699,12 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             const extraObjectCount = objectsAfterImport.size + packagesToRemove.filter(member => !installedDevclasses.has(member)).length;
             if (extraObjectCount > 0) {
                 const extraObjectsMessage = `Cleanup of SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} will delete ${extraObjectCount} extra objects outside this installation`;
-                if (context.rawInput.contextData.noInquirer) {
-                    Logger.warning(`${extraObjectsMessage}.`, { important: true });
-                }
+                // Name the objects, so the user can tell local developments worth keeping.
+                const extraObjects = [
+                    ...Array.from(objectsAfterImport.values()).map(object => `${object.pgmid} ${object.object} ${object.objName}`),
+                    ...packagesToRemove.filter(member => !installedDevclasses.has(member)).map(member => `R3TR DEVC ${previousDevclasses.get(member)}`)
+                ];
+                Logger.warning(`${extraObjectsMessage}:\n${extraObjects.join('\n')}`, { important: true });
                 const { deleteExtraObjects } = context.rawInput.contextData.noInquirer
                     ? { deleteExtraObjects: true }
                     : await Inquirer.prompt({

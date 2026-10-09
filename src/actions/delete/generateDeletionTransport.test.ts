@@ -617,8 +617,9 @@ describe('generateDeletionTransport', () => {
             expect(deleted).toEqual(expect.arrayContaining(['CLAS Z_CLASS', 'PROG Z_LOCAL_PROG', 'PROG Z_EXTRA_PROG', 'DEVC Z_EXTRA']));
             expect(deleted).toHaveLength(4);
             // Without prompts, extra objects are deleted with a warning.
-            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_EXTRA will delete 2 extra objects outside this installation.', { important: true });
-            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_LOCAL will delete 2 extra objects outside this installation.', { important: true });
+            // The extra objects are named, so local developments can be told apart.
+            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_EXTRA will delete 2 extra objects outside this installation:\nR3TR PROG Z_EXTRA_PROG\nR3TR DEVC Z_EXTRA', { important: true });
+            expect(Logger.warning).toHaveBeenCalledWith('Cleanup of SAP package Z_LOCAL will delete 2 extra objects outside this installation:\nR3TR PROG Z_LOCAL_PROG\nR3TR DEVC Z_LOCAL', { important: true });
             expect(Logger.warning).not.toHaveBeenCalledWith(expect.stringContaining('nested'));
             expect(Logger.warning).not.toHaveBeenCalledWith(expect.stringContaining('NESTED'));
         });
