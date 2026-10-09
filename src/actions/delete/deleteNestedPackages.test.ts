@@ -95,6 +95,21 @@ describe('deleteNestedPackages', () => {
         expect(ctx.rawInput.contextData.systemPackages).toEqual([pkg, unrelated]);
     });
 
+    test('with prompts, deleting the nested packages is confirmed first, default no', async () => {
+        const { ctx } = nestedContext();
+        ctx.rawInput.contextData.noInquirer = false;
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteNested: false });
+
+        await expect(deleteNestedPackages.run(ctx)).rejects.toThrow('Delete aborted.');
+
+        expect(prompt).toHaveBeenCalledWith(expect.objectContaining({
+            name: 'deleteNested',
+            default: false,
+            message: '3 TRM package(s) installed in the SAP packages of pkg will be deleted too: nested, deeper, sibling. Continue?'
+        }));
+        expect(deleteWithRollback).not.toHaveBeenCalled();
+    });
+
     test('records the objects removed by the nested deletion transports', async () => {
         const { ctx } = nestedContext();
         const nestedResult: any = result('nested');

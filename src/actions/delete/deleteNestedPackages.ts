@@ -92,7 +92,20 @@ export const deleteNestedPackages: Step<DeleteWorkflowContext> = {
     },
     run: async (context: DeleteWorkflowContext): Promise<void> => {
         const { outermost, all } = context.runtime.nestedPackages;
-        Logger.warning(`${all.length} TRM package(s) installed in the SAP packages of ${context.runtime.update.packageName} will be deleted too: ${all.map(pkg => pkg.packageName).join(', ')}.`, { important: true });
+        const nestedMessage = `${all.length} TRM package(s) installed in the SAP packages of ${context.runtime.update.packageName} will be deleted too: ${all.map(pkg => pkg.packageName).join(', ')}`;
+        Logger.warning(`${nestedMessage}.`, { important: true });
+        // Deleting other TRM packages is destructive: ask first (without prompts the warning stands).
+        if (!context.rawInput.contextData.noInquirer) {
+            const { deleteNested } = await Inquirer.prompt({
+                name: 'deleteNested',
+                type: 'confirm',
+                message: `${nestedMessage}. Continue?`,
+                default: false
+            });
+            if (!deleteNested) {
+                throw new Error(`Delete aborted.`);
+            }
+        }
         const deletingPackages = [...(context.deletingPackages || []), context.runtime.update, ...all];
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
