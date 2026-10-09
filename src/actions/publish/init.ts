@@ -11,6 +11,7 @@ import { setTransportTarget } from "../commons/prompts";
 import { validateDevclass } from "../../validators";
 import { DotAbapGit } from "../../abapgit";
 import { minimatch } from "minimatch";
+import { getOwningInstallation } from "../commons/utils";
 
 function nextPrerelease(version: string, identifier?: string): string | null {
     const pre = prerelease(version);
@@ -22,6 +23,30 @@ function nextPrerelease(version: string, identifier?: string): string | null {
             : `${valid(version)}-${identifier}.0`;
     } else {
         return inc(version, "prerelease", currentId);
+    }
+}
+
+/**
+ * Rejects a publish whose ABAP package is inside the SAP packages of another installed TRM package,
+ * or contains the root package of one: their objects would be shipped by two TRM packages.
+ */
+async function checkOtherTrmPackages(context: PublishWorkflowContext): Promise<void> {
+    const devclass = context.rawInput.packageData.devclass;
+    const ownPackage = new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry);
+    const others = (context.rawInput.contextData.systemPackages || []).filter(o => !TrmPackage.compare(o, ownPackage) && o.getDevclass());
+    if (others.length === 0) {
+        return;
+    }
+    const owner = await getOwningInstallation(devclass, others);
+    if (owner) {
+        throw new Error(`ABAP package ${devclass} is part of TRM package "${owner.packageName}" (SAP package ${owner.getDevclass()}): publish from a package outside of it.`);
+    }
+    const roots = new Map(others.map(o => [o.getDevclass().trim().toUpperCase(), o]));
+    for (const subpackage of await SystemConnector.getSubpackages(devclass)) {
+        const nested = roots.get(subpackage.devclass.trim().toUpperCase());
+        if (nested) {
+            throw new Error(`ABAP package ${devclass} contains package ${subpackage.devclass} of TRM package "${nested.packageName}": move it out of ${devclass}, or publish from a package that doesn't contain it.`);
+        }
     }
 }
 
@@ -181,6 +206,9 @@ export const init: Step<PublishWorkflowContext> = {
             }
             Logger.info(`ABAP package: "${context.rawInput.packageData.devclass}"`);
         }
+
+        //an ABAP package belongs to at most one TRM package: the tree can't contain, or be inside, another one
+        await checkOtherTrmPackages(context);
 
         //5- ensure package version and visibility can be published
         //if it's the first package publish assume it's valid (validate publish will throw error later, in case something is wrong with it)
