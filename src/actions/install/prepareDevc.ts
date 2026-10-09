@@ -34,7 +34,8 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
         //1- read if root already exists in system
         //this is needed later to understand if keeping the superpackage or not
         Logger.loading(`Getting ready to import...`);
-        context.runtime.rootDevclassBeforeImport = await SystemConnector.getDevclass(context.runtime.package.hierarchy.devclass);
+        //an upgrade reads it before its cleanup deletes the root package (generate-update-transport)
+        context.runtime.rootDevclassBeforeImport ??= await SystemConnector.getDevclass(context.runtime.package.hierarchy.devclass);
 
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;

@@ -482,6 +482,17 @@ describe('generateUpdateTransport revert', () => {
         });
     });
 
+    test('reads the root package before the cleanup deletes it, to keep its superpackage', async () => {
+        const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_OLD' }], []);
+        ctx.rawInput.installData.installDevclass.keepOriginal = true;
+        const getDevclass = jest.spyOn(SystemConnector, 'getDevclass').mockResolvedValue({ devclass: 'Z_ROOT', parentcl: 'Z_SUPER' } as any);
+
+        await generateUpdateTransport.run(ctx);
+
+        expect(ctx.runtime.rootDevclassBeforeImport).toEqual({ devclass: 'Z_ROOT', parentcl: 'Z_SUPER' });
+        expect(getDevclass.mock.invocationCallOrder[0]).toBeLessThan(dummy.addObjects.mock.invocationCallOrder[0]);
+    });
+
     test('an installed object moved to a customer package and shipped again is left to the import, without asking', async () => {
         const moved = { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' };
         const { ctx, dummy } = runContext([moved, { pgmid: 'R3TR', object: 'PROG', objName: 'Z_OLD' }], [{ ...moved, devclass: 'Z_ROOT' }]);

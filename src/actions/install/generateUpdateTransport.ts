@@ -3,6 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
 import { cleanupInstalledPackage, CustomizingRow, deleteCleanupStagingPackages, revertInstalledPackageCleanup } from "../commons/utils";
 import { PackageHierarchy } from "../../commons";
 
@@ -62,6 +63,11 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
             stopWarning('install');
+        }
+        // The cleanup deletes and re-imports the root package: read it now, so the import can put it back
+        // under the superpackage it has on this system (prepare-devc reads it after the cleanup).
+        if (context.rawInput.installData?.installDevclass?.keepOriginal && !context.runtime.rootDevclassBeforeImport) {
+            context.runtime.rootDevclassBeforeImport = await SystemConnector.getDevclass(context.runtime.package.hierarchy.devclass);
         }
         // Read the target lazily: a failure reading the previous release must still be tracked first.
         const installDevclass = context.rawInput.installData?.installDevclass;
