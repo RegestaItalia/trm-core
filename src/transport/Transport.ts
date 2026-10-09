@@ -915,6 +915,16 @@ export class Transport {
             if (Array(result.tpStdout)) {
                 result.tpStdout.forEach(line => Logger.log(line.line, true));
             }
+            // tp can hand the import over to the background ("Going offline") and return at once: the objects are
+            // only imported (or deleted) afterwards. Wait for the import recorded in the queue and take its return code.
+            if (!test && rc < 8) {
+                Logger.log(`Waiting for transport ${this.trkorr} import to complete`, true);
+                const queue = await this._isInTmsQueue(true, true);
+                if (queue.rc >= 0) {
+                    rc = queue.rc;
+                    message = queue.message;
+                }
+            }
         } else {
             Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
             const queue = await this._isInTmsQueue(false, true);
