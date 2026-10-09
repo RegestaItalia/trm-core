@@ -6,7 +6,7 @@ jest.mock('../../systemConnector', () => ({
     }
 }));
 
-import { Logger } from 'trm-commons';
+import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { addNamespace } from './addNamespace';
 
@@ -70,6 +70,39 @@ describe('add-namespace target namespace', () => {
         await addNamespace.run(ctx);
         expect(ctx.runtime.namespace).toBe('Z');
         expect(SystemConnector.getNamespace).not.toHaveBeenCalled();
+    });
+
+    describe('packages renamed out of the original namespace', () => {
+        function renamedContext() {
+            const ctx = context([{ originalDevclass: '/ACME/ROOT', installDevclass: 'ZROOT_R' }]);
+            ctx.runtime.package.hierarchy = { devclass: '/ACME/ROOT', sub: [] };
+            ctx.runtime.package.data.manifest = { namespace: { ns: '/ACME/', replicense: '123', texts: [{ language: 'E', description: 'Acme', owner: 'ACME' }] } };
+            (SystemConnector.getNamespace as jest.Mock).mockResolvedValue(undefined);
+            return ctx;
+        }
+
+        test('the namespace of the objects is imported when confirmed', async () => {
+            const ctx = renamedContext();
+            ctx.rawInput.contextData.noInquirer = false;
+            const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ skipNamespace: true } as any);
+
+            await addNamespace.run(ctx);
+
+            expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ message: 'Package objects use namespace /ACME/, do you want to import it (repair license)?' }));
+            expect(SystemConnector.addNamespace).toHaveBeenCalledWith('/ACME/', '123', [{ namespace: '/ACME/', spras: 'E', descriptn: 'Acme', owner: 'ACME' }]);
+            expect(ctx.revert.namespace).toBe('/ACME/');
+            expect(ctx.runtime.namespace).toBe('Z');
+        });
+
+        test('declining continues without it, with a warning', async () => {
+            const ctx = renamedContext();
+            ctx.rawInput.installData.installDevclass.skipNamespace = true;
+
+            await addNamespace.run(ctx);
+
+            expect(SystemConnector.addNamespace).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('without importing namespace /ACME/'), { important: true });
+        });
     });
 
     test('rejects more than one reserved namespace before any system change', async () => {
