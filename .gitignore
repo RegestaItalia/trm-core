@@ -16,3 +16,4 @@ scripts/e2e-revert-matrix.sh
 # e2e: run workspace and final reports (the e2e docs and harness are committed)
 e2e/work/
 E2E_REPORT*.md
+E2E_PLAN*.md
