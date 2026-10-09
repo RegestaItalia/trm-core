@@ -850,8 +850,11 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             objName: namespace
         }))];
         // Validate the complete deletion selection before adding anything to the transport.
+        // SAP packages the incoming release keeps are never deleted: a renamed installation has already
+        // generated them (generate-devclass), and the import of the others updates them in place.
         const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects]
             .filter(object => !retainedKeys.has(objectKey(object)) && !movedKeys.has(objectKey(object)))
+            .filter(object => !(isDevclass(object) && currentDevclasses.has(normalize(object.objName))))
             .map(object => [objectKey(object), object]));
         // TRM comment rows of the installed transport are not objects to delete.
         const hasObjectsToDelete = Array.from(deletionObjects.values()).some(object => normalize(object.pgmid) !== '*');

@@ -63,6 +63,18 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                 ...stored.map(o => ({ originalDevclass: o.originalDevclass, installDevclass: o.installDevclass }))
             ];
         }
+        //the release root can have a new original name (e.g. moved to a namespace): a renamed installation keeps its root
+        //package, matched by position, so the installation stays where the customer put it
+        const releaseRoot = context.runtime.package.hierarchy.devclass;
+        const installedRoot = context.runtime.update?.getDevclass();
+        if (installedRoot && !context.rawInput.installData.installDevclass.replacements.some(o => o.originalDevclass === releaseRoot)) {
+            const storedRoot = context.rawInput.installData.installDevclass.replacements.find(o =>
+                o.installDevclass.trim().toUpperCase() === installedRoot.trim().toUpperCase());
+            if (storedRoot && storedRoot.installDevclass !== storedRoot.originalDevclass) {
+                Logger.log(`Release root ${releaseRoot} replaces ${storedRoot.originalDevclass}: keeping installed root ${installedRoot}`, true);
+                context.rawInput.installData.installDevclass.replacements.push({ originalDevclass: releaseRoot, installDevclass: installedRoot });
+            }
+        }
         //drop replacements of devclasses that are not part of the release (e.g. removed in this version)
         const originalDevclasses = flattenDevclasses(context.runtime.package.hierarchy);
         context.rawInput.installData.installDevclass.replacements = context.rawInput.installData.installDevclass.replacements.filter(replacement => {

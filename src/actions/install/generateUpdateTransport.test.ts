@@ -483,6 +483,20 @@ describe('generateUpdateTransport revert', () => {
         });
     });
 
+    test('never deletes a SAP package the incoming release keeps (e.g. the renamed root, already generated)', async () => {
+        const { ctx, dummy } = runContext([
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'Z_RENAMED' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_OLD' }
+        ], []);
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: '/NS/ROOT', installDevclass: 'Z_RENAMED' }];
+
+        await generateUpdateTransport.run(ctx);
+
+        const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+        expect(deleted).toContain('PROG Z_OLD');
+        expect(deleted).not.toContain('DEVC Z_RENAMED');
+    });
+
     test('reads the root package before the cleanup deletes it, to keep its superpackage', async () => {
         const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_OLD' }], []);
         ctx.rawInput.installData.installDevclass.keepOriginal = true;

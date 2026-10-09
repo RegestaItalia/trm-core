@@ -128,6 +128,27 @@ describe('set-install-devclass namespace carry-over', () => {
         });
     });
 
+    test('a release root with a new original name keeps the renamed installed root', async () => {
+        const ctx = context('ZNSC_R', []);
+        // installed: ZOLD -> ZNSC_R; the release root is now /NS/NEW (e.g. moved to a namespace)
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZOLD', installDevclass: 'ZNSC_R' }];
+        ctx.runtime.package.hierarchy = { devclass: '/NS/NEW', sub: [] };
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([{ originalDevclass: '/NS/NEW', installDevclass: 'ZNSC_R' }]);
+    });
+
+    test('an installation that kept the original root name follows the new original name', async () => {
+        const ctx = context('ZOLD', []);
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZOLD', installDevclass: 'ZOLD' }];
+        ctx.runtime.package.hierarchy = { devclass: '/NS/NEW', sub: [] };
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([{ originalDevclass: '/NS/NEW', installDevclass: '/NS/NEW' }]);
+    });
+
     test('rejects more than one reserved namespace before locks and dependency installs', async () => {
         const ctx = context('/INST/ROOT', []);
         ctx.rawInput.installData.installDevclass.replacements = [
