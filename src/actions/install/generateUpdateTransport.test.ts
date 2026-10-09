@@ -340,7 +340,7 @@ describe('generateUpdateTransport revert', () => {
         test('rows rewritten by the incoming customizing are deleted without asking', async () => {
             const { ctx, dummy } = custContext();
             ctx.rawInput.contextData.noInquirer = false;
-            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW' } }];
+            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW', entries: { e071k: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }] } } }];
             const prompt = jest.spyOn(Inquirer, 'prompt');
 
             await generateUpdateTransport.run(ctx);
@@ -352,10 +352,20 @@ describe('generateUpdateTransport revert', () => {
         test('rows no longer shipped by the incoming release are listed and confirmed', async () => {
             const { ctx, dummy } = custContext();
             ctx.rawInput.contextData.noInquirer = false;
+            // K1 is shipped again, K2 no longer; the incoming release also ships the whole ZOTHER table.
+            (Transport as any).customizingKeys = { DEVK9CUST1: [
+                { table: 'ZCUST_TABLE', tabkey: '100K1' }, { table: 'ZCUST_TABLE', tabkey: '100K2' }, { table: 'ZOTHER', tabkey: '100X' }
+            ] };
+            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW', entries: {
+                e071k: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }],
+                e071: [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZOTHER', objfunc: '' }]
+            } } }];
             const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: true });
 
             await generateUpdateTransport.run(ctx);
+            (Transport as any).customizingKeys = {};
 
+            expect(Logger.warning).toHaveBeenCalledWith('1 customizing row shipped by pkg v1.0.0 will be deleted (not shipped by the new release):\nZCUST_TABLE 100K2', { important: true });
             expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ name: 'deleteCustomizing', default: true }));
             expect(dummy.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST1');
         });
@@ -363,7 +373,7 @@ describe('generateUpdateTransport revert', () => {
         test('a generic key is confirmed even when the incoming release ships customizing', async () => {
             const { ctx } = custContext();
             ctx.rawInput.contextData.noInquirer = false;
-            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW' } }];
+            ctx.runtime.transports.cust = [{ binaries: { trkorr: 'DEVK9NEW', entries: { e071k: [{ objname: 'ZCUST_TABLE', tabkey: '100K1' }] } } }];
             (Transport as any).customizingKeys = { DEVK9CUST1: [{ table: 'ZCUST_TABLE', tabkey: '100*' }] };
             jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: false });
 

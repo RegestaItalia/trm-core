@@ -3,13 +3,28 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
-import { cleanupInstalledPackage, deleteCleanupStagingPackages, revertInstalledPackageCleanup } from "../commons/utils";
+import { cleanupInstalledPackage, CustomizingRow, deleteCleanupStagingPackages, revertInstalledPackageCleanup } from "../commons/utils";
 import { PackageHierarchy } from "../../commons";
 
 export { deleteTemporaryCleanupPackages } from "../commons/utils";
 
 function flattenDevclasses(pkg: PackageHierarchy): string[] {
     return [pkg.devclass, ...pkg.sub.flatMap(flattenDevclasses)];
+}
+
+/** Table content of the customizing transports the upgrade imports, from their transport entries. */
+function incomingCustomizingRows(context: InstallWorkflowContext): CustomizingRow[] {
+    return (context.runtime.transports?.cust || []).flatMap(cust => {
+        const entries: any = cust.binaries?.entries || {};
+        const keys: CustomizingRow[] = (entries.e071k || []).map((key: any) => ({
+            table: (key.objname || key.mastername || '').trim(),
+            tabkey: (key.tabkey || '').trim()
+        }));
+        const wholeTables: CustomizingRow[] = (entries.e071 || [])
+            .filter((o: any) => (o.object || '').trim().toUpperCase() === 'TABU' && (o.objfunc || '').trim().toUpperCase() !== 'K')
+            .map((o: any) => ({ table: (o.objName || '').trim() }));
+        return [...keys, ...wholeTables];
+    });
 }
 
 /**
@@ -70,8 +85,8 @@ export const generateUpdateTransport: Step<InstallWorkflowContext> = {
             // Old customizing is deleted before the new customizing is imported: rows the new
             // release still ships are written again. Without that import, nothing would restore them.
             keepCustomizing,
-            get reshipsCustomizing() {
-                return (context.runtime.transports?.cust || []).length > 0;
+            get incomingCustomizing() {
+                return incomingCustomizingRows(context);
             }
         });
     },

@@ -100,11 +100,15 @@ export type PackageCleanupTarget = {
      */
     keepCustomizing?: boolean,
     /**
-     * When `true`, the incoming release imports customizing that rewrites the rows it still ships:
-     * only generic keys are confirmed. Otherwise every deleted row is listed and confirmed.
+     * Table content the incoming release imports after the cleanup: rows it ships again are rewritten,
+     * so only the others are listed and confirmed. A row without `tabkey` is a whole table.
+     * Empty when uninstalling.
      */
-    reshipsCustomizing?: boolean
+    incomingCustomizing?: CustomizingRow[]
 }
+
+/** A row of table content carried by a transport: a key of a table, or the whole table without `tabkey`. */
+export type CustomizingRow = { table: string, tabkey?: string };
 
 function normalize(value: string): string {
     return value.trim().toUpperCase();
@@ -509,20 +513,23 @@ async function getCustomizingSources(context: PackageCleanupContext, target: Pac
  * Without prompts, it only warns.
  */
 async function confirmCustomizingDeletion(context: PackageCleanupContext, target: PackageCleanupTarget, sources: string[]): Promise<void> {
-    const rows: { table: string, tabkey?: string }[] = [];
+    const rows: CustomizingRow[] = [];
     for (const trkorr of sources) {
         rows.push(...await new Transport(trkorr).getCustomizingKeys());
     }
     const generic = rows.filter(row => row.tabkey === undefined || row.tabkey.includes('*'));
-    if (target.reshipsCustomizing && generic.length === 0) {
+    // Rows the incoming release ships again are rewritten by its import: only the others are lost.
+    const incoming = target.incomingCustomizing || [];
+    const wholeTables = new Set(incoming.filter(row => row.tabkey === undefined).map(row => normalize(row.table)));
+    const incomingKeys = new Set(incoming.filter(row => row.tabkey !== undefined).map(row => `${normalize(row.table)}\u0000${row.tabkey}`));
+    const lost = rows.filter(row => !generic.includes(row)
+        && !wholeTables.has(normalize(row.table)) && !incomingKeys.has(`${normalize(row.table)}\u0000${row.tabkey}`));
+    const listed = [...generic, ...lost];
+    if (listed.length === 0) {
         Logger.log(`Deleting ${rows.length} customizing rows rewritten by the incoming release`, true);
         return;
     }
-    const listed = target.reshipsCustomizing ? generic : rows;
-    if (listed.length === 0) {
-        return;
-    }
-    const label = (row: { table: string, tabkey?: string }) => row.tabkey === undefined ? `${row.table} (all rows)` : `${row.table} ${row.tabkey}`;
+    const label = (row: CustomizingRow) => row.tabkey === undefined ? `${row.table} (all rows)` : `${row.table} ${row.tabkey}`;
     const shown = listed.slice(0, 20).map(label);
     if (listed.length > shown.length) {
         shown.push(`...and ${listed.length - shown.length} more`);
@@ -531,7 +538,7 @@ async function confirmCustomizingDeletion(context: PackageCleanupContext, target
     const version = context.runtime.update.manifest.get().version;
     const message = generic.length > 0
         ? `${generic.length} customizing ${generic.length === 1 ? 'entry' : 'entries'} of ${name} v${version} ${generic.length === 1 ? 'uses' : 'use'} a generic key or a whole table: every matching row will be deleted, including rows not shipped by ${name}`
-        : `${listed.length} customizing ${listed.length === 1 ? 'row' : 'rows'} shipped by ${name} v${version} will be deleted`;
+        : `${listed.length} customizing ${listed.length === 1 ? 'row' : 'rows'} shipped by ${name} v${version} will be deleted${incoming.length > 0 ? ' (not shipped by the new release)' : ''}`;
     Logger.warning(`${message}:\n${shown.join('\n')}`, { important: true });
     if (context.rawInput.contextData?.noInquirer) {
         return;
