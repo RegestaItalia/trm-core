@@ -1,5 +1,11 @@
+jest.mock('../../../transport', () => ({
+    Transport: jest.fn().mockImplementation((trkorr: string) => ({
+        getTrmPackageName: jest.fn(async () => ({ TRMK1: 'pkg', TRMK2: 'other' } as Record<string, string>)[trkorr])
+    }))
+}));
+
 import { Logger } from 'trm-commons';
-import { logDirtyEntries } from './dirtyEntries';
+import { logDirtyEntries, withoutOwnTrmTransports } from './dirtyEntries';
 
 describe('logDirtyEntries', () => {
     afterEach(() => jest.restoreAllMocks());
@@ -14,5 +20,16 @@ describe('logDirtyEntries', () => {
             ['A4HK900001', 'RFC text', 'R3TR PROG ZA'],
             ['A4HK900002', 'REST text', 'R3TR PROG ZB']
         ]);
+    });
+});
+
+describe('withoutOwnTrmTransports', () => {
+    test('drops the entries of transports TRM generated for the package itself', async () => {
+        const entries = [
+            { trkorr: 'TRMK1', pgmid: 'R3TR', object: 'INTF', objName: 'ZIF' },
+            { trkorr: 'TRMK2', pgmid: 'R3TR', object: 'INTF', objName: 'ZIF' },
+            { trkorr: 'DEVK1', pgmid: 'R3TR', object: 'PROG', objName: 'ZP' }
+        ] as any[];
+        await expect(withoutOwnTrmTransports(entries, 'pkg')).resolves.toEqual([entries[1], entries[2]]);
     });
 });

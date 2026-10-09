@@ -1,5 +1,6 @@
 import { Logger } from "trm-commons";
 import { ZTRM_DIRTY } from "../../../client";
+import { Transport } from "../../../transport";
 
 /**
  * Lists the changes made on the target system to an installed package,
@@ -15,4 +16,26 @@ export function logDirtyEntries(entries: ZTRM_DIRTY[]): void {
         o.as4Text || (o as ZTRM_DIRTY & { as4text?: string }).as4text || '',
         `${o.pgmid} ${o.object} ${o.objName}`
     ]));
+}
+
+/**
+ * Leaves out the entries of transports TRM generated for the package itself (its TRM comment rows name
+ * it): e.g. the landscape transport of a release whose install was rolled back. They aren't changes
+ * made on the system.
+ */
+export async function withoutOwnTrmTransports(entries: ZTRM_DIRTY[], packageName: string): Promise<ZTRM_DIRTY[]> {
+    if (entries.length === 0) {
+        return entries;
+    }
+    const own = new Set<string>();
+    for (const trkorr of new Set(entries.map(o => o.trkorr))) {
+        try {
+            if ((await new Transport(trkorr).getTrmPackageName()) === packageName) {
+                own.add(trkorr);
+            }
+        } catch {
+            //unreadable: keep its entries
+        }
+    }
+    return entries.filter(o => !own.has(o.trkorr));
 }

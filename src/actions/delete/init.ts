@@ -6,7 +6,7 @@ import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { setLandscapeTarget } from "../commons/prompts";
 import { getNestedPackages, withoutNestedDirtyEntries } from "./deleteNestedPackages";
-import { getInstalledObjectsLocks, logDirtyEntries } from "../commons/utils";
+import { getInstalledObjectsLocks, logDirtyEntries, withoutOwnTrmTransports } from "../commons/utils";
 
 /**
  * Workflow step that finds the installed package and initializes rollback state.
@@ -84,7 +84,7 @@ export const init: Step<DeleteWorkflowContext> = {
 
         //5- dirty check: changes still being edited would fail the cleanup objects lock check,
         //so check them before asking anything
-        const allDirtyEntries = installed.getDirtyEntries();
+        const allDirtyEntries = await withoutOwnTrmTransports(installed.getDirtyEntries(), installed.packageName);
         if (allDirtyEntries.length > 0) {
             Logger.loading(`Checking changed objects locks...`, true);
             const locks = await getInstalledObjectsLocks(

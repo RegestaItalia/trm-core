@@ -7,7 +7,7 @@ import { eq, gt, valid } from "semver";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
 import { setLandscapeTarget } from "../commons/prompts";
-import { logDirtyEntries, resolveInstallPackage } from "../commons/utils";
+import { logDirtyEntries, resolveInstallPackage, withoutOwnTrmTransports } from "../commons/utils";
 
 /**
  * Workflow step that fetches the release, validates install settings, and initializes rollback state.
@@ -177,12 +177,14 @@ export const init: Step<InstallWorkflowContext> = {
             );
             const installVersion = context.runtime.package.data.manifest.version;
             const installedVersion = context.runtime.update.manifest.get().version;
+            //transports TRM generated for the package (e.g. of a rolled back release) aren't changes made on the system
+            const dirtyEntries = await withoutOwnTrmTransports(context.runtime.update.getDirtyEntries(), context.runtime.update.packageName);
             if (eq(installVersion, installedVersion)) {
                 if (context.rawInput.packageData.overwrite) {
-                    if (context.runtime.update.isDirty()) {
+                    if (dirtyEntries.length > 0) {
                         let ignoreDirty = false;
                         Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
-                        logDirtyEntries(context.runtime.update.getDirtyEntries());
+                        logDirtyEntries(dirtyEntries);
                         if (!context.rawInput.contextData.noInquirer) {
                             ignoreDirty = (await Inquirer.prompt({
                                 message: `Continue with install?`,
@@ -205,9 +207,9 @@ export const init: Step<InstallWorkflowContext> = {
                 } else {
                     Logger.warning(`${chalk.bold('Downgrading')} ${installedVersion} -> ${installVersion}`);
                 }
-                if (context.runtime.update.isDirty()) {
+                if (dirtyEntries.length > 0) {
                     Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
-                    logDirtyEntries(context.runtime.update.getDirtyEntries());
+                    logDirtyEntries(dirtyEntries);
                 }
             }
         } else {
