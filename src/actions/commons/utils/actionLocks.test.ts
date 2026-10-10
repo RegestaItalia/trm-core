@@ -77,7 +77,7 @@ describe("persistent action lock scope", () => {
     test("a failed release logs the resources and owner token, keeps the locks held and rethrows", async () => {
         const warning = jest.spyOn(Logger, "warning").mockImplementation(() => undefined);
         try {
-            const scope = new ActionLockScope("delete");
+            const scope = new ActionLockScope("uninstall");
             await scope.acquire([{ type: "DEVCLASS", name: "Z_A" }]);
             release.mockRejectedValueOnce(new Error("release failed"));
             await expect(scope.release()).rejects.toThrow("release failed");

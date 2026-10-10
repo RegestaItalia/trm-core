@@ -1,5 +1,5 @@
 jest.mock('.', () => ({
-    deleteWithRollback: jest.fn()
+    uninstallWithRollback: jest.fn()
 }));
 
 jest.mock('../../systemConnector', () => ({
@@ -14,9 +14,9 @@ jest.mock('../../transport', () => ({
 }));
 
 import { Inquirer, Logger } from 'trm-commons';
-import { deleteWithRollback } from '.';
+import { uninstallWithRollback } from '.';
 import { Transport } from '../../transport';
-import { deleteNestedPackages, withoutNestedDirtyEntries } from './deleteNestedPackages';
+import { uninstallNestedPackages, withoutNestedDirtyEntries } from './uninstallNestedPackages';
 
 function trmPackage(name: string, devclass: string) {
     return { packageName: name, registry: { endpoint: 'public' }, getDevclass: () => devclass } as any;
@@ -29,11 +29,11 @@ function nestedContext() {
     const sibling = trmPackage('sibling', 'ZSIBLING');
     const unrelated = trmPackage('unrelated', 'ZOTHER');
     const ctx = {
-        deletingPackages: [trmPackage('parent', 'ZPARENT')],
+        uninstallingPackages: [trmPackage('parent', 'ZPARENT')],
         rawInput: {
             packageData: { name: 'pkg' },
             contextData: { noInquirer: true, systemPackages: [pkg, nested, deeper, sibling, unrelated] },
-            deleteData: { checks: { ignoreDirty: true }, landscapeTransport: { targetSystem: 'QAS' } }
+            uninstallData: { checks: { ignoreDirty: true }, landscapeTransport: { targetSystem: 'QAS' } }
         },
         runtime: {
             update: pkg,
@@ -45,7 +45,7 @@ function nestedContext() {
     return { ctx, pkg, nested, deeper, sibling, unrelated };
 }
 
-describe('deleteNestedPackages', () => {
+describe('uninstallNestedPackages', () => {
     beforeEach(() => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
@@ -62,34 +62,34 @@ describe('deleteNestedPackages', () => {
         return { output: { manifest: { name } }, rollback: jest.fn().mockResolvedValue(undefined), release: jest.fn().mockResolvedValue(undefined) };
     }
 
-    test('is skipped when no TRM package is installed under the deleted one', async () => {
+    test('is skipped when no TRM package is installed under the uninstalled one', async () => {
         const { ctx } = nestedContext();
         ctx.runtime.nestedPackages = { outermost: [], all: [] };
 
-        expect(await deleteNestedPackages.filter(ctx)).toBe(false);
+        expect(await uninstallNestedPackages.filter(ctx)).toBe(false);
     });
 
-    test('runs the delete action for the outermost nested packages, with the same options', async () => {
+    test('runs the uninstall action for the outermost nested packages, with the same options', async () => {
         const { ctx, pkg, nested, deeper, sibling, unrelated } = nestedContext();
         const nestedResult = result('nested');
         const siblingResult = result('sibling');
-        (deleteWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockResolvedValueOnce(siblingResult);
+        (uninstallWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockResolvedValueOnce(siblingResult);
 
-        expect(await deleteNestedPackages.filter(ctx)).toBe(true);
-        await deleteNestedPackages.run(ctx);
+        expect(await uninstallNestedPackages.filter(ctx)).toBe(true);
+        await uninstallNestedPackages.run(ctx);
 
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('3 TRM package(s) installed in the SAP packages of pkg will be deleted too: nested, deeper, sibling'), { important: true });
-        expect(deleteWithRollback).toHaveBeenCalledTimes(2);
-        const [input, deleting] = (deleteWithRollback as jest.Mock).mock.calls[0];
+        expect(uninstallWithRollback).toHaveBeenCalledTimes(2);
+        const [input, deleting] = (uninstallWithRollback as jest.Mock).mock.calls[0];
         expect(input).toEqual({
             contextData: { noInquirer: true, systemPackages: [pkg, nested, deeper, sibling, unrelated] },
             packageData: { name: 'nested', registry: nested.registry },
-            deleteData: { checks: { ignoreDirty: true }, landscapeTransport: { targetSystem: 'QAS' } }
+            uninstallData: { checks: { ignoreDirty: true }, landscapeTransport: { targetSystem: 'QAS' } }
         });
-        // Options are copies: the nested delete normalizes its own input.
-        expect(input.deleteData.checks).not.toBe(ctx.rawInput.deleteData.checks);
-        expect(deleting).toEqual([ctx.deletingPackages[0], pkg, deeper, sibling]);
-        expect((deleteWithRollback as jest.Mock).mock.calls[1][0].packageData.name).toBe('sibling');
+        // Options are copies: the nested uninstall normalizes its own input.
+        expect(input.uninstallData.checks).not.toBe(ctx.rawInput.uninstallData.checks);
+        expect(deleting).toEqual([ctx.uninstallingPackages[0], pkg, deeper, sibling]);
+        expect((uninstallWithRollback as jest.Mock).mock.calls[1][0].packageData.name).toBe('sibling');
         expect(ctx.runtime.nestedRollbacks).toEqual([nestedResult.rollback, siblingResult.rollback]);
         expect(ctx.runtime.nestedReleases).toEqual([nestedResult.release, siblingResult.release]);
         expect(ctx.rawInput.contextData.systemPackages).toEqual([pkg, unrelated]);
@@ -98,16 +98,16 @@ describe('deleteNestedPackages', () => {
     test('with prompts, deleting the nested packages is confirmed first, default no', async () => {
         const { ctx } = nestedContext();
         ctx.rawInput.contextData.noInquirer = false;
-        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteNested: false });
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ uninstallNested: false });
 
-        await expect(deleteNestedPackages.run(ctx)).rejects.toThrow('Delete aborted.');
+        await expect(uninstallNestedPackages.run(ctx)).rejects.toThrow('Uninstall aborted.');
 
         expect(prompt).toHaveBeenCalledWith(expect.objectContaining({
-            name: 'deleteNested',
+            name: 'uninstallNested',
             default: false,
             message: '3 TRM package(s) installed in the SAP packages of pkg will be deleted too: nested, deeper, sibling. Continue?'
         }));
-        expect(deleteWithRollback).not.toHaveBeenCalled();
+        expect(uninstallWithRollback).not.toHaveBeenCalled();
     });
 
     test('records the objects removed by the nested deletion transports', async () => {
@@ -118,9 +118,9 @@ describe('deleteNestedPackages', () => {
             { pgmid: 'R3TR', object: 'DEVC', objName: 'ZNESTED' },
             { pgmid: 'R3TR', object: 'PROG', objName: 'ZNESTED_PROG' }
         ]) };
-        (deleteWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockResolvedValueOnce(result('sibling'));
+        (uninstallWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockResolvedValueOnce(result('sibling'));
 
-        await deleteNestedPackages.run(ctx);
+        await uninstallNestedPackages.run(ctx);
 
         expect(ctx.runtime.deletedObjects).toEqual([
             { pgmid: 'R3TR', object: 'DEVC', objName: 'ZNESTED' },
@@ -128,17 +128,17 @@ describe('deleteNestedPackages', () => {
         ]);
     });
 
-    test('a failed nested delete rolls back the ones already deleted', async () => {
+    test('a failed nested uninstall rolls back the ones already deleted', async () => {
         const { ctx, nested } = nestedContext();
         const nestedResult = result('nested');
-        (deleteWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockRejectedValueOnce(new Error('sibling delete failed'));
+        (uninstallWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockRejectedValueOnce(new Error('sibling uninstall failed'));
 
-        await expect(deleteNestedPackages.run(ctx)).rejects.toThrow('sibling delete failed');
+        await expect(uninstallNestedPackages.run(ctx)).rejects.toThrow('sibling uninstall failed');
         // Still installed: the package cleanup must keep treating them as other installations.
         expect(ctx.rawInput.contextData.systemPackages).toContain(nested);
         expect(ctx.runtime.nestedReleases).toEqual([nestedResult.release]);
 
-        await deleteNestedPackages.revert(ctx);
+        await uninstallNestedPackages.revert(ctx);
         expect(nestedResult.rollback).toHaveBeenCalledTimes(1);
     });
 
@@ -148,10 +148,10 @@ describe('deleteNestedPackages', () => {
         const siblingResult = result('sibling');
         siblingResult.rollback.mockRejectedValue(new Error('sibling restore failed'));
         nestedResult.rollback.mockRejectedValue(new Error('nested restore failed'));
-        (deleteWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockResolvedValueOnce(siblingResult);
-        await deleteNestedPackages.run(ctx);
+        (uninstallWithRollback as jest.Mock).mockResolvedValueOnce(nestedResult).mockResolvedValueOnce(siblingResult);
+        await uninstallNestedPackages.run(ctx);
 
-        await expect(deleteNestedPackages.revert(ctx)).rejects.toThrow('sibling restore failed');
+        await expect(uninstallNestedPackages.revert(ctx)).rejects.toThrow('sibling restore failed');
 
         expect(nestedResult.rollback).toHaveBeenCalledTimes(1);
         expect(siblingResult.rollback.mock.invocationCallOrder[0]).toBeLessThan(nestedResult.rollback.mock.invocationCallOrder[0]);

@@ -1,9 +1,9 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { DeleteWorkflowContext } from ".";
+import { UninstallWorkflowContext } from ".";
 import { LockResource } from "../commons/utils";
 
 /** Lock the installed SAP packages and transport before the deletion selection is computed. */
-export const lockResources: Step<DeleteWorkflowContext> = {
+export const lockResources: Step<UninstallWorkflowContext> = {
     name: "lock-resources",
     run: async context => {
         const resources: LockResource[] = [];

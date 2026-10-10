@@ -1,7 +1,7 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { Inquirer, Logger } from "trm-commons";
-import type { DeleteWorkflowContext } from ".";
-import { deleteWithRollback } from ".";
+import type { UninstallWorkflowContext } from ".";
+import { uninstallWithRollback } from ".";
 import { SystemConnector } from "../../systemConnector";
 import { TrmPackage } from "../../trmPackage";
 import { getPackagesInstalledIn } from "../commons/utils";
@@ -13,8 +13,8 @@ function normalize(value: string): string {
 }
 
 /**
- * Other TRM packages installed in the SAP packages of the deleted one, at any depth: the first
- * list holds the outermost ones, whose delete removes the packages installed under them.
+ * Other TRM packages installed in the SAP packages of the uninstalled one, at any depth: the first
+ * list holds the outermost ones, whose uninstall removes the packages installed under them.
  */
 export async function getNestedPackages(
     systemPackages: TrmPackage[],
@@ -53,8 +53,8 @@ export async function getNestedPackages(
 }
 
 /**
- * Dirty entries of the deleted package that belong to the TRM packages installed under it:
- * their installs (landscape transports) and their own changes, which their delete confirms.
+ * Dirty entries of the uninstalled package that belong to the TRM packages installed under it:
+ * their installs (landscape transports) and their own changes, which their uninstall confirms.
  */
 export async function withoutNestedDirtyEntries(entries: ZTRM_DIRTY[], nested: TrmPackage[]): Promise<ZTRM_DIRTY[]> {
     if (entries.length === 0 || nested.length === 0) {
@@ -74,39 +74,39 @@ export async function withoutNestedDirtyEntries(entries: ZTRM_DIRTY[], nested: T
 }
 
 /**
- * Workflow step that deletes the TRM packages installed in the SAP packages of the deleted one.
+ * Workflow step that deletes the TRM packages installed in the SAP packages of the uninstalled one.
  *
- * Their SAP packages are deleted with the package anyway: running the delete action for each
+ * Their SAP packages are deleted with the package anyway: running the uninstall action for each
  * also removes their customizing and records, and forwards their deletion. Their rollbacks are
  * retained, so a later failure restores them too.
  *
 */
-export const deleteNestedPackages: Step<DeleteWorkflowContext> = {
-    name: 'delete-nested-packages',
-    filter: async (context: DeleteWorkflowContext): Promise<boolean> => {
+export const uninstallNestedPackages: Step<UninstallWorkflowContext> = {
+    name: 'uninstall-nested-packages',
+    filter: async (context: UninstallWorkflowContext): Promise<boolean> => {
         if (context.runtime.nestedPackages.all.length === 0) {
-            Logger.log(`Skipping nested packages delete (no TRM packages installed under ${context.runtime.update.packageName})`, true);
+            Logger.log(`Skipping nested packages uninstall (no TRM packages installed under ${context.runtime.update.packageName})`, true);
             return false;
         }
         return true;
     },
-    run: async (context: DeleteWorkflowContext): Promise<void> => {
+    run: async (context: UninstallWorkflowContext): Promise<void> => {
         const { outermost, all } = context.runtime.nestedPackages;
         const nestedMessage = `${all.length} TRM package(s) installed in the SAP packages of ${context.runtime.update.packageName} will be deleted too: ${all.map(pkg => pkg.packageName).join(', ')}`;
         Logger.warning(`${nestedMessage}.`, { important: true });
         // Deleting other TRM packages is destructive: ask first (without prompts the warning stands).
         if (!context.rawInput.contextData.noInquirer) {
-            const { deleteNested } = await Inquirer.prompt({
-                name: 'deleteNested',
+            const { uninstallNested } = await Inquirer.prompt({
+                name: 'uninstallNested',
                 type: 'confirm',
                 message: `${nestedMessage}. Continue?`,
                 default: false
             });
-            if (!deleteNested) {
-                throw new Error(`Delete aborted.`);
+            if (!uninstallNested) {
+                throw new Error(`Uninstall aborted.`);
             }
         }
-        const deletingPackages = [...(context.deletingPackages || []), context.runtime.update, ...all];
+        const uninstallingPackages = [...(context.uninstallingPackages || []), context.runtime.update, ...all];
         const originalLPrefix = Logger.getPrefix();
         const originalIPrefix = Inquirer.getPrefix();
         let counter = 0;
@@ -116,8 +116,8 @@ export const deleteNestedPackages: Step<DeleteWorkflowContext> = {
             try {
                 Logger.setPrefix(originalLPrefix ? `${originalLPrefix}-> ${prefix}` : `  ${prefix}`);
                 Inquirer.setPrefix(originalIPrefix ? `${originalIPrefix}-> ${prefix}` : `  ${prefix}`);
-                Logger.loading(`Getting ready to delete nested package "${nested.packageName}"...`);
-                const result = await deleteWithRollback({
+                Logger.loading(`Getting ready to uninstall nested package "${nested.packageName}"...`);
+                const result = await uninstallWithRollback({
                     contextData: {
                         noInquirer: context.rawInput.contextData.noInquirer,
                         systemPackages: [...context.rawInput.contextData.systemPackages]
@@ -126,11 +126,11 @@ export const deleteNestedPackages: Step<DeleteWorkflowContext> = {
                         name: nested.packageName,
                         registry: nested.registry
                     },
-                    deleteData: {
-                        checks: { ...context.rawInput.deleteData.checks },
-                        landscapeTransport: { ...context.rawInput.deleteData.landscapeTransport }
+                    uninstallData: {
+                        checks: { ...context.rawInput.uninstallData.checks },
+                        landscapeTransport: { ...context.rawInput.uninstallData.landscapeTransport }
                     }
-                }, deletingPackages.filter(pkg => pkg !== nested), context.lockScope);
+                }, uninstallingPackages.filter(pkg => pkg !== nested), context.lockScope);
                 context.runtime.nestedRollbacks.push(result.rollback);
                 context.runtime.nestedReleases.push(result.release);
                 // The SAP buffers may still list them: the cleanup of this package must not delete them again.
@@ -149,7 +149,7 @@ export const deleteNestedPackages: Step<DeleteWorkflowContext> = {
         context.rawInput.contextData.systemPackages = context.rawInput.contextData.systemPackages
             .filter(pkg => !all.includes(pkg));
     },
-    revert: async (context: DeleteWorkflowContext): Promise<void> => {
+    revert: async (context: UninstallWorkflowContext): Promise<void> => {
         let firstError: unknown;
         for (const rollback of [...(context.runtime.nestedRollbacks || [])].reverse()) {
             try {

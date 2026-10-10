@@ -287,7 +287,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
             const label = (o: TADIR) => `${o.pgmid} ${o.object} ${o.objName}${owners.has(o) ? ` (TRM package ${owners.get(o)})` : ''}`;
             const ownerNames = [...new Set(owners.values())];
             const ownersHint = ownerNames.length > 0
-                ? `\n${ownerNames.map(o => `"${o}"`).join(', ')} still ${ownerNames.length === 1 ? 'contains' : 'contain'} these objects: upgrade ${ownerNames.length === 1 ? 'it' : 'them'} to a release that no longer ships them, or delete ${ownerNames.length === 1 ? 'it' : 'them'}, then install again.`
+                ? `\n${ownerNames.map(o => `"${o}"`).join(', ')} still ${ownerNames.length === 1 ? 'contains' : 'contain'} these objects: upgrade ${ownerNames.length === 1 ? 'it' : 'them'} to a release that no longer ships them, or uninstall ${ownerNames.length === 1 ? 'it' : 'them'}, then install again.`
                 : '';
             const sObjs = existingObjects.map(label).join('\n') + ownersHint;
             if (context.runtime.update) {

@@ -65,7 +65,7 @@ function runContext(previous: any[], devclass = 'Z_ROOT', keyed: any[] = []) {
         rawInput: {
             packageData: { name: 'pkg', registry },
             contextData: { noInquirer: true },
-            deleteData: { checks: {} }
+            uninstallData: { checks: {} }
         },
         runtime: {
             stopWarningShown: true,
@@ -151,7 +151,7 @@ describe('generateDeletionTransport', () => {
         expect(deleted).toEqual(expect.arrayContaining(['PROG Z_ROOT_PROG', 'PROG Z_SUB_PROG', 'DEVC Z_ROOT', 'DEVC Z_SUB']));
     });
 
-    test('objects deleted by the nested package deletes are not deleted again', async () => {
+    test('objects deleted by the nested package uninstalls are not deleted again', async () => {
         const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
         // The SAP buffers still list the nested package and its objects after their deletion.
         ctx.runtime.deletedObjects = [
@@ -190,7 +190,7 @@ describe('generateDeletionTransport', () => {
         expect(imported.import).toHaveBeenCalled();
     });
 
-    test('objects of a missing namespace in a local package are staged in that namespace, imported for the delete', async () => {
+    test('objects of a missing namespace in a local package are staged in that namespace, imported for the uninstall', async () => {
         const { ctx, dummy } = runContext([
             { pgmid: 'R3TR', object: 'CLAS', objName: '/X/CL_A' },
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_PROG' }
@@ -316,7 +316,7 @@ describe('generateDeletionTransport', () => {
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Keeping namespace /NS/'), { important: true });
     });
 
-    test('unauthorized deletion transport aborts the delete instead of only warning', async () => {
+    test('unauthorized deletion transport aborts the uninstall instead of only warning', async () => {
         const { ctx, dummy, registry } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
         registry.delete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401')));
 
@@ -347,7 +347,7 @@ describe('generateDeletionTransport', () => {
             { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS', trkorr: 'DEVK9OPEN' }
         ]);
 
-        await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('Delete aborted');
+        await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('Uninstall aborted');
         expect(dummy.addObjects).not.toHaveBeenCalled();
 
         dummy.canBeDeleted.mockResolvedValue(true);
@@ -473,7 +473,7 @@ describe('generateDeletionTransport', () => {
             ctx.rawInput.contextData.noInquirer = false;
             jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ deleteCustomizing: false });
 
-            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('Delete aborted.');
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('Uninstall aborted.');
             expect(acquire).not.toHaveBeenCalled();
             expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
             expect(dummy.addObjects).not.toHaveBeenCalled();
@@ -613,7 +613,7 @@ describe('generateDeletionTransport', () => {
     });
 
     describe('SAP packages of other TRM packages', () => {
-        // Shared with the upgrade cleanup; the delete action deletes nested packages first.
+        // Shared with the upgrade cleanup; the uninstall action deletes nested packages first.
         function otherContext() {
             const run = runContext([
                 { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' },
@@ -668,9 +668,9 @@ describe('generateDeletionTransport', () => {
             expect(prompt).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'deleteMovedObjects' }));
         });
 
-        test('nothing of theirs is deleted once the delete action removed them', async () => {
+        test('nothing of theirs is deleted once the uninstall action removed them', async () => {
             const { ctx, dummy } = otherContext();
-            // The nested delete already ran: its SAP packages are gone.
+            // The nested uninstall already ran: its SAP packages are gone.
             ctx.rawInput.contextData.systemPackages = [ctx.rawInput.contextData.systemPackages[0]];
             (SystemConnector.getSubpackages as jest.Mock).mockImplementation(async devclass => devclass === 'Z_ROOT'
                 ? [{ devclass: 'Z_LOCAL', parentcl: 'Z_ROOT' }]
@@ -730,7 +730,7 @@ describe('generateDeletionTransport', () => {
             return ctx;
         }
 
-        test('restores the deleted objects and then removes the staging packages', async () => {
+        test('restores the uninstalled objects and then removes the staging packages', async () => {
             const ctx = revertContext();
 
             await generateDeletionTransport.revert(ctx);

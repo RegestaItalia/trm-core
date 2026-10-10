@@ -19,7 +19,7 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
 - **SAP namespaces:**
   - Customer packages are `Z…` (e.g. `ZE2E_UPG`). Local `$…` packages are only install targets: publishing from them
     is not supported.
-  - `/ABAPGIT/` and `/AWSSAMP/` are the only custom namespaces allowed for namespace tests (publish, install, delete, and import or
+  - `/ABAPGIT/` and `/AWSSAMP/` are the only custom namespaces allowed for namespace tests (publish, install, uninstall, and import or
     removal of the namespace itself).
   - Never publish or install into the namespace of TRM itself (`/ATRM/`). trm-server and trm-rest aren't fixtures.
 - **Keep packages small:** a handful of objects each, at most one subpackage level and no superpackages. Test
@@ -56,14 +56,14 @@ The goal is to improve trm-core: find flaws and poor UX on real systems and fix 
    go in the report's environment section, never in the open issues.
 
 ## 2. Plan the scenarios
-- **Spend little on simple cases:** one or two smoke scenarios (publish, install, delete) are enough. Focus on what is
+- **Spend little on simple cases:** one or two smoke scenarios (publish, install, uninstall) are enough. Focus on what is
   most likely to break:
   - upgrades that remove objects and keep table data;
   - rollbacks after failures at each stage;
   - customizing and translations;
   - local `.trm` files;
   - dependency graphs;
-  - delete edge cases (dependants, dirty packages, nested TRM packages);
+  - uninstall edge cases (dependants, dirty packages, nested TRM packages);
   - namespaces and renames into `$`/`Z`/`/ABAPGIT/`/`/AWSSAMP/` targets;
   - engines and SAP entries;
   - interrupted runs and action locks.
@@ -77,9 +77,9 @@ On one system, the publisher and the installer are the same system:
    in the translation environment (SE63/LXE): the LANG transport only picks them up from there.
 2. **Publish the versions:** publish v1, change the objects, publish v2, and so on, back to back.
 3. **Clean the dev copy:** publishing records the package as installed on the system, so an install would say
-   "already installed". Delete the dev copy with the trm-core `deletePackage` action, or delete the objects,
+   "already installed". Uninstall the dev copy with the trm-core `uninstall` action, or delete the objects,
    packages and rows by hand.
-4. **Test from the registry:** install, upgrade, downgrade and delete.
+4. **Test from the registry:** install, upgrade, downgrade and uninstall.
 
 Publish limits: the registry may rate-limit publishes (e.g. a few per hour per user). Batch the publishes of a scenario
 and plan around the limit. A 429 only arrives at the final registry call, after the SAP-side work.

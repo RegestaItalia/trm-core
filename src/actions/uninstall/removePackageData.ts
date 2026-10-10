@@ -1,17 +1,17 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { DeleteWorkflowContext } from ".";
+import { UninstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 
 /**
- * Workflow step that removes the deleted package from the target system's TRM package table.
+ * Workflow step that removes the uninstalled package from the target system's TRM package table.
  * 
  * Removes the record in TRM packages table, its install devclass mappings and install transports
  * 
 */
-export const removePackageData: Step<DeleteWorkflowContext> = {
+export const removePackageData: Step<UninstallWorkflowContext> = {
     name: 'remove-package-data',
-    run: async (context: DeleteWorkflowContext): Promise<void> => {
+    run: async (context: UninstallWorkflowContext): Promise<void> => {
         // init reads the record before anything is deleted: never skip its removal.
         const snapshot = context.runtime.update.getMetadataSnapshot();
         if (!snapshot) {
@@ -30,7 +30,7 @@ export const removePackageData: Step<DeleteWorkflowContext> = {
         });
         Logger.success(`${context.runtime.update.packageName} deleted from ${SystemConnector.getDest()}.`);
     },
-    revert: async (context: DeleteWorkflowContext): Promise<void> => {
+    revert: async (context: UninstallWorkflowContext): Promise<void> => {
         if (!context.revert.metadataRemoveStarted) {
             return;
         }

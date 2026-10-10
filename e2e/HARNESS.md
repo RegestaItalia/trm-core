@@ -41,7 +41,7 @@ Only one action runs at a time per work folder: the prompt files are shared.
 ```
 - **`label`:** names the per-run log folder. Use the scenario and step (`s<n>-<step>`), and never reuse a label: a
   rerun gets a suffix (`-2`, `-3`).
-- **`action`:** any action exported by trm-core, e.g. `publish`, `install`, `deletePackage`, `checkEngines`,
+- **`action`:** any action exported by trm-core, e.g. `publish`, `install`, `uninstall`, `checkEngines`,
   `checkSapEntries`.
 - **`input`:** the action input, as minimal as possible.
   - The runner sets `packageData.registry` and `contextData.logTemporaryFolder`.

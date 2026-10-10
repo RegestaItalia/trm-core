@@ -1,5 +1,5 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { DeleteWorkflowContext } from ".";
+import { UninstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { stopWarning } from "../stopWarning";
 import { Transport } from "../../transport";
@@ -12,23 +12,23 @@ import { cleanupInstalledPackage, deleteCleanupStagingPackages, revertInstalledP
  * where nothing is kept because there's no incoming release.
  * 
 */
-export const generateDeletionTransport: Step<DeleteWorkflowContext> = {
+export const generateDeletionTransport: Step<UninstallWorkflowContext> = {
     name: 'generate-deletion-transport',
-    run: async (context: DeleteWorkflowContext): Promise<void> => {
+    run: async (context: UninstallWorkflowContext): Promise<void> => {
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
-            stopWarning('delete');
+            stopWarning('uninstall');
         }
         await cleanupInstalledPackage(context, {
             incomingObjects: [],
             keptDevclasses: [],
-            prefix: `(${Transport.getTransportIcon()}  Delete) `,
-            actionName: 'Delete',
+            prefix: `(${Transport.getTransportIcon()}  Uninstall) `,
+            actionName: 'Uninstall',
             requireDeletion: true
         });
         context.output.transport = context.runtime.dele;
     },
-    revert: async (context: DeleteWorkflowContext): Promise<void> => {
+    revert: async (context: UninstallWorkflowContext): Promise<void> => {
         // Objects might still be assigned to a staging package if restoring failed:
         // only delete staging packages after a complete restore.
         await revertInstalledPackageCleanup(context);

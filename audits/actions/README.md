@@ -36,7 +36,7 @@ feature, missing case).
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-engines` | 2 | 0 | 0 | 0 | 0 | [Engines check](check-engines.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
-| `delete` | 9 | 0 | 0 | 1 | 0 | [Package delete](delete.md) |
+| `uninstall` | 9 | 0 | 0 | 1 | 0 | [Package uninstall](uninstall.md) |
 | `install-dependency` | 6 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 25 | 0 | 0 | 0 | 2 | [Package install](install.md) |
 | `publish` | 15 | 0 | 0 | 1 | 1 | [Package publish](publish.md) |
@@ -47,7 +47,7 @@ Each workflow report holds its active findings, current step review, and the his
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
 install workflow gained `check-dependants`, `check-engines`, resource locking, transport
 preparation, batch import, landscape-transport skipping on final systems, and retained tables on
-update; `delete` and `check-engines` are new workflows; publish gained manifest engines. The shared
+update; `uninstall` and `check-engines` are new workflows; publish gained manifest engines. The shared
 `trm-server-pa` step no longer exists. All active findings describe the current source and are
 included in the index counts.
 

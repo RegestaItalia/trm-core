@@ -71,7 +71,7 @@ export interface PackageCleanupContext {
         previousInstallTransports?: InstallTransport[],
         dele?: Transport,
         /**
-         * Objects already deleted by this run (the deletes of the TRM packages installed underneath):
+         * Objects already deleted by this run (the uninstalls of the TRM packages installed underneath):
          * the system may still list them for a while after their deletion transport import.
          */
         deletedObjects?: Pick<E071, 'pgmid' | 'object' | 'objName'>[]
@@ -232,7 +232,7 @@ async function readInstallationTree(
         }
     }
 
-    // Other TRM packages installed underneath have their own lifecycle and are ignored: the delete
+    // Other TRM packages installed underneath have their own lifecycle and are ignored: the uninstall
     // action deletes them first, an upgrade removes everything else. Their ancestors stay as packages.
     const otherInstallations = new Map(getPackagesInstalledIn(
         systemPackages, installed, new Set(previousDevclasses.keys())

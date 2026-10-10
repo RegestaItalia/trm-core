@@ -45,7 +45,7 @@ export function keepsInstalledCustomizing(context: InstallWorkflowContext): bool
  *   - sap packages were changes after upgrade/downgrade: to ensure empty packages are cleaned up
  * For these reasons, it's not generated on first install.
  *
- * The cleanup itself is shared with the delete action, which removes the installed
+ * The cleanup itself is shared with the uninstall action, which removes the installed
  * release without an incoming one.
 */
 export const generateUpdateTransport: Step<InstallWorkflowContext> = {

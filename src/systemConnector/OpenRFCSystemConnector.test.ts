@@ -2,7 +2,7 @@ import { Logger } from "trm-commons";
 import { OpenRFCSystemConnector, RFCSystemConnector } from ".";
 
 const mockOpenRfcClient = jest.fn().mockImplementation(() => ({ open: jest.fn().mockResolvedValue(undefined) }));
-jest.mock("open-rfc", () => ({ Client: mockOpenRfcClient }));
+jest.mock("open-rfc", () => ({ Client: mockOpenRfcClient }), { virtual: true });
 
 describe("OpenRFCSystemConnector", () => {
     const login = () => ({ user: "developer", passwd: "pw", lang: "EN", client: "001" } as any);
@@ -22,6 +22,7 @@ describe("OpenRFCSystemConnector", () => {
     test("opens the connection through open-rfc instead of node-rfc", async () => {
         const connector = new OpenRFCSystemConnector(connection(), login());
         expect(connector).toBeInstanceOf(RFCSystemConnector);
+        expect(mockOpenRfcClient).not.toHaveBeenCalled();
         await (connector as any)._client.open();
         expect(mockOpenRfcClient).toHaveBeenCalledTimes(1);
         expect(mockOpenRfcClient).toHaveBeenCalledWith({ ashost: "vhcala4hci", sysnr: "00", user: "DEVELOPER", passwd: "pw", lang: "EN", client: "001" });

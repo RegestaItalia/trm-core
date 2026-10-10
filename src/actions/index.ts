@@ -4,7 +4,7 @@ export * from "./checkPackageDependencies"
 export * from "./checkSapEntries";
 export * from "./checkEngines";
 export * from "./install";
-export * from "./delete";
+export * from "./uninstall";
 export * from "./publish";
 export {
     publish as publishV2,

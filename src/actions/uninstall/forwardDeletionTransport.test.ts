@@ -20,7 +20,7 @@ import { forwardDeletionTransport } from './forwardDeletionTransport';
 function context(options: { targetSystem?: string, devclass?: string } = { targetSystem: 'QAS' }) {
     return {
         rawInput: {
-            deleteData: { landscapeTransport: { targetSystem: options.targetSystem } }
+            uninstallData: { landscapeTransport: { targetSystem: options.targetSystem } }
         },
         runtime: { update: { getDevclass: () => options.devclass || 'ZPKG' } },
         revert: { sapPackages: [], dele: { trkorr: 'DEVK9DELE' }, deleInTargetTms: false },

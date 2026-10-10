@@ -58,7 +58,7 @@ function context(name: string, systemPackages: TrmPackage[], type?: RegistryType
     } as any;
 }
 
-describe('delete init', () => {
+describe('uninstall init', () => {
     beforeEach(() => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
@@ -116,7 +116,7 @@ describe('delete init', () => {
         await init.run(ctx);
 
         expect(ctx.runtime.nestedPackages.all).toEqual([nested, deeper, sibling]);
-        // The deeper one is deleted by the delete of the package it's installed under.
+        // The deeper one is deleted by the uninstall of the package it's installed under.
         expect(ctx.runtime.nestedPackages.outermost).toEqual([nested, sibling]);
         expect(ctx.runtime.nestedRollbacks).toEqual([]);
     });
@@ -126,7 +126,7 @@ describe('delete init', () => {
 
         await init.run(ctx);
 
-        expect(ctx.rawInput.deleteData.landscapeTransport.targetSystem).toBe('QAS');
+        expect(ctx.rawInput.uninstallData.landscapeTransport.targetSystem).toBe('QAS');
     });
 
     test('final system of the landscape has no target', async () => {
@@ -135,7 +135,7 @@ describe('delete init', () => {
 
         await init.run(ctx);
 
-        expect(ctx.rawInput.deleteData.landscapeTransport.targetSystem).toBeUndefined();
+        expect(ctx.rawInput.uninstallData.landscapeTransport.targetSystem).toBeUndefined();
     });
 
     test('temporary packages are not deleted in the landscape', async () => {
@@ -144,7 +144,7 @@ describe('delete init', () => {
         await init.run(ctx);
 
         expect(SystemConnector.getTransportTargets).not.toHaveBeenCalled();
-        expect(ctx.rawInput.deleteData.landscapeTransport.targetSystem).toBeUndefined();
+        expect(ctx.rawInput.uninstallData.landscapeTransport.targetSystem).toBeUndefined();
     });
 
     test('rejects packages that are not installed', async () => {
@@ -160,7 +160,7 @@ describe('delete init', () => {
     });
 
     test('dirty packages need confirmation', async () => {
-        await expect(init.run(context('pkg', [installed('pkg', { dirty: true })]))).rejects.toThrow('Delete aborted.');
+        await expect(init.run(context('pkg', [installed('pkg', { dirty: true })]))).rejects.toThrow('Uninstall aborted.');
 
         jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ ignoreDirty: true });
         const ctx = context('pkg', [installed('pkg', { dirty: true })], undefined, false);
@@ -183,7 +183,7 @@ describe('delete init', () => {
         (SystemConnector.getInstalledPackages as jest.Mock).mockResolvedValue([installed('pkg', { snapshot: false })]);
 
         await expect(init.run(context('pkg', [installed('pkg', { snapshot: false })])))
-            .rejects.toThrow('Delete aborted. The TRM packages table record of pkg could not be read from TST.');
+            .rejects.toThrow('Uninstall aborted. The TRM packages table record of pkg could not be read from TST.');
         expect(SystemConnector.getInstallPackages).not.toHaveBeenCalled();
     });
 
@@ -201,7 +201,7 @@ describe('delete init', () => {
     test('declined dirty confirmation aborts with the reason', async () => {
         jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ ignoreDirty: false });
         await expect(init.run(context('pkg', [installed('pkg', { dirty: true })], undefined, false)))
-            .rejects.toThrow('Delete aborted. pkg has changes made on TST that will be deleted.');
+            .rejects.toThrow('Uninstall aborted. pkg has changes made on TST that will be deleted.');
     });
 
     test('dirty entries are listed before the confirmation', async () => {
@@ -209,7 +209,7 @@ describe('delete init', () => {
         pkg.setDirtyEntries([{ trkorr: 'TSTK900001', pgmid: 'R3TR', object: 'PROG', objName: 'ZPROG', as4Text: 'Local fix' }]);
         const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ ignoreDirty: false });
 
-        await expect(init.run(context('pkg', [pkg], undefined, false))).rejects.toThrow('Delete aborted.');
+        await expect(init.run(context('pkg', [pkg], undefined, false))).rejects.toThrow('Uninstall aborted.');
 
         expect(Logger.table).toHaveBeenCalledWith(['Transport', 'Description', 'Object'], [['TSTK900001', 'Local fix', 'R3TR PROG ZPROG']]);
         expect((Logger.table as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(prompt.mock.invocationCallOrder[0]);
@@ -224,7 +224,7 @@ describe('delete init', () => {
         const ctx = context('pkg', [pkg], undefined, false);
 
         await expect(init.run(ctx))
-            .rejects.toThrow('Delete aborted. To continue, all cleanup objects and SAP packages must be released');
+            .rejects.toThrow('Uninstall aborted. To continue, all cleanup objects and SAP packages must be released');
 
         expect(locks).toHaveBeenCalledWith(pkg, [{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }], [pkg], pkg.getDirtyEntries());
         expect(Logger.error).toHaveBeenCalledWith('R3TR PROG ZPROG is currently locked in transport TSTK900001', { important: true });
@@ -241,7 +241,7 @@ describe('delete init', () => {
     test('ignoreDirty deletes dirty packages without prompts', async () => {
         const prompt = jest.spyOn(Inquirer, 'prompt');
         const ctx = context('pkg', [installed('pkg', { dirty: true })]);
-        ctx.rawInput.deleteData = { checks: { ignoreDirty: true } };
+        ctx.rawInput.uninstallData = { checks: { ignoreDirty: true } };
 
         await init.run(ctx);
 
@@ -251,7 +251,7 @@ describe('delete init', () => {
     });
 });
 
-describe('delete checkDependants', () => {
+describe('uninstall checkDependants', () => {
     beforeEach(() => {
         jest.restoreAllMocks();
         jest.spyOn(Logger, 'info').mockImplementation(() => undefined as never);
@@ -262,7 +262,7 @@ describe('delete checkDependants', () => {
         const pkg = installed('pkg');
         const dependant = installed('dependant', { dependencies: [{ name: 'pkg', version: '^1.0.0', registry: undefined }] });
         const ctx = context('pkg', [pkg, dependant], undefined, noInquirer);
-        ctx.rawInput.deleteData = { checks: {} };
+        ctx.rawInput.uninstallData = { checks: {} };
         ctx.runtime = { update: pkg, nestedPackages: { outermost: [], all: [] } };
         return ctx;
     }
@@ -281,7 +281,7 @@ describe('delete checkDependants', () => {
         expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ type: 'confirm', default: false }));
 
         prompt.mockResolvedValueOnce({ ignoreDependants: false });
-        await expect(checkDependants.run(dependantContext(false))).rejects.toThrow('Delete aborted');
+        await expect(checkDependants.run(dependantContext(false))).rejects.toThrow('Uninstall aborted');
     });
 
     test('ignores dependants deleted by the same run', async () => {
@@ -290,15 +290,15 @@ describe('delete checkDependants', () => {
         await expect(checkDependants.run(nestedCtx)).resolves.toBeUndefined();
 
         const parentCtx = dependantContext(true);
-        // A copy, as the parent delete passes its own snapshot of the system packages.
-        parentCtx.deletingPackages = [installed('dependant')];
+        // A copy, as the parent uninstall passes its own snapshot of the system packages.
+        parentCtx.uninstallingPackages = [installed('dependant')];
         await expect(checkDependants.run(parentCtx)).resolves.toBeUndefined();
     });
 
     test('passes when nothing depends on the package, and can be skipped', async () => {
         const pkg = installed('pkg');
         const ctx = context('pkg', [pkg, installed('other')]);
-        ctx.rawInput.deleteData = { checks: { noDependants: true } };
+        ctx.rawInput.uninstallData = { checks: { noDependants: true } };
         ctx.runtime = { update: pkg, nestedPackages: { outermost: [], all: [] } };
 
         await expect(checkDependants.run(ctx)).resolves.toBeUndefined();

@@ -4,7 +4,7 @@
  * like on the CLI. Usage (normally through go.sh): ts-node run.ts <spec.json>
  *
  * Spec: { label, action, input, file? }
- *   - action: name of an action exported by trm-core (install, publish, deletePackage, ...)
+ *   - action: name of an action exported by trm-core (install, publish, uninstall, ...)
  *   - input:  the action input; packageData.registry and contextData.logTemporaryFolder are set here
  *   - file:   path of a .trm file, to use the FileSystem registry instead of the remote one
  *

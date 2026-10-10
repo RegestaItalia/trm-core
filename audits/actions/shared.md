@@ -9,7 +9,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 ### ACT-2026-04 — Critical — Technical — Deletion-transport import return code is ignored
 
 - **Where:** [`releaseDeletionTransport.ts#L53`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L53); `Transport.import()` only logs the RC ([`Transport.ts#L809`](../../src/transport/Transport.ts#L819)).
-- **Failure:** the test import only rejects RC > 8, and the real `import(false)` result is discarded. With RC 8/12/16/-1 the delete action logs "imported", forwards the deletion transport, removes the TRM record and reports success while the objects remain. The same helper drives upgrade cleanup and `import-batch` rollback cleanup.
+- **Failure:** the test import only rejects RC > 8, and the real `import(false)` result is discarded. With RC 8/12/16/-1 the uninstall action logs "imported", forwards the deletion transport, removes the TRM record and reports success while the objects remain. The same helper drives upgrade cleanup and `import-batch` rollback cleanup.
 - **Fix:** check the real-import RC and throw above the accepted threshold (≤ 4), so the workflow rolls back.
 
 ### ACT-2026-06 — High — Technical — Rollback re-imports report success regardless of return code
@@ -38,7 +38,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ### ACT-2026-20 — Low — Technical — Caller input objects are mutated and reused stale
 
-- **Where:** `setSystemPackages.ts#L16`, install/delete/publish `init`, [`findDependencies.ts#L93`](../../src/actions/publish/findDependencies.ts#L93), [`installDependencies.ts#L99`](../../src/actions/install/installDependencies.ts#L99).
+- **Where:** `setSystemPackages.ts#L16`, install/uninstall/publish `init`, [`findDependencies.ts#L93`](../../src/actions/publish/findDependencies.ts#L93), [`installDependencies.ts#L99`](../../src/actions/install/installDependencies.ts#L99).
 - **Failure:** defaults, resolved versions/devclasses and the snapshot are written into the caller's object (not undone on rollback); reusing it for a retry or later action skips refreshes and sees rolled-back dependencies as installed.
 - **Fix:** clone input at action entry and keep computed values in `runtime`.
 
@@ -62,9 +62,9 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `withScopedPrefix` | No issue found; restores prefixes in `finally`. |
 | `restoreTransport` / `revertPreparedTransport` | Import return code ignored (ACT-2026-06). |
 | `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized deletion keeps the released transport, clears the rollback snapshot so it is neither restored nor forwarded, and rethrows the original authorization error (ACT-2026-07, resolved); context overwrite and dead assignment (ACT-2026-21). |
-| `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); the upgrade revert skips every restore (packages, deletion copy, retained tables, TADIR assignments) when the cleanup of the imported objects failed, and still deletes unreleased cleanup transports (ACT-2026-08, resolved); the `ZTRM_DELE_*` staging package of a `$` installation is tracked apart from the action's SAP packages, so the rollback of the imported objects never transports it, and both the upgrade and the delete revert delete it through `deleteCleanupStagingPackages` only after a complete restore; an unauthorized upgrade cleanup names it for manual deletion (ACT-2026-09, resolved). |
-| `Transport` status cache (used by every revert) | `delete` and `release` invalidate the cached E070, even when the call fails, and the status checks return `false` when no row exists (ACT-2026-17, resolved); release and queue polling unbounded (ACT-2026-14). |
-| Package-name lookups | Install mappings and transports are queried and written under the stored package name: install adopts the registry manifest name, delete uses the installed package's name and registry (ACT-2026-16, resolved). |
+| `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); the upgrade revert skips every restore (packages, deletion copy, retained tables, TADIR assignments) when the cleanup of the imported objects failed, and still deletes unreleased cleanup transports (ACT-2026-08, resolved); the `ZTRM_DELE_*` staging package of a `$` installation is tracked apart from the action's SAP packages, so the rollback of the imported objects never transports it, and both the upgrade and the uninstall revert delete it through `deleteCleanupStagingPackages` only after a complete restore; an unauthorized upgrade cleanup names it for manual deletion (ACT-2026-09, resolved). |
+| `Transport` status cache (used by every revert) | `uninstall` and `release` invalidate the cached E070, even when the call fails, and the status checks return `false` when no row exists (ACT-2026-17, resolved); release and queue polling unbounded (ACT-2026-14). |
+| Package-name lookups | Install mappings and transports are queried and written under the stored package name: install adopts the registry manifest name, uninstall uses the installed package's name and registry (ACT-2026-16, resolved). |
 
 ## Resolved findings
 ### ACT-2026-17 — Resolved — Medium — Technical — Cached transport status is never invalidated
@@ -84,10 +84,10 @@ Install `init` now replaces the input name with the name of the fetched manifest
 not only for local artifacts ([source](../../src/actions/install/init.ts#L112)), so the existing
 install mappings and transports are read (`init`, `set-install-devclass`) and written
 (`update-package-data`) under the same name as the TRM packages table record that the update is
-matched against. Delete `init` queries them with the installed package's stored name and registry
-([source](../../src/actions/delete/init.ts#L100)). Before, an input like "MyPkg" for the stored
+matched against. Uninstall `init` queries them with the installed package's stored name and registry
+([source](../../src/actions/uninstall/init.ts#L100)). Before, an input like "MyPkg" for the stored
 "mypkg" found the installed package but no mappings: install failed its existing-object check with
-"object(s) already exist", and the delete revert restored the record without its mappings.
+"object(s) already exist", and the uninstall revert restored the record without its mappings.
 
 ### ACT-2026-15 — Resolved — Medium — Functional — System-package snapshot excludes local-registry packages
 
@@ -95,7 +95,7 @@ matched against. Delete `init` queries them with the installed package's stored 
 ([source](../../src/actions/commons/setSystemPackages.ts#L22)), so packages recorded under the
 local registry are part of it. A dependency declared with `registry: local` that is installed is
 reported `ok` by `check-dependencies` instead of "not found", so the install no longer queues it for
-`install-dependency` (which rejects local packages as "has to be installed manually"), and `delete`
+`install-dependency` (which rejects local packages as "has to be installed manually"), and `uninstall`
 `check-dependants` sees dependants that were published locally. Every lookup in the snapshot
 matches by name and registry, except the update root lookup of install `check-transports`, which
 matched by name only and could pick a same-named local package; it now uses the package being
@@ -105,7 +105,7 @@ updated (`runtime.update`) ([source](../../src/actions/install/checkTransports.t
 
 `setTransportTarget` trims and uppercases an explicit target before validating it and returns the
 normalized value ([source](../../src/actions/commons/prompts/setTransportTarget.ts#L28)), so
-publish, install and delete store the same target they forward to. `deleteTmsTransport` trims and
+publish, install and uninstall store the same target they forward to. `deleteTmsTransport` trims and
 uppercases the transport and the target system in both clients, like `forwardTransport`
 ([RFC](../../src/client/RFCClient.ts#L644), [REST](../../src/client/RESTClient.ts#L565)), so the
 revert of a forward to `qas` removes the transport from the `QAS` import queue. Before, the
@@ -121,9 +121,9 @@ on SAP, then rethrows and keeps the locks held
 and then releases exactly once: after a success a release failure no longer rejects the
 committed action, and after a failure it never replaces the workflow error
 ([source](../../src/actions/commons/utils/actionLocks.ts#L82)). publish and cg3z use it through
-`withActionLockScope`; install and delete use it for their non-retained runs, and their retained
+`withActionLockScope`; install and uninstall use it for their non-retained runs, and their retained
 runs release only when the workflow fails, so the outer `catch` no longer releases a second time
-([install](../../src/actions/install/index.ts#L391), [delete](../../src/actions/delete/index.ts#L197)).
+([install](../../src/actions/install/index.ts#L391), [uninstall](../../src/actions/uninstall/index.ts#L197)).
 A retained run keeps its locks until the parent calls `release`, or `rollback`, which still
 surfaces a release failure after attempting the rollback. Stuck locks are recovered on SAP with
 `/ATRM/ACT_LOCK_ADMIN` ("View and manually delete TRM action locks", package `/ATRM/SERVER`);
@@ -167,7 +167,7 @@ rolled back by a parent action still throws its first failure, which reaches the
 
 The staging package is tracked in `revert.stagingPackages` instead of `revert.sapPackages`, so
 `cleanupEntries` no longer adds it to the cleanup transport of the imported objects (where an
-already deleted package could fail the add and mark that cleanup failed). The delete action's
+already deleted package could fail the add and mark that cleanup failed). The uninstall action's
 staging cleanup moved to `deleteCleanupStagingPackages`
 ([source](../../src/actions/commons/utils/packageCleanup.ts#L148)). The `generate-update-transport`
 revert calls it after `revertInstalledPackageCleanup` succeeds with `restore` set
@@ -185,7 +185,7 @@ clears it when `cleanupImported && !cleanupSucceeded`, the same guard as `init` 
 Then the revert does not recreate temporary packages, re-import the deletion copy or the
 retained-table backup, or restore TADIR assignments over objects that were not deleted. It warns
 that manual restore might be necessary. The independent deletes of unreleased cleanup and backup
-transports still run. The delete action keeps the default (always restore)
+transports still run. The uninstall action keeps the default (always restore)
 ([source](../../src/actions/commons/utils/packageCleanup.ts#L681),
 [caller](../../src/actions/install/generateUpdateTransport.ts#L67)).
 
@@ -196,7 +196,7 @@ the already released transport of copies. It clears the `revert.dele` snapshot o
 the never-imported transport is neither restored nor forwarded through the landscape. A helper
 call keeps the snapshot of its caller. Then it always rethrows the original authorization error.
 Callers branch on that error type again. The upgrade `requireDeletion: false` path restores the
-cleanup assignments, warns and continues. Delete and `import-batch` rollback cleanup report the
+cleanup assignments, warns and continues. Uninstall and `import-batch` rollback cleanup report the
 authorization error itself
 ([source](../../src/actions/commons/utils/releaseDeletionTransport.ts#L34)).
 
