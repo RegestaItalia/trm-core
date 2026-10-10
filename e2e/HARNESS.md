@@ -10,13 +10,31 @@ in [README.md](README.md); results are reported as described in [REPORT_CONTRACT
 
 | Key | Purpose |
 |---|---|
+| `SAP_CONNECTOR` | `REST` (default), `RFC` or `OpenRFC`, case-insensitive. Applies to action runs and diagnostics. |
 | `SAP_URL` | System base URL, e.g. `http://host:port`. The REST connector appends `/ztrmserver`. |
+| `SAP_ASHOST`, `SAP_SYSNR` | Required for RFC and OpenRFC: application server host and system number (e.g. `00`). |
+| `SAP_SAPROUTER` | Optional SAProuter string for RFC and OpenRFC. |
+| `SAP_RFC_TRACE_DIR` | Optional RFC trace directory; defaults to the working directory. |
+| `SAP_RFC_MODULES_PATH` | Optional parent directory containing `node-rfc`; RFC otherwise uses the global npm modules directory. |
 | `SAP_USER`, `SAP_PASSWORD` | Logon user. |
 | `SAP_CLIENT`, `SAP_LANGUAGE` | Client and logon language (default `EN`). |
 | `TRM_PUBLIC_REGISTRY_ENDPOINT` | Registry the `public` registry points to (a test registry, never production). |
 | `TRM_PUBLIC_REGISTRY_TOKEN` | Token of the e2e registry user. |
 
 The same `.env` usually configures the arc-1 MCP server (see [SAP_TOOLING.md](SAP_TOOLING.md)).
+
+RFC requires `node-rfc` and the SAP NetWeaver RFC SDK configured for that library. OpenRFC requires
+`open-rfc` installed locally and is experimental: core currently marks it as unsupported and needing more checks.
+Neither RFC library is installed by the repository's `npm install`. RFC and OpenRFC require `SAP_USER`,
+`SAP_PASSWORD` and `SAP_CLIENT`; `SAP_URL` is only used by REST.
+
+Set `SAP_CONNECTOR` in `.env`, or override it for one invocation (shell values take precedence over `.env`):
+
+```bash
+SAP_CONNECTOR=RFC e2e/harness/go.sh s3-upgrade-v2
+SAP_CONNECTOR=OpenRFC e2e/harness/tool.sh locks
+SAP_CONNECTOR=REST e2e/harness/tool.sh locks
+```
 
 - **Work folder:** `e2e/work/` (git-ignored). Set `E2E_WORK` to use another folder, e.g. one per campaign. Its
   layout:
@@ -74,13 +92,14 @@ grep '@@DONE' e2e/work/logs/s3-upgrade-v2.out      # @@DONE OK <s> | @@DONE FAIL
   Watch `logs/<name>.out` for the step to hit, e.g. `Importing`.
 
 ## Params out
-- **`logs/<label>/result.json`:** `{ status: OK|FAIL, seconds, error: { name, message, cause } }`.
+- **`logs/<label>/result.json`:** `{ connector, status: OK|FAIL, seconds, error: { name, message, cause } }`.
+  `connector` records the selected connector class name.
 - **`logs/<label>/output.json`:** the action output (manifest, transports, target system...), with binaries
   replaced.
 - **`logs/<label>/transcript.log`:** every prompt and answer, in order (`[Q<n>] (<type>) <name>: <message>` /
   `[A<n>] <value>`).
-- **`logs/<name>.out` and the trm-core log file:** the full console and debug log, including every REST request and
-  response. Filter with `grep -v AXIOS` for the user-facing lines.
+- **`logs/<name>.out` and the trm-core log file:** the full console and debug log. REST runs include REST requests
+  and responses; filter with `grep -v AXIOS` for the user-facing lines.
 
 ## Diagnostics: `e2e/harness/tool.sh`
 | Command | Use |

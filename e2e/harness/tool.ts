@@ -14,6 +14,7 @@
  * One-off checks not covered here: copy this file as a scratch probe outside the repo.
  */
 import { join } from 'path';
+import { createSystemConnector } from './connector';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { CORE } = require('./paths');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -33,10 +34,7 @@ async function connect(): Promise<void> {
         },
         setPrefix() { }, getPrefix() { return ''; }, removePrefix() { }
     };
-    const system = new core.RESTSystemConnector({ endpoint: process.env.SAP_URL }, {
-        user: process.env.SAP_USER, passwd: process.env.SAP_PASSWORD,
-        lang: process.env.SAP_LANGUAGE || 'EN', client: process.env.SAP_CLIENT
-    });
+    const system = createSystemConnector(core);
     await system.connect();
     core.SystemConnector.systemConnector = system;
 }

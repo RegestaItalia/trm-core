@@ -13,6 +13,7 @@
  */
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { createSystemConnector } from './connector';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { CORE, IPC, LOGS } = require('./paths');
 // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -126,10 +127,7 @@ async function main() {
     core.RegistryProvider.registry = [remoteRegistry];
     const registry = spec.file ? new core.FileSystem(spec.file) : remoteRegistry;
 
-    const system = new core.RESTSystemConnector({ endpoint: process.env.SAP_URL }, {
-        user: process.env.SAP_USER, passwd: process.env.SAP_PASSWORD,
-        lang: process.env.SAP_LANGUAGE || 'EN', client: process.env.SAP_CLIENT
-    });
+    const system = createSystemConnector(core);
     await system.connect();
     core.SystemConnector.systemConnector = system;
 
@@ -140,7 +138,7 @@ async function main() {
     if (typeof action !== 'function') throw new Error(`Unknown action ${spec.action}`);
 
     const started = Date.now();
-    const result: any = { label: spec.label, action: spec.action };
+    const result: any = { label: spec.label, action: spec.action, connector: system.constructor.name };
     try {
         const out = await action(input);
         writeFileSync(join(logDir, 'output.json'), JSON.stringify(serializable(out), null, 2));
