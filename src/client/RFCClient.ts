@@ -722,8 +722,11 @@ export class RFCClient implements IClient {
             }
             const parsed = xml.xml2js(result['entries'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;"), { compact: true }) as xml.ElementCompact;
             const root = parsed['asx:abap']?.['asx:values']?.['ENTRIES'];
+            // asXML names table rows after the DDIC row type (e.g. <E071><E071>...), or <item> when it has none
             const rows = (name: string): Record<string, string>[] => {
-                const value = root?.[name]?.item;
+                const table: xml.ElementCompact = root?.[name] || {};
+                const rowName = Object.keys(table).find(key => !key.startsWith('_'));
+                const value = rowName ? table[rowName] : undefined;
                 const items: xml.ElementCompact[] = value ? (Array.isArray(value) ? value : [value]) : [];
                 return items.map(item => Object.fromEntries(Object.entries(item).map(([key, node]: [string, xml.ElementCompact]) => [key, node?._text === undefined ? '' : String(node._text)])));
             };

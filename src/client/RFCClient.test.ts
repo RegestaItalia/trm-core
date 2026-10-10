@@ -178,3 +178,43 @@ describe('RFCClient getDest', () => {
         expect(call.mock.calls.map(c => c[0])).toEqual(['/ATRM/GET_DEST']);
     });
 });
+
+describe('RFCClient getTransportEntries', () => {
+    const payload = (values: string) => Buffer.from(`<?xml version="1.0" encoding="utf-8"?><asx:abap version="1.0" xmlns:asx="http://www.sap.com/abapxml"><asx:values><ENTRIES>${values}</ENTRIES></asx:values></asx:abap>`);
+
+    test('reads rows named after their DDIC row type', async () => {
+        const call = mockCalls({
+            '/ATRM/GET_TRANSPORT_ENTRIES': () => ({
+                ENTRIES: payload(
+                    '<E071><E071><TRKORR>A4HK900131</TRKORR><PGMID>*</PGMID><OBJECT>ZTRM</OBJECT><OBJ_NAME>name=@test/ztest</OBJ_NAME><OBJFUNC/></E071>' +
+                    '<E071><TRKORR>A4HK900131</TRKORR><PGMID>R3TR</PGMID><OBJECT>CLAS</OBJECT><OBJ_NAME>ZCL_TEST</OBJ_NAME><OBJFUNC/></E071></E071>' +
+                    '<TADIR><TADIR><PGMID>R3TR</PGMID><OBJECT>CLAS</OBJECT><OBJ_NAME>ZCL_TEST</OBJ_NAME><DEVCLASS>ZTEST</DEVCLASS><CREATED_ON>2026-10-10</CREATED_ON></TADIR></TADIR>' +
+                    '<TDEVC/><TDEVCT/>'
+                )
+            })
+        });
+
+        const entries = await createClient(call).getTransportEntries('A4HK900131');
+
+        expect(entries.e071).toEqual([
+            { trkorr: 'A4HK900131', pgmid: '*', object: 'ZTRM', objName: 'name=@test/ztest', objfunc: '' },
+            { trkorr: 'A4HK900131', pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_TEST', objfunc: '' }
+        ]);
+        expect(entries.tadir).toEqual([{ pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_TEST', devclass: 'ZTEST', createdOn: '2026-10-10' }]);
+        expect(entries.tdevc).toEqual([]);
+        expect(entries.tdevct).toEqual([]);
+    });
+
+    test('reads rows named item', async () => {
+        const call = mockCalls({
+            '/ATRM/GET_TRANSPORT_ENTRIES': () => ({
+                ENTRIES: payload('<E071><item><PGMID>R3TR</PGMID><OBJECT>DEVC</OBJECT><OBJ_NAME>ZTEST</OBJ_NAME></item></E071><TADIR/><TDEVC><item><DEVCLASS>ZTEST</DEVCLASS></item></TDEVC><TDEVCT/>')
+            })
+        });
+
+        const entries = await createClient(call).getTransportEntries('A4HK900131');
+
+        expect(entries.e071).toEqual([{ pgmid: 'R3TR', object: 'DEVC', objName: 'ZTEST' }]);
+        expect(entries.tdevc).toEqual([{ devclass: 'ZTEST' }]);
+    });
+});
