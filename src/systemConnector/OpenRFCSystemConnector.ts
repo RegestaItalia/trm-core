@@ -11,7 +11,9 @@ import { RFCSystemConnector } from "./RFCSystemConnector";
 export class OpenRFCSystemConnector extends RFCSystemConnector {
 
     protected createClient(rfcClientArgs: RFCConnection & Login, cLangu: string, traceDir?: string): RFCClient {
-        return new RFCClient(rfcClientArgs, cLangu, traceDir, undefined, () => import("open-rfc"));
+        // non-literal specifier: open-rfc is not installed, so TypeScript must not resolve it at build time
+        const openRfcModule = "open-rfc";
+        return new RFCClient(rfcClientArgs, cLangu, traceDir, undefined, () => import(openRfcModule));
     }
 
 }
