@@ -56,6 +56,9 @@ export class RESTClient implements IClient {
                 password: this._login.passwd
             },
             timeout: 30000, //default timeout
+            httpsAgent: new HttpsAgent({
+                rejectUnauthorized: false
+            })
         }, AXIOS_CTX);
     }
 
