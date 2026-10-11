@@ -167,7 +167,7 @@ export class RegistryV2 implements AbstractRegistry {
         var token = defaultData.token;
         if (!token && this._registryType == RegistryType.PUBLIC) {
             Logger.info(`To authenticate, generate a new token.`);
-            Logger.info(`Follow the instructions https://docs.trmregistry.com/#/registry/public/authentication.`);
+            Logger.info(`Follow the instructions https://docs.trmregistry.com/registry/public/authentication/ .`);
         }
         const inq1 = await Inquirer.prompt([{
             type: "input",
