@@ -11,6 +11,7 @@ import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemCo
 import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { logMessageLog, parseMessageLog } from "./messageLog";
+import { Agent as HttpsAgent } from "https";
 
 const AXIOS_CTX = "RestServer";
 
