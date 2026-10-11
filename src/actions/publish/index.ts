@@ -158,9 +158,19 @@ export interface PublishActionInput {
 
         /**
          * Existing customizing request numbers to include. Retained transports from the latest
-         * release are merged into this list. Ignored when `noCustomizingTransports` is `true`.
+         * release are merged into this list, except those listed in `dropCustomizingTransports`. Ignored when `noCustomizingTransports` is `true`.
          */
         customizingTransports?: string[],
+
+        /**
+         * Customizing transports carried over from the latest release to drop from this release,
+         * identified by their transport request number as published in the latest release.
+         * `all` drops every carried-over transport. An identifier that is not a customizing
+         * transport of the latest release, or that is also listed in `customizingTransports`,
+         * fails the publish. When prompts are enabled, the remaining selection is still shown for
+         * editing. Ignored when `noCustomizingTransports` is `true`.
+         */
+        dropCustomizingTransports?: string[],
 
         /**
          * Do not generate a language transport for translatable package content.

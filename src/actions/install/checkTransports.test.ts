@@ -317,3 +317,110 @@ describe('check-transports customizing prompts', () => {
         expect((prompt.mock.calls[0][0] as any).choices.map(o => o.name)).toEqual(['CUST1 "Same text"', 'CUST2 "Same text"']);
     });
 });
+
+describe('check-transports translation and customizing import options', () => {
+    function context(noInquirer: boolean, importOptions: { noLang?: boolean, noCust?: boolean } = {}) {
+        const entries = {
+            DEVC1: { tdevc: [{ devclass: 'ZROOT', parentcl: '' }] },
+            TADIR1: {
+                e071: [{ pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_NEW' }],
+                tadir: [{ pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_NEW', devclass: 'ZROOT' }]
+            },
+            LANG1: { e071: [] },
+            CUST1: { e071: [] },
+            CUST2: { e071: [] }
+        };
+        return {
+            rawInput: {
+                packageData: {
+                    name: 'pkg',
+                    registry: { transportEntries: jest.fn(async (_name, _version, trkorr) => entries[trkorr]) }
+                },
+                contextData: { noInquirer, systemPackages: [] },
+                installData: {
+                    import: importOptions,
+                    checks: {}
+                }
+            },
+            runtime: {
+                isLocal: false,
+                isTrmServer: false,
+                isTrmRest: false,
+                update: undefined,
+                package: {
+                    data: {
+                        manifest: { name: 'pkg', version: '1.0.0' },
+                        transports: [
+                            { trkorr: 'DEVC1', type: 'DEVC' },
+                            { trkorr: 'TADIR1', type: 'TADIR' },
+                            { trkorr: 'LANG1', type: 'LANG' },
+                            { trkorr: 'CUST1', type: 'CUST', description: 'First' },
+                            { trkorr: 'CUST2', type: 'CUST', description: 'Second' }
+                        ]
+                    }
+                },
+                transports: { cust: [] },
+                transportEntries: { tdevct: [] }
+            }
+        } as any;
+    }
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        for (const method of ['loading', 'log', 'warning', 'error'] as const) {
+            jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
+        }
+        (SystemConnector.getObjectsLocks as jest.Mock).mockResolvedValue([]);
+        (SystemConnector.getObjectsList as jest.Mock).mockResolvedValue([{ pgmid: 'R3TR', object: 'CLAS' }]);
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([]);
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    test('unset options without prompts import translations and all customizing', async () => {
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+        const ctx = context(true);
+        await checkTransports.run(ctx);
+        expect(prompt).not.toHaveBeenCalled();
+        expect(ctx.runtime.transports.lang.binaries.trkorr).toEqual('LANG1');
+        expect(ctx.runtime.transports.cust.map(o => o.binaries.trkorr)).toEqual(['CUST1', 'CUST2']);
+        expect(ctx.runtime.skippedCust).toEqual([]);
+    });
+
+    test('unset options with prompts ask for translations and each customizing transport', async () => {
+        jest.spyOn(Inquirer, 'isUi').mockReturnValue(false);
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockImplementation(async (q: any) => {
+            if (q.name === 'importLang') return { importLang: false };
+            return { importCust: q.message.includes('CUST1') };
+        });
+        const ctx = context(false);
+        await checkTransports.run(ctx);
+        const questions = prompt.mock.calls.map(c => c[0] as any);
+        expect(questions.map(q => q.message)).toEqual([
+            'Do you want to import the package translations?',
+            'Do you want to import customizing CUST1 "First"?',
+            'Do you want to import customizing CUST2 "Second"?'
+        ]);
+        expect(questions.every(q => q.default === true)).toBe(true);
+        expect(ctx.runtime.transports.lang).toBeUndefined();
+        expect(ctx.runtime.transports.cust.map(o => o.binaries.trkorr)).toEqual(['CUST1']);
+        expect(ctx.runtime.skippedCust).toEqual(['CUST2']);
+    });
+
+    test('explicit options are not asked', async () => {
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+        const skip = context(false, { noLang: true, noCust: true });
+        await checkTransports.run(skip);
+        expect(skip.runtime.transports.lang).toBeUndefined();
+        expect(skip.runtime.transports.cust).toEqual([]);
+        expect(skip.runtime.skippedCust).toEqual(['CUST1', 'CUST2']);
+
+        const importAll = context(false, { noLang: false, noCust: false });
+        await checkTransports.run(importAll);
+        expect(importAll.runtime.transports.lang.binaries.trkorr).toEqual('LANG1');
+        expect(importAll.runtime.transports.cust.map(o => o.binaries.trkorr)).toEqual(['CUST1', 'CUST2']);
+        expect(prompt).not.toHaveBeenCalled();
+    });
+});

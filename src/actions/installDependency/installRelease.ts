@@ -22,7 +22,8 @@ export const installRelease: Step<InstallDependencyWorkflowContext> = {
                 overwrite: false
             },
             contextData: context.rawInput.contextData,
-            installData: context.rawInput.installData
+            installData: context.rawInput.installData,
+            dependency: true
         };
         if (context.installRunner) {
             const result = await context.installRunner(inputData);

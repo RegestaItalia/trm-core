@@ -8,6 +8,58 @@ import { Manifest } from "../../manifest";
 import chalk from "chalk";
 import { setLandscapeTarget } from "../commons/prompts";
 import { logDirtyEntries, resolveInstallPackage, withoutOwnTrmTransports } from "../commons/utils";
+import { RootLock } from "../../lockfile";
+
+function sameName(a: string, b: string): boolean {
+    return a.trim().toUpperCase() === b.trim().toUpperCase();
+}
+
+/**
+ * Fills the requested release from the lockfile root, before it is fetched: the root version when
+ * none is requested and the root integrity when none is expected.
+ * @throws When the package, the requested version, or the expected integrity conflicts with the lockfile root.
+ */
+function applyRootLock(context: InstallWorkflowContext, rootLock: RootLock): void {
+    const packageData = context.rawInput.packageData;
+    //the name of a local artifact is only known once it's read
+    if (packageData.registry.getRegistryType() !== RegistryType.LOCAL && !sameName(packageData.name, rootLock.name)) {
+        throw new Error(`Lockfile is for package "${rootLock.name}", cannot install "${packageData.name}" with it.`);
+    }
+    if (!packageData.version) {
+        packageData.version = rootLock.version;
+        Logger.info(`Using ${rootLock.name} v${rootLock.version} from lockfile.`);
+    } else if (valid(packageData.version) && !eq(packageData.version, rootLock.version)) {
+        throw new Error(`Requested version ${packageData.version} conflicts with lockfile version ${rootLock.version} of "${rootLock.name}". Omit the version or regenerate the lockfile.`);
+    }
+    if (rootLock.integrity) {
+        if (packageData.integrity === undefined) {
+            packageData.integrity = rootLock.integrity;
+        } else if (packageData.integrity !== rootLock.integrity) {
+            throw new Error(`Requested integrity conflicts with lockfile integrity of "${rootLock.name}" v${rootLock.version}.`);
+        }
+    }
+}
+
+/**
+ * Checks the fetched release against the lockfile root: a distribution tag or a local artifact
+ * may resolve to another package, release, or registry.
+ * @throws When the fetched release is not the lockfile root.
+ */
+async function checkRootLock(context: InstallWorkflowContext, rootLock: RootLock): Promise<void> {
+    const manifest = context.runtime.package.data.manifest;
+    if (!sameName(manifest.name, rootLock.name)) {
+        throw new Error(`Lockfile is for package "${rootLock.name}", cannot install "${manifest.name}" with it.`);
+    }
+    if (!valid(manifest.version) || !eq(manifest.version, rootLock.version)) {
+        throw new Error(`Release "${manifest.name}" v${manifest.version} (${context.rawInput.packageData.version}) conflicts with lockfile version ${rootLock.version}. Omit the version or regenerate the lockfile.`);
+    }
+    if (rootLock.registry) {
+        const installRegistry = (await resolveInstallPackage(context.rawInput.packageData.registry, manifest.name)).registry;
+        if (installRegistry.getRegistryType() !== RegistryType.LOCAL && installRegistry.endpoint.trim().toLowerCase() !== rootLock.registry.trim().toLowerCase()) {
+            throw new Error(`Lockfile is for package "${rootLock.name}" of registry "${rootLock.registry}", cannot install it from registry "${installRegistry.endpoint}".`);
+        }
+    }
+}
 
 /**
  * Workflow step that fetches the release, validates install settings, and initializes rollback state.
@@ -87,9 +139,19 @@ export const init: Step<InstallWorkflowContext> = {
             namespace: undefined
         };
 
+        //the lockfile root pins the release (and its integrity) of the package being installed
+        const rootLock = context.rawInput.dependency ? undefined : context.rawInput.installData?.checks?.lockfile?.getRootLock();
+        if (rootLock) {
+            applyRootLock(context, rootLock);
+        }
+
         Logger.loading(`Fetching package in registry ${registry.name}...`);
         context.runtime.package.data = await registry.getPackage(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest');
         context.output.manifest = context.runtime.package.data.manifest;
+
+        if (rootLock) {
+            await checkRootLock(context, rootLock);
+        }
 
         //the release whose transports are imported must be the expected one (e.g. locked)
         const expectedIntegrity = context.rawInput.packageData.integrity;

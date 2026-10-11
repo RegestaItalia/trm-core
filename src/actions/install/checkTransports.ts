@@ -102,7 +102,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                     default: true
                 })).importLang;
             } else {
-                importLang = false;
+                //no prompts: import, as when noLang is false
+                importLang = true;
             }
         }
 
@@ -136,9 +137,8 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                         skippedCust.push(cust.trkorr);
                     }
                 }
-            } else {
-                skippedCust = custTransports.map(o => o.trkorr);
             }
+            //no prompts: import all, as when noCust is false
         } else if (context.rawInput.installData.import.noCust) {
             skippedCust = custTransports.map(o => o.trkorr);
         }

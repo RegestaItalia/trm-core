@@ -7,11 +7,6 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ## Findings
 
-### ACT-2026-45 — Low — Functional — Root release is not checked against the lockfile
-
-- **Where:** `checks.lockfile` is only consumed for dependencies; [`install/init.ts#L87`](../../src/actions/install/init.ts#L87) ignores the requested version for local files.
-- **Fix:** verify root name/version/integrity against the lockfile and reject a local artifact whose version differs.
-
 ### ACT-2026-46 — Low — Technical — Rollback-readiness diagnostics are hidden
 
 - **Where:** deletion-TOC download failures in `prepare*` are debug-only; a failed reconnect at [`importBatch.ts#L197`](../../src/actions/install/importBatch.ts#L197) leaves every revert on a closed connection.
@@ -23,7 +18,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 |---:|---|---|
 | 1 | `check-server-auth` | Fails closed on any result other than a granted authorization ([ACT-2026-12](shared.md), resolved). |
 | 2 | `set-system-packages` | Snapshot includes local-registry packages ([ACT-2026-15](shared.md), resolved); packages installed by dependency installs, transitive ones included, are merged into it ([ACT-2026-24](#act-2026-24--resolved--transitive-installs-are-merged-into-the-parent-snapshot), resolved). |
-| 3 | `init` | The input name is replaced with the fetched manifest name, used for the mapping and transport lookups and writes ([ACT-2026-16](shared.md), resolved); a local (`.trm`) artifact is resolved to the registry it was published to (`runtime.installRegistry`), used for the mapping and transport lookups ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). An explicit transport layer is validated; the system default is no longer looked up here ([ACT-2026-42](#act-2026-42--resolved--transport-layer-is-required-only-for-generated-transportable-packages), resolved). Revert is the only cleanup point for early failures (ACT-2026-37). |
+| 3 | `init` | The input name is replaced with the fetched manifest name, used for the mapping and transport lookups and writes ([ACT-2026-16](shared.md), resolved); a local (`.trm`) artifact is resolved to the registry it was published to (`runtime.installRegistry`), used for the mapping and transport lookups ([ACT-2026-26](#act-2026-26--resolved--local-trm-installs-are-recorded-under-the-real-registry), resolved). With a lockfile, the release is the lockfile root: its version and integrity are used when none is requested, and a conflicting package, version, tag, local artifact, registry, or integrity aborts before any change ([ACT-2026-45](#act-2026-45--resolved--root-release-is-checked-against-the-lockfile), resolved). An explicit transport layer is validated; the system default is no longer looked up here ([ACT-2026-42](#act-2026-42--resolved--transport-layer-is-required-only-for-generated-transportable-packages), resolved). Revert is the only cleanup point for early failures (ACT-2026-37). |
 | 4 | `check-dependants` | A nested dependency upgrade is checked against the manifest the parent is installing, not its installed one ([ACT-2026-23](#act-2026-23--resolved--nested-dependency-upgrades-are-checked-against-the-parents-new-manifest), resolved); a direct upgrade still aborts while an installed dependant requires an incompatible range. |
 | 5 | `check-transports` | The update root devclass is taken from the package being updated, never from a same-named package of another registry ([ACT-2026-15](shared.md), resolved); when the installed root devclass is unknown, existing objects need confirmation interactively, and non-interactive mode fails unless `noExistingObjects` is set ([ACT-2026-36](#act-2026-36--resolved--non-interactive-upgrade-fails-closed-when-the-root-devclass-is-unknown), resolved). |
 | 6 | `check-sap-entries` | See [check-sap-entries findings](check-sap-entries.md); each missing entry is logged at error level before aborting. |
@@ -58,6 +53,13 @@ current source changes their context. They should be re-decided explicitly.
   severity if reopened: High.
 
 ## Resolved findings
+### ACT-2026-45 — Resolved — Root release is checked against the lockfile
+
+- **Original severity:** Low — Functional.
+- **Original issue:** `checks.lockfile` was only consumed for dependencies: the root release defaulted to `latest` even though the lockfile records the root name and version, a lockfile generated for another package was accepted, and `install/init.ts` ignored the requested version for local files.
+- **Resolution:** the lockfile now also records the root registry and integrity ([`Lockfile.generate`](../../src/lockfile/Lockfile.ts); a missing root integrity is warned about and omitted). Before fetching, [`init`](../../src/actions/install/init.ts) applies the lockfile root (`Lockfile.getRootLock`) to the requested release: the root version is used when none is requested and the root integrity when none is expected; a package name other than the root, an explicit version, or an explicit integrity that conflicts with the root aborts. After fetching, a release whose name or version differs from the root (a distribution tag, or a local artifact) or whose resolved install registry differs from the recorded one aborts, and the root integrity is verified by the existing integrity check, all before any system change. Dependency installs are marked (`dependency: true`) and keep using only the lockfile dependency entries. `trm clean-install` no longer defaults the version to `latest`.
+- **Regression coverage:** [`init.integrity.test.ts`](../../src/actions/install/init.integrity.test.ts) covers the root version and integrity defaults, conflicting version, tag, integrity, package, registry, and local artifact, lockfiles without root or root integrity, and dependency installs; [`Lockfile.test.ts`](../../src/lockfile/Lockfile.test.ts) covers the recorded root.
+
 ### ACT-2026-37 — Resolved — Parent cleanup runs before the dependency rollback
 
 - **Where:** [`cleanupCheckpoint.ts`](../../src/actions/install/cleanupCheckpoint.ts), [`install/index.ts`](../../src/actions/install/index.ts); formerly `init` revert.

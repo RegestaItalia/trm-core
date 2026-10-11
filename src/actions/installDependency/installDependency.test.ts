@@ -166,8 +166,10 @@ describe('installDependency installed-release handling', () => {
         const ctx = context([installed('1.2.0')], '^1.0.0', { lockfile: lockfile('1.0.0'), allowDowngrade: true });
         const result = await run(ctx);
         expect(result.runtime.alreadyInstalled).toBe(false);
+        //marked as a dependency install: the lockfile root doesn't apply to it
         expect(ctx.installRunner).toHaveBeenCalledWith(expect.objectContaining({
-            packageData: expect.objectContaining({ version: '1.0.0', integrity: 'sha' })
+            packageData: expect.objectContaining({ version: '1.0.0', integrity: 'sha' }),
+            dependency: true
         }));
     });
 

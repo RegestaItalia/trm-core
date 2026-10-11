@@ -25,7 +25,7 @@ jest.mock('../../transport', () => {
 
 jest.mock('trm-commons', () => ({
     Inquirer: { isUi: jest.fn(() => false), prompt: jest.fn() },
-    Logger: { loading: jest.fn(), log: jest.fn(), forceStop: jest.fn() }
+    Logger: { loading: jest.fn(), log: jest.fn(), info: jest.fn(), forceStop: jest.fn() }
 }));
 
 import { Inquirer } from 'trm-commons';
@@ -217,5 +217,92 @@ describe('interactive customizing transport selection', () => {
 
         expect(Inquirer.prompt).toHaveBeenCalledTimes(3);
         expect(ctx.runtime.customizing.new).toHaveLength(0);
+    });
+});
+
+describe('dropping carried-over customizing transports', () => {
+    const latest = [
+        { trkorr: 'TESTK900020', type: 'CUST', description: 'first' },
+        { trkorr: 'TESTK900021', type: 'CUST', description: 'second' },
+        { trkorr: 'TESTK900022', type: 'TADIR', description: 'objects' }
+    ];
+    function dropContext(drop: string[], customizingTransports: string[] = []) {
+        const ctx = context(customizingTransports);
+        ctx.rawInput.publishData.dropCustomizingTransports = drop;
+        ctx.runtime.latest.data.transports = latest;
+        return ctx;
+    }
+
+    beforeEach(() => {
+        (Transport as any).reset();
+        (Inquirer.prompt as jest.Mock).mockReset();
+    });
+
+    test('drops the listed retained transports without prompting (case-insensitive)', async () => {
+        const ctx = dropContext([' testk900020 ']);
+
+        await setCustomizingTransports.run(ctx);
+
+        expect(ctx.runtime.customizing.retained).toEqual([{ trkorr: 'TESTK900021', description: 'second' }]);
+        expect(ctx.rawInput.publishData.customizingTransports).toEqual(['TESTK900021']);
+        expect(Inquirer.prompt).not.toHaveBeenCalled();
+    });
+
+    test('"all" drops every retained transport and keeps new ones', async () => {
+        (Transport as any).configure('TESTK900030', {
+            trfunction: 'W',
+            e071: [{ pgmid: 'R3TR', object: 'TABU', objName: 'ZTABLE' }],
+            e071k: []
+        });
+        const ctx = dropContext(['all'], ['TESTK900030']);
+
+        await setCustomizingTransports.run(ctx);
+
+        expect(ctx.runtime.customizing.retained).toHaveLength(0);
+        expect(ctx.runtime.customizing.new).toEqual([{ trkorr: 'TESTK900030', description: 'description' }]);
+    });
+
+    test('rejects "all" combined with transport requests', async () => {
+        await expect(setCustomizingTransports.run(dropContext(['all', 'TESTK900020']))).rejects.toThrow(/cannot be combined/);
+    });
+
+    test('rejects an identifier that is not a carried-over customizing transport', async () => {
+        const ctx = dropContext(['TESTK900020', 'TESTK900099']);
+
+        await expect(setCustomizingTransports.run(ctx)).rejects.toThrow(/Cannot drop TESTK900099: not a customizing transport of the latest release \(carried over: TESTK900020, TESTK900021\)/);
+        expect(ctx.runtime.customizing.retained).toHaveLength(0);
+    });
+
+    test('rejects a non-customizing transport of the latest release', async () => {
+        await expect(setCustomizingTransports.run(dropContext(['TESTK900022']))).rejects.toThrow(/Cannot drop TESTK900022/);
+    });
+
+    test('rejects dropping when there is no latest release', async () => {
+        const ctx = context([]);
+        ctx.rawInput.publishData.dropCustomizingTransports = ['TESTK900020'];
+        ctx.runtime.latest.data = undefined;
+
+        await expect(setCustomizingTransports.run(ctx)).rejects.toThrow(/none carried over/);
+    });
+
+    test('rejects a transport both added and dropped', async () => {
+        await expect(setCustomizingTransports.run(dropContext(['TESTK900020'], ['testk900020']))).rejects.toThrow(/Cannot both add and drop customizing transport TESTK900020/);
+    });
+
+    test('interactive selection starts without the dropped transports', async () => {
+        const ctx = dropContext(['TESTK900020']);
+        ctx.rawInput.contextData.noInquirer = false;
+        let choices: any[] = [];
+        (Inquirer.prompt as jest.Mock)
+            .mockResolvedValueOnce({ continue: true })
+            .mockImplementationOnce(async (question: any) => {
+                choices = question.choices;
+                return { option: 'done' };
+            });
+
+        await setCustomizingTransports.run(ctx);
+
+        expect(choices.map(c => c.value)).toEqual([{ trkorr: 'TESTK900021', description: 'second' }, 'add', 'done']);
+        expect(ctx.runtime.customizing.retained).toEqual([{ trkorr: 'TESTK900021', description: 'second' }]);
     });
 });

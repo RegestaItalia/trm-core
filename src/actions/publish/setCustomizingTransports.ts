@@ -13,6 +13,37 @@ const DONE_OPTION = "done";
 
 const normalizeTrkorr = (trkorr: string): string => trkorr.trim().toUpperCase();
 
+/** Keyword of `dropCustomizingTransports` that drops every transport carried over from the latest release. */
+export const DROP_ALL_CUSTOMIZING = "ALL";
+
+/**
+ * Resolve the carried-over transports to drop. Every identifier must name a customizing transport
+ * of the latest release (or be the `all` keyword), and none may also be requested as an addition.
+ */
+const resolveDroppedTransports = (
+    dropInput: string[] | undefined,
+    latestByTrkorr: Map<string, { trkorr: string }>,
+    requested: string[]
+): Set<string> => {
+    const dropList = [...new Set((dropInput ?? []).map(normalizeTrkorr).filter(trkorr => trkorr.length > 0))];
+    if (dropList.includes(DROP_ALL_CUSTOMIZING)) {
+        if (dropList.length > 1) {
+            throw new Error(`Customizing transports to drop: "${DROP_ALL_CUSTOMIZING.toLowerCase()}" cannot be combined with transport requests`);
+        }
+        dropList.splice(0, 1, ...latestByTrkorr.keys());
+    }
+    const unknown = dropList.filter(trkorr => !latestByTrkorr.has(trkorr));
+    if (unknown.length > 0) {
+        const carriedOver = [...latestByTrkorr.keys()];
+        throw new Error(`Cannot drop ${unknown.join(", ")}: not a customizing transport of the latest release (${carriedOver.length > 0 ? `carried over: ${carriedOver.join(", ")}` : "none carried over"})`);
+    }
+    const conflicting = dropList.filter(trkorr => requested.includes(trkorr));
+    if (conflicting.length > 0) {
+        throw new Error(`Cannot both add and drop customizing transport ${conflicting.join(", ")}`);
+    }
+    return new Set(dropList);
+};
+
 const validateCustomizingTransport = async (transport: Transport): Promise<void> => {
     const aggregate = [transport, ...(await transport.getTasks())];
 
@@ -37,8 +68,8 @@ const validateCustomizingTransport = async (transport: Transport): Promise<void>
 };
 
 /**
- * Retain customizing transports from the latest release, validate transports
- * supplied by the user, and optionally let the user update the selection.
+ * Retain customizing transports from the latest release (except those the caller drops), validate
+ * transports supplied by the user, and optionally let the user update the selection.
  */
 export const setCustomizingTransports: Step<PublishWorkflowContext> = {
     name: "set-customizing-transports",
@@ -64,10 +95,20 @@ export const setCustomizingTransports: Step<PublishWorkflowContext> = {
             (publishData.customizingTransports?.length ?? 0) > 0
         );
 
+        const droppedTrkorrs = resolveDroppedTransports(
+            publishData.dropCustomizingTransports,
+            latestByTrkorr,
+            (publishData.customizingTransports ?? []).map(normalizeTrkorr)
+        );
+        for (const trkorr of droppedTrkorrs) {
+            const description = latestByTrkorr.get(trkorr).description;
+            Logger.info(`Dropping customizing transport ${trkorr}${description ? ` (${description})` : ""} carried over from the latest release`);
+        }
+
         const selectedTrkorrs = [
             ...latestCustomizingTransports.map(transport => transport.trkorr),
             ...(publishData.customizingTransports ?? [])
-        ].map(normalizeTrkorr);
+        ].map(normalizeTrkorr).filter(trkorr => !droppedTrkorrs.has(trkorr));
 
         publishData.customizingTransports = [...new Set(selectedTrkorrs)];
 

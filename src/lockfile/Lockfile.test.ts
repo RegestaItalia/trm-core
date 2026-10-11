@@ -5,6 +5,7 @@ jest.mock('../systemConnector', () => ({
     }
 }));
 
+import { Logger } from 'trm-commons';
 import { SystemConnector } from '../systemConnector';
 import { RegistryProvider } from '../registry';
 import { TrmPackage } from '../trmPackage';
@@ -50,7 +51,7 @@ describe('Lockfile integrity', () => {
     });
 
     test('generation refuses a dependency without integrity', async () => {
-        (SystemConnector.getPackageIntegrity as jest.Mock).mockResolvedValue('');
+        (SystemConnector.getPackageIntegrity as jest.Mock).mockImplementation(async (pkg: TrmPackage) => pkg.packageName === 'root' ? 'root-sha' : '');
         const root = installed('root', [{ name: 'dep', version: '^1.0.0', registry: registry.endpoint }]);
 
         await expect(Lockfile.generate(root, [installed('dep')])).rejects.toThrow(/integrity of dependency "dep".*is missing in system TST/);
@@ -62,6 +63,29 @@ describe('Lockfile integrity', () => {
 
         const lock = await Lockfile.generate(root, [installed('dep')]);
         expect(lock.lockfile.packages).toEqual([{ name: 'dep', version: '1.0.0', registry: registry.endpoint, integrity: 'sha' }]);
+    });
+
+    test('generation records the root release, registry and integrity', async () => {
+        (SystemConnector.getPackageIntegrity as jest.Mock).mockResolvedValue('root-sha');
+
+        const lock = await Lockfile.generate(installed('root'), []);
+        expect(lock.lockfile).toMatchObject({ name: 'root', version: '1.0.0', registry: registry.endpoint, integrity: 'root-sha' });
+        expect(lock.getRootLock()).toEqual({ name: 'root', version: '1.0.0', registry: registry.endpoint, integrity: 'root-sha' });
+        expect(Object.keys(JSON.parse(lock.toJson()))).toEqual(['lockfileVersion', 'source', 'name', 'version', 'registry', 'integrity', 'packages']);
+    });
+
+    test('generation warns and omits a missing root integrity', async () => {
+        (SystemConnector.getPackageIntegrity as jest.Mock).mockResolvedValue('');
+        const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+
+        const lock = await Lockfile.generate(installed('root'), []);
+        expect(lock.lockfile.integrity).toBeUndefined();
+        expect(lock.getRootLock()).toEqual({ name: 'root', version: '1.0.0', registry: registry.endpoint, integrity: undefined });
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('Integrity of package "root" is missing in system TST'), { important: true });
+    });
+
+    test('a lockfile without root has no root lock', () => {
+        expect(Lockfile.fromJson({ lockfileVersion: 1, source: 'TRM', packages: [] }).getRootLock()).toBeUndefined();
     });
 
     test('a lock without integrity is rejected before contacting the registry', async () => {

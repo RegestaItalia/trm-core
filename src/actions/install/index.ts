@@ -85,12 +85,14 @@ export type InstallActionInputInstallData = {
      */
     import?: {
         /**
-         * Skip the optional language transport. Defaults to `false`.
+         * Skip the optional language transport. When unset, the user is asked (default: import);
+         * without prompts (`noInquirer`) the transport is imported.
          */
         noLang?: boolean;
 
         /**
-         * Skip all customizing transports. Defaults to `false`.
+         * Skip all customizing transports. When unset, the user is asked for each transport
+         * (default: import); without prompts (`noInquirer`) all of them are imported.
          * On update, the customizing of the installed release is then kept.
          */
         noCust?: boolean;
@@ -101,7 +103,10 @@ export type InstallActionInputInstallData = {
      */
     checks?: {
         /**
-         * Lockfile used to pin dependency versions and verify release integrity.
+         * Lockfile used to pin the release and dependency versions and verify their integrity.
+         * The package must be the lockfile root: when `packageData.version` is omitted the root
+         * version is installed, and an explicit version, distribution tag, local artifact, registry,
+         * or integrity that doesn't match the root aborts the install before any change.
          */
         lockfile?: Lockfile;
 
@@ -153,7 +158,8 @@ export type InstallActionInputInstallData = {
         replacements?: InstallPackageReplacements[];
 
         /**
-         * Do not register the package namespace on the target system.
+         * Do not register the package namespace on the target system. When unset and the namespace
+         * is missing, the user is asked (default: import); without prompts (`noInquirer`) it is imported.
          */
         skipNamespace?: boolean
     };
@@ -192,7 +198,8 @@ export interface InstallActionInput {
         name: string;
 
         /**
-         * Release version or registry selector. Defaults to `latest`.
+         * Release version or registry selector. Defaults to the lockfile root version when
+         * `installData.checks.lockfile` is set, otherwise to `latest`.
          */
         version?: string;
 
@@ -216,6 +223,13 @@ export interface InstallActionInput {
 
     /** Optional validation, import, package-mapping, and post-activity settings. */
     installData?: InstallActionInputInstallData
+
+    /**
+     * Set by a dependency install: the release is selected by the dependency range and the
+     * lockfile dependency entries, so the lockfile root (`name`, `version`, `registry`, `integrity`)
+     * is not applied to it.
+     */
+    dependency?: boolean
 }
 
 type TransportRuntime = {

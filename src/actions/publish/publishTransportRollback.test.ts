@@ -194,6 +194,60 @@ describe('publish transport rollback chain', () => {
         }
     });
 
+    function droppedCustomizingContext() {
+        const ctx = context();
+        ctx.rawInput.contextData.noInquirer = true;
+        ctx.rawInput.publishData.customizingTransports = [];
+        ctx.rawInput.publishData.dropCustomizingTransports = ['TSTK900020'];
+        ctx.runtime.latest = { data: { transports: [
+            { trkorr: 'TSTK900020', type: 'CUST', description: 'Dropped customizing' },
+            { trkorr: 'TSTK900021', type: 'CUST', description: 'Kept customizing' }
+        ] } };
+        ctx.runtime.customizing = { retained: [], new: [] };
+        return ctx;
+    }
+
+    test('failure after dropping carried-over customizing rolls back without copying dropped transports', async () => {
+        const ctx = droppedCustomizingContext();
+        (Transport as any).setFault('release', 1);
+        const { setCustomizingTransports } = await import('./setCustomizingTransports');
+
+        await expect(execute('publish-test', [setCustomizingTransports, ...steps()], ctx)).rejects.toThrow('failure at release.1');
+
+        expect(ctx.runtime.customizing.retained).toEqual([{ trkorr: 'TSTK900021', description: 'Kept customizing' }]);
+        const created = (Transport as any).created as any[];
+        expect(created.some(transport => transport.trmIdentifier === 'CUST')).toBe(false);
+        for (const transport of created) {
+            expect(transport.canBeDeleted).toHaveBeenCalled();
+            if (!transport.released) {
+                expect(transport.delete).toHaveBeenCalled();
+            }
+        }
+    });
+
+    test('dropped carried-over customizing is not sent to the registry as retained', async () => {
+        const ctx = droppedCustomizingContext();
+        jest.spyOn(TrmArtifact, 'create').mockResolvedValue({ binary: Buffer.from('artifact') } as any);
+        const { setCustomizingTransports } = await import('./setCustomizingTransports');
+        const { publishToRegistry } = await import('./publishToRegistry');
+
+        await execute('publish-test', [setCustomizingTransports, ...steps(), publishToRegistry], ctx);
+
+        expect(ctx.output.trmPackage.publish).toHaveBeenCalledWith(expect.objectContaining({
+            retainedCustomizing: ['TSTK900021']
+        }));
+    });
+
+    test('unknown carried-over customizing to drop fails before any transport is generated', async () => {
+        const ctx = droppedCustomizingContext();
+        ctx.rawInput.publishData.dropCustomizingTransports = ['TSTK900099'];
+        const { setCustomizingTransports } = await import('./setCustomizingTransports');
+
+        await expect(execute('publish-test', [setCustomizingTransports, ...steps()], ctx)).rejects.toThrow(/Cannot drop TSTK900099/);
+
+        expect((Transport as any).created).toHaveLength(0);
+    });
+
     test('registry rejection after publication request rolls back generated transports', async () => {
         const ctx = context();
         ctx.output.trmPackage.publish.mockRejectedValue(new Error('Registry rejected publish: Invalid package manifest'));

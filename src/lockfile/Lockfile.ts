@@ -1,5 +1,5 @@
 import { Logger } from "trm-commons";
-import { LOCAL_RESERVED_KEYWORD, RegistryProvider } from "../registry";
+import { LOCAL_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
 import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
 import { jsonStringifyWithKeyOrder } from "../commons";
@@ -16,9 +16,23 @@ export interface Lock {
 export interface LockfileContent {
     lockfileVersion: number,
     source: string,
+    /** Name of the locked (root) package. */
     name?: string,
+    /** Version of the locked (root) package. */
     version?: string,
+    /** Registry endpoint of the locked (root) package; not recorded for a package installed from a local file. */
+    registry?: string,
+    /** Integrity of the locked (root) release; not recorded when the source system has none. */
+    integrity?: string,
     packages?: Lock[]
+}
+
+/** Release of the locked (root) package recorded in a lockfile. */
+export interface RootLock {
+    name: string,
+    version: string,
+    registry?: string,
+    integrity?: string
 }
 
 export class Lockfile {
@@ -38,6 +52,15 @@ export class Lockfile {
         var dependencies = rootManifest.dependencies || [];
         lock.name = rootManifest.name;
         lock.version = rootManifest.version;
+        if (root.registry.getRegistryType() !== RegistryType.LOCAL) {
+            lock.registry = root.registry.endpoint;
+        }
+        const rootIntegrity = await SystemConnector.getPackageIntegrity(root);
+        if (rootIntegrity) {
+            lock.integrity = rootIntegrity;
+        } else {
+            Logger.warning(`Integrity of package "${rootManifest.name}" is missing in system ${SystemConnector.getDest()}: clean installs won't verify its release. Reinstall it to restore its package data.`, { important: true });
+        }
         for (const dep of dependencies) {
             if (dep.registry === LOCAL_RESERVED_KEYWORD) {
                 throw new Error(`Cannot generate lockfile: dependency with local package "${dep.name}"`);
@@ -82,9 +105,22 @@ export class Lockfile {
             "lockfileVersion",
             "source",
             "name",
-            "version"
+            "version",
+            "registry",
+            "integrity"
         ] satisfies readonly (keyof LockfileContent & string)[];
         return jsonStringifyWithKeyOrder(this.lockfile, KEYS_ORDER, 2);
+    }
+
+    /**
+     * Returns the locked (root) release, or `undefined` when the lockfile doesn't record it.
+     */
+    public getRootLock(): RootLock | undefined {
+        const { name, version, registry, integrity } = this.lockfile;
+        if (!name || !version) {
+            return undefined;
+        }
+        return { name, version, registry: registry || undefined, integrity: integrity || undefined };
     }
 
     /**
