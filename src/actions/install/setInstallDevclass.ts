@@ -1,34 +1,40 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { adjustTrmServerRestDevclass, getPackageNamespace } from "../../commons";
-import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
+import { SystemConnector } from "../../systemConnector";
 import { Logger, Inquirer, Question } from "trm-commons";
-import { ZTRM_INSTALLDEVC } from "../../client";
-import { LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
+import { flattenDevclasses, getInstallNamespace } from "./addNamespace";
+import { validateInstallDevclass } from "./checkInstallDevclass";
 
-function _validateDevclass(input: string, namespaces: string[]): string | true {
+function escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+}
+
+function _validateDevclass(input: string, namespaces?: string[]): string | true {
     const sInput: string = input.trim().toUpperCase();
-    namespaces = [...new Set(namespaces)]; //unique
     if (sInput.length > 30) {
         return `Package name must not exceede 30 characters limit.`;
     }
-    if (!namespaces.some(ns => sInput.startsWith(ns))) {
-        return `Package name must use one of the following namespaces: ${namespaces.join(', ')}.`;
+    if (namespaces) {
+        namespaces = [...new Set(namespaces)]; //unique
+        if (!namespaces.some(ns => sInput.startsWith(ns))) {
+            return `Package name must use one of the following namespaces: ${namespaces.join(', ')}.`;
+        } else {
+            return true;
+        }
     } else {
         return true;
     }
 }
 
 /**
- * Set install devclass. These are the ABAP package names that will be used in the target system.
+ * Workflow step that resolves publisher ABAP packages to target-system package names.
  * 
  * 1- find already defined replacements in system
  * 
  * 2- get root devclass and find namespace
  * 
- * 3- update z table
- * 
- * 4- if all package names like origin, import devc transport
+ * 3- if all package names like origin, import devc transport
  * 
 */
 export const setInstallDevclass: Step<InstallWorkflowContext> = {
@@ -42,48 +48,115 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Set install devclass step', true);
-
         //1- find already defined replacements in system
         if (context.rawInput.installData.installDevclass.replacements.length <= 0) {
             //no input replacements = get from the trm table devclass replacements the corresponding name
-            context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.rawInput.packageData.registry);
+            Logger.loading(`Checking package replacements...`);
+            context.rawInput.installData.installDevclass.replacements = await SystemConnector.getInstallPackages(context.rawInput.packageData.name, context.runtime.installRegistry);
+        } else if (context.runtime.update) {
+            //explicit replacements win; stored ones keep the devclasses they don't mention renamed
+            const explicit = new Set(context.rawInput.installData.installDevclass.replacements.map(o => o.originalDevclass));
+            const stored = (context.runtime.previousInstallPackages || []).filter(o => !explicit.has(o.originalDevclass));
+            stored.forEach(o => Logger.log(`Keeping stored package replacement ${o.originalDevclass} -> ${o.installDevclass}`, true));
+            context.rawInput.installData.installDevclass.replacements = [
+                ...context.rawInput.installData.installDevclass.replacements,
+                ...stored.map(o => ({ originalDevclass: o.originalDevclass, installDevclass: o.installDevclass }))
+            ];
+        }
+        //the release root can have a new original name (e.g. moved to a namespace): a renamed installation keeps its root
+        //package, matched by position, so the installation stays where the customer put it
+        const releaseRoot = context.runtime.package.hierarchy.devclass;
+        const installedRoot = context.runtime.update?.getDevclass();
+        if (installedRoot && !context.rawInput.installData.installDevclass.replacements.some(o => o.originalDevclass === releaseRoot)) {
+            const storedRoot = context.rawInput.installData.installDevclass.replacements.find(o =>
+                o.installDevclass.trim().toUpperCase() === installedRoot.trim().toUpperCase());
+            if (storedRoot && storedRoot.installDevclass !== storedRoot.originalDevclass) {
+                Logger.log(`Release root ${releaseRoot} replaces ${storedRoot.originalDevclass}: keeping installed root ${installedRoot}`, true);
+                context.rawInput.installData.installDevclass.replacements.push({ originalDevclass: releaseRoot, installDevclass: installedRoot });
+            }
+        }
+        //drop replacements of devclasses that are not part of the release (e.g. removed in this version)
+        const originalDevclasses = flattenDevclasses(context.runtime.package.hierarchy);
+        context.rawInput.installData.installDevclass.replacements = context.rawInput.installData.installDevclass.replacements.filter(replacement => {
+            if (originalDevclasses.includes(replacement.originalDevclass)) {
+                return true;
+            }
+            Logger.log(`Ignoring package replacement ${replacement.originalDevclass} -> ${replacement.installDevclass}: devclass is not part of the release`, true);
+            return false;
+        });
+        //if there are replacements and they all equal to original ask if you should continue
+        const replacementsKeepOriginal = context.rawInput.installData.installDevclass.replacements.length > 0
+            && context.rawInput.installData.installDevclass.replacements.every(replacement => replacement.installDevclass === replacement.originalDevclass);
+        if (replacementsKeepOriginal) {
+            let continueWithReplacements = false;
+            if (!context.rawInput.contextData.noInquirer) {
+                continueWithReplacements = (await Inquirer.prompt({
+                    type: 'confirm',
+                    name: 'continueWithReplacements',
+                    message: `Do you want to change original SAP packages name?`,
+                    default: false
+                })).continueWithReplacements;
+            }
+            if (!continueWithReplacements) {
+                // Later workflow steps use this flag to import the original DEVC transport.
+                context.rawInput.installData.installDevclass.keepOriginal = true;
+                // Packages new in this release keep their name too, and are mapped like the others.
+                originalDevclasses
+                    .filter(originalDevclass => !context.rawInput.installData.installDevclass.replacements.some(o => o.originalDevclass === originalDevclass))
+                    .forEach(originalDevclass => context.rawInput.installData.installDevclass.replacements.push({
+                        originalDevclass,
+                        installDevclass: originalDevclass
+                    }));
+                return;
+            }
         }
 
-        //2- get root devclass and find namespace
-        var rootDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === context.runtime.originalData.hierarchy.devclass)?.installDevclass;
-        if (!rootDevclass) {
-            rootDevclass = context.runtime.originalData.hierarchy.devclass;
-        }
-        const originalNamespace = getPackageNamespace(rootDevclass);
-        var updateNamespace;
-        if (context.runtime.installData.upgradingPackage) {
-            updateNamespace = getPackageNamespace(context.runtime.installData.upgradingPackage.getDevclass());
+        //2- find the namespace of the original root, carried over onto new devclasses
+        const originalNamespace = getPackageNamespace(context.runtime.package.hierarchy.devclass);
+        // Only carry the currently installed namespace forward onto newly introduced original
+        // devclasses when the package was genuinely customized before (some stored replacement
+        // actually renamed a package). Otherwise "currently installed" is just this package's
+        // own untouched default from whichever version happens to be installed right now, and
+        // has nothing to do with the namespace of the version being installed/rolled back to.
+        const hasCustomization = context.rawInput.installData.installDevclass.replacements.some(
+            replacement => replacement.installDevclass !== replacement.originalDevclass
+        );
+        let updateNamespace;
+        if (context.runtime.update && hasCustomization) {
+            //the installed root devclass can be unknown: fall back to the stored root replacement
+            const installedRootDevclass = context.runtime.update.getDevclass()
+                || context.runtime.previousInstallPackages?.find(o => o.originalDevclass === context.runtime.package.hierarchy.devclass)?.installDevclass;
+            if (installedRootDevclass) {
+                updateNamespace = getPackageNamespace(installedRootDevclass);
+            } else {
+                Logger.log(`Installed root devclass is unknown, namespace won't be carried over`, true);
+            }
         }
 
-        var inq1Prompts: Question[] = [];
-        Logger.loading(`Analyzing packages...`);
-        for (const t of context.runtime.packageTransportsData.tdevc) {
-            var adaptDevclassName = t.devclass;
-            const replacement = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === t.devclass);
+        const inq1Prompts: Question[] = [];
+        Logger.loading(`Analyzing package replacements...`);
+        for (const originalDevclass of originalDevclasses) {
+            let adaptDevclassName = originalDevclass;
+            const replacement = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalDevclass);
             if (updateNamespace) {
                 //only for trm-server and trm-rest with /ATRM/: if no replacement and updating from namespace $, adapt naming convention
                 if (!replacement && updateNamespace === '$' && (context.runtime.isTrmServer || context.runtime.isTrmRest)) {
                     adaptDevclassName = adjustTrmServerRestDevclass(adaptDevclassName);
                 } else {
-                    adaptDevclassName = adaptDevclassName.replace(new RegExp(`^${originalNamespace}`, 'gmi'), updateNamespace);
+                    //original names use the original root namespace; a function keeps `$` literal
+                    adaptDevclassName = adaptDevclassName.replace(new RegExp(`^${escapeRegExp(originalNamespace)}`, 'i'), () => updateNamespace);
                 }
-            }else if(context.runtime.isTrmRest){
+            } else if (context.runtime.isTrmRest) {
                 //extra guard for trm-rest first install: move /ATRM/ to $
                 adaptDevclassName = adjustTrmServerRestDevclass(adaptDevclassName);
             }
-            const packageExists = await SystemConnector.getDevclass(adaptDevclassName);
             if (!replacement) {
                 if (context.rawInput.contextData.noInquirer || (context.runtime.isTrmServer || context.runtime.isTrmRest)) {
-                    const automaticValue = _validateDevclass(adaptDevclassName, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                    //const automaticValue = _validateDevclass(adaptDevclassName, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                    const automaticValue = _validateDevclass(adaptDevclassName);
                     if (automaticValue === true) {
                         context.rawInput.installData.installDevclass.replacements.push({
-                            originalDevclass: t.devclass,
+                            originalDevclass,
                             installDevclass: adaptDevclassName
                         });
                     } else {
@@ -92,19 +165,28 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
                 } else {
                     inq1Prompts.push({
                         type: "input",
-                        name: t.devclass,
+                        name: originalDevclass,
                         default: adaptDevclassName,
-                        message: packageExists ? `Rename ABAP Package "${adaptDevclassName}"?` : `ABAP Package "${adaptDevclassName}" will be generated. Do you want to rename it?`,
-                        validate: (input) => {
-                            return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                        message: `ABAP Package "${adaptDevclassName}" will be imported. Do you want to rename it?`,
+                        validate: async (input) => {
+                            //return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                            const valid = _validateDevclass(input);
+                            return valid === true ? await validateInstallDevclass(context, input.trim().toUpperCase()) : valid;
                         }
                     });
                 }
-            } else {
-                const devclassValid = _validateDevclass(replacement.installDevclass, [updateNamespace || originalNamespace, '$', originalNamespace]);
-                if (devclassValid !== true) {
-                    throw new Error(devclassValid);
-                }
+            } else if (!context.rawInput.contextData.noInquirer) {
+                inq1Prompts.push({
+                    type: "input",
+                    name: originalDevclass,
+                    default: replacement.installDevclass,
+                    message: `Rename ABAP Package "${replacement.installDevclass}"`,
+                    validate: async (input) => {
+                        //return _validateDevclass(input, [updateNamespace || originalNamespace, '$', originalNamespace]);
+                        const valid = _validateDevclass(input);
+                        return valid === true ? await validateInstallDevclass(context, input.trim().toUpperCase()) : valid;
+                    }
+                });
             }
         }
         if (inq1Prompts.length > 0) {
@@ -125,29 +207,10 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         if (hasTemp && !context.rawInput.installData.installDevclass.replacements.every(x => x.installDevclass.startsWith('$'))) {
             throw new Error(`All packages must start with prefix $ if one (or more) packages are temporary!`);
         }
+        //fail before locks and dependency installs (add-namespace checks again for original package names)
+        getInstallNamespace(context);
 
-        //3- update z table
-        Logger.loading(`Updating install data...`);
-        var installDevc: ZTRM_INSTALLDEVC[] = [];
-        var packageRegistry: string;
-        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
-            packageRegistry = PUBLIC_RESERVED_KEYWORD;
-        } else if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
-            packageRegistry = LOCAL_RESERVED_KEYWORD;
-        } else {
-            packageRegistry = context.rawInput.packageData.registry.endpoint;
-        }
-        context.rawInput.installData.installDevclass.replacements.forEach(o => {
-            installDevc.push({
-                package_name: context.rawInput.packageData.name,
-                package_registry: packageRegistry,
-                original_devclass: o.originalDevclass,
-                install_devclass: o.installDevclass
-            });
-        });
-        await SystemConnector.setInstallDevc(installDevc);
-
-        //4- if all package names like origin, import devc transport
+        //3- if all package names like origin, import devc transport
         context.rawInput.installData.installDevclass.keepOriginal = true;
         context.rawInput.installData.installDevclass.replacements.forEach(o => {
             if (o.installDevclass !== o.originalDevclass) {

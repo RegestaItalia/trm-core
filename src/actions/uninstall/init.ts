@@ -1,0 +1,163 @@
+import { Step } from "@simonegaffurini/sammarksworkflow";
+import { UninstallWorkflowContext } from ".";
+import { Inquirer, Logger } from "trm-commons";
+import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from "../../systemConnector";
+import { RegistryType } from "../../registry";
+import { TrmPackage } from "../../trmPackage";
+import { setLandscapeTarget } from "../commons/prompts";
+import { getNestedPackages, withoutNestedDirtyEntries } from "./uninstallNestedPackages";
+import { getInstalledObjectsLocks, logDirtyEntries, withoutOwnTrmTransports } from "../commons/utils";
+
+/**
+ * Workflow step that finds the installed package and initializes rollback state.
+ *
+ * 1- fill missing input data
+ *
+ * 2- find installed package and its TRM packages table record
+ *
+ * 3- check if package can be deleted
+ *
+ * 4- check/set system target
+ *
+ * 5- fill context data, including the TRM packages installed under the uninstalled one
+ *
+*/
+export const init: Step<UninstallWorkflowContext> = {
+    name: 'init',
+    run: async (context: UninstallWorkflowContext): Promise<void> => {
+        const registry = context.rawInput.packageData.registry;
+
+        //1- fill missing input data
+        if (!context.rawInput.uninstallData) {
+            context.rawInput.uninstallData = {};
+        }
+        if (!context.rawInput.uninstallData.checks) {
+            context.rawInput.uninstallData.checks = {};
+        }
+        if (!context.rawInput.uninstallData.landscapeTransport) {
+            context.rawInput.uninstallData.landscapeTransport = {};
+        }
+
+        //2- find installed package
+        //the registry generates the deletion transport
+        if (registry.getRegistryType() === RegistryType.LOCAL) {
+            throw new Error(`Uninstall aborted. Deletion transports can't be generated from a local registry.`);
+        }
+        const installed = context.rawInput.contextData.systemPackages.find(o => o.manifest
+            && TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, registry)));
+        if (!installed) {
+            throw new Error(`Package ${context.rawInput.packageData.name} is not installed in ${SystemConnector.getDest()}.`);
+        }
+        // Without its TRM packages table row the record would survive the uninstall:
+        // the row is missing when the backend read failed, so read it again before changing anything.
+        if (!installed.getMetadataSnapshot()) {
+            Logger.loading(`Reading TRM data...`, true);
+            const snapshot = (await SystemConnector.getInstalledPackages(true)).find(o => o.manifest
+                && TrmPackage.compare(o, installed))?.getMetadataSnapshot();
+            if (!snapshot) {
+                throw new Error(`Uninstall aborted. The TRM packages table record of ${context.rawInput.packageData.name} could not be read from ${SystemConnector.getDest()}.`);
+            }
+            installed.setMetadataSnapshot(snapshot);
+        }
+
+        //3- check if package can be deleted
+        if (registry.getRegistryType() === RegistryType.PUBLIC
+            && (installed.packageName === TRM_SERVER_PACKAGE_NAME || installed.packageName === TRM_REST_PACKAGE_NAME)) {
+            throw new Error(`Uninstall aborted. ${installed.packageName} is required by TRM and can't be uninstalled.`);
+        }
+
+        //4- read install data
+        //install mappings are queried case-sensitively: use the stored name and registry, not the input
+        const previousInstallPackages = await SystemConnector.getInstallPackages(
+            installed.packageName,
+            installed.registry
+        );
+        const previousInstallTransports = await SystemConnector.getInstallTransports(
+            installed.packageName,
+            installed.registry
+        );
+        const nestedPackages = await getNestedPackages(
+            context.rawInput.contextData.systemPackages,
+            installed,
+            previousInstallPackages.map(replacement => replacement.installDevclass)
+        );
+
+        //5- dirty check: changes still being edited would fail the cleanup objects lock check,
+        //so check them before asking anything
+        const allDirtyEntries = await withoutOwnTrmTransports(installed.getDirtyEntries(), installed.packageName);
+        if (allDirtyEntries.length > 0) {
+            Logger.loading(`Checking changed objects locks...`, true);
+            const locks = await getInstalledObjectsLocks(
+                installed,
+                previousInstallPackages,
+                context.rawInput.contextData.systemPackages,
+                allDirtyEntries
+            );
+            if (locks.length > 0) {
+                locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true }));
+                throw new Error(`Uninstall aborted. To continue, all cleanup objects and SAP packages must be released`);
+            }
+        }
+        //the TRM packages installed under it confirm their own changes
+        const dirtyEntries = await withoutNestedDirtyEntries(allDirtyEntries, nestedPackages.all);
+        if (dirtyEntries.length > 0 && !context.rawInput.uninstallData.checks.ignoreDirty) {
+            const reason = `${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted`;
+            Logger.warning(`${reason}!`);
+            logDirtyEntries(dirtyEntries);
+            if (context.rawInput.contextData.noInquirer) {
+                throw new Error(`Uninstall aborted. ${reason}: set the ignoreDirty check to uninstall it without prompts.`);
+            }
+            const { ignoreDirty } = await Inquirer.prompt({
+                message: `Continue with uninstall?`,
+                type: 'confirm',
+                default: false,
+                name: 'ignoreDirty'
+            });
+            if (!ignoreDirty) {
+                throw new Error(`Uninstall aborted. ${reason}.`);
+            }
+        } else if (dirtyEntries.length > 0) {
+            Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be deleted!`, { important: true });
+            logDirtyEntries(dirtyEntries);
+        }
+
+        //6- check/set system target
+        //objects of a temporary package only exist on this system
+        if (!(installed.getDevclass() || '').trim().startsWith('$')) {
+            context.rawInput.uninstallData.landscapeTransport.targetSystem = await setLandscapeTarget(
+                context.rawInput.contextData.noInquirer,
+                context.rawInput.uninstallData.landscapeTransport.targetSystem,
+                "Deletion transport target",
+                "Deletion transport won't be forwarded."
+            );
+        }
+
+        //7- fill context data
+        context.runtime = {
+            update: installed,
+            previousInstallPackages,
+            previousInstallTransports,
+            dele: undefined,
+            stopWarningShown: false,
+            nestedPackages,
+            nestedRollbacks: [],
+            nestedReleases: [],
+            deletedObjects: []
+        };
+        context.output = {
+            manifest: installed.manifest.get(),
+            transport: undefined,
+            targetSystem: undefined
+        };
+        context.revert = {
+            sapPackages: [],
+            dele: undefined,
+            deleImportStarted: false,
+            deleInTargetTms: false,
+            metadataRemoveStarted: false,
+            metadataPreviousPackageRow: undefined
+        };
+
+        Logger.info(`Ready to uninstall ${installed.packageName} v${installed.manifest.get().version}.`);
+    }
+}

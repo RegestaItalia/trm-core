@@ -1,139 +1,295 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
+import { Inquirer, Logger } from "trm-commons";
 import { PublishWorkflowContext } from ".";
-import { Logger, Inquirer } from "trm-commons";
-import { Transport } from "../../transport";
+import { getE071KOwner, Transport, TrmTransportIdentifier } from "../../transport";
+
+type CustomizingTransport = {
+    trkorr: string;
+    description: string;
+};
+
+const ADD_OPTION = "add";
+const DONE_OPTION = "done";
+
+const normalizeTrkorr = (trkorr: string): string => trkorr.trim().toUpperCase();
+
+/** Keyword of `dropCustomizingTransports` that drops every transport carried over from the latest release. */
+export const DROP_ALL_CUSTOMIZING = "ALL";
 
 /**
- * Set customizing transports
- * 
- * 1- format input customizing transports
- * 
- * 2- input transports
- * 
- * 3- validate transports (check existance, get tasks, rename)
- * 
-*/
-export const setCustomizingTransports: Step<PublishWorkflowContext> = {
-    name: 'set-customizing-transports',
-    filter: async (context: PublishWorkflowContext): Promise<boolean> => {
-        if (context.rawInput.publishData.skipCustomizingTransports) {
-            Logger.log(`Skipping customizing transports publish (user input)`, true);
-            return false;
-        } else {
-            return true;
+ * Resolve the carried-over transports to drop. Every identifier must name a customizing transport
+ * of the latest release (or be the `all` keyword), and none may also be requested as an addition.
+ */
+const resolveDroppedTransports = (
+    dropInput: string[] | undefined,
+    latestByTrkorr: Map<string, { trkorr: string }>,
+    requested: string[]
+): Set<string> => {
+    const dropList = [...new Set((dropInput ?? []).map(normalizeTrkorr).filter(trkorr => trkorr.length > 0))];
+    if (dropList.includes(DROP_ALL_CUSTOMIZING)) {
+        if (dropList.length > 1) {
+            throw new Error(`Customizing transports to drop: "${DROP_ALL_CUSTOMIZING.toLowerCase()}" cannot be combined with transport requests`);
         }
-    },
-    run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Set customizing transports step', true);
+        dropList.splice(0, 1, ...latestByTrkorr.keys());
+    }
+    const unknown = dropList.filter(trkorr => !latestByTrkorr.has(trkorr));
+    if (unknown.length > 0) {
+        const carriedOver = [...latestByTrkorr.keys()];
+        throw new Error(`Cannot drop ${unknown.join(", ")}: not a customizing transport of the latest release (${carriedOver.length > 0 ? `carried over: ${carriedOver.join(", ")}` : "none carried over"})`);
+    }
+    const conflicting = dropList.filter(trkorr => requested.includes(trkorr));
+    if (conflicting.length > 0) {
+        throw new Error(`Cannot both add and drop customizing transport ${conflicting.join(", ")}`);
+    }
+    return new Set(dropList);
+};
 
-        //1- format input customizing transports
-        var customizingTransports: Transport[] = (context.rawInput.publishData.customizingTransports as Transport[]);
-        customizingTransports = Object.values(customizingTransports.reduce((acc, t) => {
-            acc[t.trkorr] = t;
-            return acc;
-        }, {} as Record<string, Transport>));
+const validateCustomizingTransport = async (transport: Transport): Promise<void> => {
+    const aggregate = [transport, ...(await transport.getTasks())];
 
-        //2- input transports
-        if (!context.rawInput.contextData.noInquirer) {
-            const addCust = (await Inquirer.prompt({
-                message: customizingTransports.length > 0 ? `Do you want to add more customizing transports?` : `Do you want to add customizing transports?`,
-                name: 'continue',
-                type: 'confirm',
-                default: customizingTransports.length > 0
-            })).continue;
-            if (addCust) {
-                var option: number | Transport;
-                do {
-                    var options: any[] = [];
-                    for (const transport of customizingTransports) {
-                        var description;
-                        try {
-                            description = await transport.getDescription();
-                        } catch {
-                            description = '';
-                        }
-                        options.push({
-                            name: `- ${Transport.getTransportIcon()}  ${transport.trkorr} ${description}`.trim(),
-                            value: transport
-                        });
-                    }
-                    options.push({
-                        name: `+ Add`,
-                        value: 1
-                    });
-                    options.push({
-                        name: `x Done`,
-                        value: 2
-                    });
-                    option = (await Inquirer.prompt({
-                        message: 'Select option',
-                        name: 'option',
-                        type: 'list',
-                        choices: options,
-                        default: 1
-                    })).option;
-                    if (option === 1) {
-                        const trkorr = (await Inquirer.prompt({
-                            message: 'Input customizing transport request',
-                            name: 'trkorr',
-                            type: 'input',
-                            validate: async (input) => {
-                                try {
-                                    if (customizingTransports.find(o => o.trkorr === input.trim())) {
-                                        return 'Already added';
-                                    }
-                                    const trFunction = (await (new Transport(input.trim())).getE070()).trfunction;
-                                    if (trFunction !== 'W') {
-                                        return 'Transport request must be of type customizing';
-                                    } else {
-                                        return true;
-                                    }
-                                } catch {
-                                    return 'Invalid transport request';
-                                }
-                            }
-                        })).trkorr;
-                        customizingTransports.push(new Transport(trkorr.trim()));
-                    } else if (option instanceof Transport) {
-                        customizingTransports = customizingTransports.filter(o => o.trkorr !== (option as Transport).trkorr);
-                    }
-                } while (option !== 2);
-            }
-
-            //3- validate transports (check existance, get tasks, rename)
-            const maxDescLength = 60 - `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (C) `.length;
-            for (const transport of customizingTransports) {
-                try {
-                    const e070 = await transport.getE070();
-                    if (e070.trfunction !== 'W') {
-                        Logger.warning(`Transport ${transport.trkorr} is not of type customizing`);
-                        throw new Error(); //dummy
-                    }
-                    const tasks = await transport.getTasks();
-                    var desc = await transport.getDescription();
-                    if (!context.rawInput.contextData.noInquirer) {
-                        desc = (await Inquirer.prompt({
-                            message: `Description of ${transport.trkorr}`,
-                            type: 'input',
-                            name: 'desc',
-                            default: desc,
-                            validate: (input) => {
-                                if(input.length > maxDescLength){
-                                    return `Description cannot exceede ${maxDescLength} characters`;
-                                }else{
-                                    return true;
-                                }
-                            }
-                        })).desc || desc;
-                    }
-                    context.runtime.systemData.originCustomizing.push({
-                        transports: [transport].concat(tasks),
-                        description: desc
-                    });
-                } catch {
-                    Logger.warning(`Invalid transport ${transport.trkorr}, ignored`);
-                }
+    if ((await transport.getE070()).trfunction !== "W") {
+        //a workbench transport can still be considered customizing if every object it carries
+        //is table content (i.e. has a matching E071K key entry) rather than a real repository object
+        for (const item of aggregate) {
+            const [e071, e071k] = await Promise.all([item.getE071(), item.getE071K()]);
+            const realObject = e071
+                .filter(o => o.pgmid !== '*')
+                .find(o => !e071k.map(getE071KOwner).some(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName));
+            if (realObject) {
+                throw new Error(`Transport request must be of type customizing (${realObject.pgmid} ${realObject.object} ${realObject.objName} is not table content)`);
             }
         }
     }
-}
+
+    const entries = await Promise.all(aggregate.map(item => item.getE071()));
+    if (entries.every(item => item.length === 0)) {
+        throw new Error("Transport request is empty");
+    }
+};
+
+/**
+ * Retain customizing transports from the latest release (except those the caller drops), validate
+ * transports supplied by the user, and optionally let the user update the selection.
+ */
+export const setCustomizingTransports: Step<PublishWorkflowContext> = {
+    name: "set-customizing-transports",
+    filter: async (context): Promise<boolean> => {
+        if (!context.rawInput.publishData.noCustomizingTransports) {
+            return true;
+        }
+
+        Logger.log("Skipping customizing transports publish (user input)", true);
+        return false;
+    },
+    run: async (context): Promise<void> => {
+        const publishData = context.rawInput.publishData;
+        const latestCustomizingTransports = (context.runtime.latest.data?.transports ?? []).filter(
+            transport => transport.type === TrmTransportIdentifier.CUST
+        );
+        const latestByTrkorr = new Map(
+            latestCustomizingTransports.map(transport => [normalizeTrkorr(transport.trkorr), transport])
+        );
+
+        Logger.loading(
+            "Reading customizing transports...",
+            (publishData.customizingTransports?.length ?? 0) > 0
+        );
+
+        const droppedTrkorrs = resolveDroppedTransports(
+            publishData.dropCustomizingTransports,
+            latestByTrkorr,
+            (publishData.customizingTransports ?? []).map(normalizeTrkorr)
+        );
+        for (const trkorr of droppedTrkorrs) {
+            const description = latestByTrkorr.get(trkorr).description;
+            Logger.info(`Dropping customizing transport ${trkorr}${description ? ` (${description})` : ""} carried over from the latest release`);
+        }
+
+        const selectedTrkorrs = [
+            ...latestCustomizingTransports.map(transport => transport.trkorr),
+            ...(publishData.customizingTransports ?? [])
+        ].map(normalizeTrkorr).filter(trkorr => !droppedTrkorrs.has(trkorr));
+
+        publishData.customizingTransports = [...new Set(selectedTrkorrs)];
+
+        let enrichedCustomizing: CustomizingTransport[] = [];
+        for (const trkorr of publishData.customizingTransports) {
+            const retainedTransport = latestByTrkorr.get(trkorr);
+            if (retainedTransport) {
+                enrichedCustomizing.push({ trkorr, description: retainedTransport.description });
+                continue;
+            }
+
+            const transport = new Transport(trkorr);
+            try {
+                await validateCustomizingTransport(transport);
+            } catch (error) {
+                const reason = error instanceof Error
+                    ? error.message.toLowerCase()
+                    : "invalid transport request";
+                throw new Error(`Unable to add transport ${trkorr}: ${reason}`);
+            }
+
+            enrichedCustomizing.push({
+                trkorr,
+                description: await transport.getDescription()
+            });
+        }
+
+        if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
+            const rows: CustomizingTransport[] = (await Inquirer.prompt({
+                message: "Customizing transports",
+                name: "customizingTransports",
+                type: "input",
+                ui: {
+                    kind: "table",
+                    addLabel: "Add transport",
+                    value: enrichedCustomizing,
+                    columns: [{
+                        name: "trkorr",
+                        label: "Transport",
+                        required: true,
+                        case: "upper",
+                        validate: async (trkorr: string) => {
+                            if (latestByTrkorr.has(trkorr)) {
+                                return true;
+                            }
+                            Logger.loading(`Validating ${trkorr}...`);
+                            try {
+                                await validateCustomizingTransport(new Transport(trkorr));
+                                return true;
+                            } catch (error) {
+                                return error instanceof Error ? error.message : "Invalid transport request";
+                            } finally {
+                                Logger.forceStop();
+                            }
+                        }
+                    }, {
+                        name: "description",
+                        label: "Description",
+                        maxLength: 60,
+                        placeholder: "Transport description"
+                    }]
+                },
+                validate: (input: CustomizingTransport[]) => {
+                    const duplicate = input.find((transport, i) => input.findIndex(o => o.trkorr === transport.trkorr) !== i);
+                    return duplicate ? `${duplicate.trkorr} added more than once` : true;
+                }
+            })).customizingTransports;
+            enrichedCustomizing = [];
+            for (const row of rows) {
+                const trkorr = normalizeTrkorr(row.trkorr);
+                const retainedTransport = latestByTrkorr.get(trkorr);
+                enrichedCustomizing.push({
+                    trkorr,
+                    //descriptions of transports retained from the latest release can't change
+                    description: retainedTransport?.description
+                        ?? (row.description || await new Transport(trkorr).getDescription())
+                });
+            }
+        } else if (!context.rawInput.contextData.noInquirer) {
+            const shouldEdit = (await Inquirer.prompt({
+                message: enrichedCustomizing.length > 0
+                    ? "Do you want to add more customizing transports?"
+                    : "Do you want to add customizing transports?",
+                name: "continue",
+                type: "confirm",
+                default: enrichedCustomizing.length > 0
+            })).continue;
+
+            if (shouldEdit) {
+                let option: CustomizingTransport | typeof ADD_OPTION | typeof DONE_OPTION;
+                do {
+                    option = (await Inquirer.prompt({
+                        message: "Select option",
+                        name: "option",
+                        type: "list",
+                        choices: [
+                            ...enrichedCustomizing.map(transport => ({
+                                name: `- ${Transport.getTransportIcon()}  ${transport.trkorr} ${transport.description}`.trim(),
+                                value: transport
+                            })),
+                            { name: "+ Add", value: ADD_OPTION },
+                            { name: "x Done", value: DONE_OPTION }
+                        ],
+                        default: ADD_OPTION
+                    })).option;
+
+                    if (option === ADD_OPTION) {
+                        const trkorr = (await Inquirer.prompt({
+                            message: "Input customizing transport request",
+                            name: "trkorr",
+                            type: "input",
+                            validate: async (input: string) => {
+                                const normalizedInput = normalizeTrkorr(input);
+
+                                if (enrichedCustomizing.some(transport => transport.trkorr === normalizedInput)) {
+                                    return "Already added";
+                                }
+
+                                if (latestByTrkorr.has(normalizedInput)) {
+                                    return true;
+                                }
+
+                                Logger.loading(`Validating ${normalizedInput}...`);
+                                try {
+                                    await validateCustomizingTransport(new Transport(normalizedInput));
+                                    return true;
+                                } catch (error) {
+                                    return error instanceof Error ? error.message : "Invalid transport request";
+                                } finally {
+                                    Logger.forceStop();
+                                }
+                            }
+                        })).trkorr;
+
+                        if (trkorr) {
+                            const normalizedTrkorr = normalizeTrkorr(trkorr);
+                            const retainedTransport = latestByTrkorr.get(normalizedTrkorr);
+                            enrichedCustomizing.push({
+                                trkorr: normalizedTrkorr,
+                                description: retainedTransport?.description
+                                    ?? await new Transport(normalizedTrkorr).getDescription()
+                            });
+                        }
+                    } else if (typeof option === "object") {
+                        const selectedTrkorr = option.trkorr;
+                        //a retained transport carries the customizing of the latest release: dropping it is not undone by re-adding a request
+                        const remove = !latestByTrkorr.has(selectedTrkorr) || (await Inquirer.prompt({
+                            message: `${selectedTrkorr} carries customizing of the latest release. Remove it from this release?`,
+                            name: "remove",
+                            type: "confirm",
+                            default: false
+                        })).remove;
+                        if (remove) {
+                            enrichedCustomizing = enrichedCustomizing.filter(
+                                transport => transport.trkorr !== selectedTrkorr
+                            );
+                        }
+                    }
+                } while (option !== DONE_OPTION);
+            }
+
+            for (const transport of enrichedCustomizing) {
+                if (latestByTrkorr.has(transport.trkorr)) {
+                    continue;
+                }
+                transport.description = (await Inquirer.prompt({
+                    message: `Description of ${transport.trkorr}`,
+                    type: "input",
+                    name: "description",
+                    default: transport.description,
+                    validate: (input: string) => input.length <= 60 || "Description cannot exceed 60 characters"
+                })).description || transport.description;
+            }
+        }
+
+        for (const transport of enrichedCustomizing) {
+            if (latestByTrkorr.has(transport.trkorr)) {
+                context.runtime.customizing.retained.push(transport);
+            } else {
+                context.runtime.customizing.new.push(transport);
+            }
+        }
+    }
+};

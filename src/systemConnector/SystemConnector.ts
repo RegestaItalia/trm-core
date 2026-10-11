@@ -1,16 +1,30 @@
-import { TRKORR, DEVCLASS, TDEVC, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError } from "../client";
+import { TRKORR, DEVCLASS, TDEVC, TADIR, PGMID, TROBJTYPE, SOBJ_NAME, ClientError, TransportEntries } from "../client";
 import { AbstractRegistry } from "../registry";
 import { TrmPackage } from "../trmPackage";
-import { ISystemConnector, TrmPackageUpdateData } from "./ISystemConnector";
+import { ISystemConnector, TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "./ISystemConnector";
 import { InstallPackage } from "./InstallPackage";
+import { InstallTransport } from "./InstallTransport";
 import { SapMessage } from "../client/SapMessage";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
+import { ActionLockKey } from "./ActionLock";
+import { ValueHelpContext, ValueHelpPage } from "trm-commons";
+import { TrmManifestEngineTableCondition } from "../manifest";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
+
+    export async function acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.acquireActionLocks(keys, ownerToken, actionName);
+    }
+
+    export async function releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.releaseActionLocks(keys, ownerToken);
+    }
 
     function checkSystemConnector() {
         if (!systemConnector) {
@@ -46,7 +60,7 @@ export namespace SystemConnector {
         return systemConnector.getConnectionData();
     }
 
-    export function getDest(): string {
+    export function getDest(): components.SYSYSID {
         checkSystemConnector();
         return systemConnector.getDest();
     }
@@ -62,7 +76,9 @@ export namespace SystemConnector {
     }
 
     export async function connect(silent: boolean): Promise<void> {
-        await checkSystemConnector();
+        if (!systemConnector) {
+            throw new Error('System connector not initialized.');
+        }
         return systemConnector.connect(silent);
     }
 
@@ -86,6 +102,16 @@ export namespace SystemConnector {
         return systemConnector.getInstalledPackages(refresh, includeLocals, filter);
     }
 
+    /**
+     * Reads the TRM packages table row of a package, bypassing the installed packages cache.
+     * Resolves `undefined` when no row is stored; a failed read throws. Like the installed packages,
+     * a row whose SAP package or transport is no longer on the system is not listed.
+     */
+    export async function getTrmPackageData(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY): Promise<TrmPackageUpdateData | undefined> {
+        await checkSystemConnector();
+        return systemConnector.getTrmPackageData(packageName, packageRegistry);
+    }
+
     export async function getDevclass(devclass: DEVCLASS): Promise<TDEVC> {
         await checkSystemConnector();
         return systemConnector.getDevclass(devclass);
@@ -101,9 +127,24 @@ export namespace SystemConnector {
         return systemConnector.getSubpackages(devclass);
     }
 
+    export async function getNamespacePackages(namespace: components.NAMESPACE): Promise<TDEVC[]> {
+        await checkSystemConnector();
+        return systemConnector.getNamespacePackages(namespace);
+    }
+
     export async function getDevclassObjects(devclass: DEVCLASS, includeSubpackages: boolean): Promise<TADIR[]> {
         await checkSystemConnector();
         return systemConnector.getDevclassObjects(devclass, includeSubpackages);
+    }
+
+    export async function getPostActivities(ctx: ValueHelpContext): Promise<ValueHelpPage> {
+        await checkSystemConnector();
+        return systemConnector.getPostActivities(ctx);
+    }
+
+    export async function getPostActivityParameters(className: string, ctx: ValueHelpContext): Promise<ValueHelpPage> {
+        await checkSystemConnector();
+        return systemConnector.getPostActivityParameters(className, ctx);
     }
 
     export async function getObject(pgmid: PGMID, object: TROBJTYPE, objName: SOBJ_NAME): Promise<TADIR> {
@@ -126,6 +167,11 @@ export namespace SystemConnector {
         return systemConnector.readTmsQueue(target);
     }
 
+    export async function deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.deleteTemporaryPackage(devclass);
+    }
+
     export async function createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
         await checkSystemConnector();
         return systemConnector.createPackage(scompkdtln);
@@ -134,6 +180,11 @@ export namespace SystemConnector {
     export async function getInstallPackages(packageName: string, registry: AbstractRegistry): Promise<InstallPackage[]> {
         await checkSystemConnector();
         return systemConnector.getInstallPackages(packageName, registry);
+    }
+
+    export async function getInstallTransports(packageName: string, registry: AbstractRegistry): Promise<InstallTransport[]> {
+        await checkSystemConnector();
+        return systemConnector.getInstallTransports(packageName, registry);
     }
 
     export async function setPackageSuperpackage(devclass: DEVCLASS, superpackage: DEVCLASS): Promise<void> {
@@ -171,10 +222,9 @@ export namespace SystemConnector {
         return systemConnector.getPackageIntegrity(oPackage);
     }
 
-    export async function readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+    export async function readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
         await checkSystemConnector();
-        //TODO -> fix with dedicated method where used
-        return systemConnector['readTable'](tableName, fields, options);
+        return systemConnector['readTable'](tableName, fields, options, paging);
     }
 
     export async function getFileSystem(): Promise<struct.FILESYS> {
@@ -227,6 +277,11 @@ export namespace SystemConnector {
         return systemConnector.addToTransportRequest(trkorr, content, lock);
     }
 
+    export async function lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.lockTransportObjs(trkorr);
+    }
+
     export async function repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         await checkSystemConnector();
         return systemConnector.repositoryEnvironment(objectType, objectName);
@@ -257,24 +312,39 @@ export namespace SystemConnector {
         return systemConnector.tadirInterface(tadir);
     }
 
-    export async function dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        await checkSystemConnector();
-        return systemConnector.dequeueTransport(trkorr);
-    }
-
     export async function forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean): Promise<void> {
         await checkSystemConnector();
         return systemConnector.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
+    export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
         await checkSystemConnector();
-        return systemConnector.importTransport(trkorr, system);
+        return systemConnector.importTransport(trkorr, system, test);
+    }
+
+    export async function importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        await checkSystemConnector();
+        return systemConnector.importTransportMultiple(trkorr, system, test);
     }
 
     export async function setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         await checkSystemConnector();
         return systemConnector.setInstallDevc(installDevc);
+    }
+
+    export async function deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.deleteInstallDevc(installDevc);
+    }
+
+    export async function restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.restoreInstallMetadata(data);
+    }
+
+    export async function setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.setInstallTransports(packageName, packageRegistry, installTr);
     }
 
     export async function getObjectsList(): Promise<struct.KO100[]> {
@@ -370,6 +440,11 @@ export namespace SystemConnector {
         return systemConnector.getAbapgitSource(devclass);
     }
 
+    export async function getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        await checkSystemConnector();
+        return systemConnector.getTransportEntries(trkorr);
+    }
+
     export async function executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         await checkSystemConnector();
         return systemConnector.executePostActivity(data, pre);
@@ -428,6 +503,26 @@ export namespace SystemConnector {
     export async function getTransportImportStatus(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<struct.TPSTAT> {
         await checkSystemConnector();
         return systemConnector.getTransportImportStatus(trkorr, system);
+    }
+
+    export async function getSoftwareComponents(): Promise<struct.CVERS[]> {
+        await checkSystemConnector();
+        return systemConnector.getSoftwareComponents();
+    }
+
+    export async function getInstalledProducts(): Promise<struct.PRDVERS[]> {
+        await checkSystemConnector();
+        return systemConnector.getInstalledProducts();
+    }
+
+    export async function getNoteStatus(numm: components.CWBNTNUMM): Promise<{ prstatus?: components.CWBPRSTAT, versno?: components.CWBNTVERS }> {
+        await checkSystemConnector();
+        return systemConnector.getNoteStatus(numm);
+    }
+
+    export async function checkTableCondition(table: components.TABNAME, where: TrmManifestEngineTableCondition[]): Promise<boolean> {
+        await checkSystemConnector();
+        return systemConnector.checkTableCondition(table, where);
     }
 
     export async function getTimezone(): Promise<string> {

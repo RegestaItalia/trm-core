@@ -4,20 +4,22 @@ import { SystemConnector } from "../../systemConnector";
 import { IActionContext } from "..";
 
 /**
- * Set system packages: if not defined by input, search in target system
- * 
- * 1- set system packages
- * 
-*/
+ * Workflow step that populates `contextData.systemPackages` from the target system.
+ *
+ * A caller-supplied package list is preserved, allowing workflows to reuse a cached
+ * snapshot and avoid an additional system query.
+ * Local-registry packages are included, so dependencies and dependants published locally are matched.
+ */
 export const setSystemPackages: Step<IActionContext> = {
     name: 'set-system-packages',
     run: async (context: IActionContext): Promise<void> => {
-        Logger.log('Set system packages step', true);
-        
         //1- set system packages
+        if(!context.rawInput.contextData){ //guard
+            context.rawInput.contextData = {};
+        }
         if(context.rawInput.contextData.systemPackages === undefined){
             Logger.loading(`Reading system data...`);
-            context.rawInput.contextData.systemPackages = await SystemConnector.getInstalledPackages(true);
+            context.rawInput.contextData.systemPackages = await SystemConnector.getInstalledPackages(true, true);
         }
     }
 }

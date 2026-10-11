@@ -1,11 +1,16 @@
-import { AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, MessageType, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
+import { AuthenticationType, BatchCompareResponse, MessageType, Package, Ping, WhoAmI } from "trm-registry-types";
 import { AbstractRegistry } from "./AbstractRegistry";
 import { RegistryType } from "./RegistryType";
-import { TrmArtifact } from "../trmPackage";
+import { TrmArtifact, TrmPackage } from "../trmPackage";
 import { userInfo } from "os";
 import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync } from "fs";
 import { parse as parsePath } from "path";
 import { writeFile } from "fs/promises";
+import { BinaryTransport } from "../transport";
+import { createHash } from "crypto";
+import { TransportEntries } from "../client";
+import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
+import { RegistryDeletionTransportUnavailableError } from "./RegistryDeletionTransportUnavailableError";
 
 export const LOCAL_RESERVED_KEYWORD = 'local';
 
@@ -58,7 +63,7 @@ export class FileSystem implements AbstractRegistry {
         return RegistryType.LOCAL;
     }
 
-    public async authenticate(defaultData: any): Promise<AbstractRegistry> {
+    public async authenticate(): Promise<AbstractRegistry> {
         return this;
     }
 
@@ -90,6 +95,13 @@ export class FileSystem implements AbstractRegistry {
 
     public async getPackage(fullName: string, version: string): Promise<Package> {
         if (this._filePath) {
+            if (!existsSync(this._filePath)) {
+                throw new RegistryPackageNotFoundError(fullName, version, this._filePath, undefined);
+            }
+            const artifact = await this.getArtifact();
+            const manifest = artifact.getManifest();
+            const transportIndex = artifact.getTransportIndex();
+            const transportBinaries = await artifact.getTransportBinaries();
             return {
                 name: fullName,
                 dist_tags: {
@@ -98,19 +110,26 @@ export class FileSystem implements AbstractRegistry {
                 versions: [],
                 yanked_versions: [],
                 deprecated: false,
-                manifest: null,
-                checksum: null,
-                download_link: this._filePath
+                manifest: manifest ? manifest.get() : undefined,
+                checksum: createHash('sha512').update(artifact.binary).digest('base64'),
+                download_link: this._filePath,
+                transports: transportIndex.map(transport => ({
+                    ...transport,
+                    contents: {
+                        download_link: this._filePath,
+                        checksum: transportBinaries.find(item => item.trkorr === transport.trkorr).entriesChecksum
+                    }
+                }))
             }
         }
         throw new Error(`File system can't view packages!`);
     }
 
-    public async downloadArtifact(fullName: string, version: string): Promise<TrmArtifact> {
+    public async downloadArtifact(): Promise<TrmArtifact> {
         return new TrmArtifact(readFileSync(this._filePath));
     }
 
-    public async getArtifact(name: string, version: string = 'latest'): Promise<TrmArtifact> {
+    public async getArtifact(): Promise<TrmArtifact> {
         if (this._filePath) {
             try {
                 if (!this._artifact) {
@@ -119,48 +138,79 @@ export class FileSystem implements AbstractRegistry {
                 }
                 return this._artifact;
             } catch (e) {
+                throw new Error(`File system couldn't read package. The artifact may be incomplete or legacy; republish it with a current TRM version.`);
+            }
+        }
+        throw new Error(`Missing file path!`);
+    }
+
+    public async validatePublish(): Promise<void> {
+        //always valid, already checked in contructor
+    }
+
+    public async publish(fullName: string, version: string, artifact: TrmArtifact): Promise<void> {
+        if (this._filePath) {
+            await writeFile(this._filePath, artifact.binary, {
+                flag: 'w'
+            });
+            return;
+        }
+        throw new Error(`Missing file path!`);
+    }
+
+    public async unpublish(): Promise<void> {
+        throw new Error(`File system can't delete packages!`);
+    }
+
+    public async deprecate(): Promise<void> {
+        throw new Error(`File system can't deprecate packages!`);
+    }
+
+    public async addDistTag(): Promise<void> {
+        throw new Error(`File system can't add dist tags!`);
+    }
+
+    public async rmDistTag(): Promise<void> {
+        throw new Error(`File system can't remove dist tags!`);
+    }
+
+    public async batchCompare(): Promise<BatchCompareResponse> {
+        throw new Error(`File system cannot compare package versions in registry!`);
+    }
+
+    public async transport(): Promise<BinaryTransport>{
+        throw new Error(`File system can't fetch transports!`);
+    }
+
+    public async transportEntries(_fullName: string, _version: string, trkorr: string): Promise<TransportEntries> {
+        const transport = (await (await this.getArtifact()).getTransportBinaries()).find(item => item.trkorr === trkorr);
+        if (!transport) {
+            throw new Error(`Transport ${trkorr} was not found in the local artifact.`);
+        }
+        return transport.entries;
+    }
+
+    public async delete(_transport: BinaryTransport): Promise<BinaryTransport> {
+        throw new RegistryDeletionTransportUnavailableError(LOCAL_RESERVED_KEYWORD, `Local packages (.trm files) can't generate deletion transports.`);
+    }
+
+    /**
+     * Returns the package of the local artifact, with the registry it was published to.
+     */
+    public async getRealPackage(): Promise<TrmPackage> {
+        if (this._filePath) {
+            try {
+                const artifact = await this.getArtifact();
+                return artifact.getManifest().getPackage();
+            } catch (e) {
                 throw new Error(`File system couldn't read package`);
             }
         }
         throw new Error(`Missing file path!`);
     }
 
-    public async validatePublish(fullName: string, version: string): Promise<void> {
-        //always valid, already checked in contructor
-    }
-
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string): Promise<Package> {
-        if (this._filePath) {
-            await writeFile(this._filePath, artifact.binary, {
-                flag: 'w'
-            });
-            return this.getPackage(fullName, version);
-        }
-        throw new Error(`Missing file path!`);
-    }
-
-    public async unpublish(fullName: string, version: string): Promise<void> {
-        throw new Error(`File system can't delete packages!`);
-    }
-
-    public async deprecate(fullName: string, version: string, deprecate: Deprecate): Promise<void> {
-        throw new Error(`File system can't deprecate packages!`);
-    }
-
-    public async addDistTag(fullName: string, distTag: DistTagAdd): Promise<void> {
-        throw new Error(`File system can't add dist tags!`);
-    }
-
-    public async rmDistTag(fullName: string, distTag: DistTagRm): Promise<void> {
-        throw new Error(`File system can't remove dist tags!`);
-    }
-
-    public async batchCompare(packages: BatchCompareRequest): Promise<BatchCompareResponse> {
-        throw new Error(`File system cannot compare package versions in registry!`);
-    }
-
-    public async contents(fullName: string, version: string): Promise<PackageContents> {
-        throw new Error(`File system can't see contents!`);
+    public async getRealRegistry(): Promise<AbstractRegistry> {
+        return (await this.getRealPackage()).registry;
     }
 
 }

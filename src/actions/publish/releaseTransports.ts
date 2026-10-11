@@ -4,7 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { Transport } from "../../transport";
 
 /**
- * Release transports
+ * Workflow step that annotates and releases every generated publish transport.
  * 
  * 1- release
  * 
@@ -12,31 +12,48 @@ import { Transport } from "../../transport";
 export const releaseTransports: Step<PublishWorkflowContext> = {
     name: 'release-transport',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Release transports step', true);
-
         //1- release
-        const tmpFolder = context.rawInput.contextData.logTemporaryFolder;
-        context.runtime.systemData.releasedTransports.push(context.runtime.systemData.tadirTransport);
-        if (context.runtime.systemData.langTransport) {
-            context.runtime.systemData.releasedTransports.push(context.runtime.systemData.langTransport);
+        context.runtime.aggregatedTransports = [context.runtime.transports.tadir, context.runtime.transports.devc];
+        if(context.runtime.transports.lang){
+            context.runtime.aggregatedTransports.push(context.runtime.transports.lang);
         }
-        context.runtime.systemData.releasedTransports = context.runtime.systemData.releasedTransports.concat(context.runtime.systemData.custTransports);
-
-        context.runtime.systemData.releasedTransports.push(context.runtime.systemData.devcTransport);
+        context.runtime.aggregatedTransports = context.runtime.aggregatedTransports.concat(context.runtime.transports.cust);
         var counter = 0;
-        for (var transport of context.runtime.systemData.releasedTransports) {
-            counter++;
-            const prefix = `(${counter}/${context.runtime.systemData.releasedTransports.length}) `;
-            Logger.setPrefix(prefix);
-            Inquirer.setPrefix(prefix);
-            await transport.addComment(`name=${context.rawInput.packageData.name}`);
-            await transport.addComment(`version=${context.rawInput.packageData.version}`);
-            await transport.setDocumentation(context.runtime.trmPackage.manifestXml);
-            Logger.log(`Ready to release transport ${transport.trkorr}, ${transport.trmIdentifier}`, true);
-            Logger.loading(`${Transport.getTransportIcon()}  Releasing transport...`);
-            await transport.release(false, false, tmpFolder);
-            Logger.removePrefix();
-            Inquirer.removePrefix();
+        const originalLoggerPrefix = Logger.getPrefix();
+        const originalInquirerPrefix = Inquirer.getPrefix();
+        try {
+            for (var transport of context.runtime.aggregatedTransports) {
+                counter++;
+                const prefix = `(${counter}/${context.runtime.aggregatedTransports.length}) `;
+                Logger.setPrefix(prefix);
+                Inquirer.setPrefix(prefix);
+                await transport.addComment(`name=${context.rawInput.packageData.name}`);
+                await transport.addComment(`version=${context.rawInput.packageData.version}`);
+                await transport.setDocumentation(context.runtime.manifestXml);
+                Logger.log(`Ready to release transport ${transport.trkorr}, ${transport.trmIdentifier}`, true);
+                Logger.loading(`${Transport.getTransportIcon()}  Releasing ${transport.trkorr}...`);
+                await transport.release(false, false, context.rawInput.contextData.logTemporaryFolder);
+            }
+        } finally {
+            Logger.setPrefix(originalLoggerPrefix);
+            Inquirer.setPrefix(originalInquirerPrefix);
+        }
+    },
+    revert: async (context: PublishWorkflowContext): Promise<void> => {
+        // A release can fail after earlier requests were already released. Walk every
+        // request independently so one status/delete failure does not hide later cleanup.
+        let firstError: unknown;
+        for (const transport of context.runtime.aggregatedTransports || []) {
+            try {
+                if (await transport.canBeDeleted()) {
+                    await transport.delete();
+                }
+            } catch (error) {
+                firstError ||= error;
+            }
+        }
+        if (firstError) {
+            throw firstError;
         }
     }
 }

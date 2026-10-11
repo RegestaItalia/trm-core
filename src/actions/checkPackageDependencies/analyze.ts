@@ -3,18 +3,16 @@ import { CheckPackageDependenciesWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { TrmPackage } from "../../trmPackage";
 import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../../registry";
-import { satisfies } from "semver";
+import { getInstalledDependency } from "../commons/utils";
 
 /**
- * Analyze
+ * Workflow step that compares manifest dependency ranges with installed package versions.
  * 
  * 1- build required tables fields
  * 
  * 2- check dependencies
  * 
  * 3- print tables
- * 
- * 4- build output data
  * 
 */
 export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
@@ -28,8 +26,6 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
         }
     },
     run: async (context: CheckPackageDependenciesWorkflowContext): Promise<void> => {
-        Logger.log('Analyze step', true);
-
         Logger.info(`Package ${context.rawInput.packageData.manifest.name} has ${context.output.dependencies.length} TRM package dependencies`, !context.rawInput.printOptions.information);
         
         //1- build required tables fields
@@ -43,50 +39,35 @@ export const analyze: Step<CheckPackageDependenciesWorkflowContext> = {
         for(const dependency of context.output.dependencies){
             tableData = [dependency.name, dependency.registry || PUBLIC_RESERVED_KEYWORD, dependency.version];
             const dependencyTrmPackage = new TrmPackage(dependency.name, RegistryProvider.getRegistry(dependency.registry));
-            const systemInstalledPackage = context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, dependencyTrmPackage));
-            if(systemInstalledPackage && systemInstalledPackage.manifest){
-                const installedVersion = systemInstalledPackage.manifest.get().version;
-                tableData.push(installedVersion);
-                if(satisfies(installedVersion, dependency.version)){
-                    tableData.push('OK');
-                    context.runtime.dependenciesStatus.goodVersion.push(dependency);
-                }else{
-                    tableData.push('ERR!');
-                    context.runtime.dependenciesStatus.badVersion.push(dependency);
-                }
-            }else{
+            const installed = getInstalledDependency(context.rawInput.contextData.systemPackages, dependencyTrmPackage, dependency.version);
+            const status = installed.status;
+            if(status === 'notFound'){
                 tableData.push('Not found');
-                tableData.push('ERR!');
+            }else if(status === 'manifestUnreadable'){
+                if(installed.error){
+                    Logger.error(installed.error.toString(), true);
+                }
+                tableData.push('Installed, manifest unreadable');
+            }else{
+                tableData.push(installed.installedVersion);
+            }
+            const match = status === 'ok';
+            tableData.push(match ? 'OK' : 'ERR!');
+            if(match){
+                context.runtime.dependenciesStatus.goodVersion.push(dependency);
+            }else{
                 context.runtime.dependenciesStatus.badVersion.push(dependency);
             }
+            context.output.dependencyStatus.push({
+                dependency,
+                match,
+                status,
+                installedVersion: installed.installedVersion
+            });
             table.data.push(tableData);
         }
 
         //3- print tables
         Logger.table(table.header, table.data, !context.rawInput.printOptions.dependencyStatus);
-
-        //4- build output data
-        context.runtime.dependenciesStatus.goodVersion.forEach(o => {
-            const i = context.output.dependencyStatus.findIndex(k => k.dependency.name === o.name && k.dependency.registry === o.registry);
-            if (i >= 0) {
-                context.output.dependencyStatus[i].match = true;
-            } else {
-                context.output.dependencyStatus.push({
-                    dependency: o,
-                    match: true
-                });
-            }
-        });
-        context.runtime.dependenciesStatus.badVersion.forEach(o => {
-            const i = context.output.dependencyStatus.findIndex(k => k.dependency.name === o.name && k.dependency.registry === o.registry);
-            if (i >= 0) {
-                context.output.dependencyStatus[i].match = false;
-            } else {
-                context.output.dependencyStatus.push({
-                    dependency: o,
-                    match: false
-                });
-            }
-        });
     }
 }

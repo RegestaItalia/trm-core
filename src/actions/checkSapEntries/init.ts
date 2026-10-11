@@ -3,7 +3,7 @@ import { CheckSapEntriesWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 
 /**
- * Init
+ * Workflow step that initializes SAP-entry-check state from the supplied manifest.
  * 
  * 1- set sap entries  (read manifest)
  * 
@@ -13,8 +13,6 @@ import { Logger } from "trm-commons";
 export const init: Step<CheckSapEntriesWorkflowContext> = {
     name: 'init',
     run: async (context: CheckSapEntriesWorkflowContext): Promise<void> => {
-        Logger.log('Init step', true);
-
         context.output = {
             sapEntries: {},
             sapEntriesStatus: {}

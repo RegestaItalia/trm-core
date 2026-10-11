@@ -2,55 +2,37 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
-import { Manifest } from "../../manifest";
-import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Generate TADIR transport
+ * Workflow step that creates the transport containing repository objects.
  * 
- * 1- remove gitignore objects
- * 
- * 2- check tadir has content
- * 
- * 2- generate transport
+ * 1- generate transport
  * 
 */
 export const generateTadirTransport: Step<PublishWorkflowContext> = {
     name: 'generate-tadir-transport',
-    run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Generate TADIR transport step', true);
-
-        //1- remove gitignore objects
-        var aTadir = context.runtime.packageData.tadir.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
-        context.runtime.abapGitData.sourceCode.ignoredObjects.forEach(o => {
-            const objectIndex = aTadir.findIndex(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
-            if (objectIndex >= 0) {
-                aTadir.splice(objectIndex, 1);
-            }
-        });
-
-        //2- check tadir has content
-        if (aTadir.length === 0) {
-            throw new Error(`Package ${context.rawInput.packageData.devclass} has no content.`);
-        }
-
-        //3- generate transport
-        Logger.loading(`Generating transports...`);
-        Logger.loading(`Generating TADIR transport...`, true);
+        run: async (context: PublishWorkflowContext): Promise<void> => {
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
             stopWarning('publish');
         }
-        context.runtime.systemData.tadirTransport = await Transport.createToc({
+        //1- generate transport
+        Logger.loading(`Generating transports...`);
+        Logger.loading(`Generating TADIR transport...`, true);
+        const aTadir = context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
+        context.runtime.transports.tadir = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.TADIR,
             target: context.rawInput.systemData.transportTarget,
-            text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`
+            text: `@X1@TRM ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
         });
-        await context.runtime.systemData.tadirTransport.addObjects(aTadir, false);
+        await context.runtime.transports.tadir.addObjects(aTadir, false);
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Rollback generate TADIR transport step', true);
-        //TODO: to refactor
+        if (context.runtime.transports.tadir) {
+            if (await context.runtime.transports.tadir.canBeDeleted()) {
+                await context.runtime.transports.tadir.delete();
+            }
+        }
     }
 }

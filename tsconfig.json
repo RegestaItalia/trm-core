@@ -1,6 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES6",
+    "lib": ["ES2022", "DOM"],
     "module": "CommonJS",
     "esModuleInterop": true,
     "rootDir": "src",
@@ -8,7 +9,7 @@
     "sourceMap": true,
     "resolveJsonModule": true,
     "declaration": true,
-    "removeComments": true,
+    "removeComments": false,
     "strict": false
   },
   "include": [

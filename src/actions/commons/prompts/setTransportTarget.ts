@@ -3,10 +3,29 @@ import { TARSYSTEM } from "../../../client";
 import chalk from "chalk";
 import { validateTransportTarget } from "../../../validators";
 
+/**
+ * Resolves and validates the target system for a transport.
+ *
+ * A supplied `userInput` is validated against `systemTargets`. Without an explicit
+ * value, the sole available target is selected automatically; otherwise the user is
+ * prompted unless `noInquirer` is enabled.
+ *
+ * @param noInquirer Disable interactive target selection.
+ * @param systemTargets Transport targets available in the connected SAP system.
+ * @param userInput Explicit target to validate and use.
+ * @param inquirerMessage Prompt label used when interactive selection is required.
+ * @returns The selected, valid transport target, trimmed and uppercased.
+ * @throws When no targets are available, the explicit target is invalid, or a required target was
+ * not supplied in non-interactive mode.
+ */
 export async function setTransportTarget(noInquirer: boolean, systemTargets: TARSYSTEM[], userInput?: TARSYSTEM, inquirerMessage?: string): Promise<TARSYSTEM> {
+    if (systemTargets.length === 0) {
+        throw new Error(`No transport targets are available in the connected SAP system.`);
+    }
+
     var needsValidation: boolean;
 
-    var transportTarget: TARSYSTEM = userInput;
+    var transportTarget: TARSYSTEM = userInput?.trim().toUpperCase();
 
     if (transportTarget === undefined) {
         if (systemTargets.length === 1) {
@@ -45,5 +64,5 @@ export async function setTransportTarget(noInquirer: boolean, systemTargets: TAR
         Logger.info(`Target system: ${chalk.bold(transportTarget)}`);
     }
 
-    return transportTarget;
+    return transportTarget.trim().toUpperCase();
 }

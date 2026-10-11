@@ -1,0 +1,130 @@
+import { Step } from "@simonegaffurini/sammarksworkflow";
+import { InstallWorkflowContext } from ".";
+import { Logger } from "trm-commons";
+import { Transport } from "../../transport";
+import { Manifest } from "../../manifest";
+import { SystemConnector } from "../../systemConnector";
+import { isDeletionForwardable } from "../commons/utils";
+
+/**
+ * Workflow step that creates the landscape transport used to carry installed changes onward.
+ * 
+ * 1- generate landscape transport
+ * 
+ * 2- add sap packages
+ * 
+ * 3- add workbench objects
+ * 
+ * 4- add namespace (if generated)
+ * 
+ * 5- add translations (if imported)
+ * 
+ * 6- add customizing (if imported)
+ * 
+ * 7- add comments and documentation
+ * 
+ * 8- lock objects
+ * 
+*/
+export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
+    name: 'generate-landscape-transport',
+    filter: async (context: InstallWorkflowContext): Promise<boolean> => {
+        if (context.runtime.namespace === '$') {
+            Logger.log(`Skipping install transport generation (package is temporary)`, true);
+            return false;
+        } else if (!context.rawInput.installData.landscapeTransport.targetSystem) {
+            Logger.log(`Skipping install transport generation (system has no transport targets)`, true);
+            return false;
+        } else {
+            return true;
+        }
+    },
+    run: async (context: InstallWorkflowContext): Promise<void> => {
+        //1- generate landscape transport
+        Logger.loading(`Generating landscape transport...`);
+        context.output.transport = await Transport.createWb({
+            text: `@X1@TRM ${context.runtime.package.data.manifest.name} ${context.runtime.package.data.manifest.version}`,
+            target: context.rawInput.installData.landscapeTransport.targetSystem
+        });
+
+        //2- add sap packages
+        Logger.loading(`Locking transport...`);
+        if (context.rawInput.installData.installDevclass.keepOriginal) {
+            Logger.loading(`Including objects from DEVC transport...`, true);
+            await context.output.transport.addObjectsFromTransport(context.runtime.transports.devc.instance.trkorr);
+        } else {
+            Logger.loading(`Adding package replacements...`, true);
+            await context.output.transport.addObjects(context.rawInput.installData.installDevclass.replacements.map(o => {
+                return {
+                    pgmid: 'R3TR',
+                    object: 'DEVC',
+                    objName: o.installDevclass
+                }
+            }), true);
+        }
+
+        //3- add workbench objects
+        Logger.loading(`Including objects from TADIR transport...`, true);
+        await context.output.transport.addObjectsFromTransport(context.runtime.transports.tadir.instance.trkorr);
+
+        //4- add namespace (if generated)
+        //revert namespace is used as the soruce of an actual namespace that was generated
+        //using context.runtime.namespace would be wrong because it's the package namespace, but it doesn't necessarily mean it was generated
+        //check addNamespace step for clarification
+        if (context.revert.namespace) {
+            Logger.loading(`Checking namespace ${context.revert.namespace} lock...`, true);
+            const nspcLock = await SystemConnector.getObjectsLocks([{
+                PGMID: 'R3TR',
+                OBJECT: 'NSPC',
+                OBJ_NAME: context.revert.namespace
+            }]);
+            if (nspcLock.length === 0) {
+                Logger.loading(`Adding namespace ${context.revert.namespace}...`, true);
+                await context.output.transport.addObjects([{
+                    pgmid: 'R3TR',
+                    object: 'NSPC',
+                    objName: context.revert.namespace
+                }], true);
+            } else {
+                const lockTransports = [...new Set(nspcLock.map(o => o.trkorr))].join(', ');
+                Logger.warning(`Namespace ${context.revert.namespace} is locked in transport ${lockTransports} and won't be included in the landscape transport.`, { important: true });
+            }
+        }
+
+        //5- add translations (if imported)
+        if (context.runtime.transports.lang) {
+            Logger.loading(`Including objects from LANG transport...`, true);
+            await context.output.transport.addObjectsFromTransport(context.runtime.transports.lang.instance.trkorr);
+        }
+
+        //6- add customizing (if imported)
+        Logger.loading(`Including objects from ${context.runtime.transports.cust.length} CUST transports...`, true);
+        for (const cust of context.runtime.transports.cust) {
+            await context.output.transport.addObjectsFromTransport(cust.instance.trkorr);
+        }
+
+        //7- add comments and documentation
+        await context.output.transport.removeComments(); //start clean without TRM comments
+        await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
+        await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
+        //if previous package was temporary, don't add deletion entries
+        if (isDeletionForwardable(context)) {
+            //avoiding the transport attribute and CTS dependency (requires a CTS project...)
+            //this is the easy solution
+            //for a clean upgrade, first deletion transport then landscape transport should be imported
+            await context.output.transport.addComment(`upgrade=${context.revert.dele.trkorr}`);
+        }
+        await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());
+
+        //8- lock objects
+        //what is lockable gets locked here
+        //all workbench should be lockable here
+        await context.output.transport.lock();
+    },
+    revert: async (context: InstallWorkflowContext): Promise<void> => {
+        if (context.output.transport && await context.output.transport.canBeDeleted()) {
+            await context.output.transport.delete();
+            context.output.transport = undefined;
+        }
+    }
+}

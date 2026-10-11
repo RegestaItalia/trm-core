@@ -1,59 +1,54 @@
-import execute from "@simonegaffurini/sammarksworkflow";
-import { inspect } from "util";
-import { Logger } from "trm-commons";
+import { PackageDependencies } from "../../dependencies";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
-import { checkServerAuth, IActionContext, setSystemPackages, trmServerPa } from "..";
-import { AbstractRegistry } from "../../registry";
-import { init } from "./init";
-import { DEVCLASS, TADIR, TARSYSTEM, TMSCSYS, TR_TARGET, TRNSPACET, TRNSPACETT } from "../../client";
-import { setDevclass } from "./setDevclass";
-import { setTransportTarget } from "./setTransportTarget";
-import { findDependencies } from "./findDependencies";
+import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "..";
+import { ReleaseType } from "semver";
+import { DEVCLASS, TADIR, TR_TARGET, TRKORR, TRNSPACET, TRNSPACETT, ZTY_SER_OBJ } from "../../client";
 import { TrmManifest, TrmManifestBase } from "../../manifest";
-import { setManifestValues } from "./setManifestValues";
-import { setReadme } from "./setReadme";
-import { Transport } from "../../transport";
+import { AbstractRegistry } from "../../registry";
+import { Package } from "trm-registry-types";
+import { DotAbapGit } from "../../abapgit";
+import { init } from "./init";
+import { findDependencies } from "./findDependencies";
 import { setCustomizingTransports } from "./setCustomizingTransports";
+import { setManifestValues } from "./setManifestValues";
+import { setOptionalReleaseData } from "./setOptionalPublishData";
+import { Transport } from "../../transport";
 import { generateDevcTransport } from "./generateDevcTransport";
 import { generateTadirTransport } from "./generateTadirTransport";
 import { generateLangTransport } from "./generateLangTransport";
 import { generateCustTransport } from "./generateCustTransport";
 import { releaseTransports } from "./releaseTransports";
-import { updatePackageData } from "./updatePackageData";
 import { publishToRegistry } from "./publishToRegistry";
-import { getSourceCode } from "./getSourceCode";
-import { DotAbapGit } from "../../abapgit";
-import { ReleaseType } from "semver";
-import { checkAllObjectsReleased } from "./checkAllObjectsReleased";
-import { setChangelog } from "./setChangelog";
+import { updatePackageData } from "./updatePackageData";
+import { ActionLockScope, packageLockResource, withActionLockScope } from "../commons/utils";
+import { lockResources } from "./lockResources";
 
-/**
- * Input data for publish package action.
- */
+/** Input required to build and publish a TRM package release from the connected SAP system. */
 export interface PublishActionInput {
     /**
      * Optional context data.
      */
     contextData?: {
         /**
-         * Manually set installed packages on the system.
+         * Snapshot of packages installed on the origin system. When omitted, the action queries SAP.
          */
-        systemPackages?: TrmPackage[]; 
+        systemPackages?: TrmPackage[];
 
         /**
-         * Use inquirer? (will force some decisions).
+         * Disable interactive prompts. Missing required values then cause an error.
          */
         noInquirer?: boolean;
 
         /**
-         * Log temporary folder (for parsing R3Trans logs).
+         * Directory in which transport-release logs and temporary files are written.
          */
         logTemporaryFolder?: string;
 
         /**
-         * Don't show a stop warning when process starts.
+         * Version of trm-core in use, used to prefill the `trm-core` engine when engines are declared.
+         * Supply it when the client resolves trm-core itself; defaults to the version read from trm-core package.json.
          */
-        noStopWarning?: boolean;
+        coreVersion?: string;
     };
 
     /**
@@ -61,12 +56,12 @@ export interface PublishActionInput {
      */
     packageData: {
         /**
-         * The name of the package.
+         * TRM package name to publish.
          */
         name: string;
 
         /**
-         * The version of the package.
+         * Exact semantic version or `latest`/omitted for automatic version calculation.
          * 
          * If blank/latest the latest version is retrieved from the registry:
          * 
@@ -77,49 +72,50 @@ export interface PublishActionInput {
         version?: string;
 
         /**
-         * Increment type for releases without specific version.
+         * Semantic-version increment used when `version` is omitted or `latest`.
          */
         inc?: ReleaseType;
 
         /**
-         * Indicates a pre release.
+         * Publish a prerelease instead of a stable release.
          */
         preRelease?: boolean;
 
         /**
-         * Pre release identifier.
+         * Prerelease identifier such as `alpha` or `beta`.
          */
         preReleaseIdentifier?: string;
 
         /**
-         * Tags for the release.
+         * Registry distribution tags assigned to the release. Defaults to an empty array.
          */
         tags?: string[];
 
         /**
-         * The registry where the package has to be stored.
+         * Destination registry used for validation, version lookup, and publication.
          */
         registry: AbstractRegistry;
 
         /**
-         * ABAP package name.
+         * Source ABAP package. When omitted, the action derives or prompts for it.
          */
         devclass?: DEVCLASS;
 
-        
+
         /**
-         * TRM package manifest data.
+         * Manifest values supplied by the caller. Missing values may be copied from the latest
+         * release or collected interactively, depending on `publishData`.
          */
         manifest?: TrmManifestBase;
     };
 
     /**
-     * Data related to the origin system.
-     */
+         * Data related to the origin system.
+         */
     systemData?: {
-        
+
         /**
-         * Publish transport target.
+         * TMS target assigned to generated publish transports. It is selected interactively when omitted.
          */
         transportTarget?: TR_TARGET;
     }
@@ -130,117 +126,159 @@ export interface PublishActionInput {
     publishData?: {
 
         /**
-         * Skip automatic dependencies detection.
+         * Do not infer TRM dependencies from the source package hierarchy.
          */
         noDependenciesDetection?: boolean,
 
         /**
-         * Keep manifest values from latest release.
+         * Merge unspecified manifest metadata from the latest release. Defaults to `true`.
          */
         keepLatestReleaseManifestValues?: boolean,
 
         /**
-         * Publish release as private.
+         * Set release visibility to private where supported by the registry.
+         * Required for the first remote publication when interactive prompts are disabled.
          */
         private?: boolean,
 
         /**
-         * Release readme.
+         * Markdown readme stored with the release. Remote registries may prompt when omitted.
          */
         readme?: string,
 
         /**
-         * Release changelog.
+         * Markdown changelog stored with the release. Remote registries may prompt when omitted.
          */
         changelog?: string,
 
         /**
-         * Skip customizing transports publish.
+         * Exclude all customizing transports from this release.
          */
-        skipCustomizingTransports?: boolean,
+        noCustomizingTransports?: boolean,
 
         /**
-         * Customizing transports. Has no effect if skipCustomizingTransports is set to true.
+         * Existing customizing request numbers to include. Retained transports from the latest
+         * release are merged into this list, except those listed in `dropCustomizingTransports`. Ignored when `noCustomizingTransports` is `true`.
          */
-        customizingTransports?: string | Transport[],
+        customizingTransports?: string[],
 
         /**
-         * Skip language (translations) transport publish.
+         * Customizing transports carried over from the latest release to drop from this release,
+         * identified by their transport request number as published in the latest release.
+         * `all` drops every carried-over transport. An identifier that is not a customizing
+         * transport of the latest release, or that is also listed in `customizingTransports`,
+         * fails the publish. When prompts are enabled, the remaining selection is still shown for
+         * editing. Ignored when `noCustomizingTransports` is `true`.
+         */
+        dropCustomizingTransports?: string[],
+
+        /**
+         * Do not generate a language transport for translatable package content.
          */
         noLanguageTransport?: boolean
     }
 }
 
+type EnrichedTransport = {
+    trkorr: TRKORR,
+    description: string
+}
+
 type WorkflowRuntime = {
-    stopWarningShown: boolean,
-    trmPackage: {
-        package: TrmPackage,
-        registry: AbstractRegistry,
-        latestReleaseManifest?: TrmManifest,
-        releasesInRegistry?: string[],
-        manifest: TrmManifest,
-        manifestXml?: string,
-        artifact?: TrmArtifact
+    /** Dependency analysis of the ABAP package, run once before the publish questions. */
+    packageDependencies?: PackageDependencies,
+    latest: {
+        data: Package
     },
-    systemData: {
-        transportTargets: TARSYSTEM[],
-        originCustomizing: {
-            transports: Transport[],
-            description: string
-        }[],
-        devcTransport: Transport,
-        tadirTransport: Transport,
-        langTransport?: Transport,
-        custTransports: Transport[],
-        releasedTransports: Transport[]
-    },
-    packageData: {
-        tadir: TADIR[],
-        namespace?: {
+    sapPackage: {
+        objects: TADIR[],
+        namespace: {
             trnspacet: TRNSPACET,
             trnspacett: TRNSPACETT[]
         }
     },
-    abapGitData: {
-        dotAbapGit?: DotAbapGit,
-        sourceCode?: {
-            zip: Buffer,
-            ignoredObjects: TADIR[]
-        }
-    }
+    abapGit: {
+        dotAbapGit: DotAbapGit,
+        sourceCode: Buffer,
+        object: ZTY_SER_OBJ[],
+        excludedObjects: TADIR[]
+    },
+    manifest: TrmManifest,
+    manifestXml: string,
+    customizing: {
+        retained: EnrichedTransport[],
+        new: EnrichedTransport[]
+    },
+    transports: {
+        devc: Transport,
+        tadir: Transport,
+        lang?: Transport,
+        cust?: Transport[]
+    },
+    aggregatedTransports: Transport[],
+    stopWarningShown: boolean
 }
 
+/** Artifacts produced by a successful {@link publish} action. */
 export type PublishActionOutput = {
+    /** Published package model, including its normalized manifest and registry identity. */
     trmPackage: TrmPackage,
+    /** Generated release artifact containing transports, manifest, and optional source archive. */
     trmArtifact: TrmArtifact
 }
 
+/** Internal state shared by package-publish workflow steps. */
 export interface PublishWorkflowContext extends IActionContext {
+    lockScope?: ActionLockScope,
+    /** Original action input; optional groups and collections are normalized before execution. */
     rawInput: PublishActionInput,
+    /** Latest release, SAP objects, generated transports, manifest, and source data. */
     runtime?: WorkflowRuntime,
+    /** Package and artifact assembled by the workflow. */
     output?: PublishActionOutput
 };
 
 const WORKFLOW_NAME = 'publish';
 
 /**
- * Publish ABAP package to TRM registry
-*/
+ * Builds an ABAP package release from the connected SAP system and publishes it to a TRM registry.
+ *
+ * The workflow validates authorization and release metadata, detects dependencies, serializes
+ * the source package, creates and releases DEVC/TADIR plus optional language/customizing
+ * transports, uploads the artifact, and records the published package on the origin system.
+ *
+ * This operation creates and releases SAP transports. Do not interrupt it after processing begins.
+ * The function normalizes missing optional input groups and arrays in place.
+ *
+ * @param inputData Source package, destination registry, release metadata, and publish options.
+ * @returns The published package model and generated binary artifact.
+ * @throws When validation, authorization, source serialization, transport generation/release,
+ * or registry publication fails. A final local package-record update failure is logged without
+ * rejecting because the registry publication has already succeeded.
+ */
 export async function publish(inputData: PublishActionInput): Promise<PublishActionOutput> {
+    inputData.contextData ??= {};
+    inputData.systemData ??= {};
+    inputData.publishData ??= { keepLatestReleaseManifestValues: true };
+    inputData.publishData.keepLatestReleaseManifestValues ??= true;
+    inputData.publishData.customizingTransports ??= [];
+    inputData.packageData.manifest ??= {};
+    inputData.packageData.manifest.authors ??= [];
+    inputData.packageData.manifest.dependencies ??= [];
+    inputData.packageData.manifest.keywords ??= [];
+    inputData.packageData.manifest.postActivities ??= [];
+    inputData.packageData.manifest.sapEntries ??= {};
+    inputData.packageData.tags ??= [];
+
     const workflow = [
         checkServerAuth,
-        init,
         setSystemPackages,
-        trmServerPa,
-        setTransportTarget,
-        setDevclass,
+        init,
         findDependencies,
-        setManifestValues,
         setCustomizingTransports,
-        setReadme,
-        setChangelog,
-        getSourceCode,
-        checkAllObjectsReleased,
+        setManifestValues,
+        setOptionalReleaseData,
+        lockResources,
         generateDevcTransport,
         generateTadirTransport,
         generateLangTransport,
@@ -249,15 +287,16 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         publishToRegistry,
         updatePackageData
     ];
-    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-    const result = await execute<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData
+    const lockScope = new ActionLockScope(WORKFLOW_NAME);
+    await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
+    return withActionLockScope(lockScope, async () => {
+        const result = await executeWorkflow<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
+            rawInput: inputData,
+            lockScope
+        }, workflowCallbacks);
+        return {
+            trmPackage: result.output.trmPackage,
+            trmArtifact: result.output.trmArtifact
+        };
     });
-    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    const trmPackage = result.runtime.trmPackage.package;
-    const trmArtifact = result.runtime.trmPackage.artifact;
-    return {
-        trmPackage,
-        trmArtifact
-    }
 }

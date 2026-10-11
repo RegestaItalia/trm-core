@@ -1,6 +1,7 @@
 export * from "./actions";
 export * from "./client";
 export * from "./commons";
+export * from "./connection";
 export * from "./manifest";
 export * from "./registry";
 export * from "./dependencies";

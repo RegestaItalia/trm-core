@@ -1,9 +1,13 @@
 import { AbstractRegistry } from "../registry";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
-import { TrmPackage, TrmPackageInstallTransport } from "../trmPackage";
+import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
+import { InstallTransport } from "./InstallTransport";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
+import { ValueHelpContext, ValueHelpPage } from "trm-commons";
+import { TrmManifestEngineTableCondition } from "../manifest";
+import type { TrmPackageUpdateData } from "./ISystemConnector";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
@@ -11,10 +15,13 @@ export interface ISystemConnectorBase {
     getIgnoredTrkorr: () => Promise<components.TRKORR[]>,
     getObject: (pgmid: components.PGMID, object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<struct.TADIR>,
     getInstalledPackages: (refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }) => Promise<TrmPackage[]>,
+    getTrmPackageData: (packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY) => Promise<TrmPackageUpdateData | undefined>,
     getDevclass: (devclass: components.DEVCLASS) => Promise<struct.TDEVC>,
     getSubpackages: (devclass: components.DEVCLASS) => Promise<struct.TDEVC[]>,
+    getNamespacePackages: (namespace: components.NAMESPACE) => Promise<struct.TDEVC[]>,
     getDevclassObjects: (devclass: components.DEVCLASS, includeSubpackages: boolean) => Promise<struct.TADIR[]>,
     getInstallPackages: (packageName: string, registry: AbstractRegistry) => Promise<InstallPackage[]>,
+    getInstallTransports: (packageName: string, registry: AbstractRegistry) => Promise<InstallTransport[]>,
     setPackageSuperpackage: (devclass: components.DEVCLASS, superpackage: components.DEVCLASS) => Promise<void>,
     clearPackageSuperpackage: (devclass: components.DEVCLASS) => Promise<void>,
     setPackageTransportLayer: (devclass: components.DEVCLASS, devlayer: components.DEVLAYER) => Promise<void>,
@@ -36,5 +43,11 @@ export interface ISystemConnectorBase {
     getObjectDependencies: (object: components.TROBJTYPE, objName: components.SOBJ_NAME) => Promise<ObjectDependencies>,
     getTableKeys: (tabname: components.TABNAME) => Promise<struct.DD03L[]>,
     getRootDevclass: (devclass: components.DEVCLASS) => Promise<components.DEVCLASS>,
-    getTimezone: () => Promise<string>
+    getSoftwareComponents: () => Promise<struct.CVERS[]>,
+    getInstalledProducts: () => Promise<struct.PRDVERS[]>,
+    getNoteStatus: (numm: components.CWBNTNUMM) => Promise<{ prstatus?: components.CWBPRSTAT, versno?: components.CWBNTVERS }>,
+    checkTableCondition: (table: components.TABNAME, where: TrmManifestEngineTableCondition[]) => Promise<boolean>,
+    getTimezone: () => Promise<string>,
+    getPostActivities: (ctx: ValueHelpContext) => Promise<ValueHelpPage>,
+    getPostActivityParameters: (className: string, ctx: ValueHelpContext) => Promise<ValueHelpPage>
 }

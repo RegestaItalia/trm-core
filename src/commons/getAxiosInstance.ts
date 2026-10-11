@@ -3,6 +3,7 @@ import { inspect } from "util";
 import { CliLogFileLogger, Logger } from "trm-commons";
 import { parse as htmlParser } from 'node-html-parser';
 import { randomUUID } from "crypto";
+import { summarizeForLog, summarizeUrlForLog } from "./summarizeForLog";
 
 export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';
 export const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
@@ -25,35 +26,27 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
         if (Logger.logger instanceof CliLogFileLogger) {
             request.headers.set(AXIOS_SESSION_HEADER, Logger.logger.getSessionId());
         }
-        var sRequest = `${request.method} ${request.baseURL}${request.url}`;
+        var sRequest = `${request.method} ${summarizeUrlForLog(request.baseURL, request.url)}`;
         if (request.params) {
-            sRequest += `, parameters: ${inspect(request.params, { breakLength: Infinity, compact: true })}`;
+            sRequest += `, parameters: ${inspect(summarizeForLog(request.params), { breakLength: Infinity, compact: true })}`;
         }
         if (request.headers.getAuthorization()) {
             sRequest += `, authorization: HIDDEN`;
         }
         if (request.data) {
-            sRequest += `, data: ${inspect(request.data, { breakLength: Infinity, compact: true })}`;
+            sRequest += `, data: ${inspect(summarizeForLog(request.data), { breakLength: Infinity, compact: true })}`;
         }
         Logger.log(`${sCtx} AXIOS request ${internalId}: ${sRequest}`, true);
         return request;
     }, (error) => {
-        Logger.error(`${sCtx} AXIOS request error: ${error}`, true);
+        Logger.log(`${sCtx} AXIOS request error: ${error}`, true);
         return Promise.reject(error);
     });
     instance.interceptors.response.use((response) => {
         const internalId = _getInternalId(response);
         var sResponse = `status: ${response.status}, status text: ${response.statusText}`;
         if (response.data) {
-            if (Buffer.isBuffer(response.data)) {
-                try {
-                    sResponse += `, data: <file of ${response.data.byteLength} bytes>`;
-                } catch {
-                    sResponse += `, data: <file of unknown bytes>`;
-                }
-            } else {
-                sResponse += `, data: ${inspect(response.data, { breakLength: Infinity, compact: true })}`;
-            }
+            sResponse += `, data: ${inspect(summarizeForLog(response.data), { breakLength: Infinity, compact: true })}`;
         }
         Logger.log(`Ending ${sCtx} AXIOS request ${internalId}: ${sResponse}`, true);
         return response;
@@ -92,10 +85,10 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
             oError.status = error.response.status;
             oError.response = error.response.data || {};
             oError.axiosError = error;
-            Logger.error(`${sCtx} response id ${internalId} error: ${error} (${JSON.stringify(sError)})`, true);
+            Logger.log(`${sCtx} response id ${internalId} error: ${error} (${JSON.stringify(sError)})`, true);
             return Promise.reject(oError);
         } else {
-            Logger.error(`${sCtx} response error: ${error}`, true);
+            Logger.log(`${sCtx} response error: ${error}`, true);
             return Promise.reject(error);
         }
     });

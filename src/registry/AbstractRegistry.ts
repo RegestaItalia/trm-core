@@ -1,6 +1,21 @@
-import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Package, PackageContents, Ping, WhoAmI } from "trm-registry-types";
+import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Package, Ping, WhoAmI } from "trm-registry-types";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
+import { BinaryTransport } from "../transport";
+import { TransportEntries } from "../client";
+
+export interface PublishAdditionalData {
+    readme?: string,
+    tags?: string,
+    changelog?: string,
+    retainedCustomizing?: string[]
+}
+
+/** Release data returned by a registry after publication. */
+export interface PublishResult {
+    /** Integrity of the release as stored by the registry, when it can differ from the uploaded artifact. */
+    integrity?: string
+}
 
 export abstract class AbstractRegistry {
     endpoint: string;
@@ -14,11 +29,13 @@ export abstract class AbstractRegistry {
     abstract getPackage: (fullName: string, version: string) => Promise<Package>;
     abstract downloadArtifact: (fullName: string, version: string) => Promise<TrmArtifact>;
     abstract validatePublish: (fullName: string, version: string, isPrivate: boolean) => Promise<void>;
-    abstract publish: (fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string, changelog?: string) => Promise<Package | void>;
+    abstract publish: (fullName: string, version: string, artifact: TrmArtifact, additionalData?: PublishAdditionalData) => Promise<PublishResult | void>;
     abstract unpublish: (fullName: string, version: string) => Promise<void>;
     abstract deprecate: (fullName: string, version: string, deprecate: Deprecate) => Promise<void>;
     abstract addDistTag: (fullName: string, distTag: DistTagAdd) => Promise<void>;
     abstract rmDistTag: (fullName: string, distTag: DistTagRm) => Promise<void>;
     abstract batchCompare: (packages: BatchCompareRequest) => Promise<BatchCompareResponse>;
-    abstract contents: (fullName: string, version: string) => Promise<PackageContents>;
+    abstract transport: (trkorr: string, target?: string) => Promise<BinaryTransport>;
+    abstract transportEntries: (fullName: string, version: string, trkorr: string) => Promise<TransportEntries>;
+    abstract delete: (transport: BinaryTransport) => Promise<BinaryTransport>;
 }

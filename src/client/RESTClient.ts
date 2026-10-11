@@ -7,12 +7,40 @@ import * as FormData from "form-data";
 import { Logger } from "trm-commons";
 import { Login, RESTClientError, SapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
-import { TrmPackageUpdateData } from "../systemConnector";
-import { Agent as HttpsAgent } from "https";
+import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
+import { TransportEntries } from "./TransportEntries";
+import { ActionLockKey } from "./struct/ActionLockKey";
+import { logMessageLog, parseMessageLog } from "./messageLog";
 
 const AXIOS_CTX = "RestServer";
 
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
+
 export class RESTClient implements IClient {
+    public async acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        await this._axiosInstance.post('/acquire_act_locks', {
+            owner_token: ownerToken,
+            action_name: actionName,
+            keys: keys.map(key => ({
+                resource_type: key.resourceType,
+                resource_hash: key.resourceHash,
+                resource_name: key.resourceName
+            }))
+        });
+    }
+
+    public async releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        await this._axiosInstance.post('/release_act_locks', {
+            owner_token: ownerToken,
+            keys: keys.map(key => ({
+                resource_type: key.resourceType,
+                resource_hash: key.resourceHash,
+                resource_name: key.resourceName
+            }))
+        });
+    }
     protected _axiosInstance: AxiosInstance;
     private _connected: boolean = false;
 
@@ -42,10 +70,10 @@ export class RESTClient implements IClient {
                     timeout: 5000
                 });
             } catch (e) {
-                throw new RESTClientError("ZNO_CONN", null, e, e.message);
+                throw new RESTClientError("ZNO_CONN", null, e, getErrorMessage(e), "/");
             }
             if (response.status !== 200) {
-                throw new RESTClientError("ZNO_CONN", null, null, `Couldn't reach ${this.endpoint}!`);
+                throw new RESTClientError("ZNO_CONN", null, null, `Couldn't reach ${this.endpoint}!`, "/");
             } else {
                 this._connected = true;
                 this._axiosInstance.interceptors.response.use((response) => {
@@ -58,42 +86,51 @@ export class RESTClient implements IClient {
                         class: undefined,
                         no: undefined
                     };
-                    if (error.name === `Trm${AXIOS_CTX}Error`) {
+                    if (error && error.name === `Trm${AXIOS_CTX}Error`) {
                         axiosError = error.axiosError;
                     } else {
                         axiosError = error;
                     }
-                    if (axiosError.config.url === '/read_table') {
-                        if (JSON.parse(axiosError.config.data).query_table === 'T100') {
+                    if (axiosError && axiosError.config && axiosError.config.url === '/read_table') {
+                        var requestData;
+                        try {
+                            requestData = typeof axiosError.config.data === 'string' ? JSON.parse(axiosError.config.data) : axiosError.config.data;
+                        } catch (parseError) {
+                            requestData = undefined;
+                        }
+                        if (requestData && requestData.query_table === 'T100') {
                             throw error;
                         }
                     }
-                    if (axiosError.response.data.message) {
+                    const responseData = axiosError && axiosError.response && axiosError.response.data;
+                    if (responseData && responseData.message) {
                         sapMessage = {
-                            no: `${axiosError.response.data.message.msgno}`,
-                            class: axiosError.response.data.message.msgid,
-                            v1: axiosError.response.data.message.msgv1,
-                            v2: axiosError.response.data.message.msgv2,
-                            v3: axiosError.response.data.message.msgv3,
-                            v4: axiosError.response.data.message.msgv4
+                            no: `${responseData.message.msgno}`,
+                            class: responseData.message.msgid,
+                            v1: responseData.message.msgv1,
+                            v2: responseData.message.msgv2,
+                            v3: responseData.message.msgv3,
+                            v4: responseData.message.msgv4
                         };
                         try {
-                            message = await this.getMessage(sapMessage);
+                            // An exception raised without a message: its reason is the response status text.
+                            message = `${responseData.message.msgid || ''}`.trim()
+                                ? await this.getMessage(sapMessage)
+                                : `SAP error ${axiosError.response.statusText || axiosError.response.status} (no message)`;
                         } catch (k) {
                             messageError = k;
-                            message = `Couldn't read error message ${axiosError.response.data.message.msgid} ${axiosError.response.data.message.msgno} ${axiosError.response.data.message.msgv1} ${axiosError.response.data.message.msgv2} ${axiosError.response.data.message.msgv3} ${axiosError.response.data.message.msgv4}`;
+                            message = `Couldn't read error message ${responseData.message.msgid} ${responseData.message.msgno} ${responseData.message.msgv1} ${responseData.message.msgv2} ${responseData.message.msgv3} ${responseData.message.msgv4}`;
                         }
                     } else {
                         throw error;
                     }
-                    var rfcClientError = new RESTClientError(error.message, sapMessage, axiosError, message);
+                    var rfcClientError = new RESTClientError(getErrorMessage(error), sapMessage, axiosError, message);
                     if (messageError) {
                         rfcClientError.messageError = messageError.toString();
                     }
-                    if (axiosError.response.data.log) {
-                        rfcClientError.messageLog = axiosError.response.data.log;
-                    }
-                    Logger.error(rfcClientError.toString(), true);
+                    rfcClientError.messageLog = parseMessageLog(responseData.log);
+                    Logger.log(rfcClientError.toString(), true);
+                    logMessageLog(rfcClientError);
                     throw rfcClientError;
                 });
             }
@@ -133,7 +170,7 @@ export class RESTClient implements IClient {
         }
     }
 
-    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
         try {
             var sqlOutput = [];
             const delimiter = '|';
@@ -157,6 +194,15 @@ export class RESTClient implements IClient {
                         }
                     });
                 }
+                //lines exceeding 72 chars are split on OR operator
+                aOptions = aOptions.reduce((acc, o) => {
+                    if (o.text.length > 72) {
+                        o.text.split(/\s+OR\s+/).forEach((s, i) => acc.push({ text: i === 0 ? s.trim() : `OR ${s.trim()}` }));
+                    } else {
+                        acc.push(o);
+                    }
+                    return acc;
+                }, [] as struct.RFC_DB_OPT[]);
                 /*aOptions = (options.match(/.{1,72}/g)).map(s => {
                     return {
                         text: s
@@ -167,7 +213,14 @@ export class RESTClient implements IClient {
                 params: {
                     rfcdest: this.rfcdest
                 },
-                data: {
+                data: paging ? {
+                    query_table: tableName.toUpperCase(),
+                    delimiter,
+                    options: aOptions,
+                    fields: fields,
+                    rowskips: paging.offset,
+                    rowcount: paging.limit
+                } : {
                     query_table: tableName.toUpperCase(),
                     delimiter,
                     options: aOptions,
@@ -178,7 +231,7 @@ export class RESTClient implements IClient {
                 var sqlLine: any = {};
                 const waSplit = tab512.wa.split(delimiter);
                 result.data.fields.forEach((field, index) => {
-                    sqlLine[field.fieldname] = waSplit[index].trim();
+                    sqlLine[field.fieldname] = (waSplit[index] || '').trim();
                 });
                 sqlOutput.push(sqlLine);
             })
@@ -217,12 +270,8 @@ export class RESTClient implements IClient {
 
     public async writeBinaryFile(filePath: string, binary: Buffer): Promise<void> {
         const formData = new FormData.default();
-        var filename: string;
-        try {
-            filename = /[^\\\/]+$/gmi.exec(filePath)[0];
-        } catch (e) {
-            filename = 'UNKNOWN_FILENAME';
-        }
+        const filenameMatch = /[^\\\/]+$/gmi.exec(filePath);
+        const filename = filenameMatch ? filenameMatch[0] : 'UNKNOWN_FILENAME';
         formData.append('file', binary, filename);
         formData.append('file_path', filePath);
         await this._axiosInstance.post('/write_binary_file', formData, {
@@ -241,7 +290,7 @@ export class RESTClient implements IClient {
     public async createWbTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = (await this._axiosInstance.post('/create_import_tr', {
             text: text,
-            target: target.trim().toUpperCase()
+            target: target ? target.trim().toUpperCase() : ''
         })).data;
         return result.trkorr;
     }
@@ -249,7 +298,7 @@ export class RESTClient implements IClient {
     public async createCustTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = (await this._axiosInstance.post('/create_cust_tr', {
             text: text,
-            target: target.trim().toUpperCase()
+            target: target ? target.trim().toUpperCase() : ''
         })).data;
         return result.trkorr;
     }
@@ -293,6 +342,12 @@ export class RESTClient implements IClient {
         });
     }
 
+    public async lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        await this._axiosInstance.post('/lock_tr_objects', {
+            trkorr: trkorr.trim().toUpperCase()
+        });
+    }
+
     public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         const result = (await this._axiosInstance.get('/repository_environment', {
             params: {
@@ -318,7 +373,7 @@ export class RESTClient implements IClient {
         await this._axiosInstance.post('/release_tr', {
             trkorr: trkorr.trim().toUpperCase(),
             lock: lock ? 'X' : ' '
-        }, {
+        }, timeout === undefined ? undefined : {
             timeout: timeout * 1000
         });
     }
@@ -330,6 +385,14 @@ export class RESTClient implements IClient {
             }
         })).data;
         return result.requests;
+    }
+
+    public async deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        await this._axiosInstance.delete('/delete_tmp_package', {
+            data: {
+                devclass: devclass.trim().toUpperCase()
+            }
+        });
     }
 
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
@@ -361,12 +424,6 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        await this._axiosInstance.post('/dequeue_tr', {
-            trkorr: trkorr.trim().toUpperCase()
-        });
-    }
-
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean = true): Promise<void> {
         await this._axiosInstance.post('/forward_tr', {
             trkorr: trkorr.trim().toUpperCase(),
@@ -376,16 +433,57 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        await this._axiosInstance.post('/import_tr', {
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        const result = (await this._axiosInstance.post<{ testResult: struct.STMS_TP_IMPORT }>('/import_tr', {
             system: system.trim().toUpperCase(),
-            trkorr: trkorr.trim().toUpperCase()
-        });
+            trkorr: trkorr.trim().toUpperCase(),
+            test: test ? 'X' : ' '
+        })).data;
+        if (result && result.testResult) {
+            return result.testResult;
+        }
+    }
+
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        const result = (await this._axiosInstance.post<{ testResult: struct.STMS_TP_IMPORT }>('/import_tr_multiple', {
+            system: system.trim().toUpperCase(),
+            trkorr: trkorr.map(value => value.trim().toUpperCase()),
+            test: test ? 'X' : ' '
+        })).data;
+        if (result && result.testResult) {
+            return result.testResult;
+        }
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         await this._axiosInstance.put('/set_install_devc', {
             installdevc: installDevc
+        });
+    }
+
+    public async deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        await this._axiosInstance.delete('/delete_install_devc', {
+            data: {
+                installdevc: installDevc
+            }
+        });
+    }
+
+    public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        await this._axiosInstance.put('/set_install_devc', {
+            // JSON carries the manifest xstring as base64: a Buffer would serialize as an object and be stored empty.
+            package: { ...data.package, manifest: data.package.manifest?.toString('base64') },
+            package_exists: data.packageExists ? 'X' : ' ',
+            installdevc: data.installDevc,
+            installtr: data.installTr || []
+        });
+    }
+
+    public async setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        await this._axiosInstance.put('/set_install_tr', {
+            package_name: packageName,
+            package_registry: packageRegistry,
+            installtr: installTr
         });
     }
 
@@ -431,7 +529,7 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async getDest(): Promise<string> {
+    public async getDest(): Promise<components.SYSYSID> {
         const result = (await this._axiosInstance.get('/get_dest', {
             params: {
                 rfcdest: this.rfcdest
@@ -450,9 +548,14 @@ export class RESTClient implements IClient {
     }
 
     public async getExistingObjectsBulk(objects: struct.TADIR[]): Promise<struct.TADIR[]> {
+        //the request is mapped onto TADIR fields: object names are matched by OBJ_NAME
         const result = (await this._axiosInstance.get('/get_existing_objs_bulk', {
             data: {
-                objects
+                objects: objects.map(o => ({
+                    pgmid: o.pgmid,
+                    object: o.object,
+                    obj_name: o.objName
+                }))
             }
         })).data;
         return result.tadir;
@@ -474,8 +577,8 @@ export class RESTClient implements IClient {
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await this._axiosInstance.delete('/delete_tms_transport', {
             data: {
-                trkorr,
-                system
+                trkorr: trkorr.trim().toUpperCase(),
+                system: system.trim().toUpperCase()
             }
         });
     }
@@ -512,15 +615,34 @@ export class RESTClient implements IClient {
             }
         });
         try {
-            const boundary = (headers['content-type']).toString().match(/boundary=([-0-9A-Za-z]+)/i)[1];
+            const contentType = headers && headers['content-type'];
+            const boundaryMatch = contentType && contentType.toString().match(/boundary=(?:"([^"]+)"|([^;\s]+))/i);
+            if (!boundaryMatch) {
+                throw new Error('Multipart boundary is missing');
+            }
+            const boundary = boundaryMatch[1] || boundaryMatch[2];
             const parsedData = parseMultipart(data, boundary);
+            const zipPart = parsedData.find(o => o.name === 'zip');
+            const objectsPart = parsedData.find(o => o.name === 'objects');
+            if (!zipPart || !objectsPart) {
+                throw new Error('Multipart response is missing zip or objects');
+            }
+            const objects = JSON.parse(objectsPart.data.toString());
+            if (!Array.isArray(objects)) {
+                throw new Error('Multipart objects payload is not an array');
+            }
             return {
-                zip: parsedData.find(o => o.name === 'zip').data,
-                objects: JSON.parse(parsedData.find(o => o.name === 'objects').data.toString())
+                zip: zipPart.data,
+                objects
             }
         } catch (e) {
-            throw new RESTClientError("ZPARSE_API_DATA", null, null, `Can't parse api data.`);
+            throw new RESTClientError("ZPARSE_API_DATA", null, e, `Can't parse API data: ${getErrorMessage(e)}`, "/get_abapgit_source");
         }
+    }
+
+    public async getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        const result = (await this._axiosInstance.get('/get_transport_entries', { data: { trkorr } })).data;
+        return normalize(result) as TransportEntries;
     }
 
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
@@ -557,7 +679,11 @@ export class RESTClient implements IClient {
             await this._axiosInstance.post('/check_auth');
             return true;
         } catch (e) {
-            return e;
+            // Only a SAP error is an authorization result: anything else (e.g. a timeout) is rethrown.
+            if (e instanceof RESTClientError) {
+                return e;
+            }
+            throw e;
         }
     }
 
@@ -637,7 +763,7 @@ export class RESTClient implements IClient {
     public async updateTrmPackageData(data: TrmPackageUpdateData): Promise<void> {
         const formData = new FormData.default();
         formData.append('manifest', data.manifest, 'manifest.json');
-        formData.append('data', JSON.stringify({...data, ...{ manifest: undefined }}));
+        formData.append('data', JSON.stringify({ ...data, ...{ manifest: undefined } }));
         await this._axiosInstance.post('/update_trm_package_data', formData, {
             headers: formData.getHeaders()
         });

@@ -4,7 +4,7 @@ import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 
 /**
- * Analyze
+ * Workflow step that queries required SAP tables and builds a per-entry status report.
  * 
  * 1- build required tables fields
  * 
@@ -26,8 +26,6 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
         }
     },
     run: async (context: CheckSapEntriesWorkflowContext): Promise<void> => {
-        Logger.log('Analyze step', true);
-
         var logTable: {
             header: any,
             data: any
@@ -62,19 +60,31 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
 
         //2- check entries
         for (const table of Object.keys(context.output.sapEntries)) {
-            var tableExists: boolean;
+            var tableExists = false;
             try {
-                tableExists = await SystemConnector.checkSapEntryExists('TADIR', {
-                    pgmid: 'R3TR',
-                    object: 'TABL',
-                    obj_name: table
-                });
+                for (const object of ['TABL', 'VIEW']) {
+                    tableExists = await SystemConnector.checkSapEntryExists('TADIR', {
+                        pgmid: 'R3TR',
+                        object,
+                        obj_name: table.trim().toUpperCase()
+                    });
+                    if (tableExists) {
+                        break;
+                    }
+                }
             } catch (e) {
-                tableExists = false;
+                const reason = e instanceof Error ? e.message : String(e);
+                throw new Error(`Unable to check whether required SAP table "${table}" exists: ${reason}`);
             }
             if (!tableExists) {
                 context.runtime.missingTables.push(table);
-                Logger.error(`Required ${context.output.sapEntries[table].length} entries in ${table}, but table was not found`, !context.rawInput.printOptions.information);
+                context.output.sapEntries[table].forEach(tableEntry => {
+                    context.runtime.entriesStatus.bad.push({
+                        table,
+                        tableEntry
+                    });
+                });
+                Logger.error(`Required ${context.output.sapEntries[table].length} entries in ${table}, but table or view was not found`, { debug: !context.rawInput.printOptions.information, important: true });
             } else {
                 var printTableHead: string[] = ['Table name'];
                 var printTableData: string[][] = [];
@@ -83,35 +93,26 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
                 printTableHead.push('Status');
                 for(const tableEntry of context.output.sapEntries[table]){
                     tableData = [table];
-                    var entryStatus;
+                    var exists: boolean;
                     try{
-                        const exists = await SystemConnector.checkSapEntryExists(table, tableEntry);
-                        if(exists){
-                            entryStatus = `OK`;
-                            context.runtime.entriesStatus.good.push({
-                                table,
-                                tableEntry
-                            });
-                        }else{
-                            entryStatus = `NOT FOUND`;
-                            context.runtime.entriesStatus.bad.push({
-                                table,
-                                tableEntry
-                            });
-                        }
+                        exists = await SystemConnector.checkSapEntryExists(table, tableEntry);
                     }catch(e){
-                        Logger.error(e.toString(), true);
-                        Logger.error(`Error during check of SAP entry ${JSON.stringify(tableEntry)}`, true);
-                        entryStatus = `Unknown`;
+                        const reason = e instanceof Error ? e.message : String(e);
+                        throw new Error(`Unable to check required SAP entry ${JSON.stringify(tableEntry)} in table "${table}": ${reason}`);
+                    }
+                    if(exists){
+                        context.runtime.entriesStatus.good.push({
+                            table,
+                            tableEntry
+                        });
+                    }else{
                         context.runtime.entriesStatus.bad.push({
                             table,
                             tableEntry
                         });
                     }
-                    Object.keys(tableEntry).forEach(field => {
-                        const pushIndex = printTableHead.findIndex(headerName => headerName === field);
-                        tableData.splice(pushIndex, 0, tableEntry[field]);
-                    });
+                    const entryStatus = exists ? `OK` : `NOT FOUND`;
+                    tableData = tableData.concat(printTableHead.slice(1, -1).map(field => tableEntry[field] ?? ''));
                     tableData.push(entryStatus);
                     printTableData.push(tableData);
                 }
@@ -127,25 +128,20 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
             Logger.table(t.header, t.data, !context.rawInput.printOptions.entriesStatus);
         });
 
-        //4- build output data
-        context.output.sapEntriesStatus = {};
-        context.runtime.entriesStatus.good.forEach(o => {
-            if(!context.output.sapEntriesStatus[o.table]){
-                context.output.sapEntriesStatus[o.table] = [];
-            }
-            context.output.sapEntriesStatus[o.table].push({
-                status: true,
-                entry: o.tableEntry
-            });
-        });
+        //4- build output data (declaration order)
+        const badEntries = new Map<string, Set<any>>();
         context.runtime.entriesStatus.bad.forEach(o => {
-            if(!context.output.sapEntriesStatus[o.table]){
-                context.output.sapEntriesStatus[o.table] = [];
+            if(!badEntries.has(o.table)){
+                badEntries.set(o.table, new Set());
             }
-            context.output.sapEntriesStatus[o.table].push({
-                status: false,
-                entry: o.tableEntry
-            });
+            badEntries.get(o.table).add(o.tableEntry);
+        });
+        context.output.sapEntriesStatus = {};
+        Object.keys(context.output.sapEntries).forEach(table => {
+            context.output.sapEntriesStatus[table] = context.output.sapEntries[table].map(entry => ({
+                status: !badEntries.get(table)?.has(entry),
+                entry
+            }));
         });
     }
 }

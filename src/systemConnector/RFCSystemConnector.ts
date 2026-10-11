@@ -1,20 +1,29 @@
 import { Logger } from "trm-commons";
-import { ClientError, RFCClient, RFCClientError, SapMessage } from "../client";
+import { ClientError, RFCClient, RFCClientError, SapMessage, TransportEntries } from "../client";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
 import { RFCConnection } from "./RFCConnection";
 import { Login } from "../client/Login";
-import { ISystemConnector, TrmPackageUpdateData } from "./ISystemConnector";
+import { ISystemConnector, TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "./ISystemConnector";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
+import { ActionLockKey } from "./ActionLock";
 
 export class RFCSystemConnector extends SystemConnectorBase implements ISystemConnector {
+    public acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        return this._client.acquireActionLocks(keys, ownerToken, actionName);
+    }
+
+    public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        return this._client.releaseActionLocks(keys, ownerToken);
+    }
+    private _dest: components.SYSYSID;
     private _lang: string;
     private _user: string;
     protected _client: RFCClient;
-    private _isServerApisAllowed: true | RFCClientError;
+    private _isServerApisAllowed?: true;
 
     supportedBulk: SystemConnectorSupportedBulk = {
         getTransportObjects: false,
@@ -30,19 +39,31 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         if (!this._connection.saprouter) {
             delete this._connection.saprouter;
         }
-        this._client = new RFCClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir, this._globalNodeModulesPath);
+        this._client = this.createClient({ ...this._connection, ...this._login }, this._lang[0], this._traceDir, this._globalNodeModulesPath);
+    }
+
+    protected createClient(rfcClientArgs: RFCConnection & Login, cLangu: string, traceDir?: string, globalNodeModulesPath?: string): RFCClient {
+        return new RFCClient(rfcClientArgs, cLangu, traceDir, globalNodeModulesPath);
     }
 
     public getNewConnection(): ISystemConnector {
-        return new RFCSystemConnector(this._connection, this._login, this._traceDir, this._globalNodeModulesPath);
+        const connector = new (this.constructor as typeof RFCSystemConnector)(this._connection, this._login, this._traceDir, this._globalNodeModulesPath);
+        connector._dest = this._dest;
+        return connector;
     }
 
     protected getSysname(): string {
         return this.getDest();
     }
 
-    public getDest(): string {
-        return this._connection.dest;
+    /**
+     * System ID, read from the system on connect.
+     */
+    public getDest(): components.SYSYSID {
+        if (!this._dest) {
+            throw new Error(`System ID not available: connect to the system first.`);
+        }
+        return this._dest;
     }
 
     protected getLangu(c: boolean): string {
@@ -57,8 +78,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         }
     }
 
-    protected async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
-        return this._client.readTable(tableName, fields, options);
+    protected async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
+        return this._client.readTable(tableName, fields, options, paging);
     }
 
     protected async getTrmServerVersion(): Promise<string> {
@@ -101,13 +122,21 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._user;
     }
 
+    private getConnectionLabel(): string {
+        if (this._connection.saprouter) {
+            return `${this._connection.ashost} thru ${this._connection.saprouter}`;
+        }
+        return this._connection.ashost;
+    }
+
     public async connect(silent: boolean = false): Promise<void> {
-        Logger.loading(`Connecting to ${this.getDest()}...`, silent);
+        Logger.loading(`Connecting to ${this.getConnectionLabel()}...`, silent);
         try {
             await this._client.open();
+            this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
         } catch (e) {
-            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, silent);
+            Logger.error(`Connection to ${this.getConnectionLabel()} as ${this._user} failed.`, silent);
             throw e;
         }
     }
@@ -164,6 +193,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.addToTransportRequest(trkorr, content, lock);
     }
 
+    public async lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        return this._client.lockTransportObjs(trkorr);
+    }
+
     public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         return this._client.repositoryEnvironment(objectType, objectName);
     }
@@ -180,6 +213,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.readTmsQueue(target);
     }
 
+    public async deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        return this._client.deleteTemporaryPackage(devclass);
+    }
+
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
         return this._client.createPackage(scompkdtln);
     }
@@ -192,20 +229,32 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.tadirInterface(tadir);
     }
 
-    public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        return this._client.dequeueTransport(trkorr);
-    }
-
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean): Promise<void> {
         return this._client.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        return this._client.importTransport(trkorr, system);
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        return this._client.importTransport(trkorr, system, test);
+    }
+
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        return this._client.importTransportMultiple(trkorr, system, test);
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         return this._client.setInstallDevc(installDevc);
+    }
+
+    public async deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        return this._client.deleteInstallDevc(installDevc);
+    }
+
+    public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        return this._client.restoreInstallMetadata(data);
+    }
+
+    public async setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        return this._client.setInstallTransports(packageName, packageRegistry, installTr);
     }
 
     public async getObjectsList(): Promise<struct.KO100[]> {
@@ -248,15 +297,24 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getAbapgitSource(devclass);
     }
 
+    public async getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        return this._client.getTransportEntries(trkorr);
+    }
+
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         return this._client.executePostActivity(data, pre);
     }
 
     public async isServerApisAllowed(): Promise<true | ClientError> {
-        if (this._isServerApisAllowed === undefined) {
-            this._isServerApisAllowed = await this._client.isServerApisAllowed();
+        if (this._isServerApisAllowed) {
+            return this._isServerApisAllowed;
         }
-        return this._isServerApisAllowed;
+        // Only a granted authorization is cached: a denial may be transient and is checked again.
+        const auth = await this._client.isServerApisAllowed();
+        if (auth === true) {
+            this._isServerApisAllowed = auth;
+        }
+        return auth;
     }
 
     public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {

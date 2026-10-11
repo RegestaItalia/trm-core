@@ -1,0 +1,1 @@
+export type BORM_NAME = string;

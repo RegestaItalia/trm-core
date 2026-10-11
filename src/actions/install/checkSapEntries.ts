@@ -1,12 +1,11 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger, inspect } from "trm-commons";
+import { Logger } from "trm-commons";
 import { checkSapEntries as CheckSapEntriesWkf, CheckSapEntriesActionInput } from "../checkSapEntries";
 
-const SUBWORKFLOW_NAME = 'check-sap-entries-sub-install';
-
 /**
- * Check if package SAP entries are supported in target system
+ * Workflow step that checks the required SAP table entries: missing ones block the installation
+ * in check-engines, together with the unmet engines.
  * 
  * 1- execute check sap entries workflow
  * 
@@ -24,32 +23,29 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Check sap entries step', true);
-
         //1- execute check sap entries workflow
         const inputData: CheckSapEntriesActionInput = {
             packageData: {
-                manifest: context.runtime.remotePackageData.manifest
+                manifest: context.runtime.package.data.manifest
             },
             printOptions: {
                 entriesStatus: false,
                 information: false
             }
         };
-        Logger.loading(`Checking SAP entries...`);
-        Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
+        Logger.loading(`Checking system requirements...`);
         const result = await CheckSapEntriesWkf(inputData);
-        Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-        
+
         //2- check result
         const sapEntriesOutput = result.sapEntriesStatus;
-        var missingEntries: any[] = [];
-        Object.keys(sapEntriesOutput).forEach(t => {
-            missingEntries = missingEntries.concat(sapEntriesOutput[t].filter(o => !o.status));
-        });
+        const missingEntries = Object.entries(sapEntriesOutput).flatMap(([table, entries]) => entries.filter(o => !o.status).map(o => ({ table, entry: o.entry })));
         if(missingEntries.length > 0){
-            Logger.error(JSON.stringify(missingEntries), true);
-            throw new Error(`Package requires ${missingEntries.length} SAP entries that don't exist on your system (run in verbose for more detail).`);
+            missingEntries.forEach(o => {
+                const fields = Object.entries(o.entry).map(([field, value]) => `${field} = ${value}`).join(', ');
+                Logger.error(`Required entry not found in table ${o.table}: ${fields}`, { important: true });
+            });
+            // Aborted by check-engines, so unmet engines are reported in the same run.
+            context.runtime.missingSapEntries = missingEntries.length;
         }else{
             Logger.success(`SAP entries checked.`);
         }

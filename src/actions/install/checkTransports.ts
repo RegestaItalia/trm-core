@@ -1,253 +1,372 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
-import { Transport, TrmTransportIdentifier } from "../../transport";
-import { normalize } from "../../commons";
-import { E071, TRKORR } from "../../client";
+import { TrmTransportIdentifier } from "../../transport";
 import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { R3trans } from "node-r3trans";
+import { E071, TADIR, TDEVC, TransportEntries } from "../../client";
+import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons";
+import { getOwningInstallation } from "../commons/utils";
+
+/** Throws when any of the objects is locked in a SAP transport request. */
+export async function checkObjectsLocks(e071: E071[]): Promise<void> {
+    const locks = await SystemConnector.getObjectsLocks(e071.map(o => {
+        return {
+            PGMID: o.pgmid,
+            OBJECT: o.object,
+            OBJ_NAME: o.objName
+        };
+    }));
+    if (locks.length > 0) {
+        locks.forEach(l => {
+            Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`, { important: true });
+        });
+        throw new Error(`Install aborted. To continue, all objects must be released`);
+    }
+}
+
+/** Returns the objects of the release that already exist on the target system. */
+export async function findExistingObjects(context: InstallWorkflowContext, tadir: TADIR[]): Promise<TADIR[]> {
+    const checkTadir = tadir.map(o => {
+        return {
+            ...o, ...{
+                devclass: context.runtime.isTrmServer || context.runtime.isTrmRest ? adjustTrmServerRestDevclass(o.devclass) : o.devclass
+            }
+        }
+    });
+    if (!SystemConnector.getSupportedBulk().getExistingObjects) {
+        return SystemConnector.getExistingObjects(checkTadir);
+    } else {
+        return SystemConnector.getExistingObjectsBulk(checkTadir);
+    }
+}
 
 /**
- * Check TRM Package transports. A TRM Package must have one DEVC (ABAP Package) and TADIR (Workbench objects) transports.
- * 
- * Optionally, one LANG (Translation) and one CUST (Customizing) transport.
- * 
- * If registry doesn't provide transport contents, R3Trans will be used.
- * 
- * 1- get transport binaries
- * 
- * 2- check validity of binaries with R3trans
- * 
- * 3- check DEVC transport (one transport)
- * 
- * 4- check TADIR transport (one transport)
- * 
- * 5- check LANG transport (zero or one transport)
- * 
- * 6- check CUST transport
- * 
- * 7- assert no DEVC object in any other transport beside DEVC
- * 
- * 8- assert DEVC transport contains atleast one DEVC object
- * 
- * 9- check existance of trkorr in target system
- * 
+ * Objects of the release whose existence blocks an install. SAP packages are left out: the release
+ * carries their original names, while the install packages are chosen later and checked by
+ * check-install-devclass.
+ */
+export function existenceCheckObjects(tadir: TADIR[]): TADIR[] {
+    return tadir.filter(o => !(o.pgmid.trim().toUpperCase() === 'R3TR' && o.object.trim().toUpperCase() === 'DEVC'));
+}
+
+/** Labels a customizing transport by number, so transports with the same description can be told apart. */
+function custLabel(transport: { trkorr: string, description?: string }): string {
+    return transport.description ? `${transport.trkorr} "${transport.description}"` : transport.trkorr;
+}
+
+/**
+ * Workflow step that validates artifact transports and classifies them by TRM identifier.
+ * A package must contain exactly one DEVC transport and one TADIR transport.
+ *
+ * Optionally, one LANG (Translation) and one (or more) CUST (Customizing) transport.
+ *
+ * 1- fill lang import
+ *
+ * 2- fill cust import
+ *
+ * 3- get entries of requested transports
+ *
+ * 4- check devc and tadir existance
+ *
+ * 5- set original hierarchy
+ *
+ * 6- check objects aren't locked
+ *
+ * 7- check all object types are supported
+ *
+ * 8- check objects existance
+ *
 */
 export const checkTransports: Step<InstallWorkflowContext> = {
     name: 'check-transports',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Check transports step', true);
-        var checkExistance: TRKORR[] = [];
-
-        Logger.loading(`Reading transports contents...`);
-        try {
-            context.runtime.packageTransportsData = await context.rawInput.packageData.registry.contents(context.rawInput.packageData.name, context.rawInput.packageData.version || 'latest') as any;
-            context.runtime.remotePackageData.contents = true;
-        } catch (e) {
-            context.runtime.remotePackageData.contents = false;
-
-            //create instance
-            const options = context.rawInput.contextData.r3transOptions;
-            Logger.log(`Loading R3Trans with options ${JSON.stringify(options)}`, true);
-            Logger.log(`R3TRANS_HOME ${process.env.R3TRANS_HOME}`, true);
-            context.runtime.r3trans = new R3trans(options);
-
-            //print info (if requested)
-            const r3transVersion = await context.runtime.r3trans.getVersion();
-            const unicode = await context.runtime.r3trans.isUnicode();
-            Logger.info(r3transVersion, context.rawInput.contextData.noR3transInfo);
-            Logger.log(`R3Trans unicode?: ${unicode}`, true);
+        let mergedE071: E071[] = [];
+        let mergedTDEVC: TDEVC[] = [];
+        let mergedTADIR: TADIR[] = [];
+        function mergeEntries(entries: TransportEntries): void {
+            mergedE071 = mergedE071.concat(entries.e071 || []);
+            mergedTDEVC = mergedTDEVC.concat(entries.tdevc || []);
+            context.runtime.transportEntries.tdevct = context.runtime.transportEntries.tdevct.concat(entries.tdevct || []);
+            mergedTADIR = mergedTADIR.concat(entries.tadir || []);
         }
 
-        //1- get transport binaries
-        Logger.loading(`Validating package transports...`);
-        const aTransports = await context.runtime.remotePackageData.artifact.getTransportBinaries(context.rawInput.contextData.r3transOptions, context.runtime.remotePackageData.contents);
-        Logger.log(`Package content: ${aTransports.map(o => {
-            return {
-                trkorr: o.trkorr,
-                type: o.type
+        //1- fill lang import
+        let importLang = context.rawInput.installData.import.noLang === false;
+        if (context.rawInput.installData.import.noLang === undefined && context.runtime.package.data.transports.find(o => o.type === TrmTransportIdentifier.LANG)) {
+            if (!context.rawInput.contextData.noInquirer) {
+                importLang = (await Inquirer.prompt({
+                    name: 'importLang',
+                    type: 'confirm',
+                    message: `Do you want to import the package translations?`,
+                    default: true
+                })).importLang;
+            } else {
+                //no prompts: import, as when noLang is false
+                importLang = true;
             }
-        })}`, true);
+        }
 
-        //2- check validity of binaries with R3trans
-        if (!context.runtime.remotePackageData.contents) {
-            for (const transport of aTransports) {
-                const valid = await context.runtime.r3trans.isTransportValid(transport.binaries.data);
-                if (valid) {
-                    Logger.log(`Transport ${transport.trkorr} is valid.`, true);
-                } else {
-                    Logger.error(`Transport ${transport.trkorr} is invalid.`, true);
-                    throw new Error(`Package contains invalid transports`);
+        //2- fill cust import
+        const custTransports = context.runtime.package.data.transports.filter(o => o.type === TrmTransportIdentifier.CUST);
+        let skippedCust: string[] = [];
+        if (context.rawInput.installData.import.noCust === undefined) {
+            if (!context.rawInput.contextData.noInquirer && Inquirer.isUi()) {
+                if (custTransports.length > 0) {
+                    const importCust: string[] = (await Inquirer.prompt({
+                        name: 'importCust',
+                        type: 'select',
+                        message: `Select customizing to import`,
+                        choices: custTransports.map(o => ({
+                            name: custLabel(o),
+                            value: o.trkorr
+                        })),
+                        default: custTransports.map(o => o.trkorr)
+                    })).importCust || [];
+                    skippedCust = custTransports.filter(o => !importCust.includes(o.trkorr)).map(o => o.trkorr);
+                }
+            } else if (!context.rawInput.contextData.noInquirer) {
+                for (const cust of custTransports) {
+                    const importCust = (await Inquirer.prompt({
+                        name: 'importCust',
+                        type: 'confirm',
+                        message: `Do you want to import customizing ${custLabel(cust)}?`,
+                        default: true
+                    })).importCust;
+                    if (!importCust) {
+                        skippedCust.push(cust.trkorr);
+                    }
                 }
             }
+            //no prompts: import all, as when noCust is false
+        } else if (context.rawInput.installData.import.noCust) {
+            skippedCust = custTransports.map(o => o.trkorr);
         }
-        const aDevcTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.DEVC);
-        const aTadirTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.TADIR);
-        const aLangTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.LANG);
-        const aCustTransports = aTransports.filter(o => o.type === TrmTransportIdentifier.CUST);
 
-        //3- check DEVC transport (one transport)
-        if (aDevcTransports.length !== 1) {
-            Logger.error(`Zero or multiple DEVC transports found`, true);
-            throw new Error(`Unexpected content in package.`);
+        context.runtime.skippedCust = skippedCust;
+
+        //3- get entries of requested transports
+        if (context.runtime.isLocal) {
+            Logger.loading(`Extracting package transports contents...`);
+            const artifact = await context.rawInput.packageData.registry.downloadArtifact(context.runtime.package.data.manifest.name, context.runtime.package.data.manifest.version);
+            const binaries = await artifact.getTransportBinaries();
+            binaries.forEach(o => {
+                switch (o.type) {
+                    case TrmTransportIdentifier.DEVC:
+                        context.runtime.transports.devc = {
+                            binaries: o
+                        };
+                        mergeEntries(o.entries);
+                        break;
+                    case TrmTransportIdentifier.TADIR:
+                        context.runtime.transports.tadir = {
+                            binaries: o
+                        };
+                        mergeEntries(o.entries);
+                        break;
+                    case TrmTransportIdentifier.LANG:
+                        if (importLang) {
+                            context.runtime.transports.lang = {
+                                binaries: o
+                            };
+                            mergeEntries(o.entries);
+                        }
+                        break;
+                    case TrmTransportIdentifier.CUST:
+                        if (!skippedCust.includes(o.trkorr)) {
+                            context.runtime.transports.cust.push({
+                                binaries: o
+                            });
+                            mergeEntries(o.entries);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            });
         } else {
-            context.runtime.packageTransports.devc.binaries = aDevcTransports[0];
-            Logger.log(`DEVC transport is ${context.runtime.packageTransports.devc.binaries.trkorr}.`, true);
-            if (context.rawInput.installData.installDevclass.keepOriginal) {
-                checkExistance.push(context.runtime.packageTransports.devc.binaries.trkorr);
-            }
-        }
-
-        //4- check TADIR transport (one transport)
-        if (aTadirTransports.length !== 1) {
-            Logger.error(`Zero or multiple TADIR transports found`, true);
-            throw new Error(`Unexpected content in package.`);
-        } else {
-            context.runtime.packageTransports.tadir.binaries = aTadirTransports[0];
-            Logger.log(`TADIR transport is ${context.runtime.packageTransports.tadir.binaries.trkorr}.`, true);
-            checkExistance.push(context.runtime.packageTransports.tadir.binaries.trkorr);
-            if (!context.runtime.remotePackageData.contents) {
-                const tadirE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.tadir.binaries.binaries.data, 'E071'));
-                Logger.log(`TADIR E071: ${JSON.stringify(tadirE071)}`, true);
-                context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(tadirE071);
-            }
-        }
-
-        //5- check LANG transport (zero or one transport)
-        if (aLangTransports.length > 0) {
-            if (context.rawInput.installData.import.noLang === undefined) {
-                if (!context.rawInput.contextData.noInquirer) {
-                    context.rawInput.installData.import.noLang = !(await Inquirer.prompt({
-                        type: `confirm`,
-                        name: `noLang`,
-                        message: `Import translations transport?`,
-                        default: true,
-                    })).noLang;
+            //here we're just reading entries: actual download of transport is done after confirming import of each is allowed
+            Logger.loading(`Reading package transports contents...`);
+            for (const transport of context.runtime.package.data.transports) {
+                let readEntries = true;
+                if (!importLang && transport.type === TrmTransportIdentifier.LANG) {
+                    readEntries = false;
                 }
-            }
-            if (!context.rawInput.installData.import.noLang) {
-                if (aLangTransports.length !== 1) {
-                    Logger.error(`Multiple LANG transports found`, true);
-                    throw new Error(`Unexpected content in package.`);
+                if (skippedCust.includes(transport.trkorr)) {
+                    readEntries = false;
                 }
-                context.runtime.packageTransports.lang.binaries = aLangTransports[0];
-                Logger.log(`LANG transport is ${context.runtime.packageTransports.lang.binaries.trkorr}.`, true);
-                checkExistance.push(context.runtime.packageTransports.lang.binaries.trkorr);
-                if (!context.runtime.remotePackageData.contents) {
-                    const langE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.lang.binaries.binaries.data, 'E071'));
-                    Logger.log(`LANG E071: ${JSON.stringify(langE071)}`, true);
-                    context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(langE071);
-                }
-            }
-        }
-
-        //6- check CUST transport
-        if (aCustTransports.length > 0) {
-            if (context.rawInput.installData.import.noCust === undefined) {
-                if (!context.rawInput.contextData.noInquirer) {
-                    context.rawInput.installData.import.noCust = !(await Inquirer.prompt({
-                        type: `confirm`,
-                        name: `noCust`,
-                        message: `Import ${aCustTransports.length} customizing transport(s)?`,
-                        default: true,
-                    })).noCust;
-                }
-            }
-            if (!context.rawInput.installData.import.noCust) {
-                context.runtime.packageTransports.cust = aCustTransports.map(o => {
-                    return {
-                        binaries: o
+                if (readEntries) {
+                    const entries = await context.rawInput.packageData.registry.transportEntries(
+                        context.runtime.package.data.manifest.name,
+                        context.runtime.package.data.manifest.version,
+                        transport.trkorr
+                    );
+                    const binaries = {
+                        binaries: undefined,
+                        entries,
+                        trkorr: transport.trkorr,
+                        type: transport.type as TrmTransportIdentifier
                     };
-                });
-                Logger.log(`CUST transport are ${context.runtime.packageTransports.cust.map(o => o.binaries.trkorr)}.`, true);
-                checkExistance = checkExistance.concat(context.runtime.packageTransports.cust.map(o => o.binaries.trkorr));
-                if (!context.runtime.remotePackageData.contents) {
-                    var custE071: E071[] = [];
-                    for (const transport of context.runtime.packageTransports.cust) {
-                        custE071 = custE071.concat(normalize(await context.runtime.r3trans.getTableEntries(transport.binaries.binaries.data, 'E071')));
-                    }
-                    Logger.log(`CUST E071: ${JSON.stringify(custE071)}`, true);
-                    context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(custE071);
-                }
-            }
-        }
-
-        //7- assert no DEVC object in any other transport beside DEVC
-        if (!context.runtime.remotePackageData.contents) {
-            if (context.runtime.packageTransportsData.e071.find(o => o.pgmid === 'R3TR' && o.object === 'DEVC')) {
-                throw new Error(`Package has undeclared devclass.`); //all devc object must be in devc transport only
-            }
-        }
-
-        //8- assert DEVC transport contains atleast one DEVC object
-        if (!context.runtime.remotePackageData.contents) {
-            var devcE071: E071[] = normalize(await context.runtime.r3trans.getTableEntries(context.runtime.packageTransports.devc.binaries.binaries.data, 'E071'));
-            Logger.log(`DEVC E071: ${JSON.stringify(devcE071)}`, true);
-            devcE071 = devcE071.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC'); //keep devc only
-            if (devcE071.length === 0) {
-                throw new Error(`Package has no devclass.`);
-            }
-            context.runtime.packageTransportsData.e071 = context.runtime.packageTransportsData.e071.concat(devcE071);
-        }
-        context.runtime.installData.entries = context.runtime.packageTransportsData.e071;
-
-        //9- check existance of trkorr in target system
-        Logger.loading(`Checking package transports in system...`);
-        for (const trkorr of checkExistance) {
-            const oTransport = new Transport(trkorr);
-            const e070 = await oTransport.getE070();
-            if (e070) {
-                var rewrite = false;
-                Logger.warning(`${trkorr} already exists in system!`, true);
-                const trmRelevant = await oTransport.isTrmRelevant();
-                const linkedPackage = await oTransport.getLinkedPackage();
-                if (linkedPackage) {
-                    Logger.log(`${trkorr} package is ${linkedPackage.packageName}`, true);
-                    if (linkedPackage.compareName(context.runtime.remotePackageData.manifest.name) && linkedPackage.compareRegistry(context.runtime.registry)) {
-                        Logger.log(`${trkorr} same package (updating?)`, true);
-                        context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
-                    } else {
-                        Logger.log(`${trkorr} is linked to another package, will later be migrated`, true);
-                        rewrite = true;
-                    }
-                } else if (trmRelevant) {
-                    Logger.log(`${trkorr} is TRM relevant but no linked package (could be DEVC, LANG etc..).`, true);
-                    context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
-                } else {
-                    if (await oTransport.isReleased()) {
-                        rewrite = true;
-                    } else {
-                        throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and is not released.`);
+                    switch (transport.type) {
+                        case TrmTransportIdentifier.DEVC:
+                            context.runtime.transports.devc = { binaries };
+                            mergeEntries(entries);
+                            break;
+                        case TrmTransportIdentifier.TADIR:
+                            context.runtime.transports.tadir = { binaries };
+                            mergeEntries(entries);
+                            break;
+                        case TrmTransportIdentifier.LANG:
+                            context.runtime.transports.lang = { binaries };
+                            mergeEntries(entries);
+                            break;
+                        case TrmTransportIdentifier.CUST:
+                            context.runtime.transports.cust.push({ binaries });
+                            mergeEntries(entries);
+                            break;
+                        default:
+                            break;
                     }
                 }
-                if (rewrite) {
-                    Logger.warning(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()}`);
-                    Logger.warning(`If you continue, TRM will replace the content of transport ${trkorr} with the content of the transport with the same number of package "${context.runtime.remotePackageData.manifest.name}".`);
-                    Logger.warning(`All of its original content (objects or customizing) will remain untouched, however you may need to manually create a new transport for it.`);
-                    Logger.warning(`Consider doing a copy now before the install will replace it.`);
-                    if (!context.rawInput.installData.import.replaceExistingTransports) {
-                        var continueInstall;
-                        if (!context.rawInput.contextData.noInquirer) {
-                            continueInstall = (await Inquirer.prompt({
-                                name: `continue`,
-                                message: `Continue install?`,
-                                type: `confirm`,
+            }
+        }
+
+        //4- check devc and tadir existance
+        if (!context.runtime.transports.devc) {
+            throw new Error(`Package transport (type DEVC) was not found.`);
+        }
+        if (!context.runtime.transports.tadir) {
+            throw new Error(`Workbench transport (type TADIR) was not found.`);
+        }
+        if (mergedE071.length === 0) {
+            throw new Error(`Package transports contain no objects.`);
+        }
+
+        //5- set original hierarchy
+        try {
+            context.runtime.package.hierarchy = getPackageHierarchy(mergedTDEVC);
+        } catch (e) {
+            throw new Error(`Original SAP packages hierarchy inconsistency: ${e.toString()}`);
+        }
+
+        //6- check objects aren't locked
+        //all e071 type R3TR, excluding DEVC. DEVC will be checked for locks later when user may decide new package names
+        Logger.loading(`Checking objects locks...`);
+        await checkObjectsLocks(mergedE071);
+        Logger.log(`All objects released, DEVC locks will be checked later`, true);
+
+        //7- check all object types are supported
+        Logger.loading(`Checking objects support...`);
+        const missingTypes: string[] = [];
+        const systemObjectList = await SystemConnector.getObjectsList();
+        mergedE071.filter(o => o.pgmid !== '*').forEach(o => {
+            if (!systemObjectList.find(k => k.pgmid === o.pgmid && k.object === o.object) && !missingTypes.includes(`${o.pgmid} ${o.object}`)) {
+                missingTypes.push(`${o.pgmid} ${o.object}`);
+            }
+        });
+        if (missingTypes.length > 0) {
+            throw new Error(`Package contains objects that aren't supported in your system: ${missingTypes.join(', ')}`);
+        }
+
+        //8- check objects existance
+        const checkedTadir = existenceCheckObjects(mergedTADIR);
+        const existingObjects = checkedTadir.length > 0 ? await findExistingObjects(context, checkedTadir) : [];
+        // lock-resources checks again, once locked, that no other object appeared
+        context.runtime.existingObjects = existingObjects;
+        Logger.log(`TADIR object that already exist in system: ${JSON.stringify(existingObjects)}`, true);
+        //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
+        if (existingObjects.length > 0) {
+            // Name the installed TRM package that contains each existing object: it can't be taken over silently.
+            const owners = new Map<TADIR, string>();
+            for (const o of existingObjects) {
+                const owner = o.devclass ? await getOwningInstallation(o.devclass, context.rawInput.contextData.systemPackages || [], context.runtime.update) : undefined;
+                if (owner) {
+                    owners.set(o, owner.packageName);
+                }
+            }
+            const label = (o: TADIR) => `${o.pgmid} ${o.object} ${o.objName}${owners.has(o) ? ` (TRM package ${owners.get(o)})` : ''}`;
+            const ownerNames = [...new Set(owners.values())];
+            const ownersHint = ownerNames.length > 0
+                ? `\n${ownerNames.map(o => `"${o}"`).join(', ')} still ${ownerNames.length === 1 ? 'contains' : 'contain'} these objects: upgrade ${ownerNames.length === 1 ? 'it' : 'them'} to a release that no longer ships them, or uninstall ${ownerNames.length === 1 ? 'it' : 'them'}, then install again.`
+                : '';
+            const sObjs = existingObjects.map(label).join('\n') + ownersHint;
+            if (context.runtime.update) {
+                //the installed package being updated (a same-named package of another registry is a different package)
+                const rootPackage = context.runtime.update;
+                if (rootPackage) {
+                    const rootDevclass = rootPackage.getDevclass();
+                    if (rootDevclass) {
+                        const subpackages = (await SystemConnector.getSubpackages(rootDevclass)).map(o => o.devclass);
+                        const outside = existingObjects.filter(o => {
+                            if (subpackages.includes(o.devclass) || rootDevclass === o.devclass) {
+                                Logger.log(`${o.pgmid} ${o.object} ${o.objName} already in system but devclass ${o.devclass} is part of the same trm package in update`, true);
+                                return false;
+                            }
+                            return true;
+                        });
+                        // Objects of the installed release that the customer moved to another (non-TRM) SAP package:
+                        // overwriting them moves them back, so it can be confirmed. Anything else can't be taken over.
+                        const installedKeys = new Set(outside.length > 0 && rootPackage.getTransport()
+                            ? (await rootPackage.getTransport().getE071()).map(e => `${e.pgmid}|${e.object}|${e.objName}`.toUpperCase())
+                            : []);
+                        const movedOut = outside.filter(o => !owners.has(o) && installedKeys.has(`${o.pgmid}|${o.object}|${o.objName}`.toUpperCase()));
+                        const foreign = outside.filter(o => !movedOut.includes(o));
+                        const noExistingObjects = context.rawInput.installData.checks.noExistingObjects;
+                        foreign.forEach(o => {
+                            if (noExistingObjects) {
+                                Logger.warning(`${label(o)} already exist on target system ${SystemConnector.getDest()}`, { important: true });
+                            } else {
+                                Logger.error(`${label(o)} already exist on target system ${SystemConnector.getDest()}`, { important: true });
+                            }
+                        });
+                        if (foreign.length > 0 && !noExistingObjects) {
+                            throw new Error(`Cannot overwrite existing objects.${ownersHint}`);
+                        }
+                        if (movedOut.length > 0 && !noExistingObjects) {
+                            const movedList = movedOut.map(o => `${o.pgmid} ${o.object} ${o.objName} (now in SAP package ${o.devclass})`).join('\n');
+                            Logger.warning(`${movedOut.length} object(s) of the installed release were moved outside its SAP packages:\n${movedList}`, { important: true });
+                            if (context.rawInput.contextData.noInquirer) {
+                                throw new Error(`Cannot overwrite objects moved outside ${rootPackage.packageName}: confirm interactively, or install with the noExistingObjects check.`);
+                            }
+                            const { overwriteMoved } = await Inquirer.prompt({
+                                name: 'overwriteMoved',
+                                type: 'confirm',
+                                message: `Overwrite them and move them back into the SAP packages of ${rootPackage.packageName}?`,
+                                default: false
+                            });
+                            if (!overwriteMoved) {
+                                throw new Error(`Install aborted.`);
+                            }
+                        }
+                    } else {
+                        if (context.rawInput.installData.checks.noExistingObjects) {
+                            Logger.warning(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`, { important: true });
+                        } else if (context.rawInput.contextData.noInquirer) {
+                            //can't confirm the overwrite without a prompt: fail closed
+                            throw new Error(`Couldn't determine root SAP package for "${rootPackage.packageName}", ${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
+                        } else {
+                            const ow = (await Inquirer.prompt({
+                                message: `Couldn't determine root SAP package for "${rootPackage.packageName}", ${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}. Continue?`,
+                                type: 'confirm',
+                                name: 'ow',
                                 default: true
-                            })).continue;
-                        } else {
-                            continueInstall = false;
+                            })).ow;
+                            if (!ow) {
+                                throw new Error(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
+                            }
                         }
-                        if (continueInstall) {
-                            //mark with tms refresh after import
-                            context.runtime.generatedData.tmsTxtRefresh.push(oTransport);
-                        } else {
-                            throw new Error(`Transport ${trkorr} already exists in target system ${SystemConnector.getDest()} and transport rewrite was denied.`);
-                        }
+                    }
+                } else {
+                    if (!context.rawInput.installData.checks.noExistingObjects) {
+                        throw new Error(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`);
                     }
                 }
             } else {
-                Logger.success(`${trkorr} does not exist in system.`, true);
+                if (context.rawInput.installData.checks.noExistingObjects) {
+                    Logger.warning(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}:\n${sObjs}`, { important: true });
+                } else {
+                    throw new Error(`${existingObjects.length} object(s) already exist on target system ${SystemConnector.getDest()}, install without object check (expert mode):\n${sObjs}`);
+                }
             }
         }
     }

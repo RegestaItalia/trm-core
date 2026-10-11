@@ -8,13 +8,12 @@ Legend
 + : added
 - : removed
 
-2026-09-23 v9.10.6
+2026-10-11 v10.0.0
 -------------------
-! trm-commons ^5.1.0
-
-2026-07-29 v9.10.5
--------------------
-+ allow self signed certificates in rest client
++ usage of registry /transport route
++ important log messages
+! uninstall
+* flows changes
 
 2026-07-29 v9.10.4
 -------------------

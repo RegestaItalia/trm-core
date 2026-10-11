@@ -1,14 +1,18 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger, Inquirer } from "trm-commons";
-import { parsePackageName } from "../../commons";
+import { getPackagesNamespace, parsePackageName } from "../../commons";
 import { TrmPackage } from "../../trmPackage";
 import { clean, inc, parse, prerelease, rcompare, valid } from "semver";
 import { SystemConnector } from "../../systemConnector";
-import { RegistryType } from "../../registry";
-import { Transport } from "../../transport";
-import { TrmManifest } from "../../manifest";
+import { RegistryPackageNotFoundError, RegistryType } from "../../registry";
 import chalk from "chalk";
+import { setTransportTarget } from "../commons/prompts";
+import { validateDevclass } from "../../validators";
+import { DotAbapGit } from "../../abapgit";
+import { minimatch } from "minimatch";
+import { getOwningInstallation } from "../commons/utils";
+import { checkPackageDependencies } from "./findDependencies";
 
 function nextPrerelease(version: string, identifier?: string): string | null {
     const pre = prerelease(version);
@@ -23,120 +27,249 @@ function nextPrerelease(version: string, identifier?: string): string | null {
     }
 }
 
+/**
+ * Rejects a publish whose ABAP package is inside the SAP packages of another installed TRM package,
+ * or contains the root package of one: their objects would be shipped by two TRM packages.
+ */
+async function checkOtherTrmPackages(context: PublishWorkflowContext): Promise<void> {
+    const devclass = context.rawInput.packageData.devclass;
+    // The same package name published to another registry (e.g. a .trm file of the same release) is the same package here.
+    const others = (context.rawInput.contextData.systemPackages || []).filter(o => !o.compareName(context.rawInput.packageData.name) && o.getDevclass());
+    if (others.length === 0) {
+        return;
+    }
+    const owner = await getOwningInstallation(devclass, others);
+    if (owner) {
+        if (owner.getDevclass().trim().toUpperCase() === devclass) {
+            throw new Error(`ABAP package ${devclass} is already published as TRM package "${owner.packageName}": publish a new release of "${owner.packageName}", or publish from another package.`);
+        }
+        throw new Error(`ABAP package ${devclass} is part of TRM package "${owner.packageName}" (SAP package ${owner.getDevclass()}): publish from a package outside of it.`);
+    }
+    const roots = new Map(others.map(o => [o.getDevclass().trim().toUpperCase(), o]));
+    for (const subpackage of await SystemConnector.getSubpackages(devclass)) {
+        const nested = roots.get(subpackage.devclass.trim().toUpperCase());
+        if (nested) {
+            throw new Error(`ABAP package ${devclass} contains package ${subpackage.devclass} of TRM package "${nested.packageName}": move it out of ${devclass}, or publish from a package that doesn't contain it.`);
+        }
+    }
+}
+
 function getHighestPrerelease(versions: string[], baseVersion: string, identifier?: string): string | null {
-  const base = parse(baseVersion);
+    const base = parse(baseVersion);
 
-  const filtered = versions.filter((v) => {
-    const parsed = parse(clean(v) || v, { loose: true });
-    if (!parsed) return false;
+    const filtered = versions.filter((v) => {
+        const parsed = parse(clean(v) || v, { loose: true });
+        if (!parsed) return false;
 
-    const pre = prerelease(parsed.version);
-    if (!pre) return false;
+        const pre = prerelease(parsed.version);
+        if (!pre) return false;
 
-    const vBase = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
-    if (vBase !== `${base.major}.${base.minor}.${base.patch}`) return false;
+        const vBase = `${parsed.major}.${parsed.minor}.${parsed.patch}`;
+        if (vBase !== `${base.major}.${base.minor}.${base.patch}`) return false;
 
-    return identifier
-      ? pre[0] === identifier
-      : typeof pre[0] === "number" || pre.length === 1; // numeric-only
-  });
+        return identifier
+            ? pre[0] === identifier
+            : typeof pre[0] === "number" || pre.length === 1; // numeric-only
+    });
 
-  if (filtered.length === 0) return null;
+    if (filtered.length === 0) return null;
 
-  return filtered.sort(rcompare)[0];
+    return filtered.sort(rcompare)[0];
 }
 
 /**
- * Init
+ * Workflow step that validates release metadata and reads the source ABAP package.
  * 
- * 1- check package name is compliant
- *  
- * 2- fill missing context/input data
- *  
- * 3- validate version
+ * 1- fill context data
  * 
- * 4- validate publish data
+ * 2- validate/clean package name/version
  * 
- * 5- set runtime data
+ * 3- check publish authorization (if public registry)
+ * 
+ * 4- set sap package
+ * 
+ * 5- ensure package version and visibility can be published
+ * 
+ * 6- set visibility if not already provided
+ * 
+ * 7- validate minimum publish data with registry
+ * 
+ * 8- read namespace
+ * 
+ * 9- read abapGit source code (if abapgit installed)
+ * 
+ * 10- remove gitignore objects (if abapgit installed)
+ * 
+ * 11- check for locks
+ * 
+ * 12- check/set system target
  * 
 */
 export const init: Step<PublishWorkflowContext> = {
     name: 'init',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Init step', true);
-        const registry = context.rawInput.packageData.registry;
+        //1- fill context data
+        context.runtime = {
+            latest: {
+                data: undefined
+            },
+            sapPackage: {
+                objects: [],
+                namespace: undefined
+            },
+            abapGit: {
+                dotAbapGit: undefined,
+                sourceCode: undefined,
+                object: [],
+                excludedObjects: []
+            },
+            manifest: {
+                ...context.rawInput.packageData.manifest,
+                name: undefined,
+                version: undefined,
+                authors: Array.isArray(context.rawInput.packageData.manifest.authors)
+                    ? [...context.rawInput.packageData.manifest.authors]
+                    : context.rawInput.packageData.manifest.authors,
+                dependencies: [...context.rawInput.packageData.manifest.dependencies],
+                keywords: Array.isArray(context.rawInput.packageData.manifest.keywords)
+                    ? [...context.rawInput.packageData.manifest.keywords]
+                    : context.rawInput.packageData.manifest.keywords,
+                postActivities: [...context.rawInput.packageData.manifest.postActivities],
+                sapEntries: { ...context.rawInput.packageData.manifest.sapEntries }
+            },
+            manifestXml: undefined,
+            customizing: {
+                retained: [],
+                new: []
+            },
+            transports: {
+                devc: undefined,
+                tadir: undefined,
+                lang: undefined,
+                cust: []
+            },
+            aggregatedTransports: [],
+            stopWarningShown: false
+        }
+        context.output = {
+            trmArtifact: undefined,
+            trmPackage: undefined
+        }
 
-        //1- check package name is compliant
-        const parsedPackageName = parsePackageName({
+        //2- validate/clean package name/version
+        context.rawInput.packageData.name = parsePackageName({
             fullName: context.rawInput.packageData.name
-        });
-        context.rawInput.packageData.name = parsedPackageName.fullName;
+        }).fullName;
+        context.rawInput.packageData.version = clean(context.rawInput.packageData.version || '');
 
-
-        if (registry.getRegistryType() === RegistryType.PUBLIC) {
-            Logger.log(`Public registry, checking if logged in`, true);
-            try{
-                await registry.whoAmI();
-            }catch(e){
-                Logger.error(`Cannot publish to public registry without being logged in!`);
+        //3- check publish authorization (if public registry)
+        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
+            Logger.loading(`Checking publish authorization...`);
+            try {
+                await context.rawInput.packageData.registry.whoAmI();
+            } catch (e) {
+                Logger.error(`Cannot publish to public registry without being logged in!`, { important: true });
                 throw e;
             }
         }
 
-        //2- fill missing context/input data
-        if (!context.rawInput.contextData) {
-            context.rawInput.contextData = {}
+        //4- set sap package
+        //resolved before the registry checks and prompts: an invalid package (e.g. temporary) stops publish right away
+        //if not provided, derive it from the system package (previous publish), then prompt (if allowed)
+        //supplied or derived values are normalized and validated, prompted values are validated by the prompt
+        var packageNeedsValidation: boolean = true;
+        if (!context.rawInput.packageData.devclass) {
+            const trmPackage = context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry)));
+            if (trmPackage) {
+                context.rawInput.packageData.devclass = trmPackage.getDevclass();
+            }
+
+            if (!context.rawInput.contextData.noInquirer) {
+                context.rawInput.packageData.devclass = (await Inquirer.prompt({
+                    type: 'input',
+                    message: 'ABAP package',
+                    name: 'devclass',
+                    default: context.rawInput.packageData.devclass,
+                    validate: async (input: string) => {
+                        return await validateDevclass(input, false);
+                    }
+                })).devclass;
+                packageNeedsValidation = false;
+            } else if (!context.rawInput.packageData.devclass) {
+                throw new Error(`packageData.devclass is required when it cannot be derived from a previous publish and interactive prompts are disabled.`);
+            }
         }
-        if (!context.rawInput.systemData) {
-            context.rawInput.systemData = {}
-        }
-        if (!context.rawInput.publishData) {
-            context.rawInput.publishData = {
-                keepLatestReleaseManifestValues: true
-            };
-        }
-        if (context.rawInput.packageData.manifest === undefined) {
-            context.rawInput.packageData.manifest = {};
-        }
-        if (!context.rawInput.packageData.manifest.authors) {
-            context.rawInput.packageData.manifest.authors = [];
-        }
-        if (!context.rawInput.packageData.manifest.dependencies) {
-            context.rawInput.packageData.manifest.dependencies = [];
-        }
-        if (!context.rawInput.packageData.manifest.keywords) {
-            context.rawInput.packageData.manifest.keywords = [];
-        }
-        if (context.rawInput.packageData.manifest.sapEntries === undefined) {
-            context.rawInput.packageData.manifest.sapEntries = {};
-        }
-        if (!context.rawInput.packageData.manifest.postActivities) {
-            context.rawInput.packageData.manifest.postActivities = [];
-        }
-        if(!context.rawInput.publishData.customizingTransports){
-            context.rawInput.publishData.customizingTransports = [];
-        }
-        if (typeof (context.rawInput.publishData.customizingTransports) === 'string') {
-            context.rawInput.publishData.customizingTransports = context.rawInput.publishData.customizingTransports.split(',').map(trkorr => new Transport(trkorr));
-        }
-        if (!context.rawInput.packageData.tags) {
-            context.rawInput.packageData.tags = [];
+        context.rawInput.packageData.devclass = context.rawInput.packageData.devclass.trim().toUpperCase();
+        Logger.log(`Publish devclass set to "${context.rawInput.packageData.devclass}"`, true);
+
+        if (packageNeedsValidation) {
+            Logger.loading(`Validating...`);
+            const validate = await validateDevclass(context.rawInput.packageData.devclass, false);
+            if (validate && validate !== true) {
+                throw new Error(validate);
+            }
+            Logger.info(`ABAP package: "${context.rawInput.packageData.devclass}"`);
         }
 
-        //3- validate version
+        //an ABAP package belongs to at most one TRM package: the tree can't contain, or be inside, another one
+        await checkOtherTrmPackages(context);
+
+        //dependencies the release can't have refuse the publish before the version and visibility questions
+        if (!context.rawInput.publishData.noDependenciesDetection && !context.rawInput.contextData.noInquirer) {
+            await checkPackageDependencies(context);
+        }
+
+        //5- ensure package version and visibility can be published
+        //if it's the first package publish assume it's valid (validate publish will throw error later, in case something is wrong with it)
+        //default to 1.0.0 if no version was provided
+        //if the package already exists, check this version was not released yet
+        //if it's public registry, check visibility is not changed too (avoid useless validate publish call)
+        //in all cases, calculate the next prerelease if requested
+        //on automatic version, manual validation by user
         Logger.loading(`Validating version...`);
         var automaticVersion: boolean = false;
-        var releasesInRegistry: string[];
-        var latestReleaseManifest: TrmManifest;
-        context.rawInput.packageData.version = clean(context.rawInput.packageData.version || '');
-        try {
-            Logger.loading(`Getting package latest release from registry...`, true);
-            const packageData = await registry.getPackage(context.rawInput.packageData.name, 'latest');
-            latestReleaseManifest = packageData.manifest;
-            releasesInRegistry = packageData.versions;
-        } catch { }
-        if (!latestReleaseManifest) {
-            //first time publish
+        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
+            //the target file is overwritten, it's not a previous release of this package:
+            //every local artifact is a standalone publication
+            Logger.log(`Local publish: target file is not read as latest release`, true);
+        } else {
+            try {
+                context.runtime.latest.data = await context.rawInput.packageData.registry.getPackage(context.rawInput.packageData.name, 'latest');
+            } catch (e) {
+                if (e instanceof RegistryPackageNotFoundError) {
+                    Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`);
+                } else {
+                    throw e;
+                }
+            }
+        }
+        if (context.runtime.latest.data) {
+            if (!context.runtime.latest.data.dist_tags.latest) {
+                throw new Error(`Package has no latest distribution tag assigned! Unable to locate latest release.`);
+            }
+            if (!context.rawInput.packageData.version || !valid(context.rawInput.packageData.version)) {
+                context.rawInput.packageData.version = inc(context.runtime.latest.data.dist_tags.latest, context.rawInput.packageData.inc || "patch");
+                automaticVersion = true;
+            } else {
+                if (context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions).includes(context.rawInput.packageData.version)) {
+                    throw new Error(`Version "${context.rawInput.packageData.version}" already published.`);
+                }
+                if (context.rawInput.packageData.preRelease) {
+                    const highestPreRelease = getHighestPrerelease(context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions), context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
+                    if (highestPreRelease) {
+                        context.rawInput.packageData.version = highestPreRelease;
+                        automaticVersion = true;
+                    }
+                    context.rawInput.packageData.version = nextPrerelease(context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
+                }
+            }
+            if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
+                Logger.log(`Public registry, checking if visibility is the same as latest release`, true);
+                if (typeof (context.rawInput.publishData.private) === 'boolean' && context.rawInput.publishData.private !== context.runtime.latest.data.manifest.private) {
+                    throw new Error(`Cannot change package visibility from ${context.runtime.latest.data.manifest.private ? 'private' : 'public'} to ${context.rawInput.publishData.private ? 'private' : 'public'}`);
+                }
+            }
+        } else {
             if (!context.rawInput.packageData.version || !valid(context.rawInput.packageData.version)) {
                 context.rawInput.packageData.version = '1.0.0';
                 automaticVersion = true;
@@ -144,50 +277,33 @@ export const init: Step<PublishWorkflowContext> = {
             if (context.rawInput.packageData.preRelease) {
                 context.rawInput.packageData.version = nextPrerelease(context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
             }
-        } else {
-            if (!context.rawInput.packageData.version || !valid(context.rawInput.packageData.version)) {
-                context.rawInput.packageData.version = inc(latestReleaseManifest.version, context.rawInput.packageData.inc || "patch");
-                automaticVersion = true;
-            } else {
-                if (releasesInRegistry.includes(context.rawInput.packageData.version)) {
-                    throw new Error(`Version "${context.rawInput.packageData.version}" already published.`);
-                }
-                if (context.rawInput.packageData.preRelease) {
-                    const highestPreRelease = getHighestPrerelease(releasesInRegistry, context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
-                    if(highestPreRelease){
-                        context.rawInput.packageData.version = highestPreRelease;
-                        automaticVersion = true;
-                    }
-                    context.rawInput.packageData.version = nextPrerelease(context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
-                }
-            }
-            if (registry.getRegistryType() === RegistryType.PUBLIC) {
-                Logger.log(`Public registry, checking if visibility is the same as latest release`, true);
-                if (typeof (context.rawInput.publishData.private) === 'boolean' && context.rawInput.publishData.private !== latestReleaseManifest.private) {
-                    throw new Error(`Cannot change package visibility to ${context.rawInput.publishData.private ? 'private' : 'public'}`);
-                }
-            }
         }
+
         if (automaticVersion) {
             Logger.info(`Automatically set publish version to "${context.rawInput.packageData.version}"`);
             if (!context.rawInput.contextData.noInquirer) {
-                context.rawInput.packageData.version = (await Inquirer.prompt([{
+                const promptedVersion: string = (await Inquirer.prompt([{
                     type: 'confirm',
                     message: `Continue publish as version "${context.rawInput.packageData.version}"?`,
                     default: true,
                     name: 'acceptDefaultVersion'
                 }, {
                     type: 'input',
-                    message: `Input publish version`,
+                    message: `Release version`,
                     name: 'version',
                     default: context.rawInput.packageData.version,
                     when: (hash) => {
                         return !hash.acceptDefaultVersion;
                     },
                     validate: (v) => {
-                        if (valid(v)) {
-                            if (releasesInRegistry.includes(v)) {
-                                return `Version "${v}" already published.`;
+                        //compare the version as it will be stored (cleaned)
+                        const version = clean(v || '');
+                        if (version) {
+                            const publishedVersions = context.runtime.latest.data
+                                ? context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions)
+                                : [];
+                            if (publishedVersions.includes(version)) {
+                                return `Version "${version}" is already published.`;
                             } else {
                                 return true;
                             }
@@ -195,21 +311,26 @@ export const init: Step<PublishWorkflowContext> = {
                             return `Invalid version`;
                         }
                     }
-                }])).version || context.rawInput.packageData.version;
+                }])).version;
+                context.rawInput.packageData.version = clean(promptedVersion || '') || context.rawInput.packageData.version;
             }
         }
 
-        var isPrivate;
-        if (registry.getRegistryType() === RegistryType.LOCAL) {
+        //6- set visibility if not already provided
+        var isPrivate: boolean | undefined = undefined;
+        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
             isPrivate = true;
         } else {
-            isPrivate = typeof (context.rawInput.publishData.private) === 'undefined' ? (latestReleaseManifest ? latestReleaseManifest.private : undefined) : context.rawInput.publishData.private;
-            if (typeof (isPrivate) === 'undefined') {
+            isPrivate = context.rawInput.publishData.private === undefined ? (context.runtime.latest.data ? context.runtime.latest.data.manifest.private : undefined) : context.rawInput.publishData.private;
+            if (isPrivate === undefined) {
+                if (context.rawInput.contextData.noInquirer) {
+                    throw new Error(`publishData.private is required for the first remote publication when interactive prompts are disabled.`);
+                }
                 isPrivate = (await Inquirer.prompt({
                     type: "list",
                     message: "Package visibility",
                     name: "private",
-                    default: isPrivate,
+                    default: true,
                     choices: [{
                         name: `Public`,
                         value: false
@@ -221,55 +342,115 @@ export const init: Step<PublishWorkflowContext> = {
             }
         }
 
-        //4- validate publish data
-        Logger.loading(`Validating data...`);
-        await registry.validatePublish(context.rawInput.packageData.name, context.rawInput.packageData.version, isPrivate);
-        if (!latestReleaseManifest) {
-            Logger.info(`First time publishing "${context.rawInput.packageData.name}". Congratulations!`, registry.getRegistryType() === RegistryType.LOCAL);
+        //7- validate minimum publish data with registry
+        //this is the bare minimum: if it fails there is no need to continue with publish
+        Logger.loading(`Validating...`);
+        await context.rawInput.packageData.registry.validatePublish(context.rawInput.packageData.name, context.rawInput.packageData.version, isPrivate);
+
+        Logger.loading(`Reading ${context.rawInput.packageData.devclass} objects...`);
+        context.runtime.sapPackage.objects = await SystemConnector.getDevclassObjects(context.rawInput.packageData.devclass, true);
+        if (context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC')).length === 0) {
+            throw new Error(`ABAP package "${context.rawInput.packageData.devclass}" doesn't contain any object!`);
         }
+
+        //8- read namespace
+        //the package and its subpackages must use at most one reserved namespace
+        const packageNamespace = getPackagesNamespace(context.rawInput.packageData.devclass, context.runtime.sapPackage.objects.flatMap(o =>
+            o.pgmid === 'R3TR' && o.object === 'DEVC' ? [o.devclass, o.objName] : [o.devclass]
+        ).filter(Boolean));
+        if (packageNamespace[0] === '/') {
+            Logger.loading(`Reading namespace ${packageNamespace}...`);
+            const namespace = await SystemConnector.getNamespace(packageNamespace);
+            if (namespace && namespace.trnspacet && namespace.trnspacett.length > 0) {
+                context.runtime.sapPackage.namespace = {
+                    trnspacet: namespace.trnspacet,
+                    trnspacett: namespace.trnspacett
+                };
+            } else {
+                throw new Error(`Namespace ${packageNamespace} couldn't be validated.`);
+            }
+        }
+
+        //9- read abapGit source code (if abapgit installed)
+        //this step is right at the beginning to ensure locks
+        //unfortunately, we have to read the whole source code to figure out the objects path, and evetually ignore gitignored objects
+        //so it's mandatory to do this before checking for locks :(
+        try {
+            const sourceCode = await SystemConnector.getAbapgitSource(context.rawInput.packageData.devclass);
+            context.runtime.abapGit.sourceCode = sourceCode.zip;
+            context.runtime.abapGit.object = sourceCode.objects;
+        } catch {
+            Logger.log(`Couldn't read source code!`, true);
+        }
+
+        //10- remove gitignore objects (if abapgit installed)
+        if (context.runtime.abapGit.sourceCode && context.runtime.abapGit.object.length > 0) {
+            try {
+                context.runtime.abapGit.dotAbapGit = await DotAbapGit.fromDevclass(context.rawInput.packageData.devclass);
+            } catch {
+                Logger.log(`.abapgit.xml not found`, true);
+            }
+            if (context.runtime.abapGit.dotAbapGit) {
+                const ignoredPatterns = context.runtime.abapGit.dotAbapGit.getIgnoredFiles();
+                context.runtime.sapPackage.objects.forEach(o => {
+                    const abapgitObject = context.runtime.abapGit.object.find(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName);
+                    if (abapgitObject) {
+                        ignoredPatterns.forEach(pattern => {
+                            if (minimatch(abapgitObject.fullPath, pattern, { matchBase: true })) {
+                                if(o.pgmid === 'R3TR' && o.object === 'DEVC'){
+                                    throw new Error(`Cannot exclude ABAP package "${o.objName}" (.abapGit.xml)!`);
+                                }
+                                if (!context.runtime.abapGit.excludedObjects.find(k => k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName)) {
+                                    context.runtime.abapGit.excludedObjects.push(o);
+                                    context.runtime.sapPackage.objects = context.runtime.sapPackage.objects.filter(k =>
+                                        !(k.pgmid === o.pgmid && k.object === o.object && k.objName === o.objName)
+                                    );
+                                }
+                            }
+                        });
+                    }
+                });
+            }
+        }
+        //check that after gitignore there are still objects
+        if (context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC')).length === 0) {
+            //no more objects, print what was excluded from gitignore
+            context.runtime.abapGit.excludedObjects.forEach(o => Logger.info(`Excluding ${o.pgmid} ${o.object} ${o.objName} (.abapgit gitignore)`));
+            throw new Error(`ABAP package "${context.rawInput.packageData.devclass}" doesn't contain any object!`);
+        }
+
+        //11- check for locks
+        //finally, with excluded objects from gitignore, we can check for locks before continuing
+        const locks = await SystemConnector.getObjectsLocks(context.runtime.sapPackage.objects.map(o => {
+            return {
+                PGMID: o.pgmid,
+                OBJECT: o.object,
+                OBJ_NAME: o.objName
+            };
+        }));
+        if (locks.length > 0) {
+            locks.forEach(l => { Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`, { important: true }) });
+            throw new Error(`To continue, all objects must be released.`);
+        } else {
+            Logger.log(`All objects released, continue`, true);
+        }
+
+        //12- check/set system target
+        Logger.loading(`Checking system target...`);
+        context.rawInput.systemData.transportTarget = await setTransportTarget(
+            context.rawInput.contextData.noInquirer,
+            await SystemConnector.getTransportTargets(),
+            context.rawInput.systemData.transportTarget,
+            "Publish transport target"
+        );
+
         Logger.info(`Ready to publish ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`);
         Logger.info(`Package visibility: ${chalk.bold(isPrivate ? 'private' : 'public')}`);
+        //this is the right time to show the excluded objects
+        context.runtime.abapGit.excludedObjects.forEach(o => Logger.info(`Excluding ${o.pgmid} ${o.object} ${o.objName} (.abapgit gitignore)`));
 
-        //5- set runtime data
-        context.runtime = {
-            stopWarningShown: context.rawInput.contextData.noStopWarning ? true : false,
-            trmPackage: {
-                package: new TrmPackage(context.rawInput.packageData.name, registry),
-                registry,
-                latestReleaseManifest,
-                releasesInRegistry,
-                manifest: {
-                    ...context.rawInput.packageData.manifest,
-                    ...{
-                        name: context.rawInput.packageData.name,
-                        version: context.rawInput.packageData.version,
-                        private: isPrivate
-                    }
-                }
-            },
-            systemData: {
-                transportTargets: [],
-                devcTransport: undefined,
-                tadirTransport: undefined,
-                releasedTransports: [],
-                originCustomizing: [],
-                custTransports: []
-            },
-            packageData: {
-                tadir: []
-            },
-            abapGitData: {
-                dotAbapGit: undefined,
-                sourceCode: {
-                    ignoredObjects: [],
-                    zip: undefined
-                }
-            }
-        };
-        Logger.loading(`Reading ${SystemConnector.getDest()} transport targets...`);
-        context.runtime.systemData.transportTargets = await SystemConnector.getTransportTargets();
-        if (context.rawInput.publishData.skipCustomizingTransports) {
-            context.rawInput.publishData.customizingTransports = [];
-        }
+        context.runtime.manifest.name = context.rawInput.packageData.name;
+        context.runtime.manifest.version = context.rawInput.packageData.version;
+        context.runtime.manifest.private = isPrivate;
     }
 }

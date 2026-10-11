@@ -1,16 +1,17 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
-import { InstallWorkflowContext } from ".";
-import { Logger, inspect } from "trm-commons";
+import { InstallDependencyEntry, InstallWorkflowContext } from ".";
+import { Logger } from "trm-commons";
 import { CheckPackageDependenciesActionInput, checkPackageDependencies as CheckPackageDependenciesWkf } from "../checkPackageDependencies";
 
-const SUBWORKFLOW_NAME = 'check-package-dependencies-sub-install';
-
 /**
- * Check which dependencies are yet to be installed into the target system.
+ * Workflow step that identifies missing or incompatible dependencies on the target system.
+ * Incompatible dependencies are queued with their installed version, so they are not reported as missing.
  * 
  * 1- execute check dependencies workflow
  * 
- * 2- filter dependencies
+ * 2- reject installed dependencies with an unreadable manifest
+ * 
+ * 3- filter dependencies
  * 
 */
 export const checkDependencies: Step<InstallWorkflowContext> = {
@@ -24,12 +25,10 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Check dependencies step', true);
-
         //1- execute check dependencies workflow
         const inputData: CheckPackageDependenciesActionInput = {
             packageData: {
-                manifest: context.runtime.remotePackageData.manifest
+                manifest: context.runtime.package.data.manifest
             },
             contextData: {
                 systemPackages: context.rawInput.contextData.systemPackages
@@ -39,19 +38,29 @@ export const checkDependencies: Step<InstallWorkflowContext> = {
                 information: false
             }
         };
-        Logger.loading(`Checking dependencies...`);
-        Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
+        Logger.loading(`Checking package dependencies...`);
         const result = await CheckPackageDependenciesWkf(inputData);
-        Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
         if(result.dependencies.length > 0){
-            if(result.dependencies.length === 1){
-                Logger.info(`"${context.rawInput.packageData.name}" has ${result.dependencies.length} dependency: ${result.dependencyStatus.filter(o => o.match).length} installed, ${result.dependencyStatus.filter(o => !o.match).length} missing.`);
-            }else{
-                Logger.info(`"${context.rawInput.packageData.name}" has ${result.dependencies.length} dependencies: ${result.dependencyStatus.filter(o => o.match).length} installed, ${result.dependencyStatus.filter(o => !o.match).length} missing.`);
-            }
+            const installed = result.dependencyStatus.filter(o => o.status === 'ok').length;
+            const missing = result.dependencyStatus.filter(o => o.status === 'notFound').length;
+            const incompatible = result.dependencyStatus.filter(o => o.status === 'versionMismatch').length;
+            const noun = result.dependencies.length === 1 ? 'dependency' : 'dependencies';
+            Logger.info(`"${context.rawInput.packageData.name}" has ${result.dependencies.length} ${noun}: ${installed} installed, ${missing} missing, ${incompatible} incompatible.`);
         }
 
-        //2- filter dependencies
-        context.runtime.dependenciesToInstall = result.dependencyStatus.filter(o => !o.match).map(k => k.dependency);
+        //2- reject installed dependencies with an unreadable manifest
+        const unreadable = result.dependencyStatus.filter(o => o.status === 'manifestUnreadable');
+        if(unreadable.length > 0){
+            throw new Error(`Cannot verify installed dependencies ${unreadable.map(o => `"${o.dependency.name}"`).join(', ')}: package is installed but its manifest is unreadable.`);
+        }
+
+        //3- filter dependencies
+        context.runtime.dependencies = result.dependencyStatus
+            .filter(o => o.status === 'notFound' || o.status === 'versionMismatch')
+            .map(o => ({
+                dependency: o.dependency,
+                status: o.status as InstallDependencyEntry['status'],
+                installedVersion: o.installedVersion
+            }));
     }
 }

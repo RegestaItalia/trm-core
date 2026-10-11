@@ -1,39 +1,38 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
-import { inspect, Logger } from "trm-commons";
 import { InstallActionInput, install as InstallWkf } from "..";
 
-const SUBWORKFLOW_NAME = 'install-sub-install-dependency';
-
 /**
- * Find release in range to install
+ * Workflow step that delegates the selected dependency release to the package install action.
  * 
  * 1- run install workflow
  * 
 */
 export const installRelease: Step<InstallDependencyWorkflowContext> = {
     name: 'install-release',
+    filter: async (context: InstallDependencyWorkflowContext): Promise<boolean> => !context.runtime.alreadyInstalled,
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
-        Logger.log('Install release step', true);
-
-        if (!context.runtime.installVersion) {
-            throw new Error(`Couldn't find dependency "${context.rawInput.dependencyDataPackage.name}" on registry.`);
-        }
-        
         //1- run install workflow
         const inputData: InstallActionInput = {
             packageData: {
                 name: context.rawInput.dependencyDataPackage.name,
                 registry: context.rawInput.dependencyDataPackage.registry,
                 version: context.runtime.installVersion,
+                integrity: context.runtime.installIntegrity,
                 overwrite: false
             },
-            contextData: {...context.rawInput.contextData, ...{ noStopWarning: true }},
-            installData: context.rawInput.installData
+            contextData: context.rawInput.contextData,
+            installData: context.rawInput.installData,
+            dependency: true
         };
-        Logger.log(`Ready to execute sub-workflow ${SUBWORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-        const result = await InstallWkf(inputData);
-        Logger.log(`Workflow ${SUBWORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true)
-        context.runtime.installOutput = result;
+        if (context.installRunner) {
+            const result = await context.installRunner(inputData);
+            context.runtime.installOutput = result.output;
+            context.runtime.installedPackages = result.installedPackages;
+            context.runtime.rollback = result.rollback;
+            context.runtime.release = result.release;
+        } else {
+            context.runtime.installOutput = await InstallWkf(inputData);
+        }
     }
 }

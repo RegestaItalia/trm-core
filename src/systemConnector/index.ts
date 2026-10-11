@@ -1,8 +1,10 @@
 export * from "./RFCConnection";
 export * from "../client/Login";
 export * from "./InstallPackage";
+export * from "./InstallTransport";
 export * from "../client/SapMessage";
 export * from "./ISystemConnector";
+export * from "./ActionLock";
 export * from "./SystemConnector";
 export * from "./ISystemConnectorBase";
 export * from "./SystemConnectorBase";
@@ -11,3 +13,4 @@ export * from "./RESTSystemConnector";
 export * from "./RESTConnection";
 export * from "./SystemConnectorSupportedBulk";
 export * from "./RFCSystemConnector";
+export * from "./OpenRFCSystemConnector";

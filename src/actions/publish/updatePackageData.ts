@@ -3,10 +3,10 @@ import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { createHash } from "crypto";
-import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
+import { registryKey } from "../../registry";
 
 /**
- * Update package data
+ * Workflow step that records the published release in the origin system's TRM package table.
  * 
  * Creates/update record in TRM packages table
  * 
@@ -16,23 +16,27 @@ import { PUBLIC_RESERVED_KEYWORD, RegistryType } from "../../registry";
 export const updatePackageData: Step<PublishWorkflowContext> = {
     name: 'update-package-data',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Update package data step', true);
         try {
             Logger.loading(`Finalizing publish...`);
 
             //1- commit new values
-            const integrity = createHash("sha512").update(context.runtime.trmPackage.artifact.binary).digest("base64");
+            //registry may have modified the artifact during publish: its integrity takes precedence
+            const integrity = context.output.trmPackage.getPublishedIntegrity()
+                ?? createHash("sha512").update(context.output.trmArtifact.binary).digest("base64");
             await SystemConnector.updateTrmPackageData({
                 package_name: context.rawInput.packageData.name,
-                package_registry: context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : context.rawInput.packageData.registry.endpoint,
-                manifest: Buffer.from(context.runtime.trmPackage.manifestXml, 'utf8'),
-                trkorr: context.runtime.systemData.tadirTransport.trkorr,
+                package_registry: registryKey(context.rawInput.packageData.registry),
+                manifest: Buffer.from(context.runtime.manifestXml, 'utf8'),
+                trkorr: context.runtime.transports.tadir.trkorr,
                 integrity: integrity,
                 devclass: context.rawInput.packageData.devclass
             });
         } catch (e) {
-            Logger.error(`An error occurred during publish finalize. The package has been published, however TRM on ${SystemConnector.getDest()} migh be inconsistent.`);
-            Logger.error(e.toString(), true);
+            const packageName = context.rawInput.packageData.name;
+            const packageVersion = context.runtime.manifest.version;
+            Logger.error(`An error occurred during publish finalize. ${packageName} v${packageVersion} has been published, however package on ${SystemConnector.getDest()} is inconsistent.`, { important: true });
+            Logger.error(`Install ${packageName} v${packageVersion} on ${SystemConnector.getDest()} to synchronize its package data.`, { important: true });
+            Logger.error(String(e), true);
         }
     }
 }

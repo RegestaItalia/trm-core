@@ -5,7 +5,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
 
 /**
- * Generate DEVC transport
+ * Workflow step that creates the transport containing ABAP package definitions.
  * 
  * 1- generate transport
  * 
@@ -13,34 +13,25 @@ import { stopWarning } from "../stopWarning";
 export const generateDevcTransport: Step<PublishWorkflowContext> = {
     name: 'generate-devc-transport',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Generate DEVC transport step', true);
-
-        //1- generate transport
-        Logger.loading(`Generating transports...`);
-        Logger.loading(`Generating DEVC transport...`, true);
-        const aDevc = context.runtime.packageData.tadir.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
             stopWarning('publish');
         }
-        context.runtime.systemData.devcTransport = await Transport.createToc({
+        //1- generate transport
+        Logger.loading(`Generating transports...`);
+        Logger.loading(`Generating DEVC transport...`, true);
+        const aDevc = context.runtime.sapPackage.objects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
+        context.runtime.transports.devc = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.DEVC,
             target: context.rawInput.systemData.transportTarget,
-            text: `@X1@TRM: ${context.rawInput.packageData.name} v${context.rawInput.packageData.version} (D)`
+            text: `@X1@TRM (D) ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
         });
-        await context.runtime.systemData.devcTransport.addObjects(aDevc, false);
+        await context.runtime.transports.devc.addObjects(aDevc, false);
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Rollback generate DEVC transport step', true);
-        if (context.runtime.systemData.devcTransport) {
-            try {
-                if (await context.runtime.systemData.devcTransport.canBeDeleted()) {
-                    await context.runtime.systemData.devcTransport.delete();
-                    Logger.success(`Executed rollback on transport ${context.runtime.systemData.devcTransport.trkorr}`, true);
-                }
-            } catch (e) {
-                Logger.error(`Unable to rollback transport ${context.runtime.systemData.devcTransport.trkorr}!`);
-                Logger.error(e.toString(), true);
+        if (context.runtime.transports.devc) {
+            if (await context.runtime.transports.devc.canBeDeleted()) {
+                await context.runtime.transports.devc.delete();
             }
         }
     }

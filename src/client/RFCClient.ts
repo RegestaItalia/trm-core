@@ -1,39 +1,81 @@
 import * as components from "./components";
 import * as struct from "./struct";
 import { IClient } from "./IClient";
-import { normalize } from "../commons";
+import { normalize, summarizeForLog } from "../commons";
 import { getGlobalNodeModules, Logger } from "trm-commons";
 import { existsSync } from "fs";
 import path from "path";
 import { RFCClientError, SapMessage } from ".";
 import * as xml from "xml-js";
-import { TrmPackageUpdateData } from "../systemConnector";
+import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
+import { TransportEntries } from "./TransportEntries";
+import { ActionLockKey } from "./struct/ActionLockKey";
+import { logMessageLog, parseMessageLog } from "./messageLog";
 
 const nodeRfcLib = 'node-rfc';
+const connectionCheckTimeoutSeconds = 3;
+
+/**
+ * Loads a node-rfc compatible library (a module exporting the RFC `Client`).
+ */
+export type RFCLibraryLoader = () => Promise<any>;
+
+function getErrorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error);
+}
 
 export class RFCClient implements IClient {
-    protected _rfcClient: any;
-    private _aliveCheck: boolean = false;
+    public async acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        await this._call("/ATRM/ACQUIRE_ACT_LOCKS", {
+            owner_token: ownerToken,
+            action_name: actionName,
+            keys: keys.map(key => ({
+                resource_type: key.resourceType,
+                resource_hash: key.resourceHash,
+                resource_name: key.resourceName
+            }))
+        });
+    }
 
-    constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string, private _globalNodeModulesPath?: string) {
+    public async releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        await this._call("/ATRM/RELEASE_ACT_LOCKS", {
+            owner_token: ownerToken,
+            keys: keys.map(key => ({
+                resource_type: key.resourceType,
+                resource_hash: key.resourceHash,
+                resource_name: key.resourceName
+            }))
+        });
+    }
+    protected _rfcClient: any;
+    private _connectionResponseLogged = false;
+
+    constructor(private _rfcClientArgs: any, private _cLangu: string, traceDir?: string, private _globalNodeModulesPath?: string, private _rfcLibraryLoader?: RFCLibraryLoader) {
         try {
             process.env["RFC_TRACE_DIR"] = traceDir || process.cwd();
         } catch (e) {
             //not sure if this could cause an error!
             Logger.warning(`Couldn't set RFC trace!`, true);
-            Logger.error(e.toString(), true);
+            Logger.error(getErrorMessage(e), true);
         }
         Logger.log(`RFC_TRACE_DIR: ${process.env["RFC_TRACE_DIR"]}`, true);
     }
 
+    private async getRfcLibrary(): Promise<any> {
+        if (this._rfcLibraryLoader) {
+            return this._rfcLibraryLoader();
+        }
+        const libPath = path.join(this._globalNodeModulesPath || getGlobalNodeModules(), nodeRfcLib);
+        Logger.log(`Node RFC lib path: ${libPath}`, true);
+        if (!existsSync(libPath)) {
+            throw new RFCClientError("ZRFC_LIB_NOT_FOUND", null, null, `${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
+        }
+        return import(libPath);
+    }
+
     private async getRfcClient(): Promise<any> {
         if (!this._rfcClient) {
-            const libPath = path.join(this._globalNodeModulesPath || getGlobalNodeModules(), nodeRfcLib);
-            Logger.log(`Node RFC lib path: ${libPath}`, true);
-            if (!existsSync(libPath)) {
-                throw new RFCClientError("ZRFC_LIB_NOT_FOUND", null, null, `${nodeRfcLib} not found. Run command "npm install ${nodeRfcLib} -g" to continue.`);
-            }
-            this._rfcClient = new (await import(libPath)).Client(this._rfcClientArgs);
+            this._rfcClient = new (await this.getRfcLibrary()).Client(this._rfcClientArgs);
         }
         return this._rfcClient;
     }
@@ -44,7 +86,7 @@ export class RFCClient implements IClient {
             await (await this.getRfcClient()).open();
             Logger.success(`RFC open`, true);
         } catch (e) {
-            throw new RFCClientError("ZNO_CONN", null, e, e.message);
+            throw new RFCClientError("ZNO_CONN", null, e, getErrorMessage(e));
         }
     }
 
@@ -54,42 +96,17 @@ export class RFCClient implements IClient {
             await (await this.getRfcClient()).close();
             Logger.success(`RFC closed`, true);
         } catch (e) {
-            throw new RFCClientError("ZNO_CLOSE", null, e, e.message);
+            throw new RFCClientError("ZNO_CLOSE", null, e, getErrorMessage(e));
         }
     }
 
     public async checkConnection(): Promise<boolean> {
-        if (!this._aliveCheck) {
-            if ((await this.getRfcClient()).alive) {
-                Logger.success(`RFC open`, true);
-            } else {
-                Logger.warning(`RFC closed`, true);
-            }
-            this._aliveCheck = true;
+        const result = await this._call("STFC_CONNECTION", { requtext: 'This is TRM' }, connectionCheckTimeoutSeconds);
+        if (!this._connectionResponseLogged && result && result.resptext) {
+            Logger.log(result.resptext, true);
+            this._connectionResponseLogged = true;
         }
-        return (await this.getRfcClient()).alive;
-    }
-
-    private sanitizeDebugResponse(obj) {
-        if (Buffer.isBuffer(obj)) {
-            try {
-                return `<file of ${obj.byteLength} bytes>`;
-            } catch {
-                return "<file of unknown bytes>";
-            }
-        }
-
-        if (Array.isArray(obj)) {
-            return obj.map(v => this.sanitizeDebugResponse(v));
-        }
-
-        if (obj && typeof obj === "object") {
-            return Object.fromEntries(
-                Object.entries(obj).map(([k, v]) => [k, this.sanitizeDebugResponse(v)])
-            );
-        }
-
-        return obj;
+        return true;
     }
 
     private async _call(fm: any, arg?: any, timeout?: number, noErrorParsing?: boolean, retryCount: number = 0): Promise<any> {
@@ -98,7 +115,7 @@ export class RFCClient implements IClient {
             var emptyKeys = [];
             argNormalized = normalize(arg, 'upper');
             Object.keys(argNormalized).forEach(key => {
-                if (argNormalized[key] === undefined || argNormalized === null) {
+                if (argNormalized[key] === undefined || argNormalized[key] === null) {
                     emptyKeys.push(key);
                 }
             });
@@ -115,13 +132,15 @@ export class RFCClient implements IClient {
             };
         }
         try {
-            Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(argNormalized)}, opts ${JSON.stringify(callOptions)}`, true);
+            Logger.loading(`Executing RFC, FM ${fm}, args ${JSON.stringify(summarizeForLog(argNormalized))}, opts ${JSON.stringify(summarizeForLog(callOptions))}`, true);
             const response = await (await this.getRfcClient()).call(fm, argNormalized, callOptions);
             const responseNormalized = normalize(response);
-            Logger.success(`RFC resonse: ${JSON.stringify(this.sanitizeDebugResponse(responseNormalized))}`, true);
+            if (fm !== "STFC_CONNECTION") {
+                Logger.success(`RFC response: ${JSON.stringify(summarizeForLog(responseNormalized))}`, true);
+            }
             return responseNormalized;
         } catch (e) {
-            if (e.message === 'device or resource busy: device or resource busy' && retryCount <= 10) {
+            if (getErrorMessage(e) === 'device or resource busy: device or resource busy' && retryCount < 10) {
                 //node-rfc #327 this issue is not yet solved
                 //for the time being try recalling
                 Logger.log('device or resource busy, retrying', true);
@@ -151,15 +170,35 @@ export class RFCClient implements IClient {
                         message = `Couldn't read error message ${e.abapMsgClass} ${e.abapMsgNumber} ${e.abapMsgV1} ${e.abapMsgV2} ${e.abapMsgV3} ${e.abapMsgV4}`;
                     }
                 } else {
-                    message = e.message;
+                    message = getErrorMessage(e);
                 }
-                var rfcClientError = new RFCClientError(e.key, sapMessage, e, message);
+                var rfcClientError = new RFCClientError(e.key, sapMessage, e, message, fm);
                 if (messageError) {
                     rfcClientError.messageError = messageError;
                 }
-                Logger.error(rfcClientError.toString(), true);
+                if (sapMessage.no && sapMessage.class) {
+                    rfcClientError.messageLog = await this._getExceptionLog(fm, e.key);
+                }
+                Logger.log(rfcClientError.toString(), true);
+                logMessageLog(rfcClientError);
                 throw rfcClientError;
             }
+        }
+    }
+
+    private async _getExceptionLog(fm: string, exceptionKey: string): Promise<string[] | undefined> {
+        //classic RFC exceptions only carry the T100 message: the /ATRM/CX_EXCEPTION log
+        //stays in the function group memory of this RFC session and is read with a follow-up call
+        if (typeof fm !== 'string' || !fm.startsWith('/ATRM/') || fm === '/ATRM/GET_EXCEPTION_LOG' || exceptionKey === 'TRM_RFC_UNAUTHORIZED') {
+            return undefined;
+        }
+        try {
+            const result = await this._call('/ATRM/GET_EXCEPTION_LOG', undefined, undefined, true);
+            return parseMessageLog(result?.log);
+        } catch (e) {
+            //older trm-server releases don't have this function
+            Logger.warning(`Couldn't read exception log: ${getErrorMessage(e)}`, true);
+            return undefined;
         }
     }
 
@@ -196,7 +235,7 @@ export class RFCClient implements IClient {
         return this._getMessage(false, data);
     }
 
-    private async _readTable(noErrorParsing: boolean, tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
+    private async _readTable(noErrorParsing: boolean, tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
         var sqlOutput = [];
         const delimiter = '|';
         var aOptions: struct.RFC_DB_OPT[] = [];
@@ -220,6 +259,15 @@ export class RFCClient implements IClient {
                     }
                 });
             }
+            //lines exceeding 72 chars are split on OR operator
+            aOptions = aOptions.reduce((acc, o) => {
+                if (o.text.length > 72) {
+                    o.text.split(/\s+OR\s+/).forEach((s, i) => acc.push({ text: i === 0 ? s.trim() : `OR ${s.trim()}` }));
+                } else {
+                    acc.push(o);
+                }
+                return acc;
+            }, [] as struct.RFC_DB_OPT[]);
             /*aOptions = (options.match(/.{1,72}/g)).map(s => {
                 return {
                     text: s
@@ -227,18 +275,23 @@ export class RFCClient implements IClient {
             }) || [];*/
         }
         try {
-            const result = await this._call("RFC_READ_TABLE", {
+            const params: any = {
                 query_table: tableName,
                 delimiter,
                 options: aOptions,
                 fields
-            }, undefined, noErrorParsing);
+            };
+            if (paging) {
+                params.rowskips = paging.offset;
+                params.rowcount = paging.limit;
+            }
+            const result = await this._call("RFC_READ_TABLE", params, undefined, noErrorParsing);
             const data: struct.TAB512[] = result['data'];
             data.forEach(tab512 => {
                 var sqlLine: any = {};
                 const waSplit = tab512.wa.split(delimiter);
                 result.fields.forEach((field, index) => {
-                    sqlLine[field.fieldname] = waSplit[index].trim();
+                    sqlLine[field.fieldname] = (waSplit[index] || '').trim();
                 });
                 sqlOutput.push(sqlLine);
             })
@@ -252,8 +305,8 @@ export class RFCClient implements IClient {
         }
     }
 
-    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
-        return this._readTable(false, tableName, fields, options);
+    public async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
+        return this._readTable(false, tableName, fields, options, paging);
     }
 
     public async getFileSystem(): Promise<struct.FILESYS> {
@@ -291,7 +344,7 @@ export class RFCClient implements IClient {
     public async createWbTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = await this._call("/ATRM/CREATE_IMPORT_TR", {
             text: text,
-            target: target.trim().toUpperCase()
+            target: target ? target.trim().toUpperCase() : ''
         });
         return result['trkorr'];
     }
@@ -299,7 +352,7 @@ export class RFCClient implements IClient {
     public async createCustTransport(text: components.AS4TEXT, target?: components.TR_TARGET): Promise<components.TRKORR> {
         const result = await this._call("/ATRM/CREATE_CUST_TR", {
             text: text,
-            target: target.trim().toUpperCase()
+            target: target ? target.trim().toUpperCase() : ''
         });
         return result['trkorr'];
     }
@@ -339,6 +392,12 @@ export class RFCClient implements IClient {
         });
     }
 
+    public async lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        await this._call("/ATRM/LOCK_TRANSPORT_OBJS", {
+            trkorr: trkorr.trim().toUpperCase()
+        });
+    }
+
     public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         const result = await this._call("REPOSITORY_ENVIRONMENT_RFC", {
             obj_type: objectType.trim().toUpperCase(),
@@ -365,6 +424,12 @@ export class RFCClient implements IClient {
             target: target
         });
         return result['requests'];
+    }
+
+    public async deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        await this._call("/ATRM/DELETE_TMP_PACKAGE", {
+            devclass: devclass.trim().toUpperCase()
+        });
     }
 
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
@@ -398,12 +463,6 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        await this._call("/ATRM/DEQUEUE_TR", {
-            trkorr: trkorr.trim().toUpperCase()
-        });
-    }
-
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean = true): Promise<void> {
         await this._call("/ATRM/FORWARD_TR", {
             trkorr: trkorr.trim().toUpperCase(),
@@ -413,11 +472,101 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        await this._call("/ATRM/IMPORT_TR", {
+    private parseImportTransportResult(data: Buffer | string, resource: string): struct.STMS_TP_IMPORT {
+        try {
+            if (data === undefined || data === null || data.toString().trim() === '') {
+                throw new Error('Empty import result');
+            }
+            const parsed = xml.xml2js(data.toString(), { compact: true }) as xml.ElementCompact;
+            const importResult = parsed['asx:abap'] && parsed['asx:abap']['asx:values'] && parsed['asx:abap']['asx:values']['IMPORT'];
+            if (!importResult || !importResult.REQUEST || !importResult.ALERT) {
+                throw new Error('Unexpected ABAP XML import result');
+            }
+            const text = (node: xml.ElementCompact): string => node && node['_text'] !== undefined ? String(node['_text']) : '';
+            const tableRows = (node: xml.ElementCompact, rowName: string): xml.ElementCompact[] => {
+                const rows = node && node[rowName];
+                if (!rows) {
+                    return [];
+                }
+                return Array.isArray(rows) ? rows : [rows];
+            };
+
+            return {
+                request: {
+                    trkorr: text(importResult.REQUEST.TRKORR),
+                    tarcli: text(importResult.REQUEST.TARCLI),
+                    project: text(importResult.REQUEST.PROJECT),
+                    preflg: text(importResult.REQUEST.PREFLG),
+                    owner: text(importResult.REQUEST.OWNER)
+                },
+                tpRetCode: text(importResult.TP_RET_CODE),
+                tpAlog: text(importResult.TP_ALOG),
+                tpSlog: text(importResult.TP_SLOG),
+                tpPid: text(importResult.TP_PID),
+                tpStdout: tableRows(importResult.TP_STDOUT, 'TPSTDOUT').map(item => ({
+                    line: text(item.LINE)
+                })),
+                tpLogptr: tableRows(importResult.TP_LOGPTR, 'TPLOGPTR').map(item => ({
+                    trkorr: text(item.TRKORR),
+                    owner: text(item.OWNER),
+                    sysname: text(item.SYSNAME),
+                    step: text(item.STEP),
+                    retcode: text(item.RETCODE),
+                    logdate: text(item.LOGDATE),
+                    logtime: text(item.LOGTIME),
+                    osuser: text(item.OSUSER),
+                    hostname: text(item.HOSTNAME),
+                    client: text(item.CLIENT)
+                })),
+                alert: {
+                    id: text(importResult.ALERT.ID),
+                    domnam: text(importResult.ALERT.DOMNAM),
+                    sysnam: text(importResult.ALERT.SYSNAM),
+                    client: text(importResult.ALERT.CLIENT),
+                    service: text(importResult.ALERT.SERVICE),
+                    function: text(importResult.ALERT.FUNCTION),
+                    error: text(importResult.ALERT.ERROR),
+                    severity: text(importResult.ALERT.SEVERITY),
+                    text: text(importResult.ALERT.TEXT),
+                    msgid: text(importResult.ALERT.MSGID),
+                    msgty: text(importResult.ALERT.MSGTY),
+                    msgno: text(importResult.ALERT.MSGNO),
+                    msgv1: text(importResult.ALERT.MSGV1),
+                    msgv2: text(importResult.ALERT.MSGV2),
+                    msgv3: text(importResult.ALERT.MSGV3),
+                    msgv4: text(importResult.ALERT.MSGV4),
+                    methodptr: text(importResult.ALERT.METHODPTR),
+                    properties: text(importResult.ALERT.PROPERTIES)
+                }
+            };
+        } catch (error) {
+            if (error instanceof RFCClientError) {
+                throw error;
+            }
+            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse import result: ${getErrorMessage(error)}`, resource);
+        }
+    }
+
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        const result = await this._call("/ATRM/IMPORT_TR", {
             system: system.trim().toUpperCase(),
-            trkorr: trkorr.trim().toUpperCase()
+            trkorr: trkorr.trim().toUpperCase(),
+            test: test ? 'X' : ' '
         });
+        if (result && result.testResult) {
+            return this.parseImportTransportResult(result['testResult'], '/ATRM/IMPORT_TR');
+        }
+    }
+
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        const result = await this._call("/ATRM/IMPORT_TR_MULTIPLE", {
+            system: system.trim().toUpperCase(),
+            trkorr: trkorr.map(value => value.trim().toUpperCase()),
+            test: test ? 'X' : ' '
+        });
+        if (result && result.testResult) {
+            return this.parseImportTransportResult(result['testResult'], '/ATRM/IMPORT_TR_MULTIPLE');
+        }
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
@@ -426,9 +575,46 @@ export class RFCClient implements IClient {
         });
     }
 
+    public async deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        await this._call("/ATRM/DELETE_INSTALL_DEVC", {
+            installdevc: installDevc
+        });
+    }
+
+    public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        await this._call("/ATRM/SET_INSTALL_DEVC", {
+            package: data.package,
+            package_exists: data.packageExists ? 'X' : ' ',
+            installdevc: data.installDevc,
+            installtr: data.installTr || []
+        });
+    }
+
+    public async setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        await this._call("/ATRM/SET_INSTALL_TR", {
+            package_name: packageName,
+            package_registry: packageRegistry,
+            installtr: installTr
+        });
+    }
+
     public async getObjectsList(): Promise<struct.KO100[]> {
         const result = await this._call("/ATRM/LIST_OBJECT_TYPES");
         return result['objectText'];
+    }
+
+    public async getDest(): Promise<components.SYSYSID> {
+        try {
+            const result = await this._call("/ATRM/GET_DEST");
+            return result['dest'];
+        } catch (e) {
+            //trm-server not installed, outdated or not authorized: read the system ID with the standard RFC
+            if (e instanceof RFCClientError && (e.exceptionType === 'FU_NOT_FOUND' || e.exceptionType === 'TRM_RFC_UNAUTHORIZED')) {
+                const result = await this._call("RFC_SYSTEM_INFO");
+                return result['rfcsiExport']['rfcsysid'];
+            }
+            throw e;
+        }
     }
 
     public async getTrmServerVersion(): Promise<string> {
@@ -483,8 +669,8 @@ export class RFCClient implements IClient {
 
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await this._call("/ATRM/DEL_TRANSPORT_TMS", {
-            trkorr: trkorr,
-            system: system
+            trkorr: trkorr.trim().toUpperCase(),
+            system: system.trim().toUpperCase()
         });
     }
 
@@ -505,19 +691,53 @@ export class RFCClient implements IClient {
         const result = await this._call("/ATRM/GET_ABAPGIT_SOURCE", {
             devclass: devclass
         });
-        const sXml = result['objects'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
-        const oAbapXml = xml.xml2js(sXml, { compact: true });
-        const objects = oAbapXml['asx:abap']['asx:values']['OBJECTS'].item.map(o => {
+        try {
+            if (!Buffer.isBuffer(result['zip']) || result['objects'] === undefined || result['objects'] === null) {
+                throw new Error('Missing zip or objects payload');
+            }
+            const sXml = result['objects'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;");
+            const oAbapXml = xml.xml2js(sXml, { compact: true }) as xml.ElementCompact;
+            const objectItems = oAbapXml['asx:abap'] && oAbapXml['asx:abap']['asx:values'] && oAbapXml['asx:abap']['asx:values']['OBJECTS'] && oAbapXml['asx:abap']['asx:values']['OBJECTS'].item;
+            const items: xml.ElementCompact[] = objectItems ? (Array.isArray(objectItems) ? objectItems : [objectItems]) : [];
+            const text = (node: xml.ElementCompact): string => node && node['_text'] !== undefined ? String(node['_text']) : '';
             return {
-                pgmid: o['PGMID']['_text'],
-                object: o['OBJECT']['_text'],
-                objName: o['OBJ_NAME']['_text'],
-                fullPath: o['FULL_PATH']['_text']
+                zip: result['zip'],
+                objects: items.map(o => ({
+                    pgmid: text(o['PGMID']),
+                    object: text(o['OBJECT']),
+                    objName: text(o['OBJ_NAME']),
+                    fullPath: text(o['FULL_PATH'])
+                }))
             };
-        });
-        return {
-            zip: result['zip'],
-            objects
+        } catch (error) {
+            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse API data: ${getErrorMessage(error)}`, "/ATRM/GET_ABAPGIT_SOURCE");
+        }
+    }
+
+    public async getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        const result = await this._call("/ATRM/GET_TRANSPORT_ENTRIES", { trkorr });
+        try {
+            if (!Buffer.isBuffer(result['entries'])) {
+                throw new Error('Missing entries payload');
+            }
+            const parsed = xml.xml2js(result['entries'].toString().replace(/&/g, "&amp;").replace(/-/g, "&#45;"), { compact: true }) as xml.ElementCompact;
+            const root = parsed['asx:abap']?.['asx:values']?.['ENTRIES'];
+            // asXML names table rows after the DDIC row type (e.g. <E071><E071>...), or <item> when it has none
+            const rows = (name: string): Record<string, string>[] => {
+                const table: xml.ElementCompact = root?.[name] || {};
+                const rowName = Object.keys(table).find(key => !key.startsWith('_'));
+                const value = rowName ? table[rowName] : undefined;
+                const items: xml.ElementCompact[] = value ? (Array.isArray(value) ? value : [value]) : [];
+                return items.map(item => Object.fromEntries(Object.entries(item).map(([key, node]: [string, xml.ElementCompact]) => [key, node?._text === undefined ? '' : String(node._text)])));
+            };
+            return normalize({
+                e071: rows('E071'),
+                tdevc: rows('TDEVC'),
+                tdevct: rows('TDEVCT'),
+                tadir: rows('TADIR')
+            }) as TransportEntries;
+        } catch (error) {
+            throw new RFCClientError("ZPARSE_API_DATA", null, error, `Can't parse API data: ${getErrorMessage(error)}`, "/ATRM/GET_TRANSPORT_ENTRIES");
         }
     }
 
@@ -551,7 +771,11 @@ export class RFCClient implements IClient {
             await this._call("/ATRM/CHECK_AUTH");
             return true;
         } catch (e) {
-            return e;
+            // Only a SAP error is an authorization result: anything else (e.g. a timeout) is rethrown.
+            if (e instanceof RFCClientError) {
+                return e;
+            }
+            throw e;
         }
     }
 

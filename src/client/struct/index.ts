@@ -9,10 +9,12 @@ export * from "./TLINE";
 export * from "./TMSCSYS";
 export * from "./E070";
 export * from "./E071";
+export * from "./E071K";
 export * from "./SENVI";
 export * from "./STMSIQREQ"
 export * from "./SCOMPKDTLN";
 export * from "./ZTRM_INSTALLDEVC";
+export * from "./ZTRM_INSTALLTR";
 export * from "./KO100";
 export * from "./T100";
 export * from "./LXE_TT_PACKG_LINE";
@@ -31,3 +33,14 @@ export * from "./ZTRM_OBJ_LOCK";
 export * from "./E07T";
 export * from "./TADIR_KEY";
 export * from "./ZTRM_DIRTY";
+export * from "./STMS_TR_REQUEST";
+export * from "./STMSCALERT";
+export * from "./TPSTDOUT";
+export * from "./TPLOGPTR";
+export * from "./STMS_TP_IMPORT";
+export * from "./ActionLockKey";
+
+export * from "./CVERS";
+export * from "./PRDVERS";
+export * from "./CWBNTCUST";
+export * from "./CWBNTHEAD";

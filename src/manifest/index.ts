@@ -6,3 +6,6 @@ export * from "./TrmManifestDependency";
 export * from "./TrmManifestNamespace"
 export * from "./TrmManifestPostActivity"
 export * from "./PostActivity";
+export * from "./TrmManifestEngines";
+export * from "./engines";
+export * from "./sapEntries";

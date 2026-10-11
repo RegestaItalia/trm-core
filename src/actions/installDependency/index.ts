@@ -1,18 +1,15 @@
-import execute from "@simonegaffurini/sammarksworkflow";
-import { inspect } from "util";
-import { Logger } from "trm-commons";
 import { AbstractRegistry } from "../../registry";
-import { IActionContext, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages } from "..";
+import { IActionContext, InstallActionInput, InstallActionInputContextData, InstallActionInputInstallData, InstallActionOutput, setSystemPackages, executeWorkflow, workflowCallbacks } from "..";
 import { init } from "./init";
 import { findInstallRelease } from "./findInstallRelease";
 import { installRelease } from "./installRelease";
+import { checkInstalledRelease } from "./checkInstalledRelease";
+import { confirmDowngrade } from "./confirmDowngrade";
 import { TrmPackage } from "../../trmPackage";
 
-/**
- * Input data for install dependency action.
- */
+/** Input used to resolve and install one TRM package dependency. */
 export interface InstallDependencyActionInput {
-    
+    /** Shared install context, including optional package snapshot and prompt behavior. */
     contextData?: InstallActionInputContextData,
 
     /**
@@ -20,59 +17,109 @@ export interface InstallDependencyActionInput {
      */
     dependencyDataPackage: {
         /**
-         * The name of the package.
+         * Dependency package name.
          */
         name: string;
 
         /**
-         * Dependency release install version range.
+         * Semantic-version range the installed release must satisfy.
          */
         versionRange: string;
 
         /**
-         * The registry where the package is stored.
+         * Registry from which releases and artifacts are fetched.
          */
         registry: AbstractRegistry;
     };
 
+    /** Options forwarded to the underlying {@link install} action. */
     installData?: InstallActionInputInstallData
 }
 
 type WorkflowRuntime = {
     trmPackage: TrmPackage,
     installVersion: string,
-    installOutput: InstallActionOutput
+    /** Integrity of the locked release; the nested install verifies the release it fetches against it. */
+    installIntegrity?: string,
+    /** Version on the system before the install, if the dependency is installed. */
+    installedVersion?: string,
+    /** True when the installed release is kept and nothing is installed. */
+    alreadyInstalled: boolean,
+    installOutput: InstallActionOutput,
+    /** Packages installed by the nested install's dependency installs, transitive ones included. */
+    installedPackages?: TrmPackage[],
+    rollback?: () => Promise<void>
+    release?: () => Promise<void>
 }
 
+/** Result returned after a dependency release has been selected and installed, or kept. */
 export type InstallDependencyActionOutput = {
-    installOutput: InstallActionOutput
+    /** Full result produced by the underlying package installation; unset when `alreadyInstalled`. */
+    installOutput?: InstallActionOutput,
+    /** True when a compatible release was already installed and nothing was installed. */
+    alreadyInstalled: boolean,
+    /** Version on the system before the install, if the dependency was installed. */
+    installedVersion?: string
 }
 
+/** Internal state shared by the dependency-install workflow steps. */
 export interface InstallDependencyWorkflowContext extends IActionContext {
+    /** Original action input. */
     rawInput: InstallDependencyActionInput,
+    /** Resolved package, selected version, and nested installation result. */
     runtime?: WorkflowRuntime,
-    output?: InstallDependencyActionOutput
+    /** Dependency-install result. */
+    output?: InstallDependencyActionOutput,
+    /** Optional transactional install runner supplied by a parent workflow. */
+    installRunner?: (input: InstallActionInput) => Promise<{
+        output: InstallActionOutput,
+        installedPackages?: TrmPackage[],
+        rollback: () => Promise<void>
+        release: () => Promise<void>
+    }>
 };
 
 const WORKFLOW_NAME = 'install-dependency';
 
 /**
- * Install TRM Package dependency from registry to target system
-*/
-export async function installDependency(inputData: InstallDependencyActionInput): Promise<InstallDependencyActionOutput> {
+ * Resolves the highest suitable dependency release and installs it on the target SAP system.
+ *
+ * A release already installed that satisfies `versionRange` is kept and nothing is installed,
+ * unless a lockfile pins the dependency to a different version. Otherwise, a lockfile entry takes
+ * precedence when present and its integrity is verified, or the newest registry release
+ * satisfying `versionRange` is selected. Replacing a newer installed release requires
+ * confirmation (or `installData.checks.allowDowngrade`). Installation is then delegated to
+ * {@link install} with the supplied options.
+ *
+ * @param inputData Dependency identity, version range, registry, and install options.
+ * @returns The nested installation result, or `alreadyInstalled` when nothing was installed.
+ * @throws When no compatible release can be found, a downgrade is not confirmed, or the nested
+ * install fails.
+ */
+export async function installDependency(inputData: InstallDependencyActionInput, installRunner?: InstallDependencyWorkflowContext['installRunner']): Promise<InstallDependencyActionOutput & {
+    installedPackages?: TrmPackage[],
+    rollback?: () => Promise<void>
+    release?: () => Promise<void>
+}> {
     const workflow = [
         init,
         setSystemPackages,
+        checkInstalledRelease,
         findInstallRelease,
+        confirmDowngrade,
         installRelease
     ];
-    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-    const result = await execute<InstallDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData
-    });
-    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
+    const result = await executeWorkflow<InstallDependencyWorkflowContext>(WORKFLOW_NAME, workflow, {
+        rawInput: inputData,
+        installRunner
+    }, workflowCallbacks);
     const installOutput = result.runtime.installOutput;
     return {
-        installOutput
+        installOutput,
+        alreadyInstalled: result.runtime.alreadyInstalled,
+        installedVersion: result.runtime.installedVersion,
+        installedPackages: result.runtime.installedPackages,
+        rollback: result.runtime.rollback,
+        release: result.runtime.release
     }
 }

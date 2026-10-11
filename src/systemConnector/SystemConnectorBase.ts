@@ -1,15 +1,16 @@
 import { valid as semverValid } from "semver";
-import { inspect, Logger } from "trm-commons";
-import { Manifest } from "../manifest";
+import { inspect, Logger, ValueHelpContext, ValueHelpPage } from "trm-commons";
+import { getSapEntryConditions, Manifest, TrmManifestEngineTableCondition } from "../manifest";
 import { TADIR, TDEVC } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { InstallPackage } from "./InstallPackage";
+import { InstallTransport } from "./InstallTransport";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
-import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType } from "../registry";
-import { R3trans } from "node-r3trans";
+import type { TrmPackageUpdateData } from "./ISystemConnector";
+import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType, registryKey } from "../registry";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
 
@@ -20,6 +21,9 @@ export const TRM_REST_PACKAGE_NAME: string = 'trm-rest';
 export const SRC_TRKORR_TABL = '/ATRM/SRC_TRKORR';
 export const SKIP_TRKORR_TABL = '/ATRM/SKIPTRKORR';
 export const INSTALL_DEVCLASS_VIEW = '/ATRM/V_INSTDEVC';
+export const INSTALL_TRANSPORTS_TABLE = '/ATRM/INSTALLTR';
+export const POST_ACTIVITY_ATTRIBUTE = 'TRM_PA';
+export const POST_ACTIVITY_METHOD = 'EXECUTE';
 
 export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
@@ -31,7 +35,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   private _rootDevclass: any = {};
   private _timezone: string;
 
-  protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]>
+  protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]>
   protected abstract getSysname(): string
   protected abstract getLangu(c: boolean): string
   protected abstract getTrmServerVersion(): Promise<string>
@@ -89,6 +93,66 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     if (tadir.length === 1) {
       return tadir[0];
     }
+  }
+
+  private escapeSearch(search?: string): string {
+    return (search || '').trim().toUpperCase().replace(/['%_]/g, '');
+  }
+
+  public async getPostActivities(ctx: ValueHelpContext): Promise<ValueHelpPage> {
+    //post activities are classes with constant TRM_PA
+    var options = `CMPNAME EQ '${POST_ACTIVITY_ATTRIBUTE}'`;
+    const search = this.escapeSearch(ctx.search);
+    if (search) {
+      options += ` AND CLSNAME LIKE '%${search}%'`;
+    }
+    const classes: { clsname: string }[] = await this.readTable('SEOCOMPO',
+      [{ fieldName: 'CLSNAME' }],
+      options,
+      { offset: ctx.offset, limit: ctx.limit + 1 }
+    );
+    const hasMore = classes.length > ctx.limit;
+    const rows: { name: string, description?: string }[] = classes.slice(0, ctx.limit).map(o => ({ name: o.clsname }));
+    if (rows.length > 0) {
+      const texts: { clsname: string, descript: string }[] = await this.readTable('SEOCLASSTX',
+        [{ fieldName: 'CLSNAME' }, { fieldName: 'DESCRIPT' }],
+        `LANGU EQ '${this.getLangu(true)}' AND ( ${rows.map(o => `CLSNAME EQ '${o.name}'`).join(' OR ')} )`
+      );
+      rows.forEach(o => {
+        o.description = texts.find(t => t.clsname === o.name)?.descript;
+      });
+    }
+    return { rows, hasMore };
+  }
+
+  public async getPostActivityParameters(className: string, ctx: ValueHelpContext): Promise<ValueHelpPage> {
+    //post activity parameters are the importing parameters of method EXECUTE
+    const clsname = this.escapeSearch(className);
+    if (!clsname) {
+      return { rows: [], hasMore: false };
+    }
+    var options = `CLSNAME EQ '${clsname}' AND CMPNAME EQ '${POST_ACTIVITY_METHOD}' AND PARDECLTYP EQ '0' AND VERSION EQ '1'`;
+    const search = this.escapeSearch(ctx.search);
+    if (search) {
+      options += ` AND SCONAME LIKE '%${search}%'`;
+    }
+    const parameters: { sconame: string }[] = await this.readTable('SEOSUBCODF',
+      [{ fieldName: 'SCONAME' }],
+      options,
+      { offset: ctx.offset, limit: ctx.limit + 1 }
+    );
+    const hasMore = parameters.length > ctx.limit;
+    const rows: { name: string, description?: string }[] = parameters.slice(0, ctx.limit).map(o => ({ name: o.sconame }));
+    if (rows.length > 0) {
+      const texts: { sconame: string, descript: string }[] = await this.readTable('SEOSUBCOTX',
+        [{ fieldName: 'SCONAME' }, { fieldName: 'DESCRIPT' }],
+        `CLSNAME EQ '${clsname}' AND CMPNAME EQ '${POST_ACTIVITY_METHOD}' AND LANGU EQ '${this.getLangu(true)}'`
+      );
+      rows.forEach(o => {
+        o.description = texts.find(t => t.sconame === o.name)?.descript;
+      });
+    }
+    return { rows, hasMore };
   }
 
   public async getIgnoredTrkorr(refresh?: boolean): Promise<components.TRKORR[]> {
@@ -157,6 +221,25 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return oPackage;
   }
 
+  public async getTrmPackageData(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY): Promise<TrmPackageUpdateData | undefined> {
+    // The backend filter keeps rows matching either the name or the registry: match both here.
+    // trm-server and trm-rest installed through abapGit are listed with a dummy 10000101
+    // timestamp, but no row is stored for them.
+    const row = (await this.getInstalledPackagesBackend({ name: packageName, registry: packageRegistry }))
+      .find(o => o.packageName === packageName && o.packageRegistry === packageRegistry && o.as4Date !== '10000101');
+    if (!row) {
+      return undefined;
+    }
+    return {
+      package_name: row.packageName,
+      package_registry: row.packageRegistry,
+      manifest: Buffer.from(row.manifest, 'utf8'),
+      trkorr: row.trkorr,
+      integrity: row.integrity,
+      devclass: row.devclass
+    };
+  }
+
   public async getInstalledPackages(refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }): Promise<TrmPackage[]> {
     var trmPackages: TrmPackage[] = [];
     var fromBackend = false;
@@ -180,10 +263,20 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         }
         for (const o of installedPackagesBackend) {
           const manifest = Manifest.fromAbapXml(o.manifest);
+          const trmPackage = new TrmPackage(o.packageName, RegistryProvider.getRegistry(o.packageRegistry), manifest)
+            .setDevclass(o.devclass)
+            .setDirtyEntries(o.dirty)
+            .setMetadataSnapshot({
+              package_name: o.packageName,
+              package_registry: o.packageRegistry,
+              manifest: Buffer.from(o.manifest, 'utf8'),
+              trkorr: o.trkorr,
+              integrity: o.integrity,
+              devclass: o.devclass
+            });
           if (o.trkorr) {
-            manifest.setLinkedTransport(new Transport(o.trkorr, null));
+            trmPackage.setTransport(new Transport(o.trkorr, null));
           }
-          const trmPackage = new TrmPackage(o.packageName, RegistryProvider.getRegistry(o.packageRegistry), manifest).setDevclass(o.devclass).setDirtyEntries(o.dirty);
           trmPackages.push(trmPackage);
         }
         fromBackend = true;
@@ -286,6 +379,13 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
+  public async getNamespacePackages(namespace: components.NAMESPACE): Promise<TDEVC[]> {
+    return await this.readTable('TDEVC',
+      [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }, { fieldName: 'TPCLASS' }, { fieldName: 'DLVUNIT' }, { fieldName: 'NAMESPACE' }],
+      `NAMESPACE EQ '${namespace.trim().toUpperCase()}'`
+    );
+  }
+
   public async getSubpackages(devclass: components.DEVCLASS): Promise<TDEVC[]> {
     const queryFields = [{ fieldName: 'DEVCLASS' }, { fieldName: 'PARENTCL' }];
     var subpackages: {
@@ -332,9 +432,17 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async getInstallPackages(packageName: string, registry: AbstractRegistry): Promise<InstallPackage[]> {
-    const registryEndpoint = registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : registry.endpoint;
+    const registryEndpoint = registryKey(registry);
     return await this.readTable(INSTALL_DEVCLASS_VIEW,
       [{ fieldName: 'ORIGINAL_DEVCLASS' }, { fieldName: 'INSTALL_DEVCLASS' }],
+      `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
+    );
+  }
+
+  public async getInstallTransports(packageName: string, registry: AbstractRegistry): Promise<InstallTransport[]> {
+    const registryEndpoint = registryKey(registry);
+    return await this.readTable(INSTALL_TRANSPORTS_TABLE,
+      [{ fieldName: 'TRKORR' }, { fieldName: 'TRM_TYPE' }],
       `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
     );
   }
@@ -352,23 +460,17 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async checkSapEntryExists(table: string, sapEntry: any): Promise<boolean> {
-    try {
-      var aQuery = [];
-      Object.keys(sapEntry).forEach(k => {
-        aQuery.push(`${k.trim().toUpperCase()} EQ '${sapEntry[k]}'`);
-      });
-      const entry: any[] = await this.readTable(table.trim().toUpperCase(),
-        [{ fieldName: Object.keys(sapEntry)[0].trim().toUpperCase() }],
-        aQuery.join(' AND '));
-      return entry.length > 0;
-    } catch (e) {
-      return false;
-    }
+    //invalid entries and read errors (authorization, connection) are thrown, not reported as missing
+    const aQuery = getSapEntryConditions(sapEntry);
+    const entry: any[] = await this.readTable(table.trim().toUpperCase(),
+      [{ fieldName: Object.keys(sapEntry)[0].trim().toUpperCase() }],
+      aQuery.join(' AND '));
+    return entry.length > 0;
   }
 
   public async getPackageIntegrity(oPackage: TrmPackage): Promise<string> {
     const packageName = oPackage.packageName;
-    const registryEndpoint = oPackage.registry.getRegistryType() === RegistryType.PUBLIC ? PUBLIC_RESERVED_KEYWORD : oPackage.registry.endpoint;
+    const registryEndpoint = registryKey(oPackage.registry);
     const aIntegrity: { integrity: string }[] = await this.readTable('ZTRM_INTEGRITY',
       [{ fieldName: 'INTEGRITY' }],
       `PACKAGE_NAME EQ '${packageName}' AND PACKAGE_REGISTRY EQ '${registryEndpoint}'`
@@ -425,14 +527,23 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     if (!this._r3transInfoLog) {
       this._r3transInfoLog = await this.getR3transInfo();
     }
-    return R3trans.getVersion(this._r3transInfoLog);
+    try {
+      return this._r3transInfoLog.split(/\r?\n|\r|\n/g)[0];
+    } catch (e) {
+      return undefined;
+    }
   }
 
   public async getR3transUnicode(): Promise<boolean> {
     if (!this._r3transInfoLog) {
       this._r3transInfoLog = await this.getR3transInfo();
     }
-    return R3trans.isUnicode(this._r3transInfoLog);
+    try {
+      const outputLine = this._r3transInfoLog.split(/\r?\n|\r|\n/g)[1];
+      return !outputLine.startsWith('non-unicode');
+    } catch (e) {
+      return undefined;
+    }
   }
 
   public async isTransportLayerExist(devlayer: components.DEVLAYER): Promise<boolean> {
@@ -468,7 +579,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
           try {
             const status = await newConnection.readLogPolling(logId);
             if (status) {
-              //TODO: fix with a better solution, for now testing regex is ok...
               const match = status.match(/\(([\d.]+)%\)/);
               if (match) {
                 logProgress.update(parseFloat(match[1]));
@@ -542,6 +652,50 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }
     }
     return this._rootDevclass[devclass];
+  }
+
+  public async getSoftwareComponents(): Promise<struct.CVERS[]> {
+    return await this.readTable('CVERS',
+      [{ fieldName: 'COMPONENT' }, { fieldName: 'RELEASE' }, { fieldName: 'EXTRELEASE' }, { fieldName: 'COMP_TYPE' }]
+    );
+  }
+
+  public async getInstalledProducts(): Promise<struct.PRDVERS[]> {
+    return await this.readTable('PRDVERS',
+      [{ fieldName: 'ID' }, { fieldName: 'NAME' }, { fieldName: 'VERSION' }, { fieldName: 'VENDOR' }, { fieldName: 'DESCRIPT' }, { fieldName: 'INSTSTATUS' }],
+      `INSTSTATUS EQ '+'`
+    );
+  }
+
+  public async getNoteStatus(numm: components.CWBNTNUMM): Promise<{ prstatus?: components.CWBPRSTAT, versno?: components.CWBNTVERS }> {
+    const note = numm.trim().padStart(10, '0');
+    const cust: struct.CWBNTCUST[] = await this.readTable('CWBNTCUST',
+      [{ fieldName: 'NUMM' }, { fieldName: 'NTSTATUS' }, { fieldName: 'PRSTATUS' }],
+      `NUMM EQ '${note}'`
+    );
+    if (cust.length === 0) {
+      return {};
+    }
+    const head: struct.CWBNTHEAD[] = await this.readTable('CWBNTHEAD',
+      [{ fieldName: 'NUMM' }, { fieldName: 'VERSNO' }],
+      `NUMM EQ '${note}'`
+    );
+    //the implemented version is the latest downloaded one (older implemented versions have status V)
+    const versno = head.map(o => o.versno).sort((a, b) => parseInt(b, 10) - parseInt(a, 10))[0];
+    return {
+      prstatus: cust[0].prstatus,
+      versno
+    };
+  }
+
+  public async checkTableCondition(table: components.TABNAME, where: TrmManifestEngineTableCondition[]): Promise<boolean> {
+    //read errors (missing table, authorization) are thrown
+    const aQuery = where.map(condition => `${condition.field.trim().toUpperCase()} ${(condition.op || 'EQ').trim().toUpperCase()} '${condition.value.toString().replace(/'/g, "''")}'`);
+    const rows: any[] = await this.readTable(table.trim().toUpperCase(),
+      [{ fieldName: where[0].field.trim().toUpperCase() }],
+      aQuery.join(' AND '),
+      { offset: 0, limit: 1 });
+    return rows.length > 0;
   }
 
   public async getTimezone(): Promise<string> {

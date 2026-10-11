@@ -2,7 +2,7 @@ import { BinaryTransport } from "./BinaryTransport";
 import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
 import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
-import { R3transLogParser, ReleaseLogStep } from "node-r3trans";
+import { R3transLogParser, ReleaseLogStep } from "./R3transLogParser";
 import { Documentation } from "./Documentation";
 import { TrmTransportIdentifier } from "./TrmTransportIdentifier";
 import { TrmPackage } from "../trmPackage";
@@ -11,22 +11,36 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import { Logger } from "trm-commons";
-import { TROBJTYPE, E070, E071, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER } from "../client";
+import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER, TransportEntries } from "../client";
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
 
+
+const RELEASE_LOG_STEPS: { id: string, name: string, namePadding: string }[] = [
+    { id: 'ETP182', name: 'CHECK WRITEABILITY OF BUFFERS', namePadding: '' },
+    { id: 'ETP183', name: 'EXPORT PREPARATION', namePadding: '           ' },
+    { id: 'ETP150', name: 'MAIN EXPORT', namePadding: '                  ' }
+];
+
 export class Transport {
+    /**
+     * Maximum time to wait for a release log to report every export step.
+     */
+    public static releaseLogTimeoutMs: number = 30 * 60 * 1000;
+
     private _fileNames: FileNames;
     private _e070: E070;
     private _e071: E071[];
+    private _e071k: E071K[];
     private _e07t: E07T[];
     private _docs: Documentation[];
     private _trmPackageName: string;
     private _trmPackageVersion: string;
     private _linkedTrmPackage: TrmPackage;
     private _rootDevclass: DEVCLASS;
+    private _entries: TransportEntries;
     public trmIdentifier?: TrmTransportIdentifier;
 
     constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET) {
@@ -55,7 +69,8 @@ export class Transport {
                 { fieldName: 'TRFUNCTION' },
                 { fieldName: 'TRSTATUS' },
                 { fieldName: 'AS4DATE' },
-                { fieldName: 'AS4TIME' }
+                { fieldName: 'AS4TIME' },
+                { fieldName: 'TARSYSTEM' }
             ];
             var e070: E070[];
             e070 = await SystemConnector.readTable('E070', fields,
@@ -80,6 +95,44 @@ export class Transport {
             );
         }
         return this._e071;
+    }
+
+    public async getE071K(): Promise<E071K[]> {
+        if (!this._e071k) {
+            const fields: RFC_DB_FLD[] = [
+                { fieldName: 'PGMID' },
+                { fieldName: 'OBJECT' },
+                { fieldName: 'OBJNAME' },
+                { fieldName: 'MASTERTYPE' },
+                { fieldName: 'MASTERNAME' }
+            ];
+            this._e071k = await SystemConnector.readTable('E071K', fields,
+                `TRKORR EQ '${this.trkorr}'`
+            );
+        }
+        return this._e071k;
+    }
+
+    /**
+     * Table content carried by the transport: one entry per E071K key, and one entry without key
+     * (the whole table content) per TABU object that has no key list.
+     */
+    public async getCustomizingKeys(): Promise<{ table: string, tabkey?: string }[]> {
+        const keys: { objname: string, mastername?: string, tabkey: string }[] = await SystemConnector.readTable('E071K', [
+            { fieldName: 'OBJNAME' },
+            { fieldName: 'MASTERNAME' },
+            { fieldName: 'TABKEY' }
+        ], `TRKORR EQ '${this.trkorr}'`);
+        const objects: { object: string, objName: string, objfunc: string }[] = await SystemConnector.readTable('E071', [
+            { fieldName: 'OBJECT' },
+            { fieldName: 'OBJ_NAME' },
+            { fieldName: 'OBJFUNC' }
+        ], `TRKORR EQ '${this.trkorr}'`);
+        return [
+            ...keys.map(o => ({ table: (o.objname || o.mastername || '').trim(), tabkey: (o.tabkey || '').trim() })),
+            ...objects.filter(o => (o.object || '').trim().toUpperCase() === 'TABU' && (o.objfunc || '').trim().toUpperCase() !== 'K')
+                .map(o => ({ table: (o.objName || '').trim() }))
+        ];
     }
 
     public async getE07T(): Promise<E07T[]> {
@@ -107,6 +160,13 @@ export class Transport {
         } else {
             return '';
         }
+    }
+
+    public async getEntries(): Promise<TransportEntries> {
+        if (!this._entries) {
+            this._entries = await SystemConnector.getTransportEntries(this.trkorr);
+        }
+        return this._entries;
     }
 
     public async getTasks(): Promise<Transport[]> {
@@ -338,6 +398,10 @@ export class Transport {
         await SystemConnector.addToTransportRequest(this.trkorr, objects, lock);
     }
 
+    public async lock(): Promise<void> {
+        await SystemConnector.lockTransportObjs(this.trkorr);
+    }
+
     public async removeComments() {
         await SystemConnector.removeComments(this.trkorr, COMMENT_OBJ);
     }
@@ -383,7 +447,8 @@ export class Transport {
                 }
             }
             try {
-                oTrmPackage = Manifest.fromAbapXml(docVal).setLinkedTransport(this).getPackage();
+                oTrmPackage = Manifest.fromAbapXml(docVal).getPackage();
+                oTrmPackage.setTransport(this);
             } catch (e) {
                 //invalid manifest
             }
@@ -398,13 +463,22 @@ export class Transport {
     }
 
     public async delete(): Promise<null> {
-        await SystemConnector.deleteTrkorr(this.trkorr);
+        try {
+            await SystemConnector.deleteTrkorr(this.trkorr);
+        } finally {
+            //the request may be gone even if the call failed: re-read its status
+            this._e070 = undefined;
+        }
         return null;
     }
 
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
-        await SystemConnector.releaseTrkorr(this.trkorr, lock);
-        await SystemConnector.dequeueTransport(this.trkorr);
+        try {
+            await SystemConnector.releaseTrkorr(this.trkorr, lock);
+        } finally {
+            //the status may have changed even if the call failed: re-read it
+            this._e070 = undefined;
+        }
         if (tmpFolder) {
             await this.readReleaseLog(tmpFolder);
         } else {
@@ -422,132 +496,101 @@ export class Transport {
         Logger.log(`System R3trans unicode: ${systemR3transUnicode}`, true);
 
         const multibar = Logger.multibar('{stage} [{bar}] {exitCode} {result}', Transport.getTransportIcon());
-        var iEtp182 = 0;
-        var iEtp183 = 0;
-        var iEtp150 = 0;
-        const etp182 = multibar.create(100, iEtp182, {
-            stage: '',
-            exitCode: '',
-            result: 'Needs update'
-        });
-        const etp183 = multibar.create(100, iEtp183, {
-            stage: '',
-            exitCode: '',
-            result: 'Needs update'
-        });
-        const etp150 = multibar.create(100, iEtp150, {
-            stage: '',
-            exitCode: '',
-            result: 'Needs update'
-        });
+        const steps = RELEASE_LOG_STEPS.map(step => ({
+            ...step,
+            progress: 0,
+            bar: multibar.create(100, 0, {
+                stage: '',
+                exitCode: '',
+                result: 'Needs update'
+            })
+        }));
 
         var exitWhile = false;
         var whileResult: 'ERROR' | 'WARNING' | 'SUCCESS' = null;
+        const deadline = Date.now() + Transport.releaseLogTimeoutMs;
 
-        while (!exitWhile) {
-            var logResult: ReleaseLogStep[] = [];
-            try {
-                const logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
-                fs.writeFileSync(localPath, logBinary);
-                logResult = await (new R3transLogParser(localPath, systemR3transUnicode)).getReleaseLog();
-                fs.unlinkSync(localPath);
-            } catch (e) {
-                logResult = [];
-            }
-            var etp182LogResult = logResult.find(o => o.id === 'ETP182') || { name: 'CHECK WRITEABILITY OF BUFFERS', exitCode: null };
-            var etp183LogResult = logResult.find(o => o.id === 'ETP183') || { name: 'EXPORT PREPARATION', exitCode: null };
-            var etp150LogResult = logResult.find(o => o.id === 'ETP150') || { name: 'MAIN EXPORT', exitCode: null };
-            etp183LogResult.name += '           ';
-            etp150LogResult.name += '                  ';
-            const etp182ExitCode = R3transLogParser.parseExitCode(etp182LogResult.exitCode);
-            const etp183ExitCode = R3transLogParser.parseExitCode(etp183LogResult.exitCode);
-            const etp150ExitCode = R3transLogParser.parseExitCode(etp150LogResult.exitCode);
-
-            exitWhile = (etp182LogResult.exitCode !== null) && (etp183LogResult.exitCode !== null) && (etp150LogResult.exitCode !== null);
-
-            if (etp182ExitCode.type === 'SUCCESS' || etp183ExitCode.type === 'SUCCESS' || etp150ExitCode.type === 'SUCCESS') {
-                whileResult = 'SUCCESS';
-            }
-            if (etp182ExitCode.type === 'WARNING' || etp183ExitCode.type === 'WARNING' || etp150ExitCode.type === 'WARNING') {
-                whileResult = 'WARNING';
-            }
-            if (etp182ExitCode.type === 'ERROR' || etp183ExitCode.type === 'ERROR' || etp150ExitCode.type === 'ERROR') {
-                whileResult = 'ERROR';
-            }
-
-            const etp182Payload = {
-                stage: etp182LogResult.name,
-                exitCode: etp182LogResult.exitCode || '',
-                result: etp182ExitCode.type !== 'UNKNOWN' ? etp182ExitCode.value : 'In progress'
-            }
-            const etp183Payload = {
-                stage: etp183LogResult.name,
-                exitCode: etp183LogResult.exitCode || '',
-                result: etp183ExitCode.type !== 'UNKNOWN' ? etp183ExitCode.value : 'In progress'
-            }
-            const etp150Payload = {
-                stage: etp150LogResult.name,
-                exitCode: etp150LogResult.exitCode || '',
-                result: etp150ExitCode.type !== 'UNKNOWN' ? etp150ExitCode.value : 'In progress'
-            }
-
-            if (iEtp182 < 99) {
-                if (etp182ExitCode.type === 'UNKNOWN') {
-                    iEtp182++;
-                } else {
-                    iEtp182 = 100;
+        try {
+            //the log is downloaded into the temporary folder: a local file system error is not "log not ready yet"
+            fs.mkdirSync(tmpFolder, { recursive: true });
+            while (!exitWhile && Date.now() < deadline) {
+                var logResult: ReleaseLogStep[] = [];
+                var logBinary: Buffer;
+                try {
+                    logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
+                } catch (e) {
+                    //log not written yet
+                    logBinary = undefined;
                 }
-            } else {
-                if (etp182ExitCode.type === 'UNKNOWN') {
-                    iEtp182++;
+                if (logBinary) {
+                    fs.writeFileSync(localPath, logBinary);
+                    try {
+                        logResult = await (new R3transLogParser(localPath)).getReleaseLog();
+                    } catch (e) {
+                        //log incomplete
+                        logResult = [];
+                    } finally {
+                        fs.rmSync(localPath, { force: true });
+                    }
                 }
-            }
-            etp182.update(iEtp182, etp182Payload);
 
-            if (iEtp183 < 99) {
-                if (etp183ExitCode.type === 'UNKNOWN') {
-                    iEtp183++;
-                } else {
-                    iEtp183 = 100;
+                const stepResults = steps.map(step => {
+                    const logStep = logResult.find(o => o.id === step.id) || { name: step.name, exitCode: null as number };
+                    return {
+                        step,
+                        stageName: logStep.name + step.namePadding,
+                        exitCode: logStep.exitCode,
+                        parsedExitCode: R3transLogParser.parseExitCode(logStep.exitCode)
+                    };
+                });
+
+                exitWhile = stepResults.every(o => o.exitCode !== null);
+
+                if (stepResults.some(o => o.parsedExitCode.type === 'SUCCESS')) {
+                    whileResult = 'SUCCESS';
                 }
-            } else {
-                if (etp183ExitCode.type === 'UNKNOWN') {
-                    iEtp183++;
+                if (stepResults.some(o => o.parsedExitCode.type === 'WARNING')) {
+                    whileResult = 'WARNING';
+                }
+                if (stepResults.some(o => o.parsedExitCode.type === 'ERROR')) {
+                    whileResult = 'ERROR';
+                }
+
+                for (const { step, stageName, exitCode, parsedExitCode } of stepResults) {
+                    if (parsedExitCode.type === 'UNKNOWN') {
+                        step.progress++;
+                    } else if (step.progress < 99) {
+                        step.progress = 100;
+                    }
+                    step.bar.update(step.progress, {
+                        stage: stageName,
+                        exitCode: exitCode || '',
+                        result: parsedExitCode.type !== 'UNKNOWN' ? parsedExitCode.value : 'In progress'
+                    });
+                }
+
+                if (!exitWhile) {
+                    await setTimeout(1000); //each second
                 }
             }
-            etp183.update(iEtp183, etp183Payload);
-
-            if (iEtp150 < 99) {
-                if (etp150ExitCode.type === 'UNKNOWN') {
-                    iEtp150++;
-                } else {
-                    iEtp150 = 100;
-                }
-            } else {
-                if (etp150ExitCode.type === 'UNKNOWN') {
-                    iEtp150++;
-                }
-            }
-            etp150.update(iEtp150, etp150Payload);
-
-            await setTimeout(1000); //each second
+        } finally {
+            multibar.stop();
         }
-        multibar.stop();
 
         var error: Error;
         var rc: number;
         if (!exitWhile) {
-            error = new Error(`Timed out waiting for release.`);
+            error = new Error(`Timed out waiting for transport ${this.trkorr} release log "${filePaths.releaseLog}".`);
         } else {
             if (whileResult === "ERROR") {
                 error = new Error(`Error occurred during transport ${this.trkorr} release.`);
             }
             if (whileResult === "SUCCESS") {
-                Logger.success(`${Transport.getTransportIcon()} ${this.trkorr}  released with success.`);
+                Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released with success.`);
                 rc = 0;
             }
             if (whileResult === "WARNING") {
-                Logger.warning(`${Transport.getTransportIcon()} ${this.trkorr}  released with warning.`);
+                Logger.warning(`${Transport.getTransportIcon()}  ${this.trkorr} released with warning.`, { important: true });
                 rc = 4;
             }
         }
@@ -560,14 +603,13 @@ export class Transport {
     }
 
     private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false): Promise<{ rc: number, message?: string }> {
-        Logger.log(`TMS check for transport ${this.trkorr}`, true);
         var inQueue = false;
         var rc: number = 12;
         var message: string;
         var lastCheck: Date;
         if (this._trTarget) {
             var inQueueAttempts = 0;
-            Logger.loading(`Checking transport status...`, skipLog);
+            Logger.loading(`Checking ${this.trkorr} status...`, skipLog);
             while (!inQueue) {
                 inQueueAttempts++;
                 Logger.log(`Attempt ${inQueueAttempts}, reading in 3 seconds...`, true);
@@ -729,7 +771,7 @@ export class Transport {
         return new Transport(trkorr, null);
     }
 
-    public static async upload(trkorr, data: {
+    public static async upload(trkorr: TRKORR, data: {
         binary: BinaryTransport,
         trTarget?: TR_TARGET
     }): Promise<Transport> {
@@ -745,6 +787,40 @@ export class Transport {
         Logger.success(`Data uploaded successfully.`, true);
         Logger.success(`Transport request ${trkorr} uploaded successfully.`, true);
         return new Transport(trkorr, data.trTarget);
+    }
+
+    /**
+     * Reads the transport's header (cofile) and data files from the transport directory, if present.
+     *
+     * A missing (`NOT_FOUND`) or empty file is returned as `undefined`; any other read error is rethrown.
+     */
+    public static async readBinaryFiles(trkorr: TRKORR): Promise<Partial<BinaryTransport>> {
+        const filePaths = await Transport._getFilePaths(Transport._getFileNames(trkorr, SystemConnector.getDest()));
+        const read = async (filePath: string): Promise<Buffer | undefined> => {
+            try {
+                const file = await SystemConnector.getBinaryFile(filePath);
+                return file && file.length > 0 ? file : undefined;
+            } catch (e) {
+                //RFC: exception key, REST: HTTP reason (wrapped in exceptionType or raw error message)
+                if (e?.exceptionType === 'NOT_FOUND' || e?.message === 'NOT_FOUND') {
+                    Logger.log(`File "${filePath}" not found.`, true);
+                    return undefined;
+                }
+                throw e;
+            }
+        };
+        return {
+            header: await read(filePaths.header),
+            data: await read(filePaths.data)
+        };
+    }
+
+    /**
+     * Writes one of the transport's files (header/cofile or data) to the transport directory.
+     */
+    public static async writeBinaryFile(trkorr: TRKORR, kind: keyof BinaryTransport, binary: Buffer): Promise<void> {
+        const filePaths = await Transport._getFilePaths(Transport._getFileNames(trkorr, SystemConnector.getDest()));
+        await SystemConnector.writeBinaryFile(filePaths[kind], binary);
     }
 
     public static async getTransportsFromObject(objectKeys: {
@@ -790,36 +866,94 @@ export class Transport {
         return latest;
     }
 
-    public async import(): Promise<void> {
+    public static async importMultiple(transports: Transport[], target: TR_TARGET, forward: boolean = true): Promise<{ trkorr: TRKORR, rc: number, message?: string }[]> {
+        if (forward) {
+            for (const transport of transports) {
+                Logger.loading(`Forwarding transport ${transport.trkorr}`, true);
+                await SystemConnector.forwardTransport(transport.trkorr, target, target, true);
+            }
+        }
+        Logger.loading(`Importing ${transports.map(o => o.trkorr).join(', ')} in batch`, true);
+        await SystemConnector.importTransportMultiple(transports.map(o => o.trkorr), target, false);
+        const results: { trkorr: TRKORR, rc: number, message?: string }[] = [];
+        const originalLPrefix = Logger.getPrefix();
+        try {
+            var index = 0;
+            for (const transport of transports) {
+                index++;
+                const prefix = `(${Transport.getTransportIcon()}  ${index}/${transports.length}) `;
+                if (originalLPrefix) {
+                    Logger.setPrefix(`${originalLPrefix}-> ${prefix}`);
+                } else {
+                    Logger.setPrefix(prefix);
+                }
+                Logger.log(`Starting transport ${transport.trkorr} TMS queue status check`, true);
+                transport._trTarget = target;
+                const queue = await transport._isInTmsQueue(false, true);
+                Transport._printImportResult(transport.trkorr, queue.rc, queue.message, false);
+                results.push({ trkorr: transport.trkorr, rc: queue.rc, message: queue.message });
+            }
+            return results;
+        } finally {
+            Logger.setPrefix(originalLPrefix);
+        }
+    }
+
+    public async import(test: boolean): Promise<number> {
+        var rc: number;
+        var message: string;
         if (!this._trTarget) {
             throw new Error('Missing transport target.');
         }
-        Logger.log(`Starting ${this.trkorr} import`, true);
+        Logger.log(`Starting ${this.trkorr} import ${test ? 'test' : ''}`, true);
         Logger.loading(`Forwarding transport ${this.trkorr}`, true);
         await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
-        Logger.loading(`Importing ${this.trkorr}`, true);
-        await SystemConnector.importTransport(this.trkorr, this._trTarget);
-        Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
-        const queue = await this._isInTmsQueue(false, true);
-        Logger.log(`Transport ${this.trkorr} import ended: return code ${queue.rc}`, true);
-        switch (queue.rc) {
+        Logger.loading(`Importing ${this.trkorr}${test ? ' (TEST IMPORT)' : ''}`, true);
+        const result = await SystemConnector.importTransport(this.trkorr, this._trTarget, test);
+        if (result) {
+            rc = Number(result.tpRetCode);
+            if (Array(result.tpStdout)) {
+                result.tpStdout.forEach(line => Logger.log(line.line, true));
+            }
+            // tp can hand the import over to the background ("Going offline") and return at once: the objects are
+            // only imported (or deleted) afterwards. Wait for the import recorded in the queue and take its return code.
+            if (!test && rc < 8) {
+                Logger.log(`Waiting for transport ${this.trkorr} import to complete`, true);
+                const queue = await this._isInTmsQueue(true, true);
+                if (queue.rc >= 0) {
+                    rc = queue.rc;
+                    message = queue.message;
+                }
+            }
+        } else {
+            Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
+            const queue = await this._isInTmsQueue(false, true);
+            rc = queue.rc;
+            message = queue.message;
+        }
+        Transport._printImportResult(this.trkorr, rc, message, test);
+        return rc;
+    }
+
+    private static _printImportResult(trkorr: TRKORR, rc: number, message: string, test: boolean): void {
+        switch (rc) {
             case -1:
-                Logger.error(`${this.trkorr} import has no return code!`);
+                Logger.error(`${trkorr} import has no return code!`, { debug: test, important: true });
                 break;
             case 0:
-                Logger.success(`${this.trkorr} import ended with success${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.success(`${trkorr} import ended with success${message ? ' -> ' + message : '.'}`, test);
                 break;
             case 4:
-                Logger.warning(`${this.trkorr} import ended with warning${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.warning(`${trkorr} import ended with warning${message ? ' -> ' + message : '.'}`, { debug: test, important: true });
                 break;
             case 8:
-                Logger.error(`${this.trkorr} import ended with error (check ${chalk.bold('STMS')})${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.error(`${trkorr} import ended with error (check ${chalk.bold('STMS')})${message ? ' -> ' + message : '.'}`, { debug: test, important: true });
                 break;
             case 12:
-                Logger.error(`${this.trkorr} import was cancelled${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.error(`${trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, { debug: test, important: true });
                 break;
             case 16:
-                Logger.error(`${this.trkorr} import was cancelled${queue.message ? ' -> ' + queue.message : '.'}`);
+                Logger.error(`${trkorr} import was cancelled${message ? ' -> ' + message : '.'}`, { debug: test, important: true });
                 break;
         }
     }
@@ -829,12 +963,12 @@ export class Transport {
     }
 
     public async canBeDeleted(): Promise<boolean> {
-        const status = (await this.getE070()).trstatus;
+        const status = (await this.getE070())?.trstatus;
         return status === 'D';
     }
 
     public async isReleased(): Promise<boolean> {
-        const status = (await this.getE070()).trstatus;
+        const status = (await this.getE070())?.trstatus;
         return status === 'R' || status === 'N';
     }
 

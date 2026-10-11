@@ -1,136 +1,138 @@
-import execute from "@simonegaffurini/sammarksworkflow";
-import { R3trans, R3transOptions } from "node-r3trans";
-import { inspect } from "util";
-import { Logger } from "trm-commons";
-import { Transport } from "../../transport";
-import { TransportBinary, TrmArtifact, TrmPackage, TrmPackageInstallTransport } from "../../trmPackage";
-import { init } from "./init";
-import { TrmManifest, TrmManifestDependency } from "../../manifest";
-import { checkServerAuth, IActionContext, trmServerPa } from "..";
-import { setSystemPackages } from "../commons/setSystemPackages";
-import { checkAlreadyInstalled } from "./checkAlreadyInstalled";
-import { checkSapEntries } from "./checkSapEntries";
-import { checkDependencies } from "./checkDependencies";
-import { installDependencies } from "./installDependencies";
-import { DEVCLASS, E071, NAMESPACE, TADIR, TDEVC, TDEVCT } from "../../client";
-import { checkTransports } from "./checkTransports";
-import { readDevc } from "./readDevc";
-import { setInstallDevclass } from "./setInstallDevclass";
-import { checkObjectTypes } from "./checkObjectTypes";
-import { generateDevclass } from "./generateDevclass";
-import { readTadir } from "./readTadir";
-import { PackageHierarchy } from "../../commons";
-import { importDevcTransport } from "./importDevcTransport";
-import { addNamespace } from "./addNamespace";
-import { importTadirTransport } from "./importTadirTransport";
-import { importLangTransport } from "./importLangTransport";
-import { importCustTransport } from "./importCustTransport";
-import { updatePackageData } from "./updatePackageData";
-import { generateInstallTransports } from "./generateInstallTransports";
-import { refreshTmsTxt } from "./refreshTmsTxt";
-import { AbstractRegistry } from "../../registry";
-import { executePostActivities } from "./executePostActivities";
 import { Package } from "trm-registry-types";
-import { Lockfile } from "../../lockfile/Lockfile";
-import { checkObjectsLock } from "./checkObjectsLock";
-import { releaseInstallTransports } from "./releaseInstallTransport";
+import { Lockfile } from "../../lockfile";
+import { AbstractRegistry } from "../../registry";
+import { Transport } from "../../transport";
+import { TransportBinary, TrmPackage } from "../../trmPackage";
+import { TrmManifest, TrmManifestDependency } from "../../manifest";
+import { PackageHierarchy } from "../../commons";
+import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
+import { init } from "./init";
+import { checkTransports } from "./checkTransports";
+import { checkSapEntries } from "./checkSapEntries";
+import { checkEngines } from "./checkEngines";
+import { checkDependencies } from "./checkDependencies";
+import { checkDependencyCycles } from "./checkDependencyCycles";
+import { installDependencies } from "./installDependencies";
+import { setInstallDevclass } from "./setInstallDevclass";
+import { checkInstallDevclass } from "./checkInstallDevclass";
+import { addNamespace } from "./addNamespace";
+import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../../client";
+import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
+import { generateDevclass } from "./generateDevclass";
+import { prepareDevc } from "./prepareDevc";
+import { prepareTadir } from "./prepareTadir";
+import { prepareLang } from "./prepareLang";
+import { prepareCust } from "./prepareCust";
+import { importBatch } from "./importBatch";
+import { generateLandscapeTransport } from "./generateLandscapeTransport";
+import { updatePackageData } from "./updatePackageData";
+import { executePostActivities } from "./executePostActivities";
+import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
+import { generateUpdateTransport } from "./generateUpdateTransport";
+import { checkDependants } from "./checkDependants";
+import { executeRetainedWorkflow } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage } from "../commons/utils";
+import { lockResources } from "./lockResources";
+import { cleanupCheckpoint } from "./cleanupCheckpoint";
 
-/**
- * ABAP package replacement during install
- */
+/** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
     /**
-     * Original publisher ABAP package name
+     * Original ABAP package name stored in the published artifact.
      */
     originalDevclass: string,
 
     /**
-     * Install ABAP package name
+     * Target ABAP package name to use on the receiving system.
      */
     installDevclass: string
 }
 
-/**
- * Optional context data.
- */
+/** Shared execution settings for package and dependency installation actions. */
 export type InstallActionInputContextData = {
     /**
-     * Manually set installed packages on the system.
+     * Snapshot of packages installed on the target system. When omitted, the action queries SAP.
      */
-    systemPackages?: TrmPackage[]; 
-    
-    /**
-     * Set r3trans options.
-     */
-    r3transOptions?: R3transOptions;
+    systemPackages?: TrmPackage[];
 
     /**
-     * Skip printing R3trans info.
-     */
-    noR3transInfo?: boolean;
-
-    /**
-     * Use inquirer? (will force some decisions)
+     * Disable interactive prompts. Any required choice without an explicit value then causes an error.
      */
     noInquirer?: boolean;
 
     /**
-     * Don't show a stop warning when process starts.
+     * Directory in which transport-release logs and temporary files are written.
      */
-    noStopWarning?: boolean;
+    logTemporaryFolder?: string;
+
+    /**
+     * Version of trm-core in use, checked against the `trm-core` engine of the package.
+     * Supply it when the client resolves trm-core itself; defaults to the version read from trm-core package.json.
+     */
+    coreVersion?: string;
 }
 
-/**
- * Optional install-specific data.
- */
+/** Options controlling package validation, transport import, and target package mapping. */
 export type InstallActionInputInstallData = {
+    /**
+     * Set by an install for the dependency installs it runs: the dependencies the user already
+     * confirmed. A dependency install doesn't ask again for these.
+     */
+    approvedDependencies?: string[];
+
     /**
      * Import-related data.
      */
     import?: {
         /**
-         * Whether to skip importing language transports.
+         * Skip the optional language transport. When unset, the user is asked (default: import);
+         * without prompts (`noInquirer`) the transport is imported.
          */
         noLang?: boolean;
 
         /**
-         * Whether to skip importing customizing transports.
+         * Skip all customizing transports. When unset, the user is asked for each transport
+         * (default: import); without prompts (`noInquirer`) all of them are imported.
+         * On update, the customizing of the installed release is then kept.
          */
         noCust?: boolean;
-
-        /**
-         * If importing a transport that already exists, overwrite.
-         */
-        replaceExistingTransports?: boolean;
     };
 
     /**
      * Optional checks to perform during installation.
      */
     checks?: {
-
         /**
-         * Lockfile (for dependencies install matching integrity/version).
+         * Lockfile used to pin the release and dependency versions and verify their integrity.
+         * The package must be the lockfile root: when `packageData.version` is omitted the root
+         * version is installed, and an explicit version, distribution tag, local artifact, registry,
+         * or integrity that doesn't match the root aborts the install before any change.
          */
         lockfile?: Lockfile;
 
         /**
-         * Whether to skip checking for all SAP entries.
+         * Skip validation of required SAP table entries. Defaults to `false`.
          */
         noSapEntries?: boolean;
 
         /**
-         * Whether to skip checking that all object types are supported.
+         * Skip validation of the manifest engines (SAP components, products, notes, tables). Defaults to `false`.
          */
-        noObjectTypes?: boolean;
+        noEngines?: boolean;
 
         /**
-         * Whether to skip checking for package dependencies.
+         * Skip package dependency validation and installation. Defaults to `false`.
          */
         noDependencies?: boolean;
 
         /**
-         * Whether to skip checking for existing objects.
+         * Allow a dependency install to replace a newer installed release without confirmation.
+         * Defaults to `false`: the user is prompted, and without a prompt the install is aborted.
+         */
+        allowDowngrade?: boolean;
+
+        /**
+         * Skip the safety check for repository objects that would be overwritten. Defaults to `false`.
          */
         noExistingObjects?: boolean;
     };
@@ -140,52 +142,50 @@ export type InstallActionInputInstallData = {
      */
     installDevclass?: {
         /**
-         * Whether to keep the original package names from the publisher.
+         * Preserve publisher package names instead of mapping objects into an install package.
          */
         keepOriginal?: boolean;
 
         /**
-         * The transport layer of the package.
+         * Transport layer assigned to generated transportable target packages. When omitted, the system default
+         * is resolved only if such packages have to be created.
          */
         transportLayer?: string;
 
         /**
-         * List of package replacements to apply during installation. Ignored if used with keep original.
+         * Explicit publisher-to-target package mappings. Ignored when `keepOriginal` is `true`.
          */
         replacements?: InstallPackageReplacements[];
 
         /**
-         * Skip install of namespace (if package has customer namespace).
+         * Do not register the package namespace on the target system. When unset and the namespace
+         * is missing, the user is asked (default: import); without prompts (`noInquirer`) it is imported.
          */
         skipNamespace?: boolean
     };
 
     /**
-     * Transport-related options for installation.
+     * Landscape transport-related options.
      */
-    installTransport?: {
+    landscapeTransport?: {
         /**
-         * Whether to create an install transport for easy distribution across the landscape.
-         */
-        create?: boolean;
-
-        /**
-         * The target system for the install transport.
+         * TMS target for the generated landscape transport. It is selected interactively when omitted.
+         * When omitted and the system has no transport targets, it is treated as the final system
+         * of the landscape and no landscape transport is generated.
          */
         targetSystem?: string;
     };
 
     /**
-     * Skip install post activities
+     * Skip every post-install activity declared in the manifest. Defaults to `false`.
      */
     skipPostActivities?: boolean
 }
 
-/**
- * Input data for install package action.
- */
+/** Input required to install a TRM package release into the connected SAP system. */
 export interface InstallActionInput {
 
+    /** Optional shared execution settings. */
     contextData?: InstallActionInputContextData,
 
     /**
@@ -193,27 +193,43 @@ export interface InstallActionInput {
      */
     packageData: {
         /**
-         * The name of the package.
+         * Registry package name. For local registries, the manifest name becomes authoritative.
          */
         name: string;
 
         /**
-         * The version of the package (defaults to the latest version if not provided).
+         * Release version or registry selector. Defaults to the lockfile root version when
+         * `installData.checks.lockfile` is set, otherwise to `latest`.
          */
         version?: string;
 
         /**
-         * The registry where the package is stored.
+         * Registry from which metadata and the release artifact are fetched.
          */
         registry: AbstractRegistry;
 
         /**
-         * Overwrite package if same version is already installed?
+         * Allow reinstalling the same version. Defaults to `false`; dirty local changes still
+         * require interactive confirmation and therefore abort when prompts are disabled.
          */
         overwrite?: boolean;
+
+        /**
+         * Expected release integrity (SHA-512, base64), for example from a lockfile. When set, the
+         * install aborts before any change unless the release fetched from the registry matches it.
+         */
+        integrity?: string;
     };
 
+    /** Optional validation, import, package-mapping, and post-activity settings. */
     installData?: InstallActionInputInstallData
+
+    /**
+     * Set by a dependency install: the release is selected by the dependency range and the
+     * lockfile dependency entries, so the lockfile root (`name`, `version`, `registry`, `integrity`)
+     * is not applied to it.
+     */
+    dependency?: boolean
 }
 
 type TransportRuntime = {
@@ -222,103 +238,266 @@ type TransportRuntime = {
 }
 
 type WorkflowRuntime = {
-    stopWarningShown: boolean
-    registry: AbstractRegistry,
-    update: boolean,
     isTrmServer: boolean,
     isTrmRest: boolean,
-    remotePackageData: {
+    isLocal: boolean,
+    update: TrmPackage,
+    package: {
         data: Package,
-        manifest: TrmManifest,
-        artifact: TrmArtifact,
-        contents: boolean
+        hierarchy: PackageHierarchy
     },
-    packageTransports: {
+    transports: {
         devc: TransportRuntime,
         tadir: TransportRuntime,
-        lang: TransportRuntime,
-        cust: TransportRuntime[]
+        lang?: TransportRuntime,
+        cust?: TransportRuntime[]
     },
-    packageTransportsData: {
-        tdevc: TDEVC[],
-        tdevct: TDEVCT[],
-        tadir: TADIR[],
-        e071: E071[]
-    }
-    dependenciesToInstall: TrmManifestDependency[],
-    r3trans: R3trans,
-    originalData: {
-        hierarchy: PackageHierarchy
-    }
-    installData: {
-        namespace: string,
-        entries: E071[],
-        transports: TrmPackageInstallTransport[],
-        upgradingPackage?: TrmPackage
+    dele?: Transport,
+    transportEntries: {
+        tdevct: TDEVCT[]
     },
-    generatedData: {
-        devclass: DEVCLASS[],
-        namespace: NAMESPACE,
-        tmsTxtRefresh: Transport[]
-    }
+    dependencies: InstallDependencyEntry[],
+    namespace: string,
+    /** Registry the package is recorded under: the real registry of a local (.trm) artifact. */
+    installRegistry: AbstractRegistry,
+    previousInstallPackages: InstallPackageReplacements[],
+    /** Transports recorded for the installed release being updated. */
+    previousInstallTransports: InstallTransport[],
+    dependencyRollbacks: Array<() => Promise<void>>,
+    dependencyReleases: Array<() => Promise<void>>,
+    /** Packages installed by the dependency installs, transitive ones included, merged into the package snapshot. */
+    installedDependencies: TrmPackage[],
+    /** Package snapshot before the dependency installs, restored after they are rolled back. */
+    systemPackagesBeforeDependencies?: TrmPackage[],
+    rootDevclassBeforeImport?: TDEVC,
+    stopWarningShown: boolean,
+    /** Customizing transports of the release the user chose not to import (or skipped by noCust / non-interactive mode). */
+    skippedCust?: string[],
+    /** Release objects found on the system by check-transports, accepted before locking. */
+    existingObjects?: TADIR[],
+    /** Custom namespaces locked by this install or by the install it is a dependency of. */
+    lockedNamespaces?: string[],
+    /** Required SAP entries missing on the system: the install is aborted by check-engines, with the unmet engines. */
+    missingSapEntries?: number
 }
 
+
+/** Dependency queued for install: missing from the system, or installed in an incompatible version. */
+export type InstallDependencyEntry = {
+    dependency: TrmManifestDependency,
+    status: 'notFound' | 'versionMismatch',
+    /** Version on the system; set for `versionMismatch`. */
+    installedVersion?: string
+}
+
+
+type WorkflowRevert = {
+    transports: {
+        devc: TransportBinary,
+        tadir: TransportBinary,
+        lang?: TransportBinary,
+        cust?: TransportBinary[]
+    },
+    cleanupTransport?: Transport,
+    cleanupImported?: boolean,
+    cleanupSucceeded?: boolean,
+    importStarted?: boolean,
+    importedEntries?: E071[],
+    /** Imported customizing transports, copied into the rollback cleanup transport with their keys. */
+    importedCustomizing?: Transport[],
+    /**
+     * Imported objects, SAP packages included, that were already on the system before the import,
+     * with their previous TADIR row. The rollback cleanup never deletes them.
+     */
+    existingObjectsTadir?: TADIR[],
+    /** Transport of copies backing up {@link WorkflowRevert.existingObjectsTadir}, tracked before it is released. */
+    existingObjectsBackupTransport?: Transport,
+    /** Previous version of the existing objects, re-imported once the rollback cleanup succeeded. */
+    existingObjectsBackup?: TransportBinary,
+    packageHierarchy?: TDEVC[],
+    packageTransportLayers?: Array<{ devclass: DEVCLASS, transportLayer: string }>,
+    createdTransports?: {
+        devc?: Transport,
+        tadir?: Transport,
+        lang?: Transport,
+        cust: Transport[]
+    },
+    sapPackages: DEVCLASS[],
+    stagingPackages?: DEVCLASS[],
+    dele?: TransportBinary,
+    deleImportStarted?: boolean,
+    deleInTargetTms?: boolean,
+    /** Set before the landscape transport is released, as SAP may export it and still fail. */
+    landscapeReleaseStarted?: boolean,
+    cleanupOriginalTadir?: TADIR[],
+    cleanupTemporaryPackages?: TDEVC[],
+    updateCleanupTransport?: Transport,
+    updateTablesBackupTransport?: Transport,
+    retainedTables?: TransportBinary,
+    retainedTableObjects?: Pick<E071, 'pgmid' | 'object' | 'objName'>[],
+    metadataWriteStarted?: boolean,
+    /** Set before the install transports are written, as SAP may commit them and still fail. */
+    metadataTransportsWriteStarted?: boolean,
+    metadataPackageRegistry?: string,
+    /** Install package mappings written by this install. */
+    metadataInstallDevc?: ZTRM_INSTALLDEVC[],
+    metadataPackageRow?: TrmPackageUpdateData,
+    /** TRM packages table row stored before an upgrade wrote its own; undefined when none was stored. */
+    metadataPreviousPackageRow?: TrmPackageUpdateData,
+    /** Set once the stored row was read: only then can an upgrade revert restore the metadata. */
+    metadataPreviousPackageRead?: boolean,
+    namespace?: string
+}
+
+/** Result of a successful {@link install} action. */
 export type InstallActionOutput = {
+    /** Normalized manifest of the installed release. */
     manifest: TrmManifest,
-    registry: AbstractRegistry,
-    installTransports?: TrmPackageInstallTransport[]
+    /** Generated landscape transport, when the installation produced one. */
+    transport?: Transport
 }
 
+/** Internal state shared by package-install workflow steps and rollback handlers. */
 export interface InstallWorkflowContext extends IActionContext {
+    lockScope?: ActionLockScope,
+    /** Custom namespaces already locked by the parent installs of a dependency install. */
+    inheritedNamespaceLocks?: string[],
+    /** Original action input; optional groups are normalized during initialization. */
     rawInput: InstallActionInput,
+    /** Resolved release, package hierarchy, transports, dependencies, and system metadata. */
     runtime?: WorkflowRuntime,
+    /** Data retained so completed steps can be rolled back after a later failure. */
+    revert?: WorkflowRevert,
+    /** Installation result assembled by the workflow. */
     output?: InstallActionOutput
 };
 
 const WORKFLOW_NAME = 'install';
 
 /**
- * Install TRM Package from registry to target system
-*/
+ * Installs a TRM package release into the currently connected SAP system.
+ *
+ * The workflow authorizes the user, fetches and validates the release, checks dependencies
+ * (aborting on cyclic dependency graphs before anything is installed) and required SAP entries, maps ABAP packages, imports the artifact transports, executes
+ * post-install activities, and records the installed package. Completed reversible steps are
+ * rolled back when a later step fails.
+ *
+ * This operation changes the target SAP system. Do not interrupt it while transports are being
+ * generated, imported, or released.
+ *
+ * @param inputData Package identity, registry, and installation options.
+ * @returns The installed release manifest and, when generated, its landscape transport.
+ * @throws When authorization, release validation, safety checks, dependency installation,
+ * transport processing, or post-install work fails.
+ */
 export async function install(inputData: InstallActionInput): Promise<InstallActionOutput> {
-    const workflow = [
+    return (await runInstall(inputData, false)).output;
+}
+
+const installWorkflow = [
         checkServerAuth,
-        init,
         setSystemPackages,
-        trmServerPa,
-        checkAlreadyInstalled,
-        checkSapEntries,
-        checkDependencies,
-        installDependencies,
+        init,
+        checkDependants,
         checkTransports,
-        checkObjectTypes,
-        checkObjectsLock,
-        readDevc,
-        readTadir,
+        checkSapEntries,
+        checkEngines,
+        checkDependencies,
+        checkDependencyCycles,
         setInstallDevclass,
+        checkInstallDevclass,
+        lockResources,
+        installDependencies,
+        cleanupCheckpoint,
         addNamespace,
         generateDevclass,
-        importDevcTransport,
-        importTadirTransport,
-        importLangTransport,
-        importCustTransport,
-        refreshTmsTxt,
-        generateInstallTransports,
-        updatePackageData,
+        generateUpdateTransport,
+        prepareDevc,
+        prepareTadir,
+        prepareLang,
+        prepareCust,
+        importBatch,
+        generateLandscapeTransport,
         executePostActivities,
-        releaseInstallTransports
-    ];
-    Logger.log(`Ready to execute workflow ${WORKFLOW_NAME}, input data: ${inspect(inputData, { breakLength: Infinity, compact: true })}`, true);
-    const result = await execute<InstallWorkflowContext>(WORKFLOW_NAME, workflow, {
-        rawInput: inputData
-    });
-    Logger.log(`Workflow ${WORKFLOW_NAME} result: ${inspect(result, { breakLength: Infinity, compact: true })}`, true);
-    const manifest = result.runtime.remotePackageData.manifest;
-    const registry = result.runtime.registry;
-    const installTransports = result.runtime.installData.transports;
-    return {
-        manifest,
-        registry,
-        installTransports
+        releaseLandscapeTransport,
+        updatePackageData
+];
+
+async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = []): Promise<{
+    output: InstallActionOutput,
+    installedPackages?: TrmPackage[],
+    rollback?: () => Promise<void>,
+    release?: () => Promise<void>
+}> {
+    const lockScope = new ActionLockScope(WORKFLOW_NAME);
+    const context: InstallWorkflowContext = { rawInput: inputData, lockScope, inheritedNamespaceLocks };
+    //a local artifact is locked under the package it installs, as a remote install of it would be
+    const lockPackage = await resolveInstallPackage(inputData.packageData.registry, inputData.packageData.name);
+    await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);
+    const release = async (): Promise<void> => {
+        let firstError: unknown;
+        for (const releaseDependency of [...(context.runtime?.dependencyReleases || [])].reverse()) {
+            try {
+                await releaseDependency();
+            } catch (error) {
+                firstError ||= error;
+            }
+        }
+        try {
+            await lockScope.release();
+        } catch (error) {
+            firstError ||= error;
+        }
+        if (firstError) throw firstError;
+    };
+    if (!retainRollback) {
+        return withLockRelease(release, async () => {
+            const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
+            return { output: result.output };
+        });
     }
+    let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<InstallWorkflowContext>>>;
+    try {
+        retained = await executeRetainedWorkflow<InstallWorkflowContext>(
+            WORKFLOW_NAME, installWorkflow, context, workflowCallbacks
+        );
+    } catch (error) {
+        await releaseLogged(release);
+        throw error;
+    }
+    // The locks stay held until the parent calls release (or rollback).
+    return {
+        output: retained.context.output,
+        installedPackages: retained.context.runtime?.installedDependencies || [],
+        release,
+        rollback: async () => {
+            let firstError: unknown;
+            try {
+                await retained.rollback();
+            } catch (error) {
+                firstError = error;
+            }
+            try {
+                await release();
+            } catch (error) {
+                firstError ||= error;
+            }
+            if (firstError) throw firstError;
+        }
+    };
+}
+
+/**
+ * Internal transactional entry point used when a parent install must retain rollback ownership.
+ * `inheritedNamespaceLocks` are the namespaces the parent installs hold locked until they finish.
+ */
+export async function installWithRollback(inputData: InstallActionInput, inheritedNamespaceLocks: string[] = []): Promise<{
+    output: InstallActionOutput,
+    /** Packages installed by the install's own dependency installs, transitive ones included. */
+    installedPackages: TrmPackage[],
+    rollback: () => Promise<void>,
+    release: () => Promise<void>
+}> {
+    const retained = await runInstall(inputData, true, inheritedNamespaceLocks);
+    return { output: retained.output, installedPackages: retained.installedPackages, rollback: retained.rollback, release: retained.release };
 }

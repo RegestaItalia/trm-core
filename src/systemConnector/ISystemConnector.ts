@@ -1,10 +1,11 @@
-import { ClientError, SapMessage } from "../client";
+import { ClientError, SapMessage, TransportEntries } from "../client";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { RFCConnection } from "./RFCConnection";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
+import { ActionLockKey } from "./ActionLock";
 
 export interface TrmPackageUpdateData {
     package_name: string,
@@ -15,12 +16,21 @@ export interface TrmPackageUpdateData {
     devclass: string
 }
 
+/** Atomic rollback payload for the TRM package row, install mappings and install transports. */
+export interface TrmPackageMetadataRestoreData {
+    package: TrmPackageUpdateData,
+    packageExists: boolean,
+    installDevc: struct.ZTRM_INSTALLDEVC[],
+    /** Install transports replacing the recorded ones; omitted or empty removes them. */
+    installTr?: struct.ZTRM_INSTALLTR[]
+}
+
 export interface ISystemConnector extends ISystemConnectorBase {
     supportedBulk: SystemConnectorSupportedBulk, //indicates bulk operations allowed
     isStateless: boolean,
     getNewConnection(): ISystemConnector,
     getConnectionData: () => RFCConnection | RESTConnection,
-    getDest: () => string,
+    getDest: () => components.SYSYSID,
     getLogonLanguage: (c: boolean) => string,
     getLogonUser: () => string,
     connect: (silent: boolean) => Promise<void>,
@@ -37,17 +47,22 @@ export interface ISystemConnector extends ISystemConnectorBase {
     setTransportDoc: (trkorr: components.TRKORR, doc: struct.TLINE[]) => Promise<void>,
     removeComments: (trkorr: components.TRKORR, object: components.TROBJTYPE) => Promise<void>,
     addToTransportRequest: (trkorr: components.TRKORR, content: struct.E071[], lock: boolean) => Promise<void>,
+    lockTransportObjs: (trkorr: components.TRKORR) => Promise<void>,
     repositoryEnvironment: (objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME) => Promise<struct.SENVI[]>,
     deleteTrkorr: (trkorr: components.TRKORR) => Promise<void>,
     releaseTrkorr: (trkorr: components.TRKORR, lock: boolean, timeout?: number) => Promise<void>,
     readTmsQueue: (target: components.TMSSYSNAM) => Promise<struct.STMSIQREQ[]>,
+    deleteTemporaryPackage: (devclass: components.DEVCLASS) => Promise<void>,
     createPackage: (scompkdtln: struct.SCOMPKDTLN) => Promise<void>,
     getDefaultTransportLayer: () => Promise<components.DEVLAYER>,
     tadirInterface: (tadir: struct.TADIR) => Promise<void>,
-    dequeueTransport: (trkorr: components.TRKORR) => Promise<void>,
     forwardTransport: (trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean) => Promise<void>,
-    importTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM) => Promise<void>,
+    importTransport: (trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean) => Promise<struct.STMS_TP_IMPORT | void>,
+    importTransportMultiple: (trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean) => Promise<struct.STMS_TP_IMPORT | void>,
     setInstallDevc: (installDevc: struct.ZTRM_INSTALLDEVC[]) => Promise<void>,
+    deleteInstallDevc: (installDevc: struct.ZTRM_INSTALLDEVC[]) => Promise<void>,
+    restoreInstallMetadata: (data: TrmPackageMetadataRestoreData) => Promise<void>,
+    setInstallTransports: (packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]) => Promise<void>,
     getObjectsList: () => Promise<struct.KO100[]>,
     renameTransportRequest: (trkorr: components.TRKORR, as4text: components.AS4TEXT) => Promise<void>,
     addTranslationToTr: (trkorr: components.TRKORR, devclassFilter: struct.LXE_TT_PACKG_LINE[]) => Promise<void>,
@@ -60,6 +75,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     refreshTransportTmsTxt: (trkorr: components.TRKORR) => Promise<void>,
     getDotAbapgit: (devclass: components.DEVCLASS) => Promise<Buffer>,
     getAbapgitSource: (devclass: components.DEVCLASS) => Promise<{zip: Buffer, objects: struct.ZTY_SER_OBJ[]}>,
+    getTransportEntries: (trkorr: components.TRKORR) => Promise<TransportEntries>,
     executePostActivity: (data: Buffer, pre?: boolean) => Promise<{ messages: struct.SYMSG[], execute?: boolean }>,
     isServerApisAllowed: () => Promise<true|ClientError>,
     changeTrOwner: (trkorr: components.TRKORR, owner: components.TR_AS4USER) => Promise<void>,
@@ -70,4 +86,6 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getObjectsLocks: (objects: struct.TADIR_KEY[]) => Promise<struct.ZTRM_OBJ_LOCK[]>,
     updateTrmPackageData: (data: TrmPackageUpdateData) => Promise<void>,
     getTransportTargets:() => Promise<components.TARSYSTEM[]>
+    acquireActionLocks: (keys: ActionLockKey[], ownerToken: string, actionName: string) => Promise<void>,
+    releaseActionLocks: (keys: ActionLockKey[], ownerToken: string) => Promise<void>
 }

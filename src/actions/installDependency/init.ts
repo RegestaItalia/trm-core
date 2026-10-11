@@ -1,13 +1,12 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallDependencyWorkflowContext } from ".";
-import { Logger } from "trm-commons";
 import { parsePackageName } from "../../commons";
 import { validRange } from "semver";
 import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 
 /**
- * Init
+ * Workflow step that validates dependency identity/range and initializes resolution state.
  * 
  * 1- check package name is compliant
  * 
@@ -23,8 +22,6 @@ import { TrmPackage } from "../../trmPackage";
 export const init: Step<InstallDependencyWorkflowContext> = {
     name: 'init',
     run: async (context: InstallDependencyWorkflowContext): Promise<void> => {
-        Logger.log('Init step', true);
-
         //1- check package name is compliant
         context.rawInput.dependencyDataPackage.name = parsePackageName({
             fullName: context.rawInput.dependencyDataPackage.name
@@ -45,7 +42,8 @@ export const init: Step<InstallDependencyWorkflowContext> = {
         context.runtime = {
             trmPackage: new TrmPackage(context.rawInput.dependencyDataPackage.name, context.rawInput.dependencyDataPackage.registry),
             installOutput: undefined,
-            installVersion: undefined
+            installVersion: undefined,
+            alreadyInstalled: false
         }
 
         //5- fill input values
@@ -60,6 +58,9 @@ export const init: Step<InstallDependencyWorkflowContext> = {
         }
         if(!context.rawInput.installData.installDevclass){
             context.rawInput.installData.installDevclass = {};
+        }
+        if(!context.rawInput.installData.checks){
+            context.rawInput.installData.checks = {};
         }
     }
 }

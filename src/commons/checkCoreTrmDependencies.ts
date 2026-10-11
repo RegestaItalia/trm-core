@@ -29,7 +29,7 @@ export async function checkCoreTrmDependencies(systemPackages?: TrmPackage[], gl
                 returnData.missingDependencies.push(packageName);
             } else {
                 const installedVersion = installedPackage.manifest.get().version;
-                if (!satisfies(installedVersion, versionRange)) {
+                if (!satisfies(installedVersion, versionRange, { includePrerelease: true })) {
                     returnData.versionNotSatisfiedDependencies.push(installedPackage);
                 } else {
                     returnData.dependencies.push(installedPackage);

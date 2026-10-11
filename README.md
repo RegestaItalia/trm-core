@@ -43,7 +43,27 @@ Install the official CLI client via npm:
 npm install trm-client -g
 ```
 
+# Development
+
+To contribute to `trm-core`, fork the repository, clone your fork, and install the dependencies:
+
+```bash
+git clone https://github.com/RegestaItalia/trm-core.git
+cd trm-core
+npm ci
+```
+
+The project requires Node.js 22.12.0 or newer. Before submitting a change, run the test suite and compile the TypeScript project:
+
+```bash
+npm test
+npm run build
+```
+
+Development guides for specific areas of the codebase are available in [`docs/development`](docs/development/). Follow the relevant guide when your change affects one of those areas.
+
 # Contributing
+
 Like every other TRM open-source projects, contributions are always welcomed ❤️.
 
 Make sure to open an issue first.

@@ -2,7 +2,6 @@ import * as xml from "xml-js";
 import * as semver from "semver";
 import { TrmManifest } from "./TrmManifest";
 import { jsonStringifyWithKeyOrder, normalize } from "../commons";
-import { Transport } from "../transport";
 import { TrmPackage } from "../trmPackage";
 import { PUBLIC_RESERVED_KEYWORD, RegistryProvider } from "../registry";
 import normalizeUrl from "@esm2cjs/normalize-url";
@@ -13,6 +12,8 @@ import { DOMParser } from '@xmldom/xmldom';
 import _ from 'lodash';
 import XmlBeautify from 'xml-beautify';
 import { Logger } from "trm-commons";
+import { normalizeEngines, validateEngines } from "./engines";
+import { validateSapEntries } from "./sapEntries";
 
 
 function getManifestAuthor(sAuthor: string) {
@@ -32,8 +33,8 @@ export class Manifest {
     constructor(private _manifest: TrmManifest, private _filePath?: string) {
     }
 
-    public get(keepRuntimeValues: boolean = false): TrmManifest {
-        return Manifest.normalize(this._manifest, keepRuntimeValues);
+    public get(): TrmManifest {
+        return Manifest.normalize(this._manifest);
     }
 
     public getKey(keepVersion: boolean = true): string {
@@ -50,15 +51,6 @@ export class Manifest {
     public setSrcFolder(src: string): Manifest {
         this._manifest.srcFolder = src;
         return this;
-    }
-
-    public setLinkedTransport(transport: Transport): Manifest {
-        this._manifest.linkedTransport = transport;
-        return this;
-    }
-
-    public getLinkedTransport(): Transport | null {
-        return this._manifest.linkedTransport;
     }
 
     public setRegistryEndpoint(endpoint: string): void {
@@ -82,10 +74,11 @@ export class Manifest {
             "authors",
             "keywords",
             "dependencies",
+            "engines",
             "sapEntries",
             "postActivities"
         ] satisfies readonly (keyof TrmManifest & string)[];
-        var obj = this.get(false);
+        var obj = this.get();
         ignoredKeys.forEach(k => {
             delete obj[k];
         })
@@ -317,24 +310,37 @@ export class Manifest {
                 }
             }
         }
+        if (manifest.engines) {
+            oAbapXml['asx:abap']['asx:values']['TRM_MANIFEST']['ENGINES'] = {
+                //escape xml special characters as json unicode escapes, JSON.parse restores them
+                "_text": JSON.stringify(manifest.engines).replace(/&/g, '\\u0026').replace(/</g, '\\u003c').replace(/>/g, '\\u003e')
+            }
+        }
         const sXml = xml.js2xml(oAbapXml, { compact: true });
         return sXml ? new XmlBeautify({ useSelfClosingElement: true, parser: DOMParser }).beautify(sXml) : null;
     }
 
     public getPackage(): TrmPackage {
-        const manifest = this.get(true);
+        const manifest = this.get();
         const registry = RegistryProvider.getRegistry(manifest.registry, this._filePath);
         return new TrmPackage(manifest.name, registry, this);
     }
 
-    public static normalize(manifest: TrmManifest, keepRuntimeValues: boolean): TrmManifest {
+    /**
+     * Checks whether a dependency version is an acceptable semantic-version range.
+     *
+     * Stricter than `semver.validRange`: an empty or blank range (which semver reads as `*`)
+     * is rejected, so every dependency must declare an explicit range.
+     */
+    public static isValidDependencyRange(range: unknown): boolean {
+        return typeof range === 'string' && range.trim().length > 0 && semver.validRange(range) !== null;
+    }
+
+    public static normalize(manifest: TrmManifest): TrmManifest {
         //this function is also used for method get()
         //only keys will throw error
         //always check if property has value
         var manifestClone = _.cloneDeep(manifest);
-        if (!keepRuntimeValues) {
-            delete manifestClone.linkedTransport;
-        }
         if (!manifestClone.name) {
             throw new Error('Package name missing.')
         } else {
@@ -510,16 +516,19 @@ export class Manifest {
         if (!manifestClone.sapEntries || typeof manifestClone.sapEntries !== 'object') {
             delete manifestClone.sapEntries;
         } else {
-            for (const key in manifestClone.sapEntries) {
-                if (!Array.isArray(manifestClone.sapEntries[key])) {
-                    throw new Error(`Invalid structure in SAP entries declaration.`);
-                }
-                for (const item of manifestClone.sapEntries[key]) {
-                    if (typeof item !== 'object' || item === null) {
-                        throw new Error(`Invalid structure in SAP entries declaration.`);
-                    }
-                }
+            const sapEntriesErrors = validateSapEntries(manifestClone.sapEntries);
+            if (sapEntriesErrors.length > 0) {
+                throw new Error(`Invalid SAP entries declaration: ${sapEntriesErrors[0]}`);
             }
+        }
+        if (!manifestClone.engines || typeof manifestClone.engines !== 'object' || Object.keys(manifestClone.engines).length === 0) {
+            delete manifestClone.engines;
+        } else {
+            const enginesErrors = validateEngines(manifestClone.engines);
+            if (enginesErrors.length > 0) {
+                throw new Error(`Invalid engines declaration: ${enginesErrors[0]}`);
+            }
+            manifestClone.engines = normalizeEngines(manifestClone.engines);
         }
         if (manifestClone.distFolder) {
             try {
@@ -684,6 +693,13 @@ export class Manifest {
                 }];
             }
         }
+        if (oAbapManifest.engines && oAbapManifest.engines.text) {
+            try {
+                manifest.engines = JSON.parse(oAbapManifest.engines.text);
+            } catch (e) {
+                Logger.error(`Couldn't parse engines in abap xml manifest`, true);
+            }
+        }
         if (sapEntries && sapEntries.item) {
             manifest.sapEntries = {};
             try {
@@ -703,7 +719,7 @@ export class Manifest {
                 });
             } catch (e) { }
         }
-        return new Manifest(Manifest.normalize(manifest, false));
+        return new Manifest(Manifest.normalize(manifest));
     }
 
     public static _parseAbapXmlSapEntriesArray(input: any): any[] {
@@ -729,7 +745,7 @@ export class Manifest {
     }
 
     public static fromJson(sJson: string): Manifest {
-        return new Manifest(Manifest.normalize(JSON.parse(sJson), false));
+        return new Manifest(Manifest.normalize(JSON.parse(sJson)));
     }
 
     public static compare(o1: Manifest, o2: Manifest, checkVersion: boolean = false): boolean {

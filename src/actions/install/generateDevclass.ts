@@ -1,17 +1,18 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
-import { getPackageHierarchy } from "../../commons";
-import { DEVCLASS, TDEVC } from "../../client";
+import { getPackageHierarchy, getParentFromHierarchy, packageDataFromTdevc } from "../../commons";
+import type { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
+import { getDefaultTransportLayer } from "./defaultTransportLayer";
 
 /**
- * Check ABAP package existance and generate if needed.
+ * Workflow step that validates target SAP packages and creates any that are missing.
  * 
  * 1- find packages to generate
  * 
- * 2- generate missing packages
+ * 2- generate missing packages (the default transport layer is resolved only for transportable packages)
  * 
  * 3- build the package hierarchy, based on the original
  * 
@@ -20,56 +21,82 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
     name: 'generate-devclass',
     filter: async (context: InstallWorkflowContext): Promise<boolean> => {
         if (context.rawInput.installData.installDevclass.keepOriginal || context.runtime.isTrmServer) {
-            Logger.log(`Skipping generate devclass devclass (user input)`, true);
+            Logger.log(`Skipping generate devclass (user input)`, true);
             return false;
         } else {
             return true;
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Generate devclass step', true);
-
-        //2- find packages to generated
-        Logger.loading(`Checking ABAP packages...`);
-        var generate: DEVCLASS[] = [];
+        //1- find packages to generated
+        Logger.loading(`Checking SAP packages...`);
+        const generate: DEVCLASS[] = [];
+        const existing = new Set<DEVCLASS>();
         for (const replacement of context.rawInput.installData.installDevclass.replacements) {
             Logger.loading(`Checking existance of devclass ${replacement.installDevclass}...`, true);
             const oDevclass = await SystemConnector.getDevclass(replacement.installDevclass);
             if (oDevclass) {
                 Logger.log(`Devclass ${replacement.installDevclass} exists, skipping generation`, true);
+                existing.add(replacement.installDevclass);
+                if (!context.revert.packageHierarchy.some(pkg => pkg.devclass === oDevclass.devclass)) {
+                    context.revert.packageHierarchy.push(oDevclass);
+                }
             } else {
                 Logger.log(`Devclass ${replacement.installDevclass} doesn't exist, will be generated`, true);
                 generate.push(replacement.installDevclass);
             }
         }
 
-        //3- generate missing packages
+        if (existing.size > 0) {
+            Logger.loading(`Checking objects locks...`);
+            const locks = await SystemConnector.getObjectsLocks(Array.from(existing, devclass => ({
+                PGMID: 'R3TR',
+                OBJECT: 'DEVC',
+                OBJ_NAME: devclass
+            })));
+            if (locks.length > 0) {
+                locks.forEach(lock => {
+                    Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true });
+                });
+                throw new Error(`Install aborted. To continue, all ABAP packages must be released`);
+            }
+            Logger.log(`All existing SAP packages released, continue`, true);
+        }
+
+        //2- generate missing packages
         if (generate.length > 0) {
+            const dlvunit = context.runtime.namespace === '$' ? 'LOCAL' : 'HOME';
+            if (dlvunit !== 'LOCAL' && !context.rawInput.installData.installDevclass.transportLayer) {
+                context.rawInput.installData.installDevclass.transportLayer = await getDefaultTransportLayer();
+                Logger.log(`Setting transport layer to default: ${context.rawInput.installData.installDevclass.transportLayer}`, true);
+            }
             if (!context.runtime.stopWarningShown) {
                 context.runtime.stopWarningShown = true;
                 stopWarning('install');
             }
-            const dlvunit = context.runtime.installData.namespace === '$' ? 'LOCAL' : 'HOME';
             for (const devclass of generate) {
                 Logger.loading(`Creating package ${devclass}...`);
                 const originalDevclass = context.rawInput.installData.installDevclass.replacements.find(o => o.installDevclass === devclass).originalDevclass;
                 Logger.log(`Original devclass ${originalDevclass}`, true);
-                const ctext = context.runtime.packageTransportsData.tdevct.find(o => o.devclass === originalDevclass)?.ctext || `TRM ${context.rawInput.packageData.name}`;
-                await SystemConnector.createPackage({
+                const originalPackageData = context.runtime.transports.devc.binaries.entries.tdevc?.find(
+                    (o: TDEVC) => o.devclass === originalDevclass
+                );
+                if (!originalPackageData) {
+                    throw new Error(`Original TDEVC data for package ${originalDevclass} was not found.`);
+                }
+                const ctext = context.runtime.transportEntries.tdevct.find(o => o.devclass === originalDevclass)?.ctext || `TRM ${context.rawInput.packageData.name}`;
+                // Track before the mutating await because the package may have been
+                // created even when the connector response fails.
+                if (!context.revert.sapPackages.includes(devclass)) {
+                    context.revert.sapPackages.push(devclass);
+                }
+                await SystemConnector.createPackage(packageDataFromTdevc(originalPackageData, {
                     as4user: SystemConnector.getLogonUser(),
-                    pdevclass: context.rawInput.installData.installDevclass.transportLayer,
+                    pdevclass: context.rawInput.installData.installDevclass.transportLayer || '',
                     devclass,
                     ctext,
                     dlvunit
-                });
-                /*if(dlvunit === 'HOME'){
-                    wbObjects.push({
-                        pgmid: 'LIMU',
-                        object: 'ADIR',
-                        objName: `R3TRDEVC${devclass}`
-                    });
-                }*/
-                context.runtime.generatedData.devclass.push(devclass);
+                }));
                 if (dlvunit !== 'LOCAL') {
                     await SystemConnector.tadirInterface({
                         pgmid: 'R3TR',
@@ -82,16 +109,15 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
             }
         }
 
-        //4- build the package hierarchy, based on the original
-        Logger.loading(`Updating ABAP packages hierarchy...`);
+        //3- build the package hierarchy, based on the original
+        Logger.loading(`Updating SAP packages hierarchy...`);
         const aDummyTdevc: TDEVC[] = [];
-        var parentcl;
-        const originalPackageHierarchy = getPackageHierarchy(context.runtime.packageTransportsData.tdevc);
+        let parentcl: DEVCLASS;
         for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
             parentcl = '';
-            const originalRoot = originalPackageHierarchy.devclass === packageReplacement.originalDevclass;
+            const originalRoot = context.runtime.package.hierarchy.devclass === packageReplacement.originalDevclass;
             if (!originalRoot) {
-                const originalParentCl = context.runtime.packageTransportsData.tdevc.find(o => o.devclass === packageReplacement.originalDevclass).parentcl;
+                const originalParentCl = getParentFromHierarchy(context.runtime.package.hierarchy, packageReplacement.originalDevclass);
                 if (originalParentCl) {
                     parentcl = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalParentCl).installDevclass;
                 }
@@ -118,7 +144,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         //add parentcl
         for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
             const installRoot = installPackageHierarchy.devclass === packageReplacement.installDevclass;
-            const originalParentCl = context.runtime.packageTransportsData.tdevc.find(o => o.devclass === packageReplacement.originalDevclass).parentcl;
+            const originalParentCl = getParentFromHierarchy(context.runtime.package.hierarchy, packageReplacement.originalDevclass);
             if (originalParentCl) {
                 const installParentCl = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass;
                 if (installParentCl) {

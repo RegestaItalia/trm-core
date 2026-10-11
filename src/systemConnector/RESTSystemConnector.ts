@@ -2,24 +2,60 @@ import { Logger } from "trm-commons";
 import { DEVCLASS } from "../client/components";
 import { TADIR } from "../client/struct";
 import { Login } from "../client/Login";
-import { ISystemConnector, TrmPackageUpdateData } from "./ISystemConnector";
+import { ISystemConnector, TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "./ISystemConnector";
 import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
-import { ClientError, RESTClient, RESTClientError, SapMessage } from "../client";
-import normalizeUrl from "@esm2cjs/normalize-url";
+import { ClientError, RESTClient, RESTClientError, SapMessage, TransportEntries } from "../client";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
+import { ActionLockKey } from "./ActionLock";
+import { summarizeForLog } from "../commons/summarizeForLog";
 
 const ENDPOINT_RESOURCE_BASE = '/ztrmserver';
 const NONE_DEST = 'NONE';
 
+/**
+ * Reduces a user-provided REST endpoint to the base URL the TRM server resource is appended to.
+ *
+ * Users often paste a full SAP URL (e.g. with the ICF path, sap-client or other query
+ * parameters). A missing scheme defaults to http, credentials, query and hash are discarded.
+ * When the path contains the TRM server resource, the path before it is kept (e.g. a reverse
+ * proxy prefix) and everything after it is discarded; any other path is discarded.
+ *
+ * @param endpoint Endpoint as entered by the user.
+ * @returns The endpoint base URL, without trailing slash and without the TRM server resource.
+ */
+function normalizeEndpointBase(endpoint: string): string {
+    const sEndpoint = (endpoint || '').trim();
+    let url: URL;
+    try {
+        url = new URL(/^[a-z][a-z\d+\-.]*:\/\//i.test(sEndpoint) ? sEndpoint : `http://${sEndpoint}`);
+    } catch {
+        throw new Error(`Invalid REST endpoint "${sEndpoint}".`);
+    }
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new Error(`Invalid REST endpoint "${sEndpoint}": protocol must be http or https.`);
+    }
+    const segments = url.pathname.split('/').filter(segment => segment);
+    const resourceIndex = segments.findIndex(segment => `/${segment.toLowerCase()}` === ENDPOINT_RESOURCE_BASE);
+    const prefix = resourceIndex > 0 ? `/${segments.slice(0, resourceIndex).join('/')}` : '';
+    return `${url.protocol}//${url.host}${prefix}`;
+}
+
 export class RESTSystemConnector extends SystemConnectorBase implements ISystemConnector {
-    private _dest: string;
+    public acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
+        return this._client.acquireActionLocks(keys, ownerToken, actionName);
+    }
+
+    public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
+        return this._client.releaseActionLocks(keys, ownerToken);
+    }
+    private _dest: components.SYSYSID;
     private _lang: string;
     private _user: string;
     protected _client: RESTClient;
-    private _isServerApisAllowed: true | RESTClientError;
+    private _isServerApisAllowed?: true;
 
     supportedBulk: SystemConnectorSupportedBulk;
     isStateless: boolean = true;
@@ -34,10 +70,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         this._lang = this._login.lang;
         this._user = this._login.user;
         if (this._normalizeEndpoint) {
-            Logger.log(`REST connection data before normalize: ${JSON.stringify(this._connection)}`, true);
-            this._connection.endpoint = normalizeUrl(this._connection.endpoint, {
-                removeTrailingSlash: true
-            });
+            Logger.log(`REST connection data before normalize: ${JSON.stringify(summarizeForLog(this._connection))}`, true);
+            this._connection.endpoint = normalizeEndpointBase(this._connection.endpoint);
         }
         if (!new RegExp(`${ENDPOINT_RESOURCE_BASE}$`, 'gmi').test(this._connection.endpoint)) {
             this._connection.endpoint = `${this._connection.endpoint}${ENDPOINT_RESOURCE_BASE}`;
@@ -50,7 +84,7 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
             this.supportedBulk.getExistingObjects = false;
         }
         this._connection.rfcdest = this._connection.rfcdest.toUpperCase().trim();
-        Logger.log(`REST connection data after normalize: ${JSON.stringify(this._connection)}`, true);
+        Logger.log(`REST connection data after normalize: ${JSON.stringify(summarizeForLog(this._connection))}`, true);
         this._client = new RESTClient(this._connection.endpoint, this._connection.rfcdest, this._login, this._lang[0]);
     }
 
@@ -62,8 +96,14 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this.getDest();
     }
 
-    public getDest(): string {
-        return this._dest || this._connection.endpoint;
+    /**
+     * System ID, read from the system on connect.
+     */
+    public getDest(): components.SYSYSID {
+        if (!this._dest) {
+            throw new Error(`System ID not available: connect to the system first.`);
+        }
+        return this._dest;
     }
 
     protected getLangu(c: boolean): string {
@@ -78,8 +118,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         }
     }
 
-    protected async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string): Promise<any[]> {
-        return this._client.readTable(tableName, fields, options);
+    protected async readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]> {
+        return this._client.readTable(tableName, fields, options, paging);
     }
 
     protected async getTrmServerVersion(): Promise<string> {
@@ -123,13 +163,13 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
     }
 
     public async connect(silent: boolean = false): Promise<void> {
-        Logger.loading(`Connecting to ${this.getDest()}...`, silent);
+        Logger.loading(`Connecting to ${this._connection.endpoint}...`, silent);
         try {
             await this._client.open();
             this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
         } catch (e) {
-            Logger.error(`Connection to ${this.getDest()} as ${this._user} failed.`, silent);
+            Logger.error(`Connection to ${this._connection.endpoint} as ${this._user} failed.`, silent);
             throw e;
         }
     }
@@ -186,6 +226,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.addToTransportRequest(trkorr, content, lock);
     }
 
+    public async lockTransportObjs(trkorr: components.TRKORR): Promise<void> {
+        return this._client.lockTransportObjs(trkorr);
+    }
+
     public async repositoryEnvironment(objectType: components.SEU_OBJ, objectName: components.SOBJ_NAME): Promise<struct.SENVI[]> {
         return this._client.repositoryEnvironment(objectType, objectName);
     }
@@ -202,6 +246,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.readTmsQueue(target);
     }
 
+    public async deleteTemporaryPackage(devclass: components.DEVCLASS): Promise<void> {
+        return this._client.deleteTemporaryPackage(devclass);
+    }
+
     public async createPackage(scompkdtln: struct.SCOMPKDTLN): Promise<void> {
         return this._client.createPackage(scompkdtln);
     }
@@ -214,20 +262,32 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.tadirInterface(tadir);
     }
 
-    public async dequeueTransport(trkorr: components.TRKORR): Promise<void> {
-        return this._client.dequeueTransport(trkorr);
-    }
-
     public async forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean): Promise<void> {
         return this._client.forwardTransport(trkorr, target, source, importAgain);
     }
 
-    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
-        return this._client.importTransport(trkorr, system);
+    public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        return this._client.importTransport(trkorr, system, test);
+    }
+
+    public async importTransportMultiple(trkorr: components.TRKORR[], system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        return this._client.importTransportMultiple(trkorr, system, test);
     }
 
     public async setInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
         return this._client.setInstallDevc(installDevc);
+    }
+
+    public async deleteInstallDevc(installDevc: struct.ZTRM_INSTALLDEVC[]): Promise<void> {
+        return this._client.deleteInstallDevc(installDevc);
+    }
+
+    public async restoreInstallMetadata(data: TrmPackageMetadataRestoreData): Promise<void> {
+        return this._client.restoreInstallMetadata(data);
+    }
+
+    public async setInstallTransports(packageName: components.ZTRM_PACKAGE_NAME, packageRegistry: components.ZTRM_PACKAGE_REGISTRY, installTr: struct.ZTRM_INSTALLTR[]): Promise<void> {
+        return this._client.setInstallTransports(packageName, packageRegistry, installTr);
     }
 
     public async getObjectsList(): Promise<struct.KO100[]> {
@@ -278,15 +338,24 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getAbapgitSource(devclass);
     }
 
+    public async getTransportEntries(trkorr: components.TRKORR): Promise<TransportEntries> {
+        return this._client.getTransportEntries(trkorr);
+    }
+
     public async executePostActivity(data: Buffer, pre?: boolean): Promise<{ messages: struct.SYMSG[], execute?: boolean }> {
         return this._client.executePostActivity(data, pre);
     }
 
     public async isServerApisAllowed(): Promise<true | ClientError> {
-        if (this._isServerApisAllowed === undefined) {
-            this._isServerApisAllowed = await this._client.isServerApisAllowed();
+        if (this._isServerApisAllowed) {
+            return this._isServerApisAllowed;
         }
-        return this._isServerApisAllowed;
+        // Only a granted authorization is cached: a denial may be transient and is checked again.
+        const auth = await this._client.isServerApisAllowed();
+        if (auth === true) {
+            this._isServerApisAllowed = auth;
+        }
+        return auth;
     }
 
     public async changeTrOwner(trkorr: components.TRKORR, owner: components.TR_AS4USER): Promise<void> {

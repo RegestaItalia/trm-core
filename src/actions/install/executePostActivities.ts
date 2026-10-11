@@ -2,10 +2,9 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { PostActivity } from "../../manifest";
-import { TrmTransportIdentifier } from "../../transport";
 
 /**
- * Execute post activities
+ * Workflow step that executes post-install activities declared by the package manifest.
  * 
  * 1- execute post activities
  * 
@@ -16,50 +15,39 @@ export const executePostActivities: Step<InstallWorkflowContext> = {
         if (context.rawInput.installData.skipPostActivities) {
             Logger.log(`Skipping post activities (user input)`, true);
             return false;
-        } else {
-            if (context.runtime.remotePackageData.manifest.postActivities && context.runtime.remotePackageData.manifest.postActivities.length > 0) {
-                return true;
-            } else {
-                Logger.log(`Skipping post activities (none defined)`, true);
-                return false;
-            }
         }
+        if (context.runtime.package.data.manifest.postActivities && context.runtime.package.data.manifest.postActivities.length > 0) {
+            return true;
+        }
+        Logger.log(`Skipping post activities (none defined)`, true);
+        return false;
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.log('Execute post activities step', true);
-        
         //1- execute post activities
-        var counter: number = 0;
-        for(var data of context.runtime.remotePackageData.manifest.postActivities){
+        let counter = 0;
+        for (const data of context.runtime.package.data.manifest.postActivities) {
             counter++;
-            Logger.setPrefix(`(${counter}/${context.runtime.remotePackageData.manifest.postActivities.length}) `);
+            Logger.setPrefix(`(${counter}/${context.runtime.package.data.manifest.postActivities.length}) `);
             try{
-                if(Array.isArray(data.parameters)){
-                    data.parameters.forEach(param => {
-                        switch(param.value){
-                            case '&INSTALL_WB_TRANSPORT&':
-                                try{
-                                    param.value = context.runtime.installData.transports.find(o => o.type === TrmTransportIdentifier.TADIR).transport.trkorr
-                                }catch(x){
-                                    throw new Error(`Cannot find install workbench transport number`);
-                                }
-                                break;
-                            case '&INSTALL_CUST_TRANSPORT&':
-                                try{
-                                    param.value = context.runtime.installData.transports.find(o => o.type === TrmTransportIdentifier.CUST).transport.trkorr
-                                }catch(x){
-                                    throw new Error(`Cannot find install customizing transport number`);
-                                }
-                                break;
-                        }
-                    });
-                }
-                const postActivity = new PostActivity(data);
+                const activity = {
+                    ...data,
+                    parameters: Array.isArray(data.parameters)
+                        ? data.parameters.map(param => ({
+                            ...param,
+                            value: param.value === '&LANDSCAPE_TRANSPORT&'
+                                ? context.output.transport?.trkorr
+                                : param.value
+                        }))
+                        : data.parameters
+                };
+                const postActivity = new PostActivity(activity);
                 await postActivity.execute();
-            }catch(e){
-                Logger.error(`Failed execution of post activity: ${e.message}`);
+            } catch (e) {
+                Logger.error(`Failed execution of post activity: ${e.message}`, { important: true });
+                throw e;
+            } finally {
+                Logger.removePrefix();
             }
-            Logger.removePrefix();
         }
     }
 }

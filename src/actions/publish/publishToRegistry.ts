@@ -5,7 +5,7 @@ import { TrmArtifact } from "../../trmPackage";
 import { Manifest } from "../../manifest";
 
 /**
- * Publish to registry
+ * Workflow step that builds the binary TRM artifact and uploads the release to its registry.
  * 
  * 1- generate TRM artifact
  * 
@@ -15,14 +15,12 @@ import { Manifest } from "../../manifest";
 export const publishToRegistry: Step<PublishWorkflowContext> = {
     name: 'publish-to-registry',
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        Logger.log('Publish to registry step', true);
-
         //1- generate TRM artifact
         Logger.loading(`Creating TRM package...`);
-        context.runtime.trmPackage.artifact = await TrmArtifact.create({
-            transports: context.runtime.systemData.releasedTransports,
-            manifest: new Manifest(context.runtime.trmPackage.manifest),
-            sourceCode: context.runtime.abapGitData.sourceCode.zip
+        context.output.trmArtifact = await TrmArtifact.create({
+            transports: context.runtime.aggregatedTransports,
+            manifest: new Manifest(context.runtime.manifest),
+            sourceCode: context.runtime.abapGit.sourceCode
         });
         
         //2- publish to registry
@@ -30,11 +28,12 @@ export const publishToRegistry: Step<PublishWorkflowContext> = {
             Logger.info(`Publishing with tag${context.rawInput.packageData.tags.length === 1 ? '': 's'}: ${context.rawInput.packageData.tags.join(', ')}`);
         }
         Logger.loading(`Publishing...`);
-        await context.runtime.trmPackage.package.publish({
-            artifact: context.runtime.trmPackage.artifact,
+        await context.output.trmPackage.publish({
+            artifact: context.output.trmArtifact,
             readme: context.rawInput.publishData.readme,
             tags: context.rawInput.packageData.tags,
-            changelog: context.rawInput.publishData.changelog
+            changelog: context.rawInput.publishData.changelog,
+            retainedCustomizing: context.runtime.customizing.retained.map(o => o.trkorr)
         });
     }
 }

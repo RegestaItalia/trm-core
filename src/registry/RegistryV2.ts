@@ -1,28 +1,40 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, PackageContents, Ping, Publish, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, Ping, Publish, TransportDownload, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
-import _ from 'lodash';
-import { getAxiosInstance, getNodePackage } from "../commons";
-import { AbstractRegistry } from "./AbstractRegistry";
+import _, { add } from 'lodash';
+import { getAxiosInstance, getNodePackage, normalize } from "../commons";
+import { AbstractRegistry, PublishAdditionalData, PublishResult } from "./AbstractRegistry";
 import NodeCache from "node-cache";
+import { TransportEntries } from "../client";
+import { BinaryTransport } from "../transport";
+import * as AdmZip from "adm-zip";
+import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
+import { RegistryDeletionTransportUnauthorizedError } from "./RegistryDeletionTransportUnauthorizedError";
 
 const AXIOS_CTX = "RegistryV2";
 
 export const PUBLIC_RESERVED_KEYWORD = 'public';
+
+const PUBLISH_POLL_INTERVAL_MS = 5000;
+const PUBLISH_POLL_TIMEOUT_MS = 30 * 60 * 1000;
+const PUBLISH_POLL_MAX_FAILURES = 3;
+
+const isPublishStatus = (status: Publish): boolean => !!status && Number.isInteger(status.steps) && Number.isInteger(status.current_step);
 
 export class RegistryV2 implements AbstractRegistry {
     private _cache: NodeCache = new NodeCache({ stdTTL: 60, useClones: false });
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
     private _authData: any;
+    private _externalUserAgent: string;
     private _userAgent: string;
 
     constructor(public endpoint: string, public name: string = 'Unknown', private _coreVersion?: string) {
@@ -61,6 +73,10 @@ export class RegistryV2 implements AbstractRegistry {
         }, AXIOS_CTX);
     }
 
+    public setExternalUserAgent(userAgent: string): void {
+        this._externalUserAgent = userAgent;
+    }
+
     private getDefaultAxiosHeaders(): any {
         var axiosHeaders = new AxiosHeaders();
         if (!this._userAgent) {
@@ -70,7 +86,7 @@ export class RegistryV2 implements AbstractRegistry {
                 this._userAgent = `trm-core with unknown version`
             }
         }
-        axiosHeaders.setUserAgent(this._userAgent);
+        axiosHeaders.setUserAgent(this._externalUserAgent ? `${this._externalUserAgent}, ${this._userAgent}` : this._userAgent);
         return axiosHeaders;
     }
 
@@ -151,7 +167,7 @@ export class RegistryV2 implements AbstractRegistry {
         var token = defaultData.token;
         if (!token && this._registryType == RegistryType.PUBLIC) {
             Logger.info(`To authenticate, generate a new token.`);
-            Logger.info(`Follow the instructions https://docs.trmregistry.com/#/registry/public/authentication.`);
+            Logger.info(`Follow the instructions https://docs.trmregistry.com/registry/public/authentication/ .`);
         }
         const inq1 = await Inquirer.prompt([{
             type: "input",
@@ -191,9 +207,11 @@ export class RegistryV2 implements AbstractRegistry {
                             grant_type: "refresh_token",
                             refresh_token: refreshToken
                         };
-                        oAuth2Response = (await (getAxiosInstance({
+                        const tokenResponse = await (getAxiosInstance({
                             baseURL: this.endpoint
-                        }, AXIOS_CTX)).post('/auth', oAuth2Request)).data;
+                        }, AXIOS_CTX)).post<AuthOAuth2>('/auth', oAuth2Request);
+                        this.assertStatus(tokenResponse.status, [200], 'OAuth token refresh');
+                        oAuth2Response = tokenResponse.data;
                         runAuthFlow = false;
                         authData = {
                             access_token: oAuth2Response.access_token,
@@ -245,9 +263,11 @@ export class RegistryV2 implements AbstractRegistry {
                     grant_type: "authorization_code",
                     redirect_uri: sRedirectUri
                 };
-                oAuth2Response = (await (getAxiosInstance({
+                const tokenResponse = await (getAxiosInstance({
                     baseURL: this.endpoint
-                }, AXIOS_CTX)).post('/auth', oAuth2Request)).data;
+                }, AXIOS_CTX)).post<AuthOAuth2>('/auth', oAuth2Request);
+                this.assertStatus(tokenResponse.status, [200], 'OAuth token exchange');
+                oAuth2Response = tokenResponse.data;
                 if (oAuth2Response.token_type !== "Bearer") {
                     throw new Error('Unknown token type.');
                 }
@@ -275,13 +295,32 @@ export class RegistryV2 implements AbstractRegistry {
         return this._authData;
     }
 
+    private assertStatus(status: number, expected: number[], operation: string): void {
+        if (!expected.includes(status)) {
+            throw new Error(`${operation} returned unexpected HTTP status ${status}; expected ${expected.join(' or ')}.`);
+        }
+    }
+
+    private getErrorStatus(error: unknown): number | undefined {
+        const registryError = error as {
+            status?: number;
+            response?: { status?: number };
+            axiosError?: AxiosError;
+        };
+        return registryError.status
+            ?? registryError.response?.status
+            ?? registryError.axiosError?.response?.status;
+    }
+
     public async ping(): Promise<Ping> {
         var data: Ping | Error = this._cache.get('ping');
         if (!data) {
             try {
-                data = (await this._axiosInstance.get('/', {
+                const response = await this._axiosInstance.get('/', {
                     headers: {}
-                })).data;
+                });
+                this.assertStatus(response.status, [200], 'Registry metadata request');
+                data = response.data;
             } catch (e) {
                 if (e.errors) {
                     e.errors.forEach(err => Logger.error(err.message));
@@ -301,7 +340,9 @@ export class RegistryV2 implements AbstractRegistry {
         var data: WhoAmI | Error = this._cache.get('whoami');
         if (!data) {
             try {
-                data = (await this._axiosInstance.get('/whoami')).data;
+                const response = await this._axiosInstance.get('/whoami');
+                this.assertStatus(response.status, [200], 'Registry identity request');
+                data = response.data;
             } catch (e) {
                 data = e;
             }
@@ -314,31 +355,87 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async getPackage(fullName: string, version: string = 'latest'): Promise<Package> {
-        var data: Package | Error = this._cache.get(`package-${fullName}-${version}`);
+    public async getPackage(fullName: string, version: string = 'latest', refresh: boolean = false): Promise<Package> {
+        const cacheKey = this.getPackageCacheKey(fullName, version);
+        if (refresh) {
+            this._cache.del(cacheKey);
+        }
+        var data: Package | Error = this._cache.get(cacheKey);
         if (!data) {
             var ttl: number;
             try {
-                data = (await this._axiosInstance.get(`/package/${fullName}`, {
+                const response = await this._axiosInstance.get(`/package/${fullName}`, {
                     params: {
-                        version: encodeURIComponent(version)
+                        version
                     }
-                })).data;
+                });
+                this.assertStatus(response.status, [200], 'Package metadata request');
+                data = response.data;
                 if ((data as Package).download_link_expiry) {
                     try {
                         ttl = Math.max(0, Math.floor(((data as Package).download_link_expiry - Date.now()) / 1000));
                     } catch { }
                 }
             } catch (e) {
-                data = e;
+                data = this.getErrorStatus(e) === 404
+                    ? new RegistryPackageNotFoundError(fullName, version, this.endpoint, e)
+                    : e;
             }
-            this._cache.set(`package-${fullName}-${version}`, data, ttl);
+            // A failed refresh must not poison the cache. In particular, a
+            // transient ECONNRESET should allow the caller to retry the GET.
+            if (!(data instanceof Error)) {
+                if (ttl === undefined || ttl > 0) {
+                    this._cache.set(cacheKey, data, ttl);
+                }
+            }
         }
         if (data instanceof Error) {
             throw data;
         } else {
             return data;
         }
+    }
+
+    private getPackageCacheKey(fullName: string, version: string): string {
+        return `package-${fullName}-${version}`;
+    }
+
+    public async transportEntries(fullName: string, version: string, trkorr: string): Promise<TransportEntries> {
+        const download = async (refreshPackage: boolean = false): Promise<TransportEntries> => {
+            let packageData: Package;
+            try {
+                packageData = await this.getPackage(fullName, version, refreshPackage);
+            } catch (e) {
+                // Signed links are commonly refreshed after the HTTP connection
+                // has been idle. Retry this safe metadata GET once if that stale
+                // connection was reset; Axios retains the instance auth headers.
+                if (refreshPackage && (e as AxiosError).code === 'ECONNRESET') {
+                    packageData = await this.getPackage(fullName, version, true);
+                } else {
+                    throw e;
+                }
+            }
+            const transport = packageData.transports.find(o => o.trkorr === trkorr);
+            if (!transport) {
+                throw new Error(`Transport ${trkorr} was not found in package ${fullName} ${version}.`);
+            }
+
+            if (!refreshPackage && transport.contents.download_link_expiry && transport.contents.download_link_expiry <= Date.now()) {
+                return download(true);
+            }
+
+            try {
+                return normalize((await this._axiosInstance.get(transport.contents.download_link)).data || {}) as TransportEntries;
+            } catch (e) {
+                const status = this.getErrorStatus(e);
+                if (!refreshPackage && (status === 401 || status === 403)) {
+                    return download(true);
+                }
+                throw e;
+            }
+        };
+
+        return download();
     }
 
     public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
@@ -391,7 +488,7 @@ export class RegistryV2 implements AbstractRegistry {
             }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to fetch package at ${packageData.download_link}: ${(e as AxiosError).message}`);
+            Logger.error(`Failed to fetch package ${fullName} ${version}: ${(e as AxiosError).message}`, { important: true });
             throw e;
         }
 
@@ -401,7 +498,7 @@ export class RegistryV2 implements AbstractRegistry {
     public async validatePublish(fullName: string, version: string = 'latest', isPrivate: boolean): Promise<void> {
         const status = (await this._axiosInstance.get(`/publish/check/${fullName}`, {
             params: {
-                version: encodeURIComponent(version),
+                version,
                 private: isPrivate ? 'X' : 'N'
             }
         })).status;
@@ -410,33 +507,38 @@ export class RegistryV2 implements AbstractRegistry {
         }
     }
 
-    public async publish(fullName: string, version: string, artifact: TrmArtifact, readme?: string, tags?: string, changelog?: string): Promise<void> {
+    public async publish(fullName: string, version: string, artifact: TrmArtifact, additionalData?: PublishAdditionalData): Promise<PublishResult | void> {
         const fileName = `${fullName}_v${version}`.replace('.', '_') + '.trm';
         const formData = new FormData.default();
         formData.append('artifact', artifact.binary, {
             filename: fileName,
             contentType: 'application/octet-stream'
         });
-        if (readme) {
-            formData.append('readme', Buffer.from(readme), {
+        if (additionalData && additionalData.readme) {
+            formData.append('readme', Buffer.from(additionalData.readme), {
                 filename: 'readme.md',
                 contentType: 'text/markdown'
             });
         }
-        if (changelog) {
-            formData.append('changelog', Buffer.from(changelog), {
+        if (additionalData && additionalData.changelog) {
+            formData.append('changelog', Buffer.from(additionalData.changelog), {
                 filename: 'changelog.md',
                 contentType: 'text/markdown'
             });
         }
-        var params = { version, tags };
-        if (!tags) {
+        if(additionalData && additionalData.retainedCustomizing){
+            formData.append('retainedCustomizing', JSON.stringify(additionalData.retainedCustomizing));
+        }
+        var params = { version, tags: additionalData && additionalData.tags ? additionalData.tags : undefined };
+        if (!params.tags) {
             delete params.tags;
         }
         const response = await this._axiosInstance.post<Publish>(`/publish/${fullName}`, formData, {
             params,
             headers: formData.getHeaders()
         });
+
+        this.assertStatus(response.status, [201, 202], 'Publish request');
 
         if (response.status === 202) { //publish is async
             let publishStatus = response.data;
@@ -448,40 +550,73 @@ export class RegistryV2 implements AbstractRegistry {
                 lastRefresh: new Date().toLocaleTimeString()
             });
 
+            //the outcome of a publish that can't be followed is unknown: never report it as a success
+            const unknownOutcome = (reason: string) => new Error(`${reason}; the outcome of publishing ${fullName} ${version} is unknown, check the registry before publishing again.`);
+            const deadline = Date.now() + PUBLISH_POLL_TIMEOUT_MS;
+            let pollFailures = 0;
             try {
+                if (!isPublishStatus(publishStatus)) {
+                    throw unknownOutcome(`Registry returned an invalid publish status`);
+                }
                 while (publishStatus.current_step < publishStatus.steps) {
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                    publishStatus = (await this._axiosInstance.get<Publish>(progressPoolUrl)).data;
+                    if (Date.now() >= deadline) {
+                        throw unknownOutcome(`Registry publish did not complete within ${PUBLISH_POLL_TIMEOUT_MS / 60000} minutes`);
+                    }
+                    await new Promise(resolve => setTimeout(resolve, PUBLISH_POLL_INTERVAL_MS));
+                    try {
+                        publishStatus = (await this._axiosInstance.get<Publish>(progressPoolUrl)).data;
+                        pollFailures = 0;
+                    } catch (e) {
+                        //tolerate transient failures
+                        pollFailures++;
+                        Logger.error(e.toString(), true);
+                        if (pollFailures >= PUBLISH_POLL_MAX_FAILURES) {
+                            throw unknownOutcome(`Unable to check publish status on registry (${e.message || e})`);
+                        }
+                        continue;
+                    }
+                    if (!isPublishStatus(publishStatus)) {
+                        throw unknownOutcome(`Registry returned an invalid publish status`);
+                    }
                     logProgress.update(publishStatus.current_step, {
                         message: publishStatus.current_step_message || '',
-                        lastCheck: new Date().toLocaleTimeString()
+                        lastRefresh: new Date().toLocaleTimeString()
                     });
                 }
-            } catch (e) {
-                Logger.error(e.toString());
-                Logger.warning(`Unable to check status on registry, check manually`);
             } finally {
                 logProgress.stop();
+            }
+
+            //registry may report the outcome: a rejection or the integrity of the stored release (artifact may have been modified)
+            const error = publishStatus.data?.error;
+            if (typeof error === 'string' && error.trim()) {
+                throw new Error(`Registry rejected publish: ${error}`);
+            }
+            const integrity = publishStatus.data?.integrity;
+            if (typeof integrity === 'string' && integrity.trim()) {
+                return { integrity };
             }
         }
     }
 
     public async unpublish(fullName: string, version: string): Promise<void> {
-        await this._axiosInstance.post(`/unpublish/${fullName}`, null, {
+        const response = await this._axiosInstance.post(`/unpublish/${fullName}`, null, {
             params: {
-                version: encodeURIComponent(version)
+                version
             }
         });
+        this.assertStatus(response.status, [204], 'Unpublish request');
     }
 
     public async deprecate(fullName: string, version: string, deprecate: Deprecate): Promise<void> {
-        await this._axiosInstance.post(`/deprecate/${fullName}`, {
+        const response = await this._axiosInstance.post(`/deprecate/${fullName}`, {
             deprecate_note: deprecate.deprecate_note
         }, {
             params: {
-                version: encodeURIComponent(version)
+                version
             }
         });
+        this.assertStatus(response.status, [204], 'Deprecate request');
     }
 
     public async addDistTag(fullName: string, distTag: DistTagAdd): Promise<void> {
@@ -501,19 +636,139 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async batchCompare(packages: BatchCompareRequest): Promise<BatchCompareResponse> {
-        return (await this._axiosInstance.post('/batchCompare', packages)).data;
+        const response = await this._axiosInstance.post('/batchCompare', packages);
+        this.assertStatus(response.status, [200], 'Batch comparison request');
+        return response.data;
     }
 
-    public async contents(fullName: string, version: string = 'latest'): Promise<PackageContents> {
+    public async delete(transport: BinaryTransport): Promise<BinaryTransport> {
+        const formData = new FormData.default();
+        formData.append('header', transport.header, {
+            filename: 'header',
+            contentType: 'application/octet-stream'
+        });
+        formData.append('data', transport.data, {
+            filename: 'data',
+            contentType: 'application/octet-stream'
+        });
+
+        let deleteResponse;
+        try {
+            deleteResponse = await this._axiosInstance.post<TransportDownload>('/delete', formData, {
+                headers: formData.getHeaders()
+            });
+        } catch (e) {
+            if (this.getErrorStatus(e) === 401) {
+                throw new RegistryDeletionTransportUnauthorizedError(this.endpoint, e);
+            }
+            throw e;
+        }
+        this.assertStatus(deleteResponse.status, [200], 'Deletion transport request');
+        const transportDownload = deleteResponse.data;
+
         const chunks: Buffer[] = [];
-        const logProgress = Logger.progressbar(`↓ ${fullName} ${version} contents [{bar}] {percentage}% | {value}/{total} bytes`, '>');
+        let buffer: Buffer;
+        const ping: Ping | undefined = this._cache.get('ping') && !(this._cache.get('ping') instanceof Error) ? this._cache.get('ping') : undefined;
+        const logProgress = Logger.progressbar(`↓ deletion transport [{bar}] {percentage}% | {value}/{total} bytes`, '>');
 
         try {
-            const response = await this._axiosInstance.get(`/package/contents/${fullName}`, {
-                params: {
-                    version: encodeURIComponent(version),
+            const response = await this._axiosInstance.get(transportDownload.download_link, {
+                headers: {
+                    Accept: 'application/octet-stream'
                 },
+                maxRedirects: 10,
                 responseType: 'stream',
+                validateStatus: s => s >= 200 && s < 400
+            });
+
+            const totalBytes = Number(response.headers['content-length'] ?? 0);
+            let downloadedBytes = 0;
+
+            if (totalBytes > 0) {
+                logProgress.start(totalBytes, 0);
+            }
+
+            await new Promise<void>((resolve, reject) => {
+                response.data.on('data', (chunk: Buffer) => {
+                    chunks.push(chunk);
+                    downloadedBytes += chunk.length;
+
+                    if (totalBytes > 0) {
+                        logProgress.update(downloadedBytes);
+                    }
+                });
+                response.data.on('end', resolve);
+                response.data.on('error', reject);
+            });
+
+            if (totalBytes > 0) {
+                logProgress.stop();
+            }
+            buffer = Buffer.concat(chunks);
+        } catch (e) {
+            try {
+                logProgress.stop();
+            } catch {
+                // ignore stop errors
+            }
+
+            Logger.error((e as Error).toString(), true);
+            Logger.error(`Failed to download deletion transport: ${(e as AxiosError).message}`, { important: true });
+            throw e;
+        }
+
+        const checksum = createHash('sha512').update(buffer).digest('base64');
+        if (checksum !== transportDownload.checksum) {
+            Logger.error(`SECURITY ISSUE! Deletion transport integrity does NOT match!`, { important: true });
+            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`, { important: true });
+            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`, { important: true });
+            throw new Error(`Cannot continue due to security issues.`);
+        }
+
+        const zip = new AdmZip.default(buffer);
+        const kFile = zip.getEntries().find(o => o.name.startsWith('K'));
+        const rFile = zip.getEntries().find(o => o.name.startsWith('R'));
+        if (!kFile) {
+            throw new Error(`Missing header in deletion transport!`);
+        }
+        if (!rFile) {
+            throw new Error(`Missing data in deletion transport!`);
+        }
+
+        return {
+            header: kFile.getData(),
+            data: rFile.getData()
+        };
+    }
+
+    public async transport(trkorr: string, target?: string): Promise<BinaryTransport> {
+        const response = await this._axiosInstance.get<TransportDownload>(`/transport/${trkorr}`, {
+            params: {
+                target: target || undefined
+            }
+        });
+        this.assertStatus(response.status, [200], 'Transport request');
+        const transportDownload = response.data;
+
+        return this.downloadTransport(transportDownload, trkorr);
+    }
+
+    private async downloadTransport(transportDownload: TransportDownload, label: string): Promise<BinaryTransport> {
+        const chunks: Buffer[] = [];
+        let buffer: Buffer;
+        //from cache if it exists, else ignore
+        const ping: Ping | undefined = this._cache.get('ping') && !(this._cache.get('ping') instanceof Error) ? this._cache.get('ping') : undefined;
+
+        const logProgress = Logger.progressbar(`↓ ${label} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
+
+        try {
+            const response = await this._axiosInstance.get(transportDownload.download_link, {
+                headers: {
+                    Accept: 'application/octet-stream',
+                },
+                maxRedirects: 10,
+                responseType: 'stream',
+                validateStatus: s => s >= 200 && s < 400,
             });
 
             const totalBytes = Number(response.headers['content-length'] ?? 0);
@@ -540,18 +795,40 @@ export class RegistryV2 implements AbstractRegistry {
             if (totalBytes > 0) {
                 logProgress.stop();
             }
-
-            const buffer = Buffer.concat(chunks);
-            return JSON.parse(buffer.toString('utf-8'));
+            buffer = Buffer.concat(chunks);
         } catch (e) {
             try {
                 logProgress.stop();
-            } catch { }
+            } catch {
+                // ignore stop errors
+            }
 
             Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to fetch contents for ${fullName}: ${(e as AxiosError).message}`, true);
+            Logger.error(`Failed to download transport ${label}: ${(e as AxiosError).message}`, { important: true });
             throw e;
         }
+        const checksum = createHash("sha512").update(buffer).digest("base64");
+        if (checksum !== transportDownload.checksum) {
+            Logger.error(`SECURITY ISSUE! Transport ${label} integrity does NOT match!`, { important: true });
+            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`, { important: true });
+            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`, { important: true });
+            throw new Error(`Cannot continue due to security issues.`);
+        }
+        const zip = new AdmZip.default(buffer);
+        //we can't assume custom registries will mark K and R file with comment in zip
+        //keeping it simple here with name starts with
+        const kFile = zip.getEntries().find(o => o.name.startsWith('K'));
+        const rFile = zip.getEntries().find(o => o.name.startsWith('R'));
+        if (!kFile) {
+            throw new Error(`Missing header in transport!`);
+        }
+        if (!rFile) {
+            throw new Error(`Missing data in transport!`);
+        }
+        return {
+            header: kFile.getData(),
+            data: rFile.getData()
+        };
     }
 
 }

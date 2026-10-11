@@ -3,18 +3,25 @@ import { Manifest } from "../manifest";
 import { AbstractRegistry } from "../registry";
 import { TrmArtifact } from "./TrmArtifact";
 import { DEVCLASS, ZTRM_DIRTY } from "../client";
-import { Transport, TrmTransportIdentifier } from "../transport";
 import { Lockfile } from "../lockfile";
+import { Transport } from "../transport";
 
-export type TrmPackageInstallTransport = {
-    type: TrmTransportIdentifier,
-    transport: Transport
+/** Exact persisted TRM package row, retained for transactional install rollback. */
+export interface TrmPackageMetadataSnapshot {
+    package_name: string,
+    package_registry: string,
+    manifest: Buffer,
+    trkorr: string,
+    integrity: string,
+    devclass: string
 }
 
 export class TrmPackage {
     private _devclass: DEVCLASS;
     private _dirtyEntries: ZTRM_DIRTY[] = [];
-    private _installTransports: TrmPackageInstallTransport[] | false;
+    private _transport: Transport;
+    private _metadataSnapshot?: TrmPackageMetadataSnapshot;
+    private _publishedIntegrity?: string;
 
     constructor(public packageName: string, public registry: AbstractRegistry, public manifest?: Manifest) {
     }
@@ -41,11 +48,35 @@ export class TrmPackage {
         return this._devclass;
     }
 
+    public setTransport(transport: Transport): TrmPackage {
+        this._transport = transport;
+        return this;
+    }
+
+    public getTransport(): Transport | undefined {
+        return this._transport;
+    }
+
+    public setMetadataSnapshot(snapshot: TrmPackageMetadataSnapshot): TrmPackage {
+        this._metadataSnapshot = snapshot;
+        return this;
+    }
+
+    public getMetadataSnapshot(): TrmPackageMetadataSnapshot | undefined {
+        return this._metadataSnapshot;
+    }
+
+    /** Release integrity reported by the registry on publish, if any. */
+    public getPublishedIntegrity(): string | undefined {
+        return this._publishedIntegrity;
+    }
+
     public async publish(data: {
         artifact: TrmArtifact
         readme?: string,
         tags?: string[],
-        changelog?: string
+        changelog?: string,
+        retainedCustomizing?: string[]
     }): Promise<TrmPackage> {
         const artifact = data.artifact;
         const trmManifest = artifact.getManifest().get();
@@ -59,7 +90,13 @@ export class TrmPackage {
             tags = data.tags.join(',');
         }
         Logger.loading(`Publishing "${packageName}" ${packageVersion} to registry "${this.registry.name}"...`, false);
-        await this.registry.publish(packageName, packageVersion, artifact, data.readme, tags, data.changelog);
+        const result = await this.registry.publish(packageName, packageVersion, artifact, {
+            readme: data.readme,
+            retainedCustomizing: data.retainedCustomizing,
+            changelog: data.changelog,
+            tags
+        });
+        this._publishedIntegrity = result ? result.integrity : undefined;
 
         //set
         this.manifest = new Manifest(trmManifest);

@@ -1,18 +1,19 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { CheckPackageDependenciesWorkflowContext } from ".";
-import { Logger } from "trm-commons";
+import { PUBLIC_RESERVED_KEYWORD } from "../../registry";
+import { Manifest } from "../../manifest";
 
 /**
- * Init
+ * Workflow step that initializes dependency-check output and normalizes optional input.
  * 
  * 1- set dependencies (read manifest)
+ * 
+ * 2- fill missing input data
  * 
 */
 export const init: Step<CheckPackageDependenciesWorkflowContext> = {
     name: 'init',
     run: async (context: CheckPackageDependenciesWorkflowContext): Promise<void> => {
-        Logger.log('Init step', true);
-
         context.output = {
             dependencies: [],
             dependencyStatus: []
@@ -26,6 +27,18 @@ export const init: Step<CheckPackageDependenciesWorkflowContext> = {
 
         //1- set dependencies
         context.output.dependencies = context.rawInput.packageData.manifest.dependencies || [];
+        const dependencyKeys = new Set<string>();
+        for (const dependency of context.output.dependencies) {
+            const registry = dependency.registry || PUBLIC_RESERVED_KEYWORD;
+            const key = `${dependency.name}\u0000${registry}`;
+            if (dependencyKeys.has(key)) {
+                throw new Error(`Duplicate dependency "${dependency.name}" for registry "${registry}".`);
+            }
+            dependencyKeys.add(key);
+            if (!Manifest.isValidDependencyRange(dependency.version)) {
+                throw new Error(`Invalid version range "${dependency.version}" for dependency "${dependency.name}".`);
+            }
+        }
 
         //2- fill missing input data
         if(!context.rawInput.printOptions){
