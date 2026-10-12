@@ -205,26 +205,31 @@ async function evaluate(context: CheckEnginesWorkflowContext, engines: TrmManife
         switch (key) {
             case 'trm':
                 for (const name of Object.keys(engines.trm)) {
+                    Logger.loading(`Checking engine requirement ${prefix}trm.${name}...`);
                     ok = push(`${prefix}trm.${name}`, await checkTrm(context, name, engines.trm[name])) && ok;
                 }
                 break;
             case 'components':
                 for (const name of Object.keys(engines.components)) {
+                    Logger.loading(`Checking engine requirement ${prefix}components.${name}...`);
                     ok = push(`${prefix}components.${name}`, await checkComponent(context, name, engines.components[name])) && ok;
                 }
                 break;
             case 'products':
                 for (const name of Object.keys(engines.products)) {
+                    Logger.loading(`Checking engine requirement ${prefix}products.${name}...`);
                     ok = push(`${prefix}products.${name}`, await checkProduct(context, name, engines.products[name])) && ok;
                 }
                 break;
             case 'notes':
                 for (const note of Object.keys(engines.notes)) {
+                    Logger.loading(`Checking engine requirement ${prefix}notes.${note}...`);
                     ok = push(`${prefix}notes.${note}`, await checkNote(note, engines.notes[note])) && ok;
                 }
                 break;
             case 'tables':
                 for (var i = 0; i < engines.tables.length; i++) {
+                    Logger.loading(`Checking engine requirement ${prefix}tables[${i}]...`);
                     ok = push(`${prefix}tables[${i}]`, await checkTable(engines.tables[i])) && ok;
                 }
                 break;
@@ -232,6 +237,7 @@ async function evaluate(context: CheckEnginesWorkflowContext, engines: TrmManife
                 var alternatives: EngineCheckResult[] = [];
                 var anyOk = false;
                 for (var j = 0; j < engines.anyOf.length; j++) {
+                    Logger.loading(`Checking engine alternative ${prefix}anyOf[${j}]...`);
                     const alternative = await evaluate(context, engines.anyOf[j], `${prefix}anyOf[${j}]`, false);
                     alternatives = alternatives.concat(alternative.results);
                     anyOk = anyOk || alternative.ok;

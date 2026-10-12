@@ -15,8 +15,13 @@ jest.mock('../../systemConnector', () => ({
         getExistingObjects: jest.fn().mockResolvedValue([]),
         getNamespace: jest.fn().mockResolvedValue(undefined),
         createPackage: jest.fn(),
-        getLogonUser: jest.fn(() => 'TESTER')
+        getLogonUser: jest.fn(() => 'TESTER'),
+        ping: jest.fn().mockResolvedValue('PONG')
     }
+}));
+
+jest.mock('./updatePackageData', () => ({
+    recordInstalledRelease: jest.fn()
 }));
 
 jest.mock('../../transport', () => ({
@@ -47,6 +52,7 @@ import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
 import { deleteImportedEntries, importBatch } from './importBatch';
 import { cleanupCheckpoint } from './cleanupCheckpoint';
+import { recordInstalledRelease } from './updatePackageData';
 
 type RegistryOutcome = 'allowed' | 'denied';
 
@@ -69,7 +75,8 @@ const importedEntries = [
 function makeImportedTransport(index: number): Transport {
     return {
         trkorr: `DEVK90000${index}`,
-        getE070: jest.fn().mockResolvedValue({ trkorr: `DEVK90000${index}` })
+        getE070: jest.fn().mockResolvedValue({ trkorr: `DEVK90000${index}` }),
+        import: jest.fn().mockResolvedValue(0)
     } as unknown as Transport;
 }
 
@@ -648,6 +655,78 @@ describe('importBatch rollback checkpoint', () => {
         expect(registryDelete).not.toHaveBeenCalled();
         expect(context.revert.cleanupSucceeded).toBe(false);
         expect(events).not.toContain('restore-old-payload');
+    });
+
+    test('a legacy backend imports one transport at a time, SAP packages first', async () => {
+        const context = makeContext(registryDelete);
+        context.legacyBackend = true;
+        context.runtime.selfUpdate = true;
+
+        await importBatch.run(context);
+
+        expect(Transport.importMultiple).not.toHaveBeenCalled();
+        const transports = [
+            context.runtime.transports.devc.instance,
+            context.runtime.transports.tadir.instance,
+            context.runtime.transports.lang.instance,
+            context.runtime.transports.cust[0].instance
+        ];
+        const order = transports.map(transport => {
+            expect(transport.import).toHaveBeenCalledWith(false);
+            return (transport.import as jest.Mock).mock.invocationCallOrder[0];
+        });
+        expect(order).toEqual([...order].sort((a, b) => a - b));
+        // trm-server/trm-rest upgrades are not rolled back after the import: nothing to back up
+        expect(SystemConnector.getExistingObjects).not.toHaveBeenCalled();
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        // and they are recorded as installed right after it
+        expect(recordInstalledRelease).toHaveBeenCalledWith(context);
+    });
+
+    test('a legacy backend stops at the first failed import', async () => {
+        const context = makeContext(registryDelete);
+        context.legacyBackend = true;
+        context.runtime.selfUpdate = true;
+        (context.runtime.transports.devc.instance.import as jest.Mock).mockResolvedValue(12);
+
+        await expect(importBatch.run(context)).rejects.toThrow(/DEVK900001 failed/);
+
+        expect(context.runtime.transports.tadir.instance.import).not.toHaveBeenCalled();
+        expect(context.revert.importStarted).toBe(true);
+    });
+
+    test('a trm-server upgrade checks the user can call the imported release', async () => {
+        const context = makeContext(registryDelete);
+        context.runtime.selfUpdate = true;
+        (SystemConnector.ping as jest.Mock).mockRejectedValueOnce(new Error('User TESTER is not authorized to execute TRM RFC functions'));
+
+        await expect(importBatch.run(context)).rejects.toThrow(/Grant TESTER authorization object ZTRM_AUTH \(ACTVT 16\)/);
+        expect(recordInstalledRelease).not.toHaveBeenCalled();
+
+        expect(Transport.importMultiple).toHaveBeenCalledTimes(1);
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+    });
+
+    test('a failed trm-server upgrade import is left in place, without backup or rollback', async () => {
+        const context = makeContext(registryDelete);
+        context.legacyBackend = true;
+        context.runtime.selfUpdate = true;
+        const originalError = new Error('import failed');
+        (context.runtime.transports.devc.instance.import as jest.Mock).mockRejectedValue(originalError);
+
+        await expect(importBatch.run(context)).rejects.toBe(originalError);
+        await expect(importBatch.revert(context)).resolves.toBeUndefined();
+        // the cleanup checkpoint doesn't delete them either
+        await expect(cleanupCheckpoint.revert(context)).resolves.toBeUndefined();
+
+        expect(SystemConnector.getExistingObjects).not.toHaveBeenCalled();
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(SystemConnector.deleteTemporaryPackage).not.toHaveBeenCalled();
+        expect(Logger.warning).toHaveBeenCalledTimes(1);
+        expect(Logger.warning).toHaveBeenCalledWith(
+            expect.stringContaining('was imported and is not rolled back'),
+            { important: true }
+        );
     });
 
     test('failure adding checkpoint entries during revert blocks old payload restore', async () => {

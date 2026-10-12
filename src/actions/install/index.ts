@@ -28,10 +28,10 @@ import { generateLandscapeTransport } from "./generateLandscapeTransport";
 import { updatePackageData } from "./updatePackageData";
 import { executePostActivities } from "./executePostActivities";
 import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
-import { generateUpdateTransport } from "./generateUpdateTransport";
+import { generatePostImportUpdateTransport, generateUpdateTransport } from "./generateUpdateTransport";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
-import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend } from "../commons/utils";
 import { lockResources } from "./lockResources";
 import { cleanupCheckpoint } from "./cleanupCheckpoint";
 
@@ -278,7 +278,12 @@ type WorkflowRuntime = {
     /** Custom namespaces locked by this install or by the install it is a dependency of. */
     lockedNamespaces?: string[],
     /** Required SAP entries missing on the system: the install is aborted by check-engines, with the unmet engines. */
-    missingSapEntries?: number
+    missingSapEntries?: number,
+    /**
+     * Upgrade of trm-server or trm-rest: the installed release runs the install itself. Its objects are
+     * only cleaned up after the incoming release is imported, and the import can't be rolled back.
+     */
+    selfUpdate?: boolean
 }
 
 
@@ -360,6 +365,11 @@ export type InstallActionOutput = {
 /** Internal state shared by package-install workflow steps and rollback handlers. */
 export interface InstallWorkflowContext extends IActionContext {
     lockScope?: ActionLockScope,
+    /**
+     * trm-server/trm-rest upgrade on a backend older than the APIs this trm-core needs (see isLegacyTrmBackend):
+     * only the APIs of the installed generation are used.
+     */
+    legacyBackend?: boolean,
     /** Custom namespaces already locked by the parent installs of a dependency install. */
     inheritedNamespaceLocks?: string[],
     /** Original action input; optional groups are normalized during initialization. */
@@ -420,7 +430,8 @@ const installWorkflow = [
         generateLandscapeTransport,
         executePostActivities,
         releaseLandscapeTransport,
-        updatePackageData
+        updatePackageData,
+        generatePostImportUpdateTransport
 ];
 
 async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = []): Promise<{
@@ -429,10 +440,12 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     rollback?: () => Promise<void>,
     release?: () => Promise<void>
 }> {
-    const lockScope = new ActionLockScope(WORKFLOW_NAME);
-    const context: InstallWorkflowContext = { rawInput: inputData, lockScope, inheritedNamespaceLocks };
     //a local artifact is locked under the package it installs, as a remote install of it would be
     const lockPackage = await resolveInstallPackage(inputData.packageData.registry, inputData.packageData.name);
+    // A legacy backend has no action locks: only trm-server and trm-rest can install there, to upgrade it.
+    const legacyBackend = isTrmBackendPackage(lockPackage.registry, lockPackage.name) && await isLegacyTrmBackend();
+    const lockScope = new ActionLockScope(WORKFLOW_NAME, !legacyBackend);
+    const context: InstallWorkflowContext = { rawInput: inputData, lockScope, inheritedNamespaceLocks, legacyBackend };
     await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);
     const release = async (): Promise<void> => {
         let firstError: unknown;

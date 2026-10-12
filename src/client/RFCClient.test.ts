@@ -218,3 +218,16 @@ describe('RFCClient getTransportEntries', () => {
         expect(entries.tdevc).toEqual([{ devclass: 'ZTEST' }]);
     });
 });
+
+describe('RFCClient importTransport', () => {
+    test('TEST is only sent for a test import: releases before trm-server 7 have no such parameter', async () => {
+        const call = jest.fn(async (_fm: string, _args: any) => ({}));
+        const client = createClient(call);
+
+        await client.importTransport('devk900001', 'dev', false);
+        await client.importTransport('devk900001', 'dev', true);
+
+        expect(call.mock.calls[0][1]).toEqual({ SYSTEM: 'DEV', TRKORR: 'DEVK900001' });
+        expect(call.mock.calls[1][1]).toEqual({ SYSTEM: 'DEV', TRKORR: 'DEVK900001', TEST: 'X' });
+    });
+});

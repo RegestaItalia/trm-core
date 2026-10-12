@@ -548,10 +548,12 @@ export class RFCClient implements IClient {
     }
 
     public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        // TEST is only sent for a test import: releases before trm-server 7 have no such parameter, and
+        // their RFC metadata stays cached in this process even after a newer release is imported
         const result = await this._call("/ATRM/IMPORT_TR", {
             system: system.trim().toUpperCase(),
             trkorr: trkorr.trim().toUpperCase(),
-            test: test ? 'X' : ' '
+            ...(test ? { test: 'X' } : {})
         });
         if (result && result.testResult) {
             return this.parseImportTransportResult(result['testResult'], '/ATRM/IMPORT_TR');

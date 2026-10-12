@@ -155,6 +155,16 @@ describe('install prepare transport rollback', () => {
             expect(dummy.delete).not.toHaveBeenCalled();
             expect(Transport.upload).not.toHaveBeenCalled();
         });
+
+        test('a legacy backend uploads the transport but has no test import', async () => {
+            const ctx = context(registryTransport);
+            ctx.legacyBackend = true;
+
+            await step.run(ctx);
+
+            expect(Transport.upload).toHaveBeenCalled();
+            expect(incoming.import).not.toHaveBeenCalled();
+        });
     });
 
     test('a failing customizing revert does not skip the remaining customizing transports', async () => {

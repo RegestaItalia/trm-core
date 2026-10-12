@@ -51,6 +51,8 @@ export interface PackageCleanupRevert {
 /** Minimum workflow context needed to remove an installed release from the target system. */
 export interface PackageCleanupContext {
     lockScope?: ActionLockScope,
+    /** Only the APIs of a backend older than this trm-core can be used: no test imports. */
+    legacyBackend?: boolean,
     rawInput: {
         packageData: {
             name: string,
@@ -85,6 +87,12 @@ export type PackageCleanupTarget = {
     incomingObjects: TADIR[],
     /** SAP packages that hold the incoming release. Empty when uninstalling. */
     keptDevclasses: string[],
+    /**
+     * When `true`, the incoming release is already imported: only the installed objects it doesn't
+     * ship are deleted. Otherwise every installed object is deleted before the import, except the
+     * tables the incoming release ships again.
+     */
+    incomingImported?: boolean,
     /** Logger/Inquirer prefix shown while the cleanup runs. */
     prefix: string,
     /** Action name used in abort messages, e.g. `Update`. */
@@ -504,7 +512,8 @@ async function getCustomizingSources(context: PackageCleanupContext, target: Pac
     if (sources.length === 0) {
         return [];
     }
-    if (target.keepCustomizing) {
+    // After the import, deleting by key would also delete the rows the incoming release has just written.
+    if (target.keepCustomizing || target.incomingImported) {
         Logger.warning(`Keeping customizing of ${sources.length} transports (${sources.join(', ')}).`, { important: true });
         return [];
     }
@@ -608,7 +617,10 @@ export async function createStagingPackage(context: Pick<PackageCleanupContext, 
         ctext: 'TRM upgrade cleanup',
         as4user: SystemConnector.getLogonUser(),
         dlvunit: 'HOME',
-        pdevclass: await SystemConnector.getDefaultTransportLayer()
+        pdevclass: await SystemConnector.getDefaultTransportLayer(),
+        // The package immediately receives transported objects. Some systems do not infer
+        // change recording from the transport layer when CREATE_PACKAGE is called directly.
+        korrflag: 'X'
     });
     await SystemConnector.tadirInterface({
         pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass,
@@ -637,16 +649,10 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             target: SystemConnector.getDest()
         });
         context.revert.updateCleanupTransport = dummy;
-        const { previousNamespaces, previousTransportObjects } = await readInstalledTransportObjects(installed);
+        const installedTransport = await readInstalledTransportObjects(installed);
+        const previousNamespaces = installedTransport.previousNamespaces;
+        const previousTransportObjects = installedTransport.previousTransportObjects;
         const incomingObjects = target.incomingObjects;
-        // Tables shipped again by the new release are adjusted by its import instead of
-        // being dropped and re-created, which would lose their data.
-        const incomingKeys = new Set(incomingObjects.map(objectKey));
-        const retainedTables = previousTransportObjects.filter(object =>
-            normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'TABL'
-            && incomingKeys.has(objectKey(object)));
-        const retainedKeys = new Set(retainedTables.map(objectKey));
-        retainedTables.forEach(object => Logger.log(`Keeping table ${object.objName} (present in new release)`, true));
         const currentDevclasses = new Set(target.keptDevclasses.map(normalize));
         const deletedKeys = new Set((context.runtime.deletedObjects || []).map(objectKey));
         const { previousDevclasses, installedDevclasses, packageParents, otherInstallations, isOtherInstallation } = await readInstallationTree(
@@ -656,6 +662,40 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
             context.runtime.deletedObjects || [],
             context.rawInput.contextData?.systemPackages || []
         );
+        // After the import, the previous release is also what its SAP packages still contain beyond the
+        // incoming release: an installation without transport (e.g. trm-server/trm-rest installed with
+        // abapGit) or leftovers of an earlier upgrade.
+        if (target.incomingImported) {
+            const previousKeys = new Set(previousTransportObjects.map(objectKey));
+            let added = 0;
+            for (const devclass of previousDevclasses.values()) {
+                if (isOtherInstallation(devclass)) {
+                    continue;
+                }
+                for (const object of await SystemConnector.getDevclassObjects(devclass, false)) {
+                    if (!isDevclass(object) && !isNamespace(object) && !deletedKeys.has(objectKey(object)) && !previousKeys.has(objectKey(object))) {
+                        previousKeys.add(objectKey(object));
+                        previousTransportObjects.push({ pgmid: object.pgmid, object: object.object, objName: object.objName } as E071);
+                        added++;
+                    }
+                }
+            }
+            Logger.log(`${added} objects of the previous release found in its SAP packages only`, true);
+        }
+        // Tables shipped again by the new release are adjusted by its import instead of
+        // being dropped and re-created, which would lose their data.
+        const incomingKeys = new Set(incomingObjects.map(objectKey));
+        // Already imported, the objects of the incoming release are simply kept.
+        const keptIncoming = target.incomingImported ? previousTransportObjects.filter(object => incomingKeys.has(objectKey(object))) : [];
+        const keptIncomingKeys = new Set(keptIncoming.map(objectKey));
+        if (keptIncoming.length > 0) {
+            Logger.log(`Keeping ${keptIncoming.length} objects shipped again by the imported release`, true);
+        }
+        const retainedTables = previousTransportObjects.filter(object =>
+            normalize(object.pgmid) === 'R3TR' && normalize(object.object) === 'TABL'
+            && incomingKeys.has(objectKey(object)) && !keptIncomingKeys.has(objectKey(object)));
+        const retainedKeys = new Set(retainedTables.map(objectKey));
+        retainedTables.forEach(object => Logger.log(`Keeping table ${object.objName} (present in new release)`, true));
         const generatedDevclasses = new Set(context.revert.sapPackages.map(normalize));
         otherInstallations.forEach(pkg => Logger.log(`Ignoring SAP package ${pkg.getDevclass()}: TRM package ${pkg.packageName} is installed there`, true));
 
@@ -793,7 +833,7 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         // Installed objects moved to a package outside this installation (customer development)
         // are kept unless confirmed; those now in another TRM package belong to it and are kept.
         const relocatedObjects = await readRelocatedObjects(
-            previousTransportObjects.filter(object => !retainedKeys.has(objectKey(object))),
+            previousTransportObjects.filter(object => !retainedKeys.has(objectKey(object)) && !keptIncomingKeys.has(objectKey(object))),
             { previousDevclasses, isOtherInstallation }
         );
         const movedKeys = new Set<string>();
@@ -853,13 +893,30 @@ export async function cleanupInstalledPackage(context: PackageCleanupContext, ta
         // SAP packages the incoming release keeps are never deleted: a renamed installation has already
         // generated them (generate-devclass), and the import of the others updates them in place.
         const deletionObjects = new Map([...previousTransportObjects, ...additionalObjects]
-            .filter(object => !retainedKeys.has(objectKey(object)) && !movedKeys.has(objectKey(object)))
+            .filter(object => !retainedKeys.has(objectKey(object)) && !movedKeys.has(objectKey(object)) && !keptIncomingKeys.has(objectKey(object)))
             .filter(object => !(isDevclass(object) && currentDevclasses.has(normalize(object.objName))))
             .map(object => [objectKey(object), object]));
+        // Only objects that exist can be transported: the installed transport may list objects this system
+        // never had or already lost (e.g. a system copy).
+        const checkedObjects = Array.from(deletionObjects.values()).filter(object =>
+            normalize(object.pgmid) === 'R3TR' && !isNamespace(object));
+        if (checkedObjects.length > 0) {
+            const existing = new Set((await SystemConnector.getExistingObjects(checkedObjects.map(object => ({
+                pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: ''
+            })))).map(objectKey));
+            checkedObjects.filter(object => !existing.has(objectKey(object))).forEach(object => {
+                Logger.log(`Skipping ${object.pgmid} ${object.object} ${object.objName}: not on ${SystemConnector.getDest()}, nothing to delete`, true);
+                deletionObjects.delete(objectKey(object));
+            });
+        }
         // TRM comment rows of the installed transport are not objects to delete.
         const hasObjectsToDelete = Array.from(deletionObjects.values()).some(object => normalize(object.pgmid) !== '*');
         if (!hasObjectsToDelete && retainedTables.length === 0 && customizingSources.length === 0) {
-            Logger.warning(`Nothing to delete for package ${context.rawInput.packageData.name}: deletion transport was not generated. Manual cleanup of previous release install might be necessary.`, { important: true });
+            if (target.incomingImported) {
+                Logger.log(`The imported release ships every object of the previous one: nothing to delete`, true);
+            } else {
+                Logger.warning(`Nothing to delete for package ${context.rawInput.packageData.name}: deletion transport was not generated. Manual cleanup of previous release install might be necessary.`, { important: true });
+            }
             try {
                 if (await dummy.canBeDeleted()) {
                     await dummy.delete();

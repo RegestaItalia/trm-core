@@ -48,10 +48,16 @@ export async function releaseDeletionTransport(
     });
 
     //3- import transport
-    Logger.loading(`Testing import...`);
-    const testRc = await context.runtime.dele.import(true);
-    if (testRc < 0 || testRc > 8) {
-        throw new Error(`Test import of deletion transport failed: check logs.`);
+    // A legacy backend has no test import; in the same process the RFC metadata of its import
+    // function stays cached even after the upgrade is imported.
+    if (context.legacyBackend) {
+        Logger.log(`Skipping test import of ${deletionTransport.trkorr}: legacy TRM backend`, true);
+    } else {
+        Logger.loading(`Testing import...`);
+        const testRc = await context.runtime.dele.import(true);
+        if (testRc < 0 || testRc > 8) {
+            throw new Error(`Test import of deletion transport failed: check logs.`);
+        }
     }
     Logger.loading(`Importing ${deletionTransport.trkorr}`, true);
     // Mark before the mutating await: the import may change objects and still fail.

@@ -11,7 +11,7 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import { Logger } from "trm-commons";
-import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER, TransportEntries } from "../client";
+import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER, TransportEntries, STMSIQREQ } from "../client";
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 
@@ -609,6 +609,7 @@ export class Transport {
         var lastCheck: Date;
         if (this._trTarget) {
             var inQueueAttempts = 0;
+            var queueReadFailures = 0;
             Logger.loading(`Checking ${this.trkorr} status...`, skipLog);
             while (!inQueue) {
                 inQueueAttempts++;
@@ -627,15 +628,27 @@ export class Transport {
                             Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}...`, skipLog);
                         }
                     } catch (e) {
-                        Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}, last update /: Unable to read status`, skipLog);
-                        Logger.error(`Unable to read status!`, true);
+                        Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}...`, skipLog);
+                        Logger.warning(`Unable to read status: check continues, this error can be ignored`, true);
                         Logger.error(e.toString(), true);
                     }
                 }
                 //reading the queue is outdated now and getTransportImportStatus should be used
                 //HOWEVER it doesn't work for VIRTUAL TARGETS!
                 //for now, keep it like this
-                var tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
+                var tmsQueue: STMSIQREQ[];
+                try {
+                    tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
+                    queueReadFailures = 0;
+                } catch (e) {
+                    // an import can replace the TRM backend itself (trm-server upgrade): its API can
+                    // fail while it's being imported and activated
+                    if (++queueReadFailures > 10) {
+                        throw e;
+                    }
+                    Logger.log(`Unable to read ${this._trTarget} import queue (attempt ${queueReadFailures}), retrying: ${e}`, true);
+                    continue;
+                }
                 tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
                 tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
                 if (!checkImpSing) {

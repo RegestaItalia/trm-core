@@ -34,9 +34,12 @@ export class ActionLockScope {
     private readonly ownerToken = randomUUID().replace(/-/g, "").toUpperCase();
     private readonly held = new Map<string, ActionLockKey>();
 
-    constructor(private readonly actionName: string) { }
+    constructor(private readonly actionName: string, private readonly enabled: boolean = true) { }
 
     async acquire(resources: LockResource[]): Promise<void> {
+        if (!this.enabled) {
+            return;
+        }
         const requested = resources.map(actionLockKey);
         const fresh = requested.filter(key => !this.held.has(`${key.resourceType}:${key.resourceHash}`));
         if (fresh.length === 0) {
@@ -67,6 +70,9 @@ export class ActionLockScope {
     }
 
     async release(): Promise<void> {
+        if (!this.enabled) {
+            return;
+        }
         if (this.held.size === 0) {
             return;
         }

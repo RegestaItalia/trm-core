@@ -18,7 +18,7 @@ export const setSystemPackages: Step<IActionContext> = {
             context.rawInput.contextData = {};
         }
         if(context.rawInput.contextData.systemPackages === undefined){
-            Logger.loading(`Reading system data...`);
+            Logger.loading(`Reading system packages...`);
             context.rawInput.contextData.systemPackages = await SystemConnector.getInstalledPackages(true, true);
         }
     }

@@ -68,10 +68,14 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
             });
 
             //3- test import transport
-            Logger.loading(`Testing import...`);
-            const testRc = await context.runtime.transports.tadir.instance.import(true);
-            if (testRc < 0 || testRc > 8) {
-                throw new Error(`Test import of workbench failed: check logs.`);
+            if (context.legacyBackend) {
+                Logger.log(`Skipping test import: legacy TRM backend`, true);
+            } else {
+                Logger.loading(`Testing import...`);
+                const testRc = await context.runtime.transports.tadir.instance.import(true);
+                if (testRc < 0 || testRc > 8) {
+                    throw new Error(`Test import of workbench failed: check logs.`);
+                }
             }
         });
     },
