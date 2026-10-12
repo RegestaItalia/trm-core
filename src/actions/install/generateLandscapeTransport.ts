@@ -119,7 +119,10 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         //8- lock objects
         //what is lockable gets locked here
         //all workbench should be lockable here
-        await context.output.transport.lock();
+        //a legacy backend has no API for it
+        if (!context.legacyBackend) {
+            await context.output.transport.lock();
+        }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.output.transport && await context.output.transport.canBeDeleted()) {

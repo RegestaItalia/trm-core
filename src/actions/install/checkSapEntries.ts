@@ -47,7 +47,7 @@ export const checkSapEntries: Step<InstallWorkflowContext> = {
             // Aborted by check-engines, so unmet engines are reported in the same run.
             context.runtime.missingSapEntries = missingEntries.length;
         }else{
-            Logger.success(`SAP entries checked.`);
+            Logger.success(`Requirements checked.`);
         }
     }
 }

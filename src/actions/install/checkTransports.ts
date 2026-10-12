@@ -6,7 +6,9 @@ import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { E071, TADIR, TDEVC, TransportEntries } from "../../client";
 import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons";
-import { getOwningInstallation } from "../commons/utils";
+import { getOwningInstallation, TRM_FIXED_TADIR_TRANSPORTS } from "../commons/utils";
+import { TrmPackage } from "../../trmPackage";
+import { createHash } from "crypto";
 
 /** Throws when any of the objects is locked in a SAP transport request. */
 export async function checkObjectsLocks(e071: E071[]): Promise<void> {
@@ -195,6 +197,11 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                 if (skippedCust.includes(transport.trkorr)) {
                     readEntries = false;
                 }
+                // the fixed TADIR transport of trm-server/trm-rest only comes with the artifact (below)
+                if ((context.runtime.isTrmServer || context.runtime.isTrmRest) && transport.type === TrmTransportIdentifier.TADIR
+                    && TRM_FIXED_TADIR_TRANSPORTS[context.runtime.package.data.manifest.name] === transport.trkorr) {
+                    readEntries = false;
+                }
                 if (readEntries) {
                     const entries = await context.rawInput.packageData.registry.transportEntries(
                         context.runtime.package.data.manifest.name,
@@ -226,6 +233,32 @@ export const checkTransports: Step<InstallWorkflowContext> = {
                             break;
                         default:
                             break;
+                    }
+                }
+            }
+
+            // The registry metadata can omit a transport of the release, and the fixed TADIR transport of
+            // trm-server and trm-rest is never downloaded alone: read them from the artifact, once its integrity is verified.
+            if (!context.runtime.transports.devc || !context.runtime.transports.tadir) {
+                Logger.log(`No ${!context.runtime.transports.devc ? 'DEVC' : 'TADIR'} transport to download from the registry: reading the release artifact`, true);
+                Logger.loading(`Reading package transports from the release artifact...`);
+                const artifact = await context.rawInput.packageData.registry.downloadArtifact(
+                    context.runtime.package.data.manifest.name,
+                    context.runtime.package.data.manifest.version
+                );
+                const expectedChecksum = context.runtime.package.data.checksum;
+                const checksum = createHash('sha512').update(artifact.binary).digest('base64');
+                if (!expectedChecksum || checksum !== expectedChecksum) {
+                    Logger.error(`SECURITY ISSUE! Release artifact integrity does NOT match the registry SHA ${expectedChecksum}: received ${checksum}`, { important: true });
+                    throw new Error(`Cannot continue due to security issues.`);
+                }
+                for (const binary of await artifact.getTransportBinaries()) {
+                    if (binary.type === TrmTransportIdentifier.DEVC && !context.runtime.transports.devc) {
+                        context.runtime.transports.devc = { binaries: binary };
+                        mergeEntries(binary.entries);
+                    } else if (binary.type === TrmTransportIdentifier.TADIR && !context.runtime.transports.tadir) {
+                        context.runtime.transports.tadir = { binaries: binary };
+                        mergeEntries(binary.entries);
                     }
                 }
             }
@@ -270,6 +303,7 @@ export const checkTransports: Step<InstallWorkflowContext> = {
 
         //8- check objects existance
         const checkedTadir = existenceCheckObjects(mergedTADIR);
+        Logger.loading(`Checking whether ${checkedTadir.length} package object${checkedTadir.length === 1 ? '' : 's'} already exist${checkedTadir.length === 1 ? 's' : ''}...`);
         const existingObjects = checkedTadir.length > 0 ? await findExistingObjects(context, checkedTadir) : [];
         // lock-resources checks again, once locked, that no other object appeared
         context.runtime.existingObjects = existingObjects;
@@ -277,9 +311,18 @@ export const checkTransports: Step<InstallWorkflowContext> = {
         //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
         if (existingObjects.length > 0) {
             // Name the installed TRM package that contains each existing object: it can't be taken over silently.
+            Logger.loading(`Checking ownership of ${existingObjects.length} existing object${existingObjects.length === 1 ? '' : 's'}...`);
             const owners = new Map<TADIR, string>();
+            // objects share few SAP packages: look each one up once
+            const packageOwners = new Map<string, Promise<TrmPackage | undefined>>();
             for (const o of existingObjects) {
-                const owner = o.devclass ? await getOwningInstallation(o.devclass, context.rawInput.contextData.systemPackages || [], context.runtime.update) : undefined;
+                if (!o.devclass) {
+                    continue;
+                }
+                if (!packageOwners.has(o.devclass)) {
+                    packageOwners.set(o.devclass, getOwningInstallation(o.devclass, context.rawInput.contextData.systemPackages || [], context.runtime.update));
+                }
+                const owner = await packageOwners.get(o.devclass);
                 if (owner) {
                     owners.set(o, owner.packageName);
                 }

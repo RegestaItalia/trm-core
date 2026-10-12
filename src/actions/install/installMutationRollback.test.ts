@@ -231,6 +231,7 @@ describe('install mutation checkpoints', () => {
         for (const step of ['addNamespace', 'generateDevclass', 'generateUpdateTransport', 'prepareDevc', 'importBatch']) {
             expect(workflow.indexOf(step)).toBeGreaterThan(workflow.indexOf('cleanupCheckpoint'));
         }
+        expect(workflow.indexOf('generatePostImportUpdateTransport')).toBe(workflow.length - 1);
     });
 
     test.each(['add-namespace', 'generate-devclass'])('a failure in %s cleans up the parent before the dependencies are rolled back', async failingStep => {

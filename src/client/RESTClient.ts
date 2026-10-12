@@ -435,10 +435,11 @@ export class RESTClient implements IClient {
     }
 
     public async importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
+        // as RFC: TEST is only sent for a test import
         const result = (await this._axiosInstance.post<{ testResult: struct.STMS_TP_IMPORT }>('/import_tr', {
             system: system.trim().toUpperCase(),
             trkorr: trkorr.trim().toUpperCase(),
-            test: test ? 'X' : ' '
+            ...(test ? { test: 'X' } : {})
         })).data;
         if (result && result.testResult) {
             return result.testResult;

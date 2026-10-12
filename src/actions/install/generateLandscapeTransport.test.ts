@@ -122,6 +122,16 @@ describe('generateLandscapeTransport rollback', () => {
         expect(ctx.output.transport).toBeUndefined();
     });
 
+    test('a legacy backend, which has no API to lock its objects, leaves them unlocked', async () => {
+        const ctx = context();
+        ctx.legacyBackend = true;
+
+        await execute('test', [generateLandscapeTransport], ctx);
+
+        expect(landscape.lock).not.toHaveBeenCalled();
+        expect(ctx.output.transport).toBe(landscape);
+    });
+
     test('locked namespace is omitted with a warning naming the locking transport', async () => {
         const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
         jest.spyOn(SystemConnector, 'getObjectsLocks').mockResolvedValue([

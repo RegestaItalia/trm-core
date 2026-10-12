@@ -4,7 +4,7 @@ jest.mock('../../systemConnector', () => ({
     }
 }));
 
-import { Logger } from 'trm-commons';
+import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { setInstallDevclass } from './setInstallDevclass';
 
@@ -300,5 +300,100 @@ describe('set-install-devclass stored mappings', () => {
         await setInstallDevclass.run(ctx);
         expect(SystemConnector.getInstallPackages).not.toHaveBeenCalled();
         expect(ctx.rawInput.installData.installDevclass.replacements.map((o: any) => o.originalDevclass)).toEqual(['ZFOO', 'ZFOO_SUB']);
+    });
+});
+
+describe('set-install-devclass of trm-server and trm-rest', () => {
+    const serverHierarchy = {
+        devclass: '/ATRM/SERVER',
+        sub: [{ devclass: '/ATRM/SERVER_OBJS', sub: [{ devclass: '/ATRM/SERVER_OBJS_SENVI', sub: [] }] }]
+    };
+
+    function context(runtime: any) {
+        return {
+            rawInput: {
+                packageData: { name: runtime.isTrmRest ? 'trm-rest' : 'trm-server' },
+                contextData: { noInquirer: false },
+                installData: {
+                    installDevclass: {
+                        replacements: [{ originalDevclass: '/ATRM/SERVER', installDevclass: 'ZUSER_CHOICE' }]
+                    }
+                }
+            },
+            runtime: {
+                isTrmServer: false,
+                isTrmRest: false,
+                previousInstallPackages: [],
+                ...runtime
+            }
+        } as any;
+    }
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
+        jest.spyOn(Inquirer, 'prompt').mockResolvedValue({} as never);
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    test('an installation in $ packages keeps the $TRM naming, without prompts', async () => {
+        const ctx = context({ isTrmServer: true, package: { hierarchy: serverHierarchy }, update: { getDevclass: () => '$TRM' } });
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([
+            { originalDevclass: '/ATRM/SERVER', installDevclass: '$TRM' },
+            { originalDevclass: '/ATRM/SERVER_OBJS', installDevclass: '$TRM_OBJS' },
+            { originalDevclass: '/ATRM/SERVER_OBJS_SENVI', installDevclass: '$TRM_OBJS_SENVI' }
+        ]);
+        expect(ctx.rawInput.installData.installDevclass.keepOriginal).toBe(false);
+        expect(SystemConnector.getInstallPackages).not.toHaveBeenCalled();
+        expect(Inquirer.prompt).not.toHaveBeenCalled();
+    });
+
+    test('an installation in the original packages stays there', async () => {
+        const ctx = context({ isTrmServer: true, package: { hierarchy: serverHierarchy }, update: { getDevclass: () => '/ATRM/SERVER' } });
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements.map((o: any) => o.installDevclass))
+            .toEqual(['/ATRM/SERVER', '/ATRM/SERVER_OBJS', '/ATRM/SERVER_OBJS_SENVI']);
+        expect(ctx.rawInput.installData.installDevclass.keepOriginal).toBe(true);
+        expect(Inquirer.prompt).not.toHaveBeenCalled();
+    });
+
+    test('an installation in other packages moves to $ packages', async () => {
+        const ctx = context({
+            isTrmServer: true,
+            package: { hierarchy: serverHierarchy },
+            update: { getDevclass: () => 'ZTRM' },
+            previousInstallPackages: [{ originalDevclass: '/ATRM/SERVER', installDevclass: 'ZTRM' }]
+        });
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements.map((o: any) => o.installDevclass))
+            .toEqual(['$TRM', '$TRM_OBJS', '$TRM_OBJS_SENVI']);
+    });
+
+    test('trm-server is installed in $ packages the first time', async () => {
+        const ctx = context({ isTrmServer: true, package: { hierarchy: serverHierarchy } });
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements.map((o: any) => o.installDevclass))
+            .toEqual(['$TRM', '$TRM_OBJS', '$TRM_OBJS_SENVI']);
+        expect(ctx.rawInput.installData.installDevclass.keepOriginal).toBe(false);
+    });
+
+    test('trm-rest is installed in $ packages the first time', async () => {
+        const ctx = context({ isTrmRest: true, package: { hierarchy: { devclass: '/ATRM/REST', sub: [] } } });
+
+        await setInstallDevclass.run(ctx);
+
+        expect(ctx.rawInput.installData.installDevclass.replacements).toEqual([{ originalDevclass: '/ATRM/REST', installDevclass: '$TRM_REST' }]);
     });
 });

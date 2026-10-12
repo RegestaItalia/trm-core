@@ -114,6 +114,12 @@ describe('checkEngines', () => {
         expect(output.results.every(o => o.ok && o.required)).toBe(true);
         expect(result(output, 'components.SAP_BASIS').actual).toBe('release 758, sp 2');
         expect(connector.getSoftwareComponents).toHaveBeenCalledTimes(1);
+        expect((Logger.loading as jest.Mock).mock.calls.map(([message]) => message)).toEqual([
+            'Checking engine requirement components.SAP_BASIS...',
+            'Checking engine requirement components.SAP_ABA...',
+            'Checking engine requirement components.SAP_UI...',
+            'Checking engine requirement components.S4CORE...'
+        ]);
     });
 
     test('components: unmet sp, missing component and forbidden component fail', async () => {

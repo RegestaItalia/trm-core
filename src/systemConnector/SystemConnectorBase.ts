@@ -493,14 +493,39 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async getExistingObjects(objects: TADIR[]): Promise<TADIR[]> {
-    var ret: TADIR[] = [];
+    // TADIR is read in batches of objects of the same type: one read per object is slow on large packages
+    const batchSize = 25;
+    const key = (pgmid: string, object: string, objName: string) => `${pgmid.trim().toUpperCase()} ${object.trim().toUpperCase()} ${objName.trim().toUpperCase()}`;
+    const found = new Map<string, TADIR>();
+    const singles: TADIR[] = [];
+    const byType = new Map<string, TADIR[]>();
     for (const object of objects) {
-      const oTadir = await this.getObject(object.pgmid, object.object, object.objName);
-      if (oTadir) {
-        ret.push(oTadir);
+      // an option line holds 72 characters: "OR ( OBJ_NAME EQ '...' )"
+      if (object.objName.trim().replace(/'/g, "''").length > 50 || /\s(AND|OR)\s/i.test(object.objName)) {
+        singles.push(object);
+        continue;
+      }
+      const type = `${object.pgmid.trim().toUpperCase()} ${object.object.trim().toUpperCase()}`;
+      byType.set(type, [...(byType.get(type) || []), object]);
+    }
+    for (const [type, typeObjects] of byType) {
+      const [pgmid, object] = type.split(' ');
+      for (let i = 0; i < typeObjects.length; i += batchSize) {
+        const names = typeObjects.slice(i, i + batchSize).map(o => o.objName.trim().toUpperCase().replace(/'/g, "''"));
+        const tadir: TADIR[] = await this.readTable('TADIR',
+          [{ fieldName: 'PGMID' }, { fieldName: 'OBJECT' }, { fieldName: 'OBJ_NAME' }, { fieldName: 'DEVCLASS' }, { fieldName: 'SRCSYSTEM' }, { fieldName: 'AUTHOR' }],
+          `PGMID EQ '${pgmid}' AND OBJECT EQ '${object}' AND ( ${names.map(name => `OBJ_NAME EQ '${name}'`).join(' OR ')} )`
+        );
+        tadir.forEach(o => found.set(key(o.pgmid, o.object, o.objName), o));
       }
     }
-    return ret;
+    for (const object of singles) {
+      const oTadir = await this.getObject(object.pgmid, object.object, object.objName);
+      if (oTadir) {
+        found.set(key(object.pgmid, object.object, object.objName), oTadir);
+      }
+    }
+    return objects.map(o => found.get(key(o.pgmid, o.object, o.objName))).filter(Boolean);
   }
 
   public async getNamespace(namespace: components.NAMESPACE): Promise<{

@@ -48,6 +48,21 @@ export const setInstallDevclass: Step<InstallWorkflowContext> = {
         }
     },
     run: async (context: InstallWorkflowContext): Promise<void> => {
+        // trm-server and trm-rest are installed in `$` packages (`$TRM...`), unless they are already in their
+        // original `/ATRM/` packages: then they stay there. They are never renamed otherwise.
+        if (context.runtime.isTrmServer || context.runtime.isTrmRest) {
+            const original = (context.runtime.update?.getDevclass() || '').trim().toUpperCase().startsWith('/ATRM/');
+            context.rawInput.installData.installDevclass.replacements = flattenDevclasses(context.runtime.package.hierarchy).map(originalDevclass => ({
+                originalDevclass,
+                installDevclass: original ? originalDevclass : adjustTrmServerRestDevclass(originalDevclass)
+            }));
+            context.rawInput.installData.installDevclass.keepOriginal = context.rawInput.installData.installDevclass.replacements
+                .every(o => o.installDevclass === o.originalDevclass);
+            getInstallNamespace(context);
+            Logger.log(`${context.rawInput.packageData.name} SAP packages: ${context.rawInput.installData.installDevclass.replacements.map(o => `${o.originalDevclass} -> ${o.installDevclass}`).join(', ')}`, true);
+            return;
+        }
+
         //1- find already defined replacements in system
         if (context.rawInput.installData.installDevclass.replacements.length <= 0) {
             //no input replacements = get from the trm table devclass replacements the corresponding name

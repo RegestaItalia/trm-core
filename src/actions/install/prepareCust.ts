@@ -84,10 +84,14 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                 });
 
                 //3- test import transport
-                Logger.loading(`Testing import...`);
-                const testRc = await cust.instance.import(true);
-                if (testRc < 0 || testRc > 8) {
-                    throw new Error(`Test import of customizing failed: check logs.`);
+                if (context.legacyBackend) {
+                    Logger.log(`Skipping test import: legacy TRM backend`, true);
+                } else {
+                    Logger.loading(`Testing import...`);
+                    const testRc = await cust.instance.import(true);
+                    if (testRc < 0 || testRc > 8) {
+                        throw new Error(`Test import of customizing failed: check logs.`);
+                    }
                 }
             });
         }

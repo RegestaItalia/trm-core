@@ -2,6 +2,8 @@
 node_modules
 dist
 .env
+.env.a4h
+.env.rst
 sapnwrfc.ini
 dev_rfc.log
 _noderfc.log

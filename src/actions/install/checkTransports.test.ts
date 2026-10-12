@@ -13,6 +13,7 @@ jest.mock('../../systemConnector', () => ({
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { checkTransports } from './checkTransports';
+import { createHash } from 'crypto';
 
 describe('check-transports existing objects with unknown root devclass', () => {
     const existing = { pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_FOREIGN', devclass: 'ZOTHER' };
@@ -85,6 +86,11 @@ describe('check-transports existing objects with unknown root devclass', () => {
     test('non-interactive mode continues when existing objects are explicitly allowed', async () => {
         await expect(checkTransports.run(context({ noInquirer: true, noExistingObjects: true }))).resolves.toBeUndefined();
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('1 object(s) already exist'), { important: true });
+        expect((Logger.loading as jest.Mock).mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
+            'Checking objects support...',
+            'Checking whether 1 package object already exists...',
+            'Checking ownership of 1 existing object...'
+        ]));
     });
 
     test('SAP packages of the release are not checked: the install packages are chosen later', async () => {
@@ -237,6 +243,118 @@ describe('check-transports existing objects on update', () => {
             await expect(checkTransports.run(ctx)).rejects.toThrow('Cannot overwrite existing objects.');
             expect(prompt).not.toHaveBeenCalled();
         });
+    });
+});
+
+describe('check-transports artifact fallback', () => {
+    const artifactBinary = Buffer.from('verified bootstrap artifact');
+    const checksum = createHash('sha512').update(artifactBinary).digest('base64');
+    const devcEntries = {
+        e071: [{ pgmid: 'R3TR', object: 'DEVC', objName: '/ATRM/REST' }],
+        tdevc: [{ devclass: '/ATRM/REST', parentcl: '' }],
+        tdevct: [],
+        tadir: [{ pgmid: 'R3TR', object: 'DEVC', objName: '/ATRM/REST', devclass: '/ATRM/REST' }]
+    };
+    const tadirEntries = {
+        e071: [{ pgmid: 'R3TR', object: 'CLAS', objName: '/ATRM/CL_REST' }],
+        tdevc: [],
+        tdevct: [],
+        tadir: [{ pgmid: 'R3TR', object: 'CLAS', objName: '/ATRM/CL_REST', devclass: '/ATRM/REST' }]
+    };
+
+    function context(artifactChecksum = checksum) {
+        const artifact = {
+            binary: artifactBinary,
+            getTransportBinaries: jest.fn().mockResolvedValue([{
+                trkorr: 'TRMK900001', type: 'TADIR', entries: tadirEntries,
+                binaries: { header: Buffer.from('header'), data: Buffer.from('data') }
+            }])
+        };
+        const registry = {
+            transportEntries: jest.fn().mockResolvedValue(devcEntries),
+            downloadArtifact: jest.fn().mockResolvedValue(artifact)
+        };
+        return {
+            rawInput: {
+                packageData: { name: 'trm-rest', registry },
+                contextData: { noInquirer: true, systemPackages: [] },
+                installData: { import: { noLang: true, noCust: true }, checks: { noExistingObjects: true } }
+            },
+            runtime: {
+                isLocal: false,
+                isTrmServer: false,
+                isTrmRest: true,
+                update: { packageName: 'trm-rest', getDevclass: () => '/ATRM/REST' },
+                package: { data: {
+                    checksum: artifactChecksum,
+                    manifest: { name: 'trm-rest', version: '6.0.0' },
+                    transports: [{ trkorr: 'TRMK9000P0', type: 'DEVC' }]
+                } },
+                transports: { cust: [] },
+                transportEntries: { tdevct: [] }
+            }
+        } as any;
+    }
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        for (const method of ['loading', 'log', 'warning', 'error'] as const) {
+            jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
+        }
+        (SystemConnector.getObjectsLocks as jest.Mock).mockResolvedValue([]);
+        (SystemConnector.getObjectsList as jest.Mock).mockResolvedValue([
+            { pgmid: 'R3TR', object: 'DEVC' }, { pgmid: 'R3TR', object: 'CLAS' }
+        ]);
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([]);
+        (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([]);
+    });
+
+    afterEach(() => jest.restoreAllMocks());
+
+    test('reads a TADIR transport omitted from the registry metadata from the release artifact', async () => {
+        const ctx = context();
+
+        await checkTransports.run(ctx);
+
+        expect(ctx.rawInput.packageData.registry.downloadArtifact).toHaveBeenCalledWith('trm-rest', '6.0.0');
+        expect(ctx.runtime.transports.tadir.binaries.trkorr).toBe('TRMK900001');
+        expect(ctx.runtime.transports.tadir.binaries.binaries.data).toEqual(Buffer.from('data'));
+    });
+
+    test('a release without TADIR transport is still refused', async () => {
+        const ctx = context();
+        ctx.rawInput.packageData.registry.downloadArtifact.mockResolvedValue({ binary: artifactBinary, getTransportBinaries: jest.fn().mockResolvedValue([]) });
+
+        await expect(checkTransports.run(ctx)).rejects.toThrow('Workbench transport (type TADIR) was not found.');
+    });
+
+    test('the artifact is not read when the registry metadata lists every transport', async () => {
+        const ctx = context();
+        ctx.runtime.package.data.transports.push({ trkorr: 'TRMK900020', type: 'TADIR' });
+        ctx.rawInput.packageData.registry.transportEntries.mockImplementation(async (_name: string, _version: string, trkorr: string) => trkorr === 'TRMK900020' ? tadirEntries : devcEntries);
+
+        await checkTransports.run(ctx);
+
+        expect(ctx.rawInput.packageData.registry.downloadArtifact).not.toHaveBeenCalled();
+    });
+
+    test('the fixed TADIR transport of trm-rest is read from the artifact even when the registry lists it', async () => {
+        const ctx = context();
+        ctx.runtime.package.data.transports.push({ trkorr: 'TRMK900001', type: 'TADIR' });
+
+        await checkTransports.run(ctx);
+
+        expect(ctx.rawInput.packageData.registry.transportEntries).toHaveBeenCalledTimes(1);
+        expect(ctx.rawInput.packageData.registry.transportEntries).not.toHaveBeenCalledWith('trm-rest', '6.0.0', 'TRMK900001');
+        expect(ctx.runtime.transports.tadir.binaries.trkorr).toBe('TRMK900001');
+        expect(ctx.runtime.transports.tadir.binaries.binaries.data).toEqual(Buffer.from('data'));
+        // read once: the release objects aren't counted twice
+        expect(ctx.runtime.transports.tadir.binaries.entries.tadir).toHaveLength(1);
+    });
+
+    test('refuses an artifact whose checksum differs from the registry', async () => {
+        await expect(checkTransports.run(context('different'))).rejects.toThrow('Cannot continue due to security issues.');
+        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('SECURITY ISSUE!'), { important: true });
     });
 });
 

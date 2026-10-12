@@ -20,7 +20,8 @@ jest.mock('../../systemConnector', () => ({
         getNamespacePackages: jest.fn(),
         readTable: jest.fn(async () => [{ role: 'C' }]),
         addNamespace: jest.fn(),
-        getDest: jest.fn(() => 'TST')
+        getDest: jest.fn(() => 'TST'),
+        forwardTransport: jest.fn()
     }
 }));
 
@@ -55,7 +56,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { FileSystem, RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
 import { isDeletionForwardable } from '../commons/utils';
-import { deleteTemporaryCleanupPackages, generateUpdateTransport } from './generateUpdateTransport';
+import { deleteTemporaryCleanupPackages, generatePostImportUpdateTransport, generateUpdateTransport } from './generateUpdateTransport';
 
 function context() {
     return {
@@ -513,7 +514,7 @@ describe('generateUpdateTransport revert', () => {
         const { ctx, dummy } = runContext([moved, { pgmid: 'R3TR', object: 'PROG', objName: 'Z_OLD' }], [{ ...moved, devclass: 'Z_ROOT' }]);
         ctx.rawInput.contextData.noInquirer = false;
         jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects =>
-            objects.filter((o: any) => o.objName === 'Z_MOVED').map((o: any) => ({ ...o, devclass: 'Z_CUSTOMER' })) as any);
+            objects.map((o: any) => ({ ...o, devclass: o.objName === 'Z_MOVED' ? 'Z_CUSTOMER' : '' })) as any);
         const prompt = jest.spyOn(Inquirer, 'prompt');
 
         await generateUpdateTransport.run(ctx);
@@ -580,6 +581,191 @@ describe('generateUpdateTransport revert', () => {
             expect(deleted).toEqual(['Z_GONE']);
             expect(fileRegistry.delete).not.toHaveBeenCalled();
             expect(realRegistry.delete).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('trm-server/trm-rest upgrade', () => {
+        test('is cleaned up after the import instead of before', async () => {
+            const { ctx } = runContext([], []);
+            ctx.runtime.selfUpdate = true;
+            jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
+
+            await expect(generateUpdateTransport.filter(ctx)).resolves.toBe(false);
+            await expect(generatePostImportUpdateTransport.filter(ctx)).resolves.toBe(true);
+        });
+
+        test('other upgrades are cleaned up before the import only', async () => {
+            const { ctx } = runContext([], []);
+
+            await expect(generateUpdateTransport.filter(ctx)).resolves.toBe(true);
+            await expect(generatePostImportUpdateTransport.filter(ctx)).resolves.toBe(false);
+        });
+
+        test('after the import, only the objects the imported release does not ship are deleted', async () => {
+            const { ctx, dummy } = runContext([
+                { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' },
+                { pgmid: 'R3TR', object: 'FUGR', objName: 'Z_API' },
+                { pgmid: 'R3TR', object: 'TABL', objName: 'Z_DATA' },
+                { pgmid: 'R3TR', object: 'TABL', objName: 'Z_USERS' },
+                { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }
+            ], [
+                { pgmid: 'R3TR', object: 'FUGR', objName: 'Z_API' },
+                { pgmid: 'R3TR', object: 'TABL', objName: 'Z_DATA' },
+                { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_NEW' }
+            ]);
+            ctx.runtime.selfUpdate = true;
+            jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects => objects as any);
+
+            await generatePostImportUpdateTransport.run(ctx);
+
+            const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.pgmid} ${o.object} ${o.objName}`));
+            expect(deleted).toEqual(expect.arrayContaining(['R3TR TABL Z_USERS', 'R3TR CLAS Z_GONE']));
+            expect(deleted).not.toContain('R3TR FUGR Z_API');
+            expect(deleted).not.toContain('R3TR TABL Z_DATA');
+            // kept tables are not dropped: no backup of their definition
+            expect(Transport.createToc).toHaveBeenCalledTimes(1);
+            expect(ctx.revert.retainedTableObjects).toBeUndefined();
+        });
+
+        test('nothing to delete after the import is not a manual cleanup warning', async () => {
+            const { ctx, dummy } = runContext([
+                { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_SAME' }
+            ], [
+                { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_SAME' }
+            ]);
+            ctx.runtime.selfUpdate = true;
+            dummy.canBeDeleted.mockResolvedValue(true);
+            const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+
+            await generatePostImportUpdateTransport.run(ctx);
+
+            expect(warning).not.toHaveBeenCalled();
+            expect(dummy.addObjects).not.toHaveBeenCalled();
+            expect(dummy.delete).toHaveBeenCalled();
+        });
+
+        test('after the import, the installed customizing is kept: the imported release may have rewritten it', async () => {
+            const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+            ctx.runtime.selfUpdate = true;
+            ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9CUST1', trmType: 'CUST' }];
+            (Transport as any).existing.add('DEVK9CUST1');
+            jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+            jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects => objects as any);
+
+            await generatePostImportUpdateTransport.run(ctx);
+
+            expect(dummy.addObjectsFromTransport).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Keeping customizing'), { important: true });
+        });
+
+        test('objects of the installed release missing on the system are not added to the deletion transport', async () => {
+            const { ctx, dummy } = runContext([
+                { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' },
+                { pgmid: 'R3TR', object: 'TABL', objName: 'Z_USERS' },
+                { pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }
+            ], []);
+            ctx.runtime.selfUpdate = true;
+            jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects =>
+                objects.filter((o: any) => o.objName !== 'Z_USERS') as any);
+
+            await generatePostImportUpdateTransport.run(ctx);
+
+            const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => o.objName));
+            expect(deleted).toContain('Z_GONE');
+            expect(deleted).not.toContain('Z_USERS');
+        });
+
+        test('nothing is transported when every object to delete is already missing', async () => {
+            const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'TABL', objName: 'Z_USERS' }], []);
+            ctx.runtime.selfUpdate = true;
+            dummy.canBeDeleted.mockResolvedValue(true);
+            jest.spyOn(SystemConnector, 'getExistingObjects').mockResolvedValue([]);
+
+            await generatePostImportUpdateTransport.run(ctx);
+
+            expect(dummy.addObjects).not.toHaveBeenCalled();
+            expect(dummy.delete).toHaveBeenCalled();
+        });
+
+        test('a rollback after the import keeps the deleted objects deleted', async () => {
+            const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+            ctx.runtime.selfUpdate = true;
+            jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects => objects as any);
+            await generatePostImportUpdateTransport.run(ctx);
+            expect(ctx.revert.deleImportStarted).toBe(true);
+            (Transport.upload as jest.Mock).mockClear();
+            restored.import.mockClear();
+
+            await generatePostImportUpdateTransport.revert(ctx);
+
+            expect(Transport.upload).not.toHaveBeenCalled();
+            expect(restored.import).not.toHaveBeenCalled();
+        });
+
+        test('a failed cleanup after the import is undone and reported, without failing the install', async () => {
+            const { ctx, dummy } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+            ctx.runtime.selfUpdate = true;
+            ctx.runtime.package.data.manifest.version = '2.0.0';
+            dummy.canBeDeleted.mockResolvedValue(true);
+            dummy.addObjects.mockRejectedValue(new Error('Object R3TR CLAS Z_GONE requires a directory entry'));
+            jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects => objects as any);
+            const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+
+            await expect(generatePostImportUpdateTransport.run(ctx)).resolves.toBeUndefined();
+
+            expect(dummy.delete).toHaveBeenCalled();
+            expect(warning).toHaveBeenCalledWith(expect.stringContaining('Cleanup of pkg 1.0.0 failed: Object R3TR CLAS Z_GONE requires a directory entry'), { important: true });
+            expect(warning).toHaveBeenCalledWith(expect.stringContaining('pkg 2.0.0 is installed'), { important: true });
+        });
+
+        test('without an installed transport (abapGit), the previous objects are what its SAP packages contain', async () => {
+            const { ctx, dummy } = runContext([], [
+                { pgmid: 'R3TR', object: 'INTF', objName: '/ATRM/IF_SERVER', devclass: '/ATRM/SERVER' }
+            ]);
+            ctx.runtime.selfUpdate = true;
+            ctx.runtime.update.getTransport = () => undefined;
+            ctx.runtime.update.getDevclass = () => '/ATRM/SERVER';
+            ctx.rawInput.installData.installDevclass = { keepOriginal: true, replacements: [] };
+            ctx.runtime.package.hierarchy = { devclass: '/ATRM/SERVER', sub: [{ devclass: '/ATRM/SERVER_OBJS', sub: [] }] };
+            jest.spyOn(SystemConnector, 'getSubpackages').mockResolvedValue([{ devclass: '/ATRM/SERVER_OBJS', parentcl: '/ATRM/SERVER' }] as any);
+            jest.spyOn(SystemConnector, 'getDevclassObjects').mockImplementation(async (devclass: string) => (devclass === '/ATRM/SERVER'
+                ? [
+                    { pgmid: 'R3TR', object: 'DEVC', objName: '/ATRM/SERVER', devclass },
+                    { pgmid: 'R3TR', object: 'INTF', objName: '/ATRM/IF_SERVER', devclass },
+                    { pgmid: 'R3TR', object: 'TABL', objName: '/ATRM/USERS', devclass }
+                ]
+                : [{ pgmid: 'R3TR', object: 'CLAS', objName: '/ATRM/CL_OBJECT_WTAG', devclass }]) as any);
+
+            await generatePostImportUpdateTransport.run(ctx);
+
+            const deleted = dummy.addObjects.mock.calls.flatMap(([objects]: any[]) => objects.map((o: any) => `${o.object} ${o.objName}`));
+            expect(deleted).toEqual(expect.arrayContaining(['TABL /ATRM/USERS', 'CLAS /ATRM/CL_OBJECT_WTAG']));
+            expect(deleted).not.toContain('INTF /ATRM/IF_SERVER');
+            expect(deleted.some((o: string) => o.startsWith('DEVC'))).toBe(false);
+        });
+
+        test('the deletion transport follows the released landscape transport to the target', async () => {
+            const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+            ctx.runtime.selfUpdate = true;
+            ctx.runtime.update.getDevclass = () => 'Z_ROOT';
+            ctx.rawInput.installData.landscapeTransport = { targetSystem: 'QAS' };
+            ctx.output = { transport: { trkorr: 'DEVK9LAND' } };
+
+            await generatePostImportUpdateTransport.run(ctx);
+
+            expect(SystemConnector.forwardTransport).toHaveBeenCalledWith('DEVK9DELE', 'QAS', 'TST', true);
+        });
+
+        test('a legacy backend imports the deletion transport without test import', async () => {
+            const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_GONE' }], []);
+            ctx.runtime.selfUpdate = true;
+            ctx.legacyBackend = true;
+            jest.spyOn(SystemConnector, 'getExistingObjects').mockImplementation(async objects => objects as any);
+
+            await generatePostImportUpdateTransport.run(ctx);
+
+            expect(restored.import).toHaveBeenCalledTimes(1);
+            expect(restored.import).toHaveBeenCalledWith(false);
         });
     });
 
@@ -667,6 +853,11 @@ describe('generateUpdateTransport revert', () => {
 
         const staging = ctx.revert.stagingPackages[0];
         expect(staging).toMatch(/^ZTRM_DELE_/);
+        expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({
+            devclass: staging,
+            pdevclass: 'ZTRL',
+            korrflag: 'X'
+        }));
         // Not an install package: the rollback of the imported objects must not transport it.
         expect(ctx.revert.sapPackages).toEqual([]);
         const assignments = (SystemConnector.tadirInterface as jest.Mock).mock.calls.map(([o]) => `${o.objName}:${o.devclass}`);

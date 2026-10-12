@@ -69,6 +69,38 @@ describe('install package metadata writes', () => {
         expect(transportsOrder).toBeLessThan((SystemConnector.updateTrmPackageData as jest.Mock).mock.invocationCallOrder[0]);
     });
 
+    test('a trm-server upgrade on a legacy backend writes only the mappings and the package row', async () => {
+        const ctx = context();
+        ctx.legacyBackend = true;
+        ctx.runtime.selfUpdate = true;
+        ctx.runtime.update = { getMetadataSnapshot: () => storedRow };
+        ctx.runtime.previousInstallPackages = [{ originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }];
+        ctx.rawInput.installData.installDevclass.replacements = [{ originalDevclass: 'ZOLD', installDevclass: 'ZNEW_TARGET' }];
+
+        await updatePackageData.run(ctx);
+
+        expect(SystemConnector.getTrmPackageData).not.toHaveBeenCalled();
+        expect(SystemConnector.deleteInstallDevc).not.toHaveBeenCalled();
+        expect(SystemConnector.setInstallTransports).not.toHaveBeenCalled();
+        expect(SystemConnector.restoreInstallMetadata).not.toHaveBeenCalled();
+        expect(SystemConnector.setInstallDevc).toHaveBeenCalledTimes(1);
+        expect(SystemConnector.updateTrmPackageData).toHaveBeenCalledWith(ctx.revert.metadataPackageRow);
+    });
+
+    test('a trm-server upgrade keeps the data of its imported release on rollback', async () => {
+        const ctx = context();
+        ctx.runtime.selfUpdate = true;
+        ctx.runtime.update = { getMetadataSnapshot: () => storedRow };
+        ctx.revert.metadataWriteStarted = true;
+        ctx.revert.metadataPackageRegistry = 'public';
+
+        await expect(updatePackageData.revert(ctx)).resolves.toBeUndefined();
+
+        expect(SystemConnector.setInstallDevc).not.toHaveBeenCalled();
+        expect(SystemConnector.updateTrmPackageData).not.toHaveBeenCalled();
+        expect(SystemConnector.restoreInstallMetadata).not.toHaveBeenCalled();
+    });
+
     test('an upgrade that kept the installed customizing still records its transports', async () => {
         const ctx = context();
         ctx.runtime.update = { packageName: 'pkg' };
