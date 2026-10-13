@@ -104,6 +104,11 @@ export const addNamespace: Step<InstallWorkflowContext> = {
         context.runtime.namespace = getInstallNamespace(context);
         if (context.runtime.namespace[0] !== '/') {
             Logger.log(`Package install namespace is ${context.runtime.namespace}, continue`, true);
+            // trm-server and trm-rest are fixed into `$` packages: the backend assigns their /ATRM/ objects with
+            if (context.runtime.isTrmServer || context.runtime.isTrmRest) {
+                Logger.log(`Skipping namespace ${originalNamespace} import: ${context.rawInput.packageData.name} objects are assigned to ${context.runtime.namespace} packages`, true);
+                return;
+            }
             // Packages renamed out of the original namespace: the objects keep their names, and can only be
             // assigned to the install packages (and repaired) when their namespace exists.
             if (originalNamespace[0] === '/' && !(await SystemConnector.getNamespace(originalNamespace))?.trnspacet) {
