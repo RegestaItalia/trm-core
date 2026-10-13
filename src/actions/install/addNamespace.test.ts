@@ -94,6 +94,24 @@ describe('add-namespace target namespace', () => {
             expect(ctx.runtime.namespace).toBe('Z');
         });
 
+        test.each(['isTrmServer', 'isTrmRest'])('%s in $ packages never asks to import /ATRM/', async (flag) => {
+            const ctx = context([{ originalDevclass: '/ATRM/SERVER', installDevclass: '$TRM' }]);
+            ctx.rawInput.contextData.noInquirer = false;
+            ctx.rawInput.packageData = { name: 'trm-server' };
+            ctx.runtime.package.hierarchy = { devclass: '/ATRM/SERVER', sub: [] };
+            ctx.runtime[flag] = true;
+            (SystemConnector.getNamespace as jest.Mock).mockResolvedValue(undefined);
+            const prompt = jest.spyOn(Inquirer, 'prompt');
+
+            await addNamespace.run(ctx);
+
+            expect(prompt).not.toHaveBeenCalled();
+            expect(SystemConnector.getNamespace).not.toHaveBeenCalled();
+            expect(SystemConnector.addNamespace).not.toHaveBeenCalled();
+            expect(Logger.warning).not.toHaveBeenCalled();
+            expect(ctx.runtime.namespace).toBe('$');
+        });
+
         test('declining continues without it, with a warning', async () => {
             const ctx = renamedContext();
             ctx.rawInput.installData.installDevclass.skipNamespace = true;

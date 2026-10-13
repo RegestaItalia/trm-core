@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-10-13 v10.2.0
+-------------------
+* request of import /ATRM/ (fixed $)
+
 2026-10-12 v10.1.0
 -------------------
 * trm-server/trm-rest upgrade from a backend before trm-server 7.0.0/trm-rest 6.0.0
