@@ -178,8 +178,26 @@ export const init: Step<PublishWorkflowContext> = {
         //if not provided, derive it from the system package (previous publish), then prompt (if allowed)
         //supplied or derived values are normalized and validated, prompted values are validated by the prompt
         var packageNeedsValidation: boolean = true;
+        let installedPublicPackage: TrmPackage | undefined;
+        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
+            installedPublicPackage = context.rawInput.contextData.systemPackages.find(o =>
+                o.compareName(context.rawInput.packageData.name)
+                && o.registry.getRegistryType() === RegistryType.PUBLIC
+                && !!o.manifest
+            );
+            if (installedPublicPackage) {
+                const manifest = installedPublicPackage.manifest.get();
+                context.runtime.latest.data = {
+                    manifest,
+                    dist_tags: { latest: manifest.version },
+                    versions: [manifest.version],
+                    yanked_versions: [],
+                    transports: []
+                } as any;
+            }
+        }
         if (!context.rawInput.packageData.devclass) {
-            const trmPackage = context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry)));
+            const trmPackage = installedPublicPackage || context.rawInput.contextData.systemPackages.find(o => TrmPackage.compare(o, new TrmPackage(context.rawInput.packageData.name, context.rawInput.packageData.registry)));
             if (trmPackage) {
                 context.rawInput.packageData.devclass = trmPackage.getDevclass();
             }

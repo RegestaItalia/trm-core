@@ -12,6 +12,7 @@ Legend
 -------------------
 * post activities xml -> json
 + post activity ui method parameters
++ default values for local export
 
 2026-10-14 v10.3.1
 -------------------

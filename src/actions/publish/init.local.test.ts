@@ -14,6 +14,8 @@ jest.mock('../../validators', () => ({
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { RegistryType } from '../../registry';
+import { Manifest } from '../../manifest';
+import { TrmPackage } from '../../trmPackage';
 import { init } from './init';
 
 describe('publish version resolution', () => {
@@ -27,7 +29,7 @@ describe('publish version resolution', () => {
         transports: [{ trkorr: 'TESTK900010', type: 'CUST' }]
     };
 
-    function context(registryType: RegistryType, version?: string, noInquirer: boolean = true) {
+    function context(registryType: RegistryType, version?: string, noInquirer: boolean = true, systemPackages: TrmPackage[] = []) {
         return {
             rawInput: {
                 packageData: {
@@ -41,7 +43,7 @@ describe('publish version resolution', () => {
                         validatePublish: jest.fn(async () => undefined)
                     }
                 },
-                contextData: { noInquirer, systemPackages: [] },
+                contextData: { noInquirer, systemPackages },
                 publishData: { private: true }
             }
         } as any;
@@ -87,8 +89,36 @@ describe('publish version resolution', () => {
         expect(ctx.rawInput.packageData.version).toBe('3.2.1');
     });
 
+    test('local export prefills from an installed public package without querying its registry', async () => {
+        const publicRegistry = {
+            getRegistryType: () => RegistryType.PUBLIC,
+            getPackage: jest.fn()
+        } as any;
+        const installedManifest = new Manifest({
+            name: 'pkg', version: '3.2.1', description: 'Installed description'
+        } as any);
+        const installed = new TrmPackage('pkg', publicRegistry, installedManifest).setDevclass('ZROOT');
+        const ctx = context(RegistryType.LOCAL, undefined, true, [installed]);
+        await run(ctx);
+        expect(publicRegistry.getPackage).not.toHaveBeenCalled();
+        expect(ctx.runtime.latest.data.manifest).toEqual(installedManifest.get());
+        expect(ctx.rawInput.packageData.version).toBe('3.2.2');
+        expect(ctx.rawInput.packageData.devclass).toBe('ZROOT');
+        expect(ctx.rawInput.packageData.registry.getPackage).not.toHaveBeenCalled();
+    });
+
     test('remote publish increments the latest release', async () => {
         const ctx = context(RegistryType.PRIVATE);
+        await run(ctx);
+        expect(ctx.rawInput.packageData.registry.getPackage).toHaveBeenCalledWith('pkg', 'latest');
+        expect(ctx.runtime.latest.data).toBe(existing);
+        expect(ctx.rawInput.packageData.version).toBe('3.2.2');
+    });
+
+    test('installed public package fallback is not used for a remote registry publish', async () => {
+        const publicRegistry = { getRegistryType: () => RegistryType.PUBLIC } as any;
+        const installed = new TrmPackage('pkg', publicRegistry, new Manifest({ name: 'pkg', version: '9.0.0' } as any)).setDevclass('ZROOT');
+        const ctx = context(RegistryType.PRIVATE, undefined, true, [installed]);
         await run(ctx);
         expect(ctx.rawInput.packageData.registry.getPackage).toHaveBeenCalledWith('pkg', 'latest');
         expect(ctx.runtime.latest.data).toBe(existing);
