@@ -95,6 +95,28 @@ describe('Manifest engines', () => {
     });
 });
 
+describe('Manifest post activities', () => {
+    test('post activities survive the ABAP XML round-trip', () => {
+        const postActivities = [
+            { name: 'ZCL_WITH_PARAMETERS', parameters: [{ name: 'FIRST', value: 'one' }, { name: 'SECOND', value: 'two' }] },
+            { name: 'ZCL_WITHOUT_PARAMETERS' }
+        ];
+        const original = new Manifest(manifest({ postActivities }));
+
+        const xml = original.getAbapXml();
+
+        expect(xml).toContain('<POST_ACTIVITIES>');
+        expect(Manifest.fromAbapXml(xml).get().postActivities).toEqual(postActivities);
+    });
+
+    test('parses a single post activity and a single parameter from ABAP XML', () => {
+        const postActivities = [{ name: 'ZCL_ACTIVITY', parameters: [{ name: 'PARAMETER', value: 'value' }] }];
+        const xml = new Manifest(manifest({ postActivities })).getAbapXml();
+
+        expect(Manifest.fromAbapXml(xml).get().postActivities).toEqual(postActivities);
+    });
+});
+
 describe('Manifest.isValidDependencyRange', () => {
     test.each([['^1.0.0', true], ['>=1.0.0 <2.0.0', true], ['*', true], ['', false], ['   ', false], ['not a range', false], [undefined, false], [1, false]])('%p -> %p', (range, expected) => {
         expect(Manifest.isValidDependencyRange(range)).toBe(expected);

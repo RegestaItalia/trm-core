@@ -226,16 +226,35 @@ describe('uninstall init', () => {
         await expect(init.run(ctx))
             .rejects.toThrow('Uninstall aborted. To continue, all cleanup objects and SAP packages must be released');
 
-        expect(locks).toHaveBeenCalledWith(pkg, [{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }], [pkg], pkg.getDirtyEntries());
+        expect(locks).toHaveBeenCalledWith(pkg, [{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }], [pkg]);
         expect(Logger.error).toHaveBeenCalledWith('R3TR PROG ZPROG is currently locked in transport TSTK900001', { important: true });
         expect(prompt).not.toHaveBeenCalled();
         expect(SystemConnector.getTransportTargets).not.toHaveBeenCalled();
     });
 
-    test('clean packages skip the changed objects locks check', async () => {
-        await init.run(context('pkg', [installed('pkg')]));
+    test('installed objects locked without dirty entries abort before any prompt', async () => {
+        // Dirty entries may miss edits still in a modifiable transport.
+        const pkg = installed('pkg');
+        (cleanupUtils.getInstalledObjectsLocks as jest.Mock).mockResolvedValue([
+            { pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_EDITED', trkorr: 'TSTK900002' },
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'ZPKG', trkorr: 'TSTK900003' }
+        ]);
+        const prompt = jest.spyOn(Inquirer, 'prompt');
 
-        expect(cleanupUtils.getInstalledObjectsLocks).not.toHaveBeenCalled();
+        await expect(init.run(context('pkg', [pkg], undefined, false)))
+            .rejects.toThrow('Uninstall aborted. To continue, all cleanup objects and SAP packages must be released');
+
+        expect(Logger.error).toHaveBeenCalledWith('R3TR CLAS ZCL_EDITED is currently locked in transport TSTK900002', { important: true });
+        expect(Logger.error).toHaveBeenCalledWith('R3TR DEVC ZPKG is currently locked in transport TSTK900003', { important: true });
+        expect(prompt).not.toHaveBeenCalled();
+        expect(SystemConnector.getTransportTargets).not.toHaveBeenCalled();
+    });
+
+    test('clean packages still check installed objects locks', async () => {
+        const pkg = installed('pkg');
+        await init.run(context('pkg', [pkg]));
+
+        expect(cleanupUtils.getInstalledObjectsLocks).toHaveBeenCalledWith(pkg, [{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }], [pkg]);
     });
 
     test('ignoreDirty deletes dirty packages without prompts', async () => {

@@ -802,37 +802,41 @@ describe('getInstalledObjectsLocks', () => {
         } as any;
     }
     const mappings = [{ originalDevclass: 'Z_ORIG', installDevclass: 'Z_ROOT' }];
+    const nested = { packageName: 'nested', getDevclass: () => 'Z_NESTED' } as any;
 
     beforeEach(() => {
         jest.clearAllMocks();
-        (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([{ devclass: 'Z_NESTED', parentcl: 'Z_ROOT' }]);
+        (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([]);
+        (SystemConnector.getDevclassObjects as jest.Mock).mockResolvedValue([]);
         (SystemConnector.getObjectsLocks as jest.Mock).mockImplementation(async objects => objects.map((o: any) => ({
             pgmid: o.PGMID, object: o.OBJECT, objName: o.OBJ_NAME, trkorr: 'DEVK9EDIT'
         })));
-        const devclasses: Record<string, string> = { Z_KEPT: 'Z_ROOT', Z_MOVED: 'Z_CUSTOM', Z_OTHER: 'Z_NESTED' };
+        // Objects without a SAP package here don't exist on the system.
+        const devclasses: Record<string, string> = {
+            Z_KEPT: 'Z_ROOT', Z_MOVED: 'Z_CUSTOM', Z_OTHER: 'Z_NESTED', Z_ROOT: 'Z_ROOT', Z_NESTED: 'Z_NESTED'
+        };
         (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async objects => objects
+            .filter((o: any) => devclasses[o.objName])
             .map((o: any) => ({ ...o, devclass: devclasses[o.objName] })));
     });
 
-    test('only checks installed objects the cleanup deletes for sure', async () => {
+    test('checks every installed object the cleanup deletes for sure, dirty or not', async () => {
+        (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([{ devclass: 'Z_NESTED', parentcl: 'Z_ROOT' }]);
         const pkg = installed([
-            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_KEPT' },
-            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' },
-            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_OTHER' },
-            { pgmid: 'LIMU', object: 'METH', objName: 'ZCL_X                         M' }
-        ]);
-        const nested = { packageName: 'nested', getDevclass: () => 'Z_NESTED' } as any;
-
-        const locks = await getInstalledObjectsLocks(pkg, mappings, [pkg, nested], [
+            { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' },
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_KEPT' },
             // Moved outside the installation, or into another TRM package: the cleanup may keep them.
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' },
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_OTHER' },
-            // Added locally: the extra objects cleanup can be declined.
-            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL' },
+            // Not on the system: nothing to delete.
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_GONE' },
             { pgmid: 'LIMU', object: 'METH', objName: 'ZCL_X                         M' }
         ]);
 
+        const locks = await getInstalledObjectsLocks(pkg, mappings, [pkg, nested]);
+
+        // A TRM package installed underneath keeps the SAP packages.
+        expect(SystemConnector.getDevclassObjects).not.toHaveBeenCalled();
         expect(SystemConnector.getObjectsLocks).toHaveBeenCalledWith([
             { PGMID: 'R3TR', OBJECT: 'PROG', OBJ_NAME: 'Z_KEPT' },
             { PGMID: 'LIMU', OBJECT: 'METH', OBJ_NAME: 'ZCL_X                         M' }
@@ -840,14 +844,48 @@ describe('getInstalledObjectsLocks', () => {
         expect(locks.map(lock => lock.objName)).toEqual(['Z_KEPT', 'ZCL_X                         M']);
     });
 
-    test('nothing the cleanup deletes for sure: no lock lookup', async () => {
-        const pkg = installed([{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' }]);
+    test('SAP packages without local additions are deleted for sure', async () => {
+        (SystemConnector.getDevclassObjects as jest.Mock).mockResolvedValue([
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'Z_ROOT', devclass: 'Z_ROOT' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_KEPT', devclass: 'Z_ROOT' }
+        ]);
+        const pkg = installed([{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_KEPT' }]);
 
-        expect(await getInstalledObjectsLocks(pkg, mappings, [pkg], [
-            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' },
-            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL' }
-        ])).toEqual([]);
-        expect(await getInstalledObjectsLocks(pkg, mappings, [pkg], [])).toEqual([]);
+        await getInstalledObjectsLocks(pkg, mappings, [pkg]);
+
+        expect(SystemConnector.getObjectsLocks).toHaveBeenCalledWith([
+            { PGMID: 'R3TR', OBJECT: 'PROG', OBJ_NAME: 'Z_KEPT' },
+            { PGMID: 'R3TR', OBJECT: 'DEVC', OBJ_NAME: 'Z_ROOT' }
+        ]);
+    });
+
+    test('locally added objects or packages may keep the SAP packages', async () => {
+        const pkg = installed([{ pgmid: 'R3TR', object: 'PROG', objName: 'Z_KEPT' }]);
+        (SystemConnector.getDevclassObjects as jest.Mock).mockResolvedValue([
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_KEPT', devclass: 'Z_ROOT' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_LOCAL', devclass: 'Z_ROOT' }
+        ]);
+
+        await getInstalledObjectsLocks(pkg, mappings, [pkg]);
+
+        expect(SystemConnector.getObjectsLocks).toHaveBeenLastCalledWith([{ PGMID: 'R3TR', OBJECT: 'PROG', OBJ_NAME: 'Z_KEPT' }]);
+
+        (SystemConnector.getDevclassObjects as jest.Mock).mockResolvedValue([]);
+        (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([{ devclass: 'Z_NESTED', parentcl: 'Z_ROOT' }]);
+
+        await getInstalledObjectsLocks(pkg, mappings, [pkg]);
+
+        expect(SystemConnector.getObjectsLocks).toHaveBeenLastCalledWith([{ PGMID: 'R3TR', OBJECT: 'PROG', OBJ_NAME: 'Z_KEPT' }]);
+    });
+
+    test('nothing the cleanup deletes for sure: no lock lookup', async () => {
+        (SystemConnector.getSubpackages as jest.Mock).mockResolvedValue([{ devclass: 'Z_NESTED', parentcl: 'Z_ROOT' }]);
+        const pkg = installed([
+            { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED' }
+        ]);
+
+        expect(await getInstalledObjectsLocks(pkg, mappings, [pkg])).toEqual([]);
         expect(SystemConnector.getObjectsLocks).not.toHaveBeenCalled();
     });
 });

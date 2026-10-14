@@ -275,30 +275,54 @@ async function readRelocatedObjects(
 }
 
 /**
- * Locks on those of `objects` that removing `installed` certainly deletes: the objects of its
- * installed transport still in its SAP packages. These would abort the cleanup at its objects
- * lock check, so they can be checked before asking anything. Objects added locally or moved
- * outside the installation are left out, as the cleanup may keep them.
+ * Locks on what removing `installed` certainly deletes: the objects of its installed transport
+ * still in its SAP packages, and the SAP packages themselves when nothing may keep them. These
+ * would abort the cleanup at its objects lock check, so they can be checked before asking anything.
+ * Objects added locally or moved outside the installation are left out, as the cleanup may keep them.
  */
 export async function getInstalledObjectsLocks(
     installed: TrmPackage,
     previousInstallPackages: InstallPackageReplacements[],
-    systemPackages: TrmPackage[],
-    objects: CleanupObject[]
+    systemPackages: TrmPackage[]
 ): Promise<ZTRM_OBJ_LOCK[]> {
-    if (objects.length === 0) {
-        return [];
-    }
     const { previousTransportObjects } = await readInstalledTransportObjects(installed);
     const installedKeys = new Set(previousTransportObjects.map(objectKey));
-    const candidates = new Map(objects
-        .filter(object => installedKeys.has(objectKey(object)))
+    // TRM comment rows are not objects; SAP packages follow the decision for the whole installation.
+    const candidates = new Map<string, CleanupObject>(previousTransportObjects
+        .filter(object => normalize(object.pgmid) !== '*' && !isDevclass(object))
         .map(object => [objectKey(object), object]));
-    if (candidates.size === 0) {
-        return [];
-    }
     const tree = await readInstallationTree(installed, previousInstallPackages, previousTransportObjects, [], systemPackages);
-    (await readRelocatedObjects(Array.from(candidates.values()), tree)).forEach(object => candidates.delete(objectKey(object)));
+    // SAP packages are kept when a TRM package is installed underneath, or when the cleanup of
+    // locally added packages or objects is declined.
+    let packagesDeleted = tree.otherInstallations.size === 0
+        && Array.from(tree.previousDevclasses.keys()).every(devclass => tree.installedDevclasses.has(devclass));
+    for (const devclass of packagesDeleted ? tree.previousDevclasses.values() : []) {
+        if ((await SystemConnector.getDevclassObjects(devclass, false)).some(object =>
+            !isDevclass(object) && !isNamespace(object) && !installedKeys.has(objectKey(object)))) {
+            packagesDeleted = false;
+            break;
+        }
+    }
+    if (packagesDeleted) {
+        tree.previousDevclasses.forEach(devclass => candidates.set(
+            objectKey({ pgmid: 'R3TR', object: 'DEVC', objName: devclass }),
+            { pgmid: 'R3TR', object: 'DEVC', objName: devclass }
+        ));
+    }
+    // Only existing objects are deleted, and only those still in the installation's SAP packages.
+    const checkedObjects = Array.from(candidates.values()).filter(object => normalize(object.pgmid) === 'R3TR');
+    if (checkedObjects.length > 0) {
+        const existing = new Map((await SystemConnector.getExistingObjects(checkedObjects.map(object => ({
+            pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: ''
+        })))).map(object => [objectKey(object), object]));
+        checkedObjects.forEach(object => {
+            const tadir = existing.get(objectKey(object));
+            if (!tadir || (!isDevclass(object) && tadir.devclass
+                && (!tree.previousDevclasses.has(normalize(tadir.devclass)) || tree.isOtherInstallation(tadir.devclass)))) {
+                candidates.delete(objectKey(object));
+            }
+        });
+    }
     if (candidates.size === 0) {
         return [];
     }
