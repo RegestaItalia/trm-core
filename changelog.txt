@@ -11,6 +11,7 @@ Legend
 2026-10-14 v10.3.2
 -------------------
 * post activities xml -> json
++ post activity ui method parameters
 
 2026-10-14 v10.3.1
 -------------------

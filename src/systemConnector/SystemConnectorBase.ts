@@ -112,14 +112,33 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       { offset: ctx.offset, limit: ctx.limit + 1 }
     );
     const hasMore = classes.length > ctx.limit;
-    const rows: { name: string, description?: string }[] = classes.slice(0, ctx.limit).map(o => ({ name: o.clsname }));
+    const rows: { name: string, description?: string, parameters?: { name: string, value?: string }[] }[] = classes.slice(0, ctx.limit).map(o => ({ name: o.clsname }));
     if (rows.length > 0) {
-      const texts: { clsname: string, descript: string }[] = await this.readTable('SEOCLASSTX',
-        [{ fieldName: 'CLSNAME' }, { fieldName: 'DESCRIPT' }],
-        `LANGU EQ '${this.getLangu(true)}' AND ( ${rows.map(o => `CLSNAME EQ '${o.name}'`).join(' OR ')} )`
-      );
+      const classOptions = `( ${rows.map(o => `CLSNAME EQ '${o.name}'`).join(' OR ')} )`;
+      const [texts, mandatoryParameters]: [
+        { clsname: string, descript: string }[],
+        { clsname: string, sconame: string, parvalue?: string }[]
+      ] = await Promise.all([
+        this.readTable('SEOCLASSTX',
+          [{ fieldName: 'CLSNAME' }, { fieldName: 'DESCRIPT' }],
+          `LANGU EQ '${this.getLangu(true)}' AND ${classOptions}`
+        ),
+        this.readTable('SEOSUBCODF',
+          [{ fieldName: 'CLSNAME' }, { fieldName: 'SCONAME' }, { fieldName: 'PARVALUE' }],
+          `CMPNAME EQ '${POST_ACTIVITY_METHOD}' AND PARDECLTYP EQ '0' AND PAROPTIONL EQ '' AND VERSION EQ '1' AND ${classOptions}`
+        )
+      ]);
       rows.forEach(o => {
         o.description = texts.find(t => t.clsname === o.name)?.descript;
+        const parameters = mandatoryParameters
+          .filter(parameter => parameter.clsname === o.name)
+          .map(parameter => ({
+            name: parameter.sconame,
+            ...(parameter.parvalue ? { value: parameter.parvalue } : {})
+          }));
+        if (parameters.length > 0) {
+          o.parameters = parameters;
+        }
       });
     }
     return { rows, hasMore };
