@@ -16,7 +16,8 @@ jest.mock('../../systemConnector', () => ({
         getNamespace: jest.fn().mockResolvedValue(undefined),
         createPackage: jest.fn(),
         getLogonUser: jest.fn(() => 'TESTER'),
-        ping: jest.fn().mockResolvedValue('PONG')
+        ping: jest.fn().mockResolvedValue('PONG'),
+        refreshTransportTmsTxt: jest.fn()
     }
 }));
 
@@ -720,6 +721,33 @@ describe('importBatch rollback checkpoint', () => {
 
         expect(Transport.importMultiple).toHaveBeenCalledTimes(1);
         expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+    });
+
+    test('a trm-server upgrade refreshes the fixed TADIR transport text after import', async () => {
+        const context = makeContext(registryDelete);
+        context.runtime.selfUpdate = true;
+        context.rawInput.packageData.name = 'trm-server';
+        context.runtime.package.data.manifest.name = 'trm-server';
+        context.runtime.transports.tadir.instance.trkorr = 'TRMK900000';
+
+        await importBatch.run(context);
+
+        expect(SystemConnector.refreshTransportTmsTxt).toHaveBeenCalledWith('TRMK900000');
+        expect((Transport.importMultiple as jest.Mock).mock.invocationCallOrder[0])
+            .toBeLessThan((SystemConnector.refreshTransportTmsTxt as jest.Mock).mock.invocationCallOrder[0]);
+    });
+
+    test('a fixed TADIR text-refresh failure does not abort a trm-rest upgrade', async () => {
+        const context = makeContext(registryDelete);
+        context.runtime.selfUpdate = true;
+        context.rawInput.packageData.name = 'trm-rest';
+        context.runtime.package.data.manifest.name = 'trm-rest';
+        context.runtime.transports.tadir.instance.trkorr = 'TRMK900001';
+        (SystemConnector.refreshTransportTmsTxt as jest.Mock).mockRejectedValueOnce(new Error('refresh failed'));
+
+        await expect(importBatch.run(context)).resolves.toBeUndefined();
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('refresh failed'), true);
+        expect(recordInstalledRelease).toHaveBeenCalledWith(context);
     });
 
     test('a failed trm-server upgrade import is left in place, without backup or rollback', async () => {

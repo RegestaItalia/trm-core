@@ -1,7 +1,8 @@
 jest.mock('../../systemConnector', () => ({
     SystemConnector: {
         getDest: jest.fn(() => 'TST'),
-        getDevclass: jest.fn().mockResolvedValue(undefined)
+        getDevclass: jest.fn().mockResolvedValue(undefined),
+        deleteTmsTransport: jest.fn()
     }
 }));
 
@@ -82,7 +83,7 @@ describe('install prepare transport rollback', () => {
     beforeEach(() => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
-        for (const method of ['loading', 'error'] as const) {
+        for (const method of ['loading', 'error', 'warning'] as const) {
             jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
         }
         jest.spyOn(Logger, 'getPrefix').mockReturnValue(undefined);
@@ -185,5 +186,32 @@ describe('install prepare transport rollback', () => {
         for (const transport of dummies) {
             expect(transport.delete).toHaveBeenCalledTimes(1);
         }
+    });
+
+    test('a trm-server upgrade removes its fixed TADIR transport from the current TMS queue before upload', async () => {
+        const ctx = context(registryTransport);
+        ctx.runtime.selfUpdate = true;
+        ctx.runtime.package.data.manifest = { name: 'trm-server' };
+        ctx.runtime.transports.tadir.binaries.trkorr = 'TRMK900000';
+        ctx.runtime.transports.tadir.binaries.binaries = { header: Buffer.from('h'), data: Buffer.from('d') };
+
+        await prepareTadir.run(ctx);
+
+        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('TRMK900000', 'TST');
+        expect((SystemConnector.deleteTmsTransport as jest.Mock).mock.invocationCallOrder[0])
+            .toBeLessThan((Transport.upload as jest.Mock).mock.invocationCallOrder[0]);
+    });
+
+    test('a fixed TADIR queue-removal failure does not abort a trm-rest upgrade', async () => {
+        const ctx = context(registryTransport);
+        ctx.runtime.selfUpdate = true;
+        ctx.runtime.package.data.manifest = { name: 'trm-rest' };
+        ctx.runtime.transports.tadir.binaries.trkorr = 'TRMK900001';
+        ctx.runtime.transports.tadir.binaries.binaries = { header: Buffer.from('h'), data: Buffer.from('d') };
+        (SystemConnector.deleteTmsTransport as jest.Mock).mockRejectedValueOnce(new Error('not queued'));
+
+        await expect(prepareTadir.run(ctx)).resolves.toBeUndefined();
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('not queued'), true);
+        expect(Transport.upload).toHaveBeenCalled();
     });
 });
