@@ -693,6 +693,26 @@ export class Manifest {
                 }];
             }
         }
+        if (oAbapManifest.postActivities && oAbapManifest.postActivities.item) {
+            const postActivities = Array.isArray(oAbapManifest.postActivities.item)
+                ? oAbapManifest.postActivities.item
+                : [oAbapManifest.postActivities.item];
+            manifest.postActivities = postActivities.map(postActivity => {
+                const parsedPostActivity: TrmManifest['postActivities'][number] = {
+                    name: postActivity.name?.text
+                };
+                if (postActivity.parameters?.item) {
+                    const parameters = Array.isArray(postActivity.parameters.item)
+                        ? postActivity.parameters.item
+                        : [postActivity.parameters.item];
+                    parsedPostActivity.parameters = parameters.map(parameter => ({
+                        name: parameter.name?.text,
+                        value: parameter.value?.text
+                    }));
+                }
+                return parsedPostActivity;
+            });
+        }
         if (oAbapManifest.engines && oAbapManifest.engines.text) {
             try {
                 manifest.engines = JSON.parse(oAbapManifest.engines.text);
