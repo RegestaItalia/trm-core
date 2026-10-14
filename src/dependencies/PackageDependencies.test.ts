@@ -53,4 +53,49 @@ describe('PackageDependencies', () => {
 
         expect(dependencies.abapPackageDependencies.map(o => o.abapPackage.devclass)).toEqual(['ZSTRUCT', 'ZOTHER']);
     });
+
+    test('keeps the direct package instead of collapsing a dependency to its root package', async () => {
+        const directPackage = { devclass: 'ZGARE_BSP', parentcl: 'ZREG_RAB_APP', tpclass: '' };
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async devclass => ({
+            ...tdevc[devclass],
+            ...(devclass === directPackage.devclass ? directPackage : {})
+        }));
+
+        const dependencies = await new PackageDependencies('ZAPP').setDependencies([
+            { object: 'SICF', objName: 'SERVICE_A', dependencies: [{ tabname: 'TADIR', tabkey: 'R3TRSICFPARENT', devclass: directPackage.devclass }] }
+        ] as any);
+
+        expect(dependencies.abapPackageDependencies.map(o => o.abapPackage.devclass)).toEqual([directPackage.devclass]);
+        expect(SystemConnector.getRootDevclass).not.toHaveBeenCalled();
+    });
+
+    test('lists every distinct object that references the same TRM package', async () => {
+        const trmPackage = {
+            packageName: '@regestaitalia/orchestratore',
+            registry: {},
+            getDevclass: () => '/REG/ORCHESTRATORE',
+            compareName: (name: string) => name === '@regestaitalia/orchestratore',
+            compareRegistry: () => true
+        };
+        (SystemConnector.getInstalledPackages as jest.Mock).mockResolvedValue([trmPackage]);
+
+        const dependency = {
+            tabname: 'TADIR',
+            tabkey: 'R3TRSICFPARENT',
+            devclass: '/REG/ORC_LIBRARY',
+            trmPackageName: '@regestaitalia/orchestratore',
+            trmPackageRegistry: 'public'
+        };
+        const dependencies = await new PackageDependencies('/REG/TUNECRAFT').setDependencies([
+            { object: 'SICF', objName: 'TC_LIBRARY', dependencies: [dependency] },
+            { object: 'SICF', objName: 'TC_RUN', dependencies: [dependency] },
+            { object: 'SICF', objName: 'TC_BUILD', dependencies: [dependency] }
+        ] as any);
+
+        expect(dependencies.trmPackageDependencies[0].foundIn).toEqual([
+            { object: 'SICF', objName: 'TC_LIBRARY' },
+            { object: 'SICF', objName: 'TC_RUN' },
+            { object: 'SICF', objName: 'TC_BUILD' }
+        ]);
+    });
 });

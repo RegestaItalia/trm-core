@@ -66,7 +66,7 @@ export class PackageDependencies {
                             foundIn: []
                         }) - 1;
                     }
-                    if (!this.trmPackageDependencies[depIndex].foundIn.find(f => f.object === o.object && f.objName === f.objName)) {
+                    if (!this.trmPackageDependencies[depIndex].foundIn.find(f => f.object === o.object && f.objName === o.objName)) {
                         this.trmPackageDependencies[depIndex].foundIn.push({
                             object: o.object,
                             objName: o.objName
@@ -85,11 +85,12 @@ export class PackageDependencies {
                     // only if the abap package is not a subpackage of the one analyzed
                     if (!(await this.getDevclasses()).includes(sapPackage.package)) {
 
-                        // get the root, in trm we assume subpackages are part of the same package (supposing the user will generate on after a mising dependency)
-                        const root = await SystemConnector.getRootDevclass(sapPackage.package);
-                        var packageIndex = this.abapPackageDependencies.findIndex(k => k.abapPackage.devclass === root);
+                        // Keep the package that owns the dependency. Collapsing it to the topmost
+                        // superpackage loses the actionable package reported by TADIR and can group
+                        // unrelated dependencies under a broad customer-package root.
+                        var packageIndex = this.abapPackageDependencies.findIndex(k => k.abapPackage.devclass === sapPackage.package);
                         if (packageIndex < 0) {
-                            const abapPackage = await SystemConnector.getDevclass(root);
+                            const abapPackage = await SystemConnector.getDevclass(sapPackage.package);
                             packageIndex = this.abapPackageDependencies.push({
                                 abapPackage: abapPackage,
                                 isCustomerPackage: !abapPackage.tpclass,
