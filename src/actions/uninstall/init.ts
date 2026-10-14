@@ -82,22 +82,20 @@ export const init: Step<UninstallWorkflowContext> = {
             previousInstallPackages.map(replacement => replacement.installDevclass)
         );
 
-        //5- dirty check: changes still being edited would fail the cleanup objects lock check,
-        //so check them before asking anything
-        const allDirtyEntries = await withoutOwnTrmTransports(installed.getDirtyEntries(), installed.packageName);
-        if (allDirtyEntries.length > 0) {
-            Logger.loading(`Checking changed objects locks...`, true);
-            const locks = await getInstalledObjectsLocks(
-                installed,
-                previousInstallPackages,
-                context.rawInput.contextData.systemPackages,
-                allDirtyEntries
-            );
-            if (locks.length > 0) {
-                locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true }));
-                throw new Error(`Uninstall aborted. To continue, all cleanup objects and SAP packages must be released`);
-            }
+        //5- dirty check: objects still being edited would fail the cleanup objects lock check,
+        //so check them before asking anything. Dirty entries may not list every edit: check all
+        //the cleanup deletes for sure
+        Logger.loading(`Checking installed objects locks...`, true);
+        const locks = await getInstalledObjectsLocks(
+            installed,
+            previousInstallPackages,
+            context.rawInput.contextData.systemPackages
+        );
+        if (locks.length > 0) {
+            locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true }));
+            throw new Error(`Uninstall aborted. To continue, all cleanup objects and SAP packages must be released`);
         }
+        const allDirtyEntries = await withoutOwnTrmTransports(installed.getDirtyEntries(), installed.packageName);
         //the TRM packages installed under it confirm their own changes
         const dirtyEntries = await withoutNestedDirtyEntries(allDirtyEntries, nestedPackages.all);
         if (dirtyEntries.length > 0 && !context.rawInput.uninstallData.checks.ignoreDirty) {
