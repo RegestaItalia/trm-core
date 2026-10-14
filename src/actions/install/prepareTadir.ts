@@ -4,7 +4,7 @@ import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { stopWarning } from "../stopWarning";
-import { revertPreparedTransport, withScopedPrefix } from "../commons/utils";
+import { revertPreparedTransport, TRM_FIXED_TADIR_TRANSPORTS, withScopedPrefix } from "../commons/utils";
 import { TRKORR } from "../../client";
 import { deleteImportedEntries } from "./importBatch";
 
@@ -57,6 +57,21 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
                 trkorr = dummy.trkorr;
             } else {
                 trkorr = context.runtime.transports.tadir.binaries.trkorr;
+            }
+
+            // trm-server and trm-rest reuse the same TADIR transport in every release. Remove the
+            // previous queue entry before forwarding the new payload, otherwise TMS keeps its old
+            // position. This is best effort: an absent entry (or an older backend that cannot remove
+            // it) must not prevent the backend upgrade.
+            const packageName = context.runtime.package.data.manifest?.name || context.rawInput.packageData.name;
+            const fixedTrkorr = TRM_FIXED_TADIR_TRANSPORTS[packageName];
+            if (context.runtime.selfUpdate && fixedTrkorr === trkorr) {
+                try {
+                    Logger.loading(`Removing previous ${trkorr} from ${SystemConnector.getDest()} import queue...`, true);
+                    await SystemConnector.deleteTmsTransport(trkorr, SystemConnector.getDest());
+                } catch (error) {
+                    Logger.warning(`Couldn't remove ${trkorr} from ${SystemConnector.getDest()} import queue: ${error instanceof Error ? error.message : String(error)}`, true);
+                }
             }
 
             //2- upload transport binaries
