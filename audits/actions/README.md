@@ -1,6 +1,6 @@
 # Action workflow audits
 
-Audit date: 2026-10-07 (in-depth static source review; no SAP or registry operation was run).
+Audit date: 2026-10-14 (latest finding reproduced from an install log; the original audit was a static source review).
 
 These documents are static source audits of every workflow assembled under `src/actions`.
 Each step was reviewed in execution order, including filters, external calls, context mutations,

@@ -373,6 +373,21 @@ describe('importBatch rollback checkpoint', () => {
         expect(context.revert.cleanupSucceeded).toBe(true);
     });
 
+    test('translation entries are omitted from the rollback deletion transport', async () => {
+        const context = makeContext(registryDelete);
+        context.revert.importedEntries = [
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' },
+            { pgmid: ' lang ', object: 'REPT', objName: 'Z_ONE' }
+        ];
+
+        await deleteImportedEntries(context);
+
+        const entries = cleanupTransport.addObjects.mock.calls[0][0];
+        expect(entries).toContainEqual({ pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' });
+        expect(entries).not.toContainEqual({ pgmid: ' lang ', object: 'REPT', objName: 'Z_ONE' });
+        expect(context.revert.cleanupSucceeded).toBe(true);
+    });
+
     test('customizing transport not imported on the system is skipped', async () => {
         const context = makeContext(registryDelete);
         (context.runtime.transports.cust[0].instance.getE070 as jest.Mock).mockResolvedValue(undefined);
