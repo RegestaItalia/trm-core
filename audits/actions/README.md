@@ -36,12 +36,12 @@ feature, missing case).
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-engines` | 2 | 0 | 0 | 0 | 0 | [Engines check](check-engines.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
-| `uninstall` | 10 | 0 | 0 | 1 | 0 | [Package uninstall](uninstall.md) |
+| `uninstall` | 10 | 0 | 0 | 0 | 0 | [Package uninstall](uninstall.md) |
 | `install-dependency` | 6 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
 | `install` | 29 | 0 | 0 | 0 | 1 | [Package install](install.md) |
 | `publish` | 15 | 0 | 0 | 0 | 1 | [Package publish](publish.md) |
 | Shared steps/callbacks | 16 | 0 | 0 | 1 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **0** | **0** | **2** | **6** | |
+| **Total** | | **0** | **0** | **1** | **6** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
@@ -56,7 +56,7 @@ imported with the incoming release (`plan-update-cleanup`, `prepare-backup`, `pr
 no deletion transport is forwarded, the single landscape transport copies them and is released last
 (uninstall `forward-deletion-transport` replaced by `generate-landscape-transport` and
 `release-landscape-transport`); imports fail from return code 8. This resolved ACT-2026-04, ACT-2026-06 and
-INST-02; ACT-2026-92, found in the new action summary, was resolved in the same change. All active findings describe the current source and are included in the
+INST-02 and ACT-2026-50; ACT-2026-92, found in the new action summary, was resolved in the same change. All active findings describe the current source and are included in the
 index counts.
 
 Two earlier resolutions turned out to be ineffective and are superseded by new findings:
@@ -73,8 +73,7 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 
 ## Highest-priority remediation
 
-1. **[ACT-2026-50](uninstall.md)** — check the export of the BKP backups before generating deletions from them, as an object that failed to export is deleted without a restorable copy (uninstall and upgrade).
-2. **[ACT-2026-14](shared.md)** — bound the TMS-queue polling of releases and imports, so a stuck request can't hang an action after SAP state changed.
-3. **[ACT-2026-46](install.md)** — reconnect before the `import-batch` rollback, so a failed reconnect doesn't leave the whole rollback on a closed connection.
+1. **[ACT-2026-14](shared.md)** — bound the TMS-queue polling of releases and imports, so a stuck request can't hang an action after SAP state changed.
+2. **[ACT-2026-46](install.md)** — reconnect before the `import-batch` rollback, so a failed reconnect doesn't leave the whole rollback on a closed connection.
 
 These findings were identified by static review and were not reproduced against SAP or a registry.

@@ -6,6 +6,8 @@ import { AbstractRegistry, DeleteTransportOptions, DeletionKey, RegistryDeletion
 import { packageDataFromTdevc, getPackageNamespace } from "../../../commons";
 import { DEVCLASS, E071, TADIR, TDEVC, ZTRM_OBJ_LOCK } from "../../../client";
 import { randomBytes } from "crypto";
+import { tmpdir } from "os";
+import { join } from "path";
 import type { InstallPackageReplacements } from "../../install";
 import { releaseDeletionTransport } from "./releaseDeletionTransport";
 import { restoreTransport } from "./restoreTransport";
@@ -1018,8 +1020,12 @@ function backupDescription(kind: 'BKP' | 'BKP C' | 'DELE' | 'DELE C', packageNam
     return `@X1@TRM (${kind}) ${packageName} ${version}`.slice(0, 60);
 }
 
-/** Creates, fills, releases and downloads a backup transport of copies. It's never deleted, not even unreleased. */
-async function createBackup(context: PackageCleanupContext, description: string, fill: (transport: Transport) => Promise<void>): Promise<CleanupBackup> {
+/**
+ * Creates, fills, releases and downloads a backup transport of copies. It's never deleted, not even unreleased.
+ * Its release log is checked: an object that failed to export has no restorable copy, so the action stops
+ * before anything is deleted.
+ */
+async function createBackup(context: PackageCleanupContext, description: string, logFolder: string, fill: (transport: Transport) => Promise<void>): Promise<CleanupBackup> {
     const transport = await Transport.createToc({
         text: description,
         target: SystemConnector.getDest()
@@ -1028,7 +1034,7 @@ async function createBackup(context: PackageCleanupContext, description: string,
     context.revert.backupTransports ||= [];
     context.revert.backupTransports.push(transport);
     await fill(transport);
-    await transport.release(false, true);
+    await transport.release(false, true, logFolder);
     return {
         transport,
         binaries: {
@@ -1047,7 +1053,8 @@ async function createBackup(context: PackageCleanupContext, description: string,
  * Objects of a temporary (`$`) installation are first assigned to transportable staging packages, deleted
  * with them.
  */
-export async function backupInstalledPackage(context: PackageCleanupContext, plan: CleanupPlan | undefined, overwrittenObjects: TADIR[], labels: { packageName: string, version: string }): Promise<void> {
+export async function backupInstalledPackage(context: PackageCleanupContext, plan: CleanupPlan | undefined, overwrittenObjects: TADIR[], labels: { packageName: string, version: string, logTemporaryFolder?: string }): Promise<void> {
+    const logFolder = labels.logTemporaryFolder || join(tmpdir(), 'trm');
     const objects = new Map<string, CleanupObject>([
         ...(plan?.backupObjects || []),
         ...overwrittenObjects.map(object => ({ pgmid: object.pgmid, object: object.object, objName: object.objName }))
@@ -1085,7 +1092,7 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
     context.revert.backup ||= {};
     if (entries.length > 0) {
         Logger.loading(`Backing up ${entries.length} objects...`);
-        context.revert.backup.tadir = await createBackup(context, backupDescription('BKP', labels.packageName, labels.version), async transport => {
+        context.revert.backup.tadir = await createBackup(context, backupDescription('BKP', labels.packageName, labels.version), logFolder, async transport => {
             const { failed } = await addObjectsResiliently(transport, entries);
             for (const { entry, error } of failed) {
                 Logger.warning(`${entry.pgmid} ${entry.object} ${entry.objName} can't be backed up: it's not deleted, and a rollback can't restore it (${error instanceof Error ? error.message : String(error)})`, { important: true });
@@ -1096,7 +1103,7 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
     if (plan?.customizingSources.length > 0) {
         Logger.loading(`Backing up customizing...`);
         // The copy keeps the E071K keys: its release exports the current rows, local changes included.
-        context.revert.backup.cust = await createBackup(context, backupDescription('BKP C', labels.packageName, labels.version), async transport => {
+        context.revert.backup.cust = await createBackup(context, backupDescription('BKP C', labels.packageName, labels.version), logFolder, async transport => {
             for (const trkorr of plan.customizingSources) {
                 Logger.loading(`Including customizing from transport ${trkorr}...`, true);
                 await transport.addObjectsFromTransport(trkorr);

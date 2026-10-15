@@ -313,8 +313,9 @@ describe('backupInstalledPackage', () => {
         expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (BKP C) pkg 1.0.0', target: 'TST' });
         expect(keys(tadir.addObjects.mock.calls[0][0])).toEqual(['CLAS ZCL_OVERWRITTEN', 'PROG ZKEEP', 'PROG ZOLD']);
         expect(cust.addObjectsFromTransport).toHaveBeenCalledWith('TSTKCUST1');
-        expect(tadir.release).toHaveBeenCalled();
-        expect(cust.release).toHaveBeenCalled();
+        // the release log is read: an export error stops the action before anything is deleted
+        expect(tadir.release).toHaveBeenCalledWith(false, true, expect.stringContaining('trm'));
+        expect(cust.release).toHaveBeenCalledWith(false, true, expect.stringContaining('trm'));
         expect(ctx.revert.backup.tadir.binaries.trkorr).toBe('TSTKBKP1');
         expect(ctx.revert.backup.cust.binaries.trkorr).toBe('TSTKBKP2');
         expect(isBackupTransport('TSTKBKP1')).toBe(true);

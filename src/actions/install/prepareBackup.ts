@@ -63,7 +63,8 @@ export const prepareBackup: Step<InstallWorkflowContext> = {
             const plan = context.runtime.cleanupPlan;
             await backupInstalledPackage(context, plan, overwritten, {
                 packageName: context.rawInput.packageData.name,
-                version: plan ? plan.installedVersion : context.runtime.package.data.manifest.version
+                version: plan ? plan.installedVersion : context.runtime.package.data.manifest.version,
+                logTemporaryFolder: context.rawInput.contextData?.logTemporaryFolder
             });
         });
     },
