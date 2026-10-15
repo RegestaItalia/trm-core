@@ -54,3 +54,28 @@ describe('Transport import', () => {
         await expect(t.import(false)).resolves.toBe(0);
     });
 });
+
+import { TransportImportError } from './TransportImportError';
+
+describe('TransportImportError.assert', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    test('return codes up to 4 pass', () => {
+        expect(() => TransportImportError.assert('TSTK1', 4, 'Import')).not.toThrow();
+    });
+
+    test.each([8, 12, -1])('return code %s fails', rc => {
+        expect(() => TransportImportError.assert('TSTK1', rc, 'Import', 'msg')).toThrow(TransportImportError);
+    });
+
+    test('ignored, return codes from 8 are logged as errors', () => {
+        const error = jest.spyOn(Logger, 'error').mockImplementation(() => undefined as never);
+
+        expect(() => TransportImportError.assert('TSTK1', 8, 'Import of transport TSTK1', 'tp errors', true)).not.toThrow();
+        expect(error).toHaveBeenCalledWith(expect.stringContaining('TSTK1 ended with return code 8 (tp errors)'), { important: true });
+    });
+
+    test('ignored, a transport without return code (not imported) still fails', () => {
+        expect(() => TransportImportError.assert('TSTK1', -1, 'Import', undefined, true)).toThrow(TransportImportError);
+    });
+});

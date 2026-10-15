@@ -78,7 +78,7 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                 } else {
                     Logger.loading(`Testing import...`);
                     const testRc = await cust.instance.import(true);
-                    TransportImportError.assert(cust.instance.trkorr, testRc, `Test import of customizing`, cust.instance.lastImportMessage);
+                    TransportImportError.assert(cust.instance.trkorr, testRc, `Test import of customizing`, cust.instance.lastImportMessage, context.ignoreImportErrors);
                 }
             });
         }

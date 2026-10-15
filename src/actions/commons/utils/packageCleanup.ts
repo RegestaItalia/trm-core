@@ -63,6 +63,8 @@ export interface PackageCleanupRevert {
 /** Minimum workflow context needed to remove an installed release from the target system. */
 export interface PackageCleanupContext {
     lockScope?: ActionLockScope,
+    /** Imports ending with return code 8 or higher are logged as errors instead of failing the action. */
+    ignoreImportErrors?: boolean,
     /** Only the APIs of a backend older than this trm-core can be used: no test imports. */
     legacyBackend?: boolean,
     rawInput: {
@@ -1171,7 +1173,8 @@ export async function generateCleanupDeletions(context: PackageCleanupContext, p
                 subtract: run.subtract,
                 exclude: run.exclude,
                 preview: run.preview,
-                legacyBackend: context.legacyBackend
+                legacyBackend: context.legacyBackend,
+                ignoreImportErrors: context.ignoreImportErrors
             });
         } catch (e) {
             if (!(e instanceof RegistryDeletionTransportUnavailableError) || options.requireDeletion) {
@@ -1268,7 +1271,7 @@ export async function restoreCleanupBackups(context: PackageCleanupContext): Pro
             continue;
         }
         try {
-            await restoreTransport(backup.binaries);
+            await restoreTransport(backup.binaries, context.ignoreImportErrors);
         } catch (error) {
             firstError ||= error;
         }

@@ -128,7 +128,8 @@ export const uninstallNestedPackages: Step<UninstallWorkflowContext> = {
                     },
                     uninstallData: {
                         checks: { ...context.rawInput.uninstallData.checks },
-                        landscapeTransport: { ...context.rawInput.uninstallData.landscapeTransport }
+                        landscapeTransport: { ...context.rawInput.uninstallData.landscapeTransport },
+                        ignoreImportErrors: context.rawInput.uninstallData.ignoreImportErrors
                     },
                     nested: true
                 }, uninstallingPackages.filter(pkg => pkg !== nested), context.lockScope);

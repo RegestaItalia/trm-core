@@ -78,7 +78,7 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
             } else {
                 Logger.loading(`Testing import...`);
                 const testRc = await context.runtime.transports.devc.instance.import(true);
-                TransportImportError.assert(context.runtime.transports.devc.instance.trkorr, testRc, `Test import of SAP packages`, context.runtime.transports.devc.instance.lastImportMessage);
+                TransportImportError.assert(context.runtime.transports.devc.instance.trkorr, testRc, `Test import of SAP packages`, context.runtime.transports.devc.instance.lastImportMessage, context.ignoreImportErrors);
             }
         });
     },

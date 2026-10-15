@@ -77,7 +77,7 @@ export const importUpdateDeletion: Step<InstallWorkflowContext> = {
                 try {
                     Logger.loading(`Importing ${deletion.trkorr}...`);
                     const rc = await deletion.import(false);
-                    TransportImportError.assert(deletion.trkorr, rc, `Import of deletion transport`, deletion.lastImportMessage);
+                    TransportImportError.assert(deletion.trkorr, rc, `Import of deletion transport`, deletion.lastImportMessage, context.ignoreImportErrors);
                 } catch (error) {
                     Logger.warning(`Cleanup of ${context.rawInput.packageData.name} ${plan.installedVersion} failed: ${error instanceof Error ? error.message : String(error)}`, { important: true });
                     Logger.warning(`${context.rawInput.packageData.name} ${context.runtime.package.data.manifest.version} is installed. Objects of ${plan.installedVersion} it doesn't ship may be left: check ${deletion.trkorr} in STMS.`, { important: true });

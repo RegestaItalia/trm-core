@@ -75,7 +75,7 @@ export const prepareLang: Step<InstallWorkflowContext> = {
             } else {
                 Logger.loading(`Testing import...`);
                 const testRc = await context.runtime.transports.lang.instance.import(true);
-                TransportImportError.assert(context.runtime.transports.lang.instance.trkorr, testRc, `Test import of translations`, context.runtime.transports.lang.instance.lastImportMessage);
+                TransportImportError.assert(context.runtime.transports.lang.instance.trkorr, testRc, `Test import of translations`, context.runtime.transports.lang.instance.lastImportMessage, context.ignoreImportErrors);
             }
         });
     },

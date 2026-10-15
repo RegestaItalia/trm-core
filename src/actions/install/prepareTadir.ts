@@ -77,7 +77,7 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
             } else {
                 Logger.loading(`Testing import...`);
                 const testRc = await context.runtime.transports.tadir.instance.import(true);
-                TransportImportError.assert(context.runtime.transports.tadir.instance.trkorr, testRc, `Test import of workbench`, context.runtime.transports.tadir.instance.lastImportMessage);
+                TransportImportError.assert(context.runtime.transports.tadir.instance.trkorr, testRc, `Test import of workbench`, context.runtime.transports.tadir.instance.lastImportMessage, context.ignoreImportErrors);
             }
         });
     },

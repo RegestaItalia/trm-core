@@ -37,7 +37,8 @@ export async function releaseDeletionTransport(
         deletion = await generateDeletion({
             registry: deletionRegistry,
             source: { trkorr: deletionTransport.trkorr, entries: undefined, binaries: tocBinaries },
-            legacyBackend: context.legacyBackend
+            legacyBackend: context.legacyBackend,
+            ignoreImportErrors: context.ignoreImportErrors
         });
     } catch (e) {
         // The transport is already released and can't be deleted: it's a harmless transport of copies.
@@ -57,7 +58,7 @@ export async function releaseDeletionTransport(
         context.revert.deleImportStarted = true;
     }
     const rc = await deletion.import(false);
-    TransportImportError.assert(deletionTransport.trkorr, rc, `Import of deletion transport`, deletion.lastImportMessage);
+    TransportImportError.assert(deletionTransport.trkorr, rc, `Import of deletion transport`, deletion.lastImportMessage, context.ignoreImportErrors);
     Logger.success(`Transport ${deletionTransport.trkorr} imported`, true);
     return true;
 }

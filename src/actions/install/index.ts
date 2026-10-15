@@ -99,6 +99,13 @@ export type InstallActionInputInstallData = {
          * On update, the customizing of the installed release is then kept.
          */
         noCust?: boolean;
+
+        /**
+         * Don't fail on imports ending with return code 8 or higher (test imports, the batch import,
+         * deletions and rollback restores): log them as errors and go on. Defaults to `false`.
+         * A transport without return code (not imported) still fails the install.
+         */
+        ignoreImportErrors?: boolean;
     };
 
     /**
@@ -352,6 +359,8 @@ export type InstallActionOutput = {
 /** Internal state shared by package-install workflow steps and rollback handlers. */
 export interface InstallWorkflowContext extends IActionContext {
     lockScope?: ActionLockScope,
+    /** From `installData.import.ignoreImportErrors`: imports from return code 8 are logged instead of failing. */
+    ignoreImportErrors?: boolean,
     /**
      * trm-server/trm-rest upgrade on a backend older than the APIs this trm-core needs (see isLegacyTrmBackend):
      * only the APIs of the installed generation are used.
@@ -434,7 +443,10 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     // A legacy backend has no action locks: only trm-server and trm-rest can install there, to upgrade it.
     const legacyBackend = isTrmBackendPackage(lockPackage.registry, lockPackage.name) && await isLegacyTrmBackend();
     const lockScope = new ActionLockScope(WORKFLOW_NAME, !legacyBackend);
-    const context: InstallWorkflowContext = { rawInput: inputData, lockScope, inheritedNamespaceLocks, legacyBackend };
+    const context: InstallWorkflowContext = {
+        rawInput: inputData, lockScope, inheritedNamespaceLocks, legacyBackend,
+        ignoreImportErrors: !!inputData.installData?.import?.ignoreImportErrors
+    };
     await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);
     const release = async (): Promise<void> => {
         let firstError: unknown;

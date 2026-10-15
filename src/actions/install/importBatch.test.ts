@@ -715,6 +715,19 @@ describe('importBatch rollback checkpoint', () => {
         expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
     });
 
+    test('with ignoreImportErrors, batch return codes from 8 are logged and the import completes', async () => {
+        const context = makeContext(registryDelete);
+        context.ignoreImportErrors = true;
+        (Transport.importMultiple as jest.Mock).mockResolvedValueOnce([
+            { trkorr: 'DEVK900001', rc: 8, message: 'A tool used by tp produced errors' },
+            { trkorr: 'DEVK900002', rc: 12 }
+        ]);
+
+        await expect(importBatch.run(context)).resolves.toBeUndefined();
+        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('DEVK900001'), { important: true });
+        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('DEVK900002'), { important: true });
+    });
+
     test('batch return codes up to 4 complete the import', async () => {
         const context = makeContext(registryDelete);
         (Transport.importMultiple as jest.Mock).mockResolvedValueOnce([

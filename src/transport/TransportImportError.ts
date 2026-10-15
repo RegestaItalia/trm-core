@@ -1,3 +1,4 @@
+import { Logger } from "trm-commons";
 import { TRKORR } from "../client";
 
 /** Return codes from 8 are failed imports: SAP reports errors, the objects may be partially imported. */
@@ -21,10 +22,19 @@ export class TransportImportError extends Error {
         return rc < 0 || rc >= IMPORT_FAILURE_RC;
     }
 
-    /** Throws when the import return code is a failure. */
-    public static assert(trkorr: TRKORR, rc: number, phase: string, tpMessage?: string): void {
-        if (TransportImportError.isFailure(rc)) {
-            throw new TransportImportError(trkorr, rc, phase, tpMessage);
+    /**
+     * Throws when the import return code is a failure. With `ignore`, a return code from 8 is only logged as an
+     * error and the action goes on; a transport without return code (not imported) still fails.
+     */
+    public static assert(trkorr: TRKORR, rc: number, phase: string, tpMessage?: string, ignore?: boolean): void {
+        if (!TransportImportError.isFailure(rc)) {
+            return;
         }
+        const error = new TransportImportError(trkorr, rc, phase, tpMessage);
+        if (ignore && rc >= IMPORT_FAILURE_RC) {
+            Logger.error(`${error.message} Ignored: import errors are not failures for this action.`, { important: true });
+            return;
+        }
+        throw error;
     }
 }

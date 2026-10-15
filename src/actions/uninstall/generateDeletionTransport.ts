@@ -52,7 +52,7 @@ export const generateDeletionTransport: Step<UninstallWorkflowContext> = {
                 // Mark before the mutating await: the import may change objects and still fail.
                 context.revert.deleImportStarted = true;
                 const rc = await deletion.import(false);
-                TransportImportError.assert(deletion.trkorr, rc, `Import of deletion transport`, deletion.lastImportMessage);
+                TransportImportError.assert(deletion.trkorr, rc, `Import of deletion transport`, deletion.lastImportMessage, context.ignoreImportErrors);
                 Logger.success(`Transport ${deletion.trkorr} imported`, true);
             }
             await deletePlannedTemporaryPackages(context, plan);

@@ -51,6 +51,12 @@ export type UninstallActionInputUninstallData = {
     /**
      * Landscape transport-related options.
      */
+    /**
+     * Don't fail on imports ending with return code 8 or higher (deletions and rollback restores): log them as
+     * errors and go on. Defaults to `false`. A transport without return code (not imported) still fails.
+     */
+    ignoreImportErrors?: boolean;
+
     landscapeTransport?: {
         /**
          * TMS target of the landscape transport carrying the deletion. It is selected interactively when omitted.
@@ -143,6 +149,8 @@ export type UninstallActionOutput = {
 /** Internal state shared by package-uninstall workflow steps and rollback handlers. */
 export interface UninstallWorkflowContext extends IActionContext {
     lockScope?: ActionLockScope,
+    /** From `uninstallData.ignoreImportErrors`: imports from return code 8 are logged instead of failing. */
+    ignoreImportErrors?: boolean,
     /** Original action input; optional groups are normalized during initialization. */
     rawInput: UninstallActionInput,
     /** Other packages uninstalled by the same run (the packages it's installed under, and their nested ones): they're not dependants. */
@@ -224,7 +232,10 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
     // A nested uninstall locks in its parent scope: the parent cleanup locks the same SAP packages
     // and objects again, and the parent releases them all once it has finished.
     const lockScope = parentLockScope || new ActionLockScope(WORKFLOW_NAME);
-    const context: UninstallWorkflowContext = { rawInput: inputData, lockScope, uninstallingPackages };
+    const context: UninstallWorkflowContext = {
+        rawInput: inputData, lockScope, uninstallingPackages,
+        ignoreImportErrors: !!inputData.uninstallData?.ignoreImportErrors
+    };
     await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
     const release = async (): Promise<void> => {
         let firstError: unknown;

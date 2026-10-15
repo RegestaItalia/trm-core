@@ -24,7 +24,9 @@ export type GenerateDeletionInput = {
     /** Expected deletion: the registry must not delete anything outside it. */
     preview?: DeletionPreview,
     /** A legacy TRM backend has no test import. */
-    legacyBackend?: boolean
+    legacyBackend?: boolean,
+    /** A test import ending with return code 8 or higher is logged as an error instead of failing. */
+    ignoreImportErrors?: boolean
 };
 
 function objectKey(object: DeletionObject): string {
@@ -114,7 +116,7 @@ export async function generateDeletion(input: GenerateDeletionInput): Promise<Tr
     } else {
         Logger.loading(`Testing import...`);
         const testRc = await transport.import(true);
-        TransportImportError.assert(trkorr, testRc, `Test import of deletion transport`, transport.lastImportMessage);
+        TransportImportError.assert(trkorr, testRc, `Test import of deletion transport`, transport.lastImportMessage, input.ignoreImportErrors);
     }
     return transport;
 }
