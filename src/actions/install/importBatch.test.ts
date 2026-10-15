@@ -685,7 +685,6 @@ describe('importBatch rollback checkpoint', () => {
         });
         expect(order).toEqual([...order].sort((a, b) => a - b));
         // trm-server/trm-rest upgrades are not rolled back after the import: nothing to back up
-        expect(SystemConnector.getExistingObjects).not.toHaveBeenCalled();
         expect(Transport.createToc).not.toHaveBeenCalled();
         // and they are recorded as installed right after it
         expect(recordInstalledRelease).toHaveBeenCalledWith(context);
@@ -724,6 +723,26 @@ describe('importBatch rollback checkpoint', () => {
         ]);
 
         await expect(importBatch.run(context)).resolves.toBeUndefined();
+    });
+
+    test('only the TADIR entries that differ from the live ones are written after the import', async () => {
+        const context = makeContext(registryDelete);
+        context.rawInput.installData.installDevclass = { keepOriginal: true, replacements: [] };
+        context.runtime.transports.tadir.binaries.entries.tadir = [
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SAME', devclass: 'ZROOT' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SOURCE', devclass: 'ZROOT' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED', devclass: 'ZROOT' }
+        ];
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SAME', devclass: 'ZROOT', srcsystem: 'TRM' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SOURCE', devclass: 'ZROOT', srcsystem: 'DEV' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED', devclass: 'ZOTHER', srcsystem: 'TRM' }
+        ]);
+
+        await importBatch.run(context);
+
+        const written = (SystemConnector.tadirInterface as jest.Mock).mock.calls.map(([o]: any[]) => o.objName).filter((name: string) => name.startsWith('Z_'));
+        expect(written).toEqual(['Z_SOURCE', 'Z_MOVED']);
     });
 
     test('a trm-server upgrade checks the user can call the imported release', async () => {
