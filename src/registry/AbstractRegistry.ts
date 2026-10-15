@@ -2,6 +2,7 @@ import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistT
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
 import { BinaryTransport } from "../transport";
+import { DeleteTransportOptions, DeletionTransport } from "./DeletionTransport";
 import { TransportEntries } from "../client";
 
 export interface PublishAdditionalData {
@@ -37,5 +38,10 @@ export abstract class AbstractRegistry {
     abstract batchCompare: (packages: BatchCompareRequest) => Promise<BatchCompareResponse>;
     abstract transport: (trkorr: string, target?: string) => Promise<BinaryTransport>;
     abstract transportEntries: (fullName: string, version: string, trkorr: string) => Promise<TransportEntries>;
-    abstract delete: (transport: BinaryTransport) => Promise<BinaryTransport>;
+    /**
+     * Generates a deletion transport from `transport` (a transport of copies of what is installed). With `options`,
+     * only its content not shipped by `options.subtract` and not in `options.exclude` is deleted, renamed to `options.target`.
+     * Throws {@link RegistryDeletionTransportUnavailableError} when the registry can't generate it.
+     */
+    abstract delete: (transport: BinaryTransport, options?: DeleteTransportOptions) => Promise<DeletionTransport>;
 }

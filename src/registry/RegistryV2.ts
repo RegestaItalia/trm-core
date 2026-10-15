@@ -18,6 +18,14 @@ import { BinaryTransport } from "../transport";
 import * as AdmZip from "adm-zip";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
 import { RegistryDeletionTransportUnauthorizedError } from "./RegistryDeletionTransportUnauthorizedError";
+import { RegistryDeletionTransportUnavailableError } from "./RegistryDeletionTransportUnavailableError";
+import { DeleteTransportOptions, DeletionTransport } from "./DeletionTransport";
+
+/** `POST /delete` response: the deletion transport download, or nothing left to delete. */
+type DeleteTransportResponse = Partial<TransportDownload> & {
+    empty?: boolean,
+    deleted?: DeletionTransport["deleted"]
+};
 
 const AXIOS_CTX = "RegistryV2";
 
@@ -641,7 +649,7 @@ export class RegistryV2 implements AbstractRegistry {
         return response.data;
     }
 
-    public async delete(transport: BinaryTransport): Promise<BinaryTransport> {
+    public async delete(transport: BinaryTransport, options?: DeleteTransportOptions): Promise<DeletionTransport> {
         const formData = new FormData.default();
         formData.append('header', transport.header, {
             filename: 'header',
@@ -651,93 +659,40 @@ export class RegistryV2 implements AbstractRegistry {
             filename: 'data',
             contentType: 'application/octet-stream'
         });
+        if (options) {
+            formData.append('options', JSON.stringify(options));
+        }
 
         let deleteResponse;
         try {
-            deleteResponse = await this._axiosInstance.post<TransportDownload>('/delete', formData, {
+            deleteResponse = await this._axiosInstance.post<DeleteTransportResponse>('/delete', formData, {
                 headers: formData.getHeaders()
             });
         } catch (e) {
-            if (this.getErrorStatus(e) === 401) {
+            const status = this.getErrorStatus(e);
+            // 401: deletion disabled for the user; 403: plan without deletion transports
+            if (status === 401 || status === 403) {
                 throw new RegistryDeletionTransportUnauthorizedError(this.endpoint, e);
+            }
+            // a registry without delta deletion rejects the options; an incoming release it doesn't have can't be subtracted
+            if (options && (status === 400 || status === 404)) {
+                throw new RegistryDeletionTransportUnavailableError(this.endpoint, `Registry "${this.endpoint}" can't generate the deletion transport of this upgrade (HTTP ${status}).`, e);
             }
             throw e;
         }
         this.assertStatus(deleteResponse.status, [200], 'Deletion transport request');
-        const transportDownload = deleteResponse.data;
-
-        const chunks: Buffer[] = [];
-        let buffer: Buffer;
-        const ping: Ping | undefined = this._cache.get('ping') && !(this._cache.get('ping') instanceof Error) ? this._cache.get('ping') : undefined;
-        const logProgress = Logger.progressbar(`↓ deletion transport [{bar}] {percentage}% | {value}/{total} bytes`, '>');
-
-        try {
-            const response = await this._axiosInstance.get(transportDownload.download_link, {
-                headers: {
-                    Accept: 'application/octet-stream'
-                },
-                maxRedirects: 10,
-                responseType: 'stream',
-                validateStatus: s => s >= 200 && s < 400
-            });
-
-            const totalBytes = Number(response.headers['content-length'] ?? 0);
-            let downloadedBytes = 0;
-
-            if (totalBytes > 0) {
-                logProgress.start(totalBytes, 0);
-            }
-
-            await new Promise<void>((resolve, reject) => {
-                response.data.on('data', (chunk: Buffer) => {
-                    chunks.push(chunk);
-                    downloadedBytes += chunk.length;
-
-                    if (totalBytes > 0) {
-                        logProgress.update(downloadedBytes);
-                    }
-                });
-                response.data.on('end', resolve);
-                response.data.on('error', reject);
-            });
-
-            if (totalBytes > 0) {
-                logProgress.stop();
-            }
-            buffer = Buffer.concat(chunks);
-        } catch (e) {
-            try {
-                logProgress.stop();
-            } catch {
-                // ignore stop errors
-            }
-
-            Logger.error((e as Error).toString(), true);
-            Logger.error(`Failed to download deletion transport: ${(e as AxiosError).message}`, { important: true });
-            throw e;
+        const response = deleteResponse.data;
+        const deleted = response.deleted ? {
+            e071: response.deleted.e071 || [],
+            e071k: response.deleted.e071k || []
+        } : undefined;
+        if (response.empty) {
+            return { empty: true, deleted };
         }
-
-        const checksum = createHash('sha512').update(buffer).digest('base64');
-        if (checksum !== transportDownload.checksum) {
-            Logger.error(`SECURITY ISSUE! Deletion transport integrity does NOT match!`, { important: true });
-            Logger.error(`SECURITY ISSUE! Expected SHA is ${transportDownload.checksum}, received SHA is ${checksum}`, { important: true });
-            Logger.error(`SECURITY ISSUE! Please, report the issue to ${this.ping && ping.alert_email ? ping.alert_email : 'registry support team'}`, { important: true });
-            throw new Error(`Cannot continue due to security issues.`);
-        }
-
-        const zip = new AdmZip.default(buffer);
-        const kFile = zip.getEntries().find(o => o.name.startsWith('K'));
-        const rFile = zip.getEntries().find(o => o.name.startsWith('R'));
-        if (!kFile) {
-            throw new Error(`Missing header in deletion transport!`);
-        }
-        if (!rFile) {
-            throw new Error(`Missing data in deletion transport!`);
-        }
-
         return {
-            header: kFile.getData(),
-            data: rFile.getData()
+            empty: false,
+            binaries: await this.downloadTransport(response as TransportDownload, 'deletion transport'),
+            deleted
         };
     }
 

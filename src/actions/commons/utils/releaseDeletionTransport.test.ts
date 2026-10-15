@@ -18,6 +18,7 @@ import { releaseDeletionTransport } from './releaseDeletionTransport';
 describe('releaseDeletionTransport registry', () => {
     const toc = { header: Buffer.from('h'), data: Buffer.from('d') };
     const dele = { header: Buffer.from('dh'), data: Buffer.from('dd') };
+    const deletion = { empty: false, binaries: dele };
 
     function deletionTransport() {
         return {
@@ -34,7 +35,7 @@ describe('releaseDeletionTransport registry', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        for (const method of ['loading', 'success'] as const) {
+        for (const method of ['loading', 'success', 'log'] as const) {
             jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
         }
         (Transport.upload as jest.Mock).mockResolvedValue({ import: jest.fn().mockResolvedValue(0) });
@@ -45,16 +46,16 @@ describe('releaseDeletionTransport registry', () => {
     });
 
     test('a remote registry generates the deletion transport itself', async () => {
-        const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue(dele) } as any;
+        const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue(deletion) } as any;
 
         await releaseDeletionTransport(deletionTransport(), registry, cleanupContext());
 
-        expect(registry.delete).toHaveBeenCalledWith(toc);
+        expect(registry.delete).toHaveBeenCalledWith(toc, undefined);
         expect(Transport.upload).toHaveBeenCalledWith('DEVK9DELE', expect.objectContaining({ binary: dele }));
     });
 
     test('a local artifact generates it through the registry it was published to', async () => {
-        const realRegistry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue(dele) };
+        const realRegistry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue(deletion) };
         const fileRegistry = {
             getRegistryType: () => RegistryType.LOCAL,
             getRealRegistry: jest.fn().mockResolvedValue(realRegistry),
@@ -64,8 +65,28 @@ describe('releaseDeletionTransport registry', () => {
         await releaseDeletionTransport(deletionTransport(), fileRegistry, cleanupContext());
 
         expect(fileRegistry.delete).not.toHaveBeenCalled();
-        expect(realRegistry.delete).toHaveBeenCalledWith(toc);
+        expect(realRegistry.delete).toHaveBeenCalledWith(toc, undefined);
         expect(Transport.upload).toHaveBeenCalledWith('DEVK9DELE', expect.objectContaining({ binary: dele }));
+    });
+
+    test('nothing to delete imports nothing', async () => {
+        const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue({ empty: true }) } as any;
+        const ctx = cleanupContext();
+
+        await expect(releaseDeletionTransport(deletionTransport(), registry, ctx)).resolves.toBe(false);
+
+        expect(Transport.upload).not.toHaveBeenCalled();
+        expect(ctx.revert.deleImportStarted).toBeUndefined();
+    });
+
+    test('an import ending with return code 8 fails', async () => {
+        const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue(deletion) } as any;
+        const imported = { import: jest.fn().mockResolvedValueOnce(0).mockResolvedValueOnce(8), lastImportMessage: 'errors' };
+        (Transport.upload as jest.Mock).mockResolvedValue(imported);
+        const ctx = cleanupContext();
+
+        await expect(releaseDeletionTransport(deletionTransport(), registry, ctx)).rejects.toThrow('Import of deletion transport: transport DEVK9DELE ended with return code 8');
+        expect(ctx.revert.deleImportStarted).toBe(true);
     });
 
     test('an unauthorized deletion rethrows the original error without deleting the released transport', async () => {

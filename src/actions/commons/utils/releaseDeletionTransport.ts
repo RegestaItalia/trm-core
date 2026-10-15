@@ -1,20 +1,23 @@
-import { Inquirer, Logger } from "trm-commons";
-import { BinaryTransport, Transport } from "../../../transport";
+import { Logger } from "trm-commons";
+import { Transport } from "../../../transport";
 import { TransportImportError } from "../../../transport/TransportImportError";
-import { SystemConnector } from "../../../systemConnector";
 import { AbstractRegistry, RegistryDeletionTransportUnavailableError } from "../../../registry";
 import type { PackageCleanupContext } from "./packageCleanup";
+import { generateDeletion } from "./generateDeletion";
 import { resolveInstallRegistry } from "./installRegistry";
 
-/** Releases and imports a deletion transport, retaining its original binaries for rollback. */
+/**
+ * Releases a transport of copies, turns it into a deletion of its whole content (see {@link generateDeletion})
+ * and imports it. With `retainSnapshot` its exported content is kept for a rollback (`context.revert.dele`).
+ * Returns whether something was deleted.
+ */
 export async function releaseDeletionTransport(
     deletionTransport: Transport,
     registry: AbstractRegistry,
     context: PackageCleanupContext,
     retainSnapshot = true
-): Promise<void> {
-    //a local artifact can't generate deletion transports: the registry it was published to does.
-    //resolved before releasing, so an unreadable artifact leaves the transport untouched
+): Promise<boolean> {
+    //resolved before releasing, so an unreadable local artifact leaves the transport untouched
     const deletionRegistry = await resolveInstallRegistry(registry);
     await deletionTransport.release(false, true);
 
@@ -29,42 +32,32 @@ export async function releaseDeletionTransport(
         };
     }
 
-    let deleBinaries: BinaryTransport;
+    let deletion: Transport | undefined;
     try {
-        deleBinaries = await deletionRegistry.delete(tocBinaries);
+        deletion = await generateDeletion({
+            registry: deletionRegistry,
+            source: { trkorr: deletionTransport.trkorr, entries: undefined, binaries: tocBinaries },
+            legacyBackend: context.legacyBackend
+        });
     } catch (e) {
         // The transport is already released and can't be deleted: it's a harmless transport of copies.
-        // Nothing was imported, so there is nothing to restore and nothing to forward.
+        // Nothing was imported, so there is nothing to restore.
         if (e instanceof RegistryDeletionTransportUnavailableError && retainSnapshot) {
             context.revert.dele = undefined;
         }
         throw e;
     }
-
-    //upload transport binaries
-    Logger.loading(`Uploading transport...`);
-    context.runtime.dele = await Transport.upload(deletionTransport.trkorr, {
-        binary: deleBinaries,
-        trTarget: SystemConnector.getDest()
-    });
-
-    //3- import transport
-    // A legacy backend has no test import; in the same process the RFC metadata of its import
-    // function stays cached even after the upgrade is imported.
-    if (context.legacyBackend) {
-        Logger.log(`Skipping test import of ${deletionTransport.trkorr}: legacy TRM backend`, true);
-    } else {
-        Logger.loading(`Testing import...`);
-        const testRc = await context.runtime.dele.import(true);
-        TransportImportError.assert(deletionTransport.trkorr, testRc, `Test import of deletion transport`, context.runtime.dele.lastImportMessage);
+    if (!deletion) {
+        return false;
     }
+    context.runtime.dele = deletion;
     Logger.loading(`Importing ${deletionTransport.trkorr}`, true);
     // Mark before the mutating await: the import may change objects and still fail.
     if (retainSnapshot) {
         context.revert.deleImportStarted = true;
     }
-    const rc = await context.runtime.dele.import(false);
-    TransportImportError.assert(deletionTransport.trkorr, rc, `Import of deletion transport`, context.runtime.dele.lastImportMessage);
+    const rc = await deletion.import(false);
+    TransportImportError.assert(deletionTransport.trkorr, rc, `Import of deletion transport`, deletion.lastImportMessage);
     Logger.success(`Transport ${deletionTransport.trkorr} imported`, true);
-    deletionTransport = context.runtime.dele; //replace
+    return true;
 }
