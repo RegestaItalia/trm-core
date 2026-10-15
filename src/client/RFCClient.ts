@@ -5,7 +5,7 @@ import { normalize, summarizeForLog } from "../commons";
 import { getGlobalNodeModules, Logger } from "trm-commons";
 import { existsSync } from "fs";
 import path from "path";
-import { RFCClientError, SapMessage } from ".";
+import { RFCClientError, SapMessage, formatSapMessage } from ".";
 import * as xml from "xml-js";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
@@ -212,20 +212,7 @@ export class RFCClient implements IClient {
             `SPRSL EQ '${this._cLangu}' AND ARBGB EQ '${data.class}' AND MSGNR EQ '${msgnr}'`
         );
         if (aT100.length === 1 && aT100[0].text) {
-            var msg = aT100[0].text;
-            var counter = 1;
-            do {
-                if (msg.includes(`&${counter}`)) {
-                    msg = msg.replace(new RegExp(`&${counter}`, 'gmi'), data[`v${counter}`] || '');
-                    msg = msg.replace(new RegExp(`&${counter}&`, 'gmi'), data[`v${counter}`] || '');
-                } else {
-                    msg = msg.replace("&", data[`v${counter}`] || '');
-                }
-                counter++;
-            } while (counter <= 4);
-            msg = msg.replace(new RegExp(`&\\d*`, 'gmi'), '');
-            msg = msg.replace(new RegExp(`&`, 'gmi'), '');
-            return msg.trim();
+            return formatSapMessage(aT100[0].text, data);
         } else {
             throw new RFCClientError("ZMSG_NOT_FOUND", null, null, `Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
         }
