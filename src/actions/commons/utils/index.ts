@@ -13,3 +13,4 @@ export * from "./owningInstallation";
 export * from "./trmBackend";
 export * from "./transportObjects";
 export * from "./landscapeTransport";
+export * from "./actionSummary";

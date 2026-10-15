@@ -5,7 +5,8 @@ import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { E071 } from "../../client";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
-import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource, CleanupPlan } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource, CleanupPlan, logActionSummary } from "../commons/utils";
+import { SystemConnector } from "../../systemConnector";
 import { InstallPackageReplacements } from "../install";
 import { init } from "./init";
 import { checkDependants } from "./checkDependants";
@@ -192,6 +193,27 @@ const uninstallWorkflow = [
     releaseLandscapeTransport
 ];
 
+/** Logs what the uninstall left on the system: deletions, backups, landscape transport. */
+function logUninstallSummary(context: UninstallWorkflowContext, succeeded: boolean): void {
+    if (!context.runtime?.update) {
+        return;
+    }
+    const name = context.rawInput.packageData.name;
+    const version = context.runtime.update.manifest.get().version;
+    logActionSummary({
+        outcome: succeeded
+            ? `${name} ${version} uninstalled from ${SystemConnector.getDest()}.`
+            : `${name} ${version} uninstall failed${context.revert?.deleImportStarted ? ', rolled back' : ''}.`,
+        deletions: succeeded ? context.output?.deletions : [],
+        landscape: succeeded ? {
+            transport: context.output?.landscapeTransport,
+            targetSystem: context.rawInput.uninstallData?.landscapeTransport?.targetSystem,
+            releaseStarted: context.revert?.landscapeReleaseStarted
+        } : undefined,
+        revert: context.revert
+    });
+}
+
 async function runUninstall(inputData: UninstallActionInput, retainRollback: boolean, uninstallingPackages: TrmPackage[], parentLockScope?: ActionLockScope): Promise<{
     output: UninstallActionOutput,
     rollback?: () => Promise<void>,
@@ -222,8 +244,14 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
     };
     if (!retainRollback) {
         return withLockRelease(release, async () => {
-            const result = await executeWorkflow<UninstallWorkflowContext>(WORKFLOW_NAME, uninstallWorkflow, context, workflowCallbacks);
-            return { output: result.output };
+            try {
+                const result = await executeWorkflow<UninstallWorkflowContext>(WORKFLOW_NAME, uninstallWorkflow, context, workflowCallbacks);
+                logUninstallSummary(context, true);
+                return { output: result.output };
+            } catch (error) {
+                logUninstallSummary(context, false);
+                throw error;
+            }
         });
     }
     let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<UninstallWorkflowContext>>>;

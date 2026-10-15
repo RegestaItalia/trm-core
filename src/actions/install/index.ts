@@ -33,7 +33,8 @@ import { prepareBackup } from "./prepareBackup";
 import { importUpdateDeletion, prepareDeletion } from "./prepareDeletion";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
-import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend, CleanupPlan, PackageCleanupRevert } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend, CleanupPlan, PackageCleanupRevert, logActionSummary } from "../commons/utils";
+import { SystemConnector } from "../../systemConnector";
 import { lockResources } from "./lockResources";
 import { cleanupCheckpoint } from "./cleanupCheckpoint";
 
@@ -451,8 +452,14 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     };
     if (!retainRollback) {
         return withLockRelease(release, async () => {
-            const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
-            return { output: result.output };
+            try {
+                const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
+                logInstallSummary(context, true);
+                return { output: result.output };
+            } catch (error) {
+                logInstallSummary(context, false);
+                throw error;
+            }
         });
     }
     let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<InstallWorkflowContext>>>;
@@ -484,6 +491,30 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
             if (firstError) throw firstError;
         }
     };
+}
+
+/** Logs what the install left on the system: imported transports, deletions, backups, landscape transport. */
+function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean): void {
+    if (!context.runtime?.package) {
+        return;
+    }
+    const name = context.rawInput.packageData.name;
+    const version = context.runtime.package.data.manifest.version;
+    const from = context.runtime.update ? `${context.runtime.update.manifest.get().version} → ` : '';
+    const transports = context.runtime.transports;
+    logActionSummary({
+        outcome: succeeded
+            ? `${name} ${from}${version} installed on ${SystemConnector.getDest()}.`
+            : `${name} ${from}${version} install failed${context.revert?.importStarted ? ', rolled back' : ''}.`,
+        imported: succeeded ? [transports.devc?.instance, transports.tadir?.instance, transports.lang?.instance, ...(transports.cust || []).map(cust => cust.instance)] : [],
+        deletions: succeeded ? [context.runtime.deletions?.tadir, context.runtime.deletions?.cust] : [],
+        landscape: succeeded ? {
+            transport: context.output?.transport,
+            targetSystem: context.rawInput.installData?.landscapeTransport?.targetSystem,
+            releaseStarted: context.revert?.landscapeReleaseStarted
+        } : undefined,
+        revert: context.revert
+    });
 }
 
 /**
