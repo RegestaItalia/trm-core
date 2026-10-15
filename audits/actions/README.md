@@ -49,7 +49,7 @@ install workflow gained `check-dependants`, `check-engines`, resource locking, t
 preparation, batch import, landscape-transport skipping on final systems, and retained tables on
 update; `uninstall` and `check-engines` are new workflows; publish gained manifest engines. The shared
 `trm-server-pa` step no longer exists. On 2026-10-15 upgrade and uninstall were redesigned: everything the
-cleanup may delete is backed up first in `@X1@TRM (BKP)`/`(BKP C)` transports kept in the import queue,
+cleanup may delete is backed up first in `@X1@TRM (BKP)` transports kept in the import queue,
 deletions are generated from the backups by one shared helper (`generateDeletion`) and, on upgrade,
 imported with the incoming release (`plan-update-cleanup`, `prepare-backup`, `prepare-deletion`,
 `import-update-deletion` replace `generate-update-transport` and `generate-post-import-update-transport`);

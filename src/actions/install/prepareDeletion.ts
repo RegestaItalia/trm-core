@@ -33,7 +33,7 @@ function incoming(context: InstallWorkflowContext) {
 /**
  * Workflow step that generates the deletion transports of an upgrade, from the backups of prepare-backup:
  * what the installed release has and the incoming one doesn't ship (minus what was declined), as
- * `@X1@TRM (DELE)` objects and `@X1@TRM (DELE C)` customizing dummies.
+ * `@X1@TRM (DELE)` dummies (one for objects, one for customizing).
  *
  * They are imported with the incoming release (import-batch) and copied into the landscape transport, so
  * the following systems get the same cleanup. Nothing to delete: the dummy is taken out of the queue.

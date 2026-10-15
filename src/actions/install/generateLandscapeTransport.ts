@@ -21,11 +21,11 @@ import { cleanupDeletions } from "./prepareDeletion";
  * 
  * 6- add customizing (if imported)
  * 
- * 7- add the deletions of the upgrade
+ * 7- lock objects (the imported ones only)
  * 
- * 8- add comments and documentation
+ * 8- add the deletions of the upgrade
  * 
- * 9- lock objects
+ * 9- add comments and documentation
  * 
 */
 export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
@@ -105,36 +105,27 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
             await context.output.transport.addObjectsFromTransport(cust.instance.trkorr);
         }
 
-        //7- add the deletions of the upgrade
+        //7- lock objects
+        //what is lockable gets locked here: all the imported objects, before the deletions are added,
+        //so objects that no longer exist are never locked
+        //a legacy backend has no API for it
+        if (!context.legacyBackend) {
+            await context.output.transport.lock();
+        }
+
+        //8- add the deletions of the upgrade
         //the objects and keys are no longer on this system: their release exports them as deletions,
         //so the following systems get the same cleanup with this single transport
-        const deletions = cleanupDeletions(context);
-        for (const deletion of deletions) {
+        for (const deletion of cleanupDeletions(context)) {
             Logger.loading(`Including deletions from transport ${deletion.trkorr}...`, true);
             await context.output.transport.addObjectsFromTransport(deletion.trkorr);
         }
 
-        //8- add comments and documentation
+        //9- add comments and documentation
         await context.output.transport.removeComments(); //start clean without TRM comments
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
         await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());
-
-        //9- lock objects
-        //what is lockable gets locked here
-        //all workbench should be lockable here
-        //a legacy backend has no API for it
-        if (!context.legacyBackend) {
-            try {
-                await context.output.transport.lock();
-            } catch (error) {
-                // deleted objects may not be lockable: the transport is still complete
-                if (deletions.length === 0) {
-                    throw error;
-                }
-                Logger.warning(`Objects of landscape transport ${context.output.transport.trkorr} could not be locked: ${error instanceof Error ? error.message : String(error)}`, { important: true });
-            }
-        }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {
         if (context.output.transport && await context.output.transport.canBeDeleted()) {

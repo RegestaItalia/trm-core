@@ -106,7 +106,8 @@ describe('generateLandscapeTransport rollback', () => {
         ['removeComments', 1],
         ['addComment', 1],
         ['addComment', 2],
-        ['setDocumentation', 1]
+        ['setDocumentation', 1],
+        ['lock', 1]
     ] as [string, number][])('failure at %s occurrence %s deletes the landscape request', runFailure);
 
     test('replacement-package branch failure deletes the landscape request', async () => {
@@ -134,24 +135,15 @@ describe('generateLandscapeTransport rollback', () => {
         expect(landscape.addComment.mock.calls.map((call: any[]) => call[0])).toEqual(['name=pkg', 'version=1.0.0']);
     });
 
-    test('a failed lock of a transport carrying deletions only warns: deleted objects may not be lockable', async () => {
-        const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
-        failure = { method: 'lock', occurrence: 1 };
+    test('objects are locked before the deletions are copied: deleted objects are never locked', async () => {
         const ctx = context();
 
         await execute('test', [generateLandscapeTransport], ctx);
 
-        expect(warning).toHaveBeenCalledWith(expect.stringContaining('could not be locked'), { important: true });
-        expect(ctx.output.transport).toBe(landscape);
-    });
-
-    test('without deletions a failed lock deletes the landscape request', async () => {
-        failure = { method: 'lock', occurrence: 1 };
-        const ctx = context();
-        ctx.runtime.deletions = undefined;
-
-        await expect(execute('test', [generateLandscapeTransport], ctx)).rejects.toThrow();
-        expect(landscape.delete).toHaveBeenCalledTimes(1);
+        const lockOrder = landscape.lock.mock.invocationCallOrder[0];
+        const copies = landscape.addObjectsFromTransport.mock.calls.map((call: any[], i: number) => ({ trkorr: call[0], order: landscape.addObjectsFromTransport.mock.invocationCallOrder[i] }));
+        expect(copies.filter((c: any) => c.order < lockOrder).map((c: any) => c.trkorr)).toEqual(['DEVK9DEVC', 'DEVK9TADIR', 'DEVK9LANG', 'DEVK9CUST1', 'DEVK9CUST2']);
+        expect(copies.filter((c: any) => c.order > lockOrder).map((c: any) => c.trkorr)).toEqual(['DEVK9DELE', 'DEVK9DELEC']);
     });
 
     test('a legacy backend, which has no API to lock its objects, leaves them unlocked', async () => {

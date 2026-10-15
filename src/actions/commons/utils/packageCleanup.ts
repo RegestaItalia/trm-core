@@ -1018,7 +1018,7 @@ export async function planInstalledPackageCleanup(context: PackageCleanupContext
 }
 
 
-function backupDescription(kind: 'BKP' | 'BKP C' | 'DELE' | 'DELE C', packageName: string, version: string): string {
+function backupDescription(kind: 'BKP' | 'DELE', packageName: string, version: string): string {
     return `@X1@TRM (${kind}) ${packageName} ${version}`.slice(0, 60);
 }
 
@@ -1050,7 +1050,7 @@ async function createBackup(context: PackageCleanupContext, description: string,
 /**
  * Backs up what {@link planInstalledPackageCleanup} may delete, and `overwrittenObjects` (objects the incoming
  * release overwrites), in released transports of copies kept in the import queue: `@X1@TRM (BKP)` for the
- * objects, `@X1@TRM (BKP C)` for the installed customizing. A rollback re-imports them.
+ * objects and one for the installed customizing, both `@X1@TRM (BKP)`. A rollback re-imports them.
  *
  * Objects of a temporary (`$`) installation are first assigned to transportable staging packages, deleted
  * with them.
@@ -1105,7 +1105,7 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
     if (plan?.customizingSources.length > 0) {
         Logger.loading(`Backing up customizing...`);
         // The copy keeps the E071K keys: its release exports the current rows, local changes included.
-        context.revert.backup.cust = await createBackup(context, backupDescription('BKP C', labels.packageName, labels.version), logFolder, async transport => {
+        context.revert.backup.cust = await createBackup(context, backupDescription('BKP', labels.packageName, labels.version), logFolder, async transport => {
             for (const trkorr of plan.customizingSources) {
                 Logger.loading(`Including customizing from transport ${trkorr}...`, true);
                 await transport.addObjectsFromTransport(trkorr);
@@ -1117,7 +1117,7 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
 
 /**
  * Generates the deletion transports of the planned cleanup from its backups, into new dummy transports
- * (`@X1@TRM (DELE)` objects, `@X1@TRM (DELE C)` customizing): uploaded and test-imported, not imported.
+ * (`@X1@TRM (DELE)`, one for objects and one for customizing): uploaded and test-imported, not imported.
  *
  * `incoming` tells the registry what the incoming release ships, never deleted: its registry transports
  * (`subtract`), or its objects and keys when the registry doesn't have them (e.g. the fixed transport of trm-server).
@@ -1151,7 +1151,7 @@ export async function generateCleanupDeletions(context: PackageCleanupContext, p
         runs.push({
             kind: 'cust',
             backup: backup.cust,
-            description: backupDescription('DELE C', plan.packageName, options.version),
+            description: backupDescription('DELE', plan.packageName, options.version),
             subtract: options.incoming?.cust?.subtract,
             exclude: { e071k: [...plan.excludeKeys, ...(options.incoming?.cust?.keys || [])] },
             preview: { e071: [], e071k: plan.previewKeys }

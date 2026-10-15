@@ -217,9 +217,9 @@ describe('generateDeletionTransport', () => {
 
         await generateDeletionTransport.run(ctx);
 
-        expect(Transport.createToc).toHaveBeenNthCalledWith(1, { text: '@X1@TRM (BKP C) pkg 1.0.0', target: 'TST' });
+        expect(Transport.createToc).toHaveBeenNthCalledWith(1, { text: '@X1@TRM (BKP) pkg 1.0.0', target: 'TST' });
         expect(custBackup.addObjectsFromTransport).toHaveBeenCalledWith('DEVK9CUST');
-        expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (DELE C) pkg 1.0.0', target: 'TST' });
+        expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (DELE) pkg 1.0.0', target: 'TST' });
         expect(registry.delete).toHaveBeenCalledWith(expect.anything(), { target: 'DEVK9DELEC' });
     });
 });

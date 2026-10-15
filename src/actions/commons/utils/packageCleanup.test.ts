@@ -310,7 +310,7 @@ describe('backupInstalledPackage', () => {
         await backupInstalledPackage(ctx, plan({ customizingSources: ['TSTKCUST1'] }), [obj('CLAS', 'ZCL_OVERWRITTEN', 'ZOTHER') as any], { packageName: 'pkg', version: '1.0.0' });
 
         expect(Transport.createToc).toHaveBeenNthCalledWith(1, { text: '@X1@TRM (BKP) pkg 1.0.0', target: 'TST' });
-        expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (BKP C) pkg 1.0.0', target: 'TST' });
+        expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (BKP) pkg 1.0.0', target: 'TST' });
         expect(keys(tadir.addObjects.mock.calls[0][0])).toEqual(['CLAS ZCL_OVERWRITTEN', 'PROG ZKEEP', 'PROG ZOLD']);
         expect(cust.addObjectsFromTransport).toHaveBeenCalledWith('TSTKCUST1');
         // the release log is read: an export error stops the action before anything is deleted
@@ -376,7 +376,7 @@ describe('generateCleanupDeletions', () => {
         });
 
         expect(Transport.createToc).toHaveBeenNthCalledWith(1, { text: '@X1@TRM (DELE) pkg 1.0.0>2.0.0', target: 'TST' });
-        expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (DELE C) pkg 1.0.0>2.0.0', target: 'TST' });
+        expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (DELE) pkg 1.0.0>2.0.0', target: 'TST' });
         expect(ctx.rawInput.packageData.registry.delete).toHaveBeenNthCalledWith(1, expect.anything(), {
             target: 'TSTKDEL1', subtract: ['TRMK000001'], exclude: { e071: [obj('PROG', 'ZKEEP')] }
         });

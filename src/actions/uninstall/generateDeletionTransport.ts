@@ -15,8 +15,8 @@ import {
  * It's the same cleanup performed by install when upgrading a package (see plan-update-cleanup and
  * prepare-deletion), where nothing is kept because there's no incoming release:
  * 1- plan the cleanup (questions are asked here)
- * 2- back up what is deleted (`@X1@TRM (BKP)`, `@X1@TRM (BKP C)`, kept in the import queue)
- * 3- generate the deletion transports from the backups (`@X1@TRM (DELE)`, `@X1@TRM (DELE C)`)
+ * 2- back up what is deleted (`@X1@TRM (BKP)` objects and customizing, kept in the import queue)
+ * 3- generate the deletion transports from the backups (`@X1@TRM (DELE)`)
  * 4- import them
  */
 export const generateDeletionTransport: Step<UninstallWorkflowContext> = {
