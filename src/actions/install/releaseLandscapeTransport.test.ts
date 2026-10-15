@@ -58,6 +58,7 @@ describe('releaseLandscapeTransport', () => {
         await execute('test', [releaseLandscapeTransport], ctx);
 
         expect(transport.release).toHaveBeenCalledWith(true, false, '/tmp/trm');
+        expect(ctx.revert.landscapeReleased).toBe(true);
         expect(SystemConnector.forwardTransport).not.toHaveBeenCalled();
         expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
     });
@@ -69,6 +70,7 @@ describe('releaseLandscapeTransport', () => {
         await expect(execute('test', [releaseLandscapeTransport], ctx)).resolves.toBeDefined();
 
         expect(ctx.revert.landscapeReleaseStarted).toBe(true);
+        expect(ctx.revert.landscapeReleased).toBeUndefined();
         expect(transport.delete).not.toHaveBeenCalled();
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Release transport DEVK9LAND to QAS manually'), { important: true });
     });

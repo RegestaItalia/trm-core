@@ -1,27 +1,15 @@
 # Shared action infrastructure audit
 
-Audit date: 2026-10-07
+Audit date: 2026-10-15
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. This report covers reusable steps, callbacks, and helpers used by more than one action workflow.
 
 ## Findings
 
-### ACT-2026-04 — Critical — Technical — Deletion-transport import return code is ignored
+### ACT-2026-14 — Medium — Technical — TMS-queue polling never times out
 
-- **Where:** [`releaseDeletionTransport.ts#L53`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L53); `Transport.import()` only logs the RC ([`Transport.ts#L809`](../../src/transport/Transport.ts#L819)).
-- **Failure:** the test import only rejects RC > 8, and the real `import(false)` result is discarded. With RC 8/12/16/-1 the uninstall action logs "imported", forwards the deletion transport, removes the TRM record and reports success while the objects remain. The same helper drives upgrade cleanup and `import-batch` rollback cleanup.
-- **Fix:** check the real-import RC and throw above the accepted threshold (≤ 4), so the workflow rolls back.
-
-### ACT-2026-06 — High — Technical — Rollback re-imports report success regardless of return code
-
-- **Where:** [`restoreTransport.ts#L14`](../../src/actions/commons/utils/restoreTransport.ts#L14); used by `revertInstalledPackageCleanup` and every `prepare-*` revert.
-- **Failure:** re-importing the pre-deletion copy or the retained-table backup ends with RC 8/12, yet the revert logs "restored" and resolves. Staging cleanup then proceeds and the TRM record is restored over missing objects; the rollback looks clean.
-- **Fix:** throw when the restore RC exceeds the threshold so the best-effort pass reports it.
-
-### ACT-2026-14 — Medium — Technical — Release and TMS-queue polling never time out
-
-- **Where:** [`Transport.ts#L471`](../../src/transport/Transport.ts#L481) (`readReleaseLog`; the "Timed out" branch is unreachable), [`#L564`](../../src/transport/Transport.ts#L564) (`_isInTmsQueue`).
-- **Failure:** an unreadable log or a request that never reaches the queue hangs install/publish forever after SAP state changed; rollback never runs.
+- **Where:** [`Transport.ts#L639`](../../src/transport/Transport.ts#L639) (`_isInTmsQueue`, `while (true)`). `readReleaseLog` now stops at `releaseLogTimeoutMs`; the queue polling still has no deadline, only a backoff of the interval (3 s, then 5 s, then 10 s).
+- **Failure:** a request that never reaches the queue (release) or whose import never ends in the queue hangs install, uninstall and publish forever after SAP state changed; rollback never runs.
 - **Fix:** add a deadline or attempt cap and throw; exit early on an error exit code.
 
 ### ACT-2026-18 — Low — Technical — Global prefixes are overwritten instead of restored
@@ -44,7 +32,7 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 ### ACT-2026-21 — Low — Technical — Minor cleanup-helper state issues
 
-- **Where:** [`releaseDeletionTransport.ts#L42`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L42) overwrites `runtime.dele` even for helper calls; L56 is a dead assignment. (The swallowed namespace connector errors in `packageCleanup` were fixed with ACT-2026-05.)
+- **Where:** [`releaseDeletionTransport.ts#L53`](../../src/actions/commons/utils/releaseDeletionTransport.ts#L53) overwrites `runtime.dele` even for helper calls (`retainSnapshot` false: staging-package cleanup, `import-batch` rollback cleanup). The dead assignment was removed on 2026-10-15; the swallowed namespace connector errors in `packageCleanup` were fixed with ACT-2026-05.
 - **Fix:** return the uploaded transport instead of writing context.
 
 ## Step review
@@ -57,16 +45,45 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 | `setTransportTarget` | Zero-target rejection is correct; the returned target is trimmed and uppercased (ACT-2026-13, resolved). |
 | `setLandscapeTarget` | No issue found. |
 | `stopWarning` | No issue found. |
-| `actionLocks` | Owner-token and deduplication logic correct; a failed release is logged with its resources and owner token and never rejects a committed action, never masks a workflow failure, and is attempted once per run (ACT-2026-11, resolved). |
+| `actionLocks` | Owner-token and deduplication logic correct; a resource requested more than once in one call (e.g. the SAP package of several objects) is sent once; a failed release is logged with its resources and owner token and never rejects a committed action, never masks a workflow failure, and is attempted once per run (ACT-2026-11, resolved). |
 | `retainedWorkflow` | Run/revert tracking correct; rollback loses diagnostics and cannot be retried (ACT-2026-19). |
 | `withScopedPrefix` | No issue found; restores prefixes in `finally`. |
-| `restoreTransport` / `revertPreparedTransport` | Import return code ignored (ACT-2026-06). |
-| `releaseDeletionTransport` | Final import return code ignored (ACT-2026-04); unauthorized deletion keeps the released transport, clears the rollback snapshot so it is neither restored nor forwarded, and rethrows the original authorization error (ACT-2026-07, resolved); context overwrite and dead assignment (ACT-2026-21). |
-| `packageCleanup` | Namespaces (shipped by the installed transport or of the root package) are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved); the upgrade revert skips every restore (packages, deletion copy, retained tables, TADIR assignments) when the cleanup of the imported objects failed, and still deletes unreleased cleanup transports (ACT-2026-08, resolved); the `ZTRM_DELE_*` staging package of a `$` installation is tracked apart from the action's SAP packages, so the rollback of the imported objects never transports it, and both the upgrade and the uninstall revert delete it through `deleteCleanupStagingPackages` only after a complete restore; an unauthorized upgrade cleanup names it for manual deletion (ACT-2026-09, resolved). |
-| `Transport` status cache (used by every revert) | `uninstall` and `release` invalidate the cached E070, even when the call fails, and the status checks return `false` when no row exists (ACT-2026-17, resolved); release and queue polling unbounded (ACT-2026-14). |
+| `restoreTransport` / `revertPreparedTransport` | `restoreTransport` throws a `TransportImportError` when the restore ends with no return code or RC ≥ 8 (ACT-2026-06, resolved). `revertPreparedTransport` deletes a prepared dummy while it can, otherwise takes it out of the connected system's import queue; its released content is never re-imported, the objects come back from the backups. |
+| `releaseDeletionTransport` | Releases a transport of copies and deletes its whole content through `generateDeletion`; returns `false` when the registry reports nothing to delete. The real import throws a `TransportImportError` at RC ≥ 8 or without a return code (ACT-2026-04, resolved). An unavailable registry deletion keeps the released transport, clears the rollback snapshot and rethrows the original error (ACT-2026-07, resolved); `runtime.dele` still overwritten by helper calls (ACT-2026-21). |
+| `generateDeletion` | Single path producing deletion transports (upgrade, uninstall, rollback and staging cleanups): resolves the real registry of a local artifact, passes the target dummy, `subtract` (incoming registry transports) and `exclude` (declined objects and keys) options, dequeues the dummy when nothing is left to delete, rejects a registry result that deletes entries outside the confirmed preview before anything is uploaded, then uploads and test-imports (RC ≥ 8 fails; skipped on a legacy backend). It never imports. No issue found. |
+| `importQueue` | `dequeueTransport` only touches the connected system's queue and refuses `@X1@TRM (BKP)`/`(BKP C)` backups, which are registered by `protectBackupTransport` when created; `dequeueTransports` attempts all and throws the first failure. No issue found. |
+| `landscapeTransport` | `releaseLandscape` marks the release started, releases, and on failure logs an error and a warning to release the transport manually without failing the action; `revertLandscapeRelease` deletes the transport while possible, otherwise removes it from the target queue when it is the connected system (warns otherwise). Sets `landscapeReleased` only after a successful release (ACT-2026-92, resolved). |
+| `actionSummary` | Logs the outcome, imported transports, imported deletions, the BKP backups kept in the import queue and the landscape transport; never throws. Reports "(not released)" and "rolled back"/"rollback incomplete" from the actual state (ACT-2026-92, resolved). |
+| `packageCleanup` | Split into plan, backup, deletion and restore. `planInstalledPackageCleanup` asks every question before anything changes and returns the objects and customizing keys to back up, exclude and preview. Namespaces are deleted only when no other SAP package uses them in TDEVC and the incoming release does not (ACT-2026-05, resolved). `backupInstalledPackage` stages the objects of a `$` installation in transportable staging packages, then backs up the objects (and the objects the incoming release overwrites) in `@X1@TRM (BKP)` and the recorded CUST transports (copied with their keys) in `@X1@TRM (BKP C)`: released transports of copies that are never deleted or dequeued. An object that can't be added to the backup is warned about and, as the deletion is generated from the backup, not deleted. `generateCleanupDeletions` generates `@X1@TRM (DELE)`/`(DELE C)` from the backups into released dummies; without `requireDeletion` an unavailable registry dequeues the dummy and lists the leftovers. `revertCleanupDeletions` deletes or dequeues every dummy (never re-imports them); `restoreCleanupBackups` recreates the temporary packages, re-imports the backups (RC checked) and restores the staging TADIR rows, attempting each and throwing the first failure. Callers restore only after their destructive cleanup succeeded (ACT-2026-08, resolved); staging packages are deleted through `deleteCleanupStagingPackages` only after a complete restore (ACT-2026-09, resolved). Backup export not checked ([ACT-2026-50](uninstall.md)). |
+| `Transport` status cache (used by every revert) | `uninstall` and `release` invalidate the cached E070, even when the call fails, and the status checks return `false` when no row exists (ACT-2026-17, resolved); imports fail at RC ≥ 8 or without a return code (`TransportImportError`); the import wait reads the request status first and the queue only when the status can't tell, a test import is not forwarded again by the real import; queue polling unbounded (ACT-2026-14). |
+| `SystemConnector` connection check | Pings at most once every 60 s per connector; `connect` clears the timestamp, so a reopened connection is checked by the next call. No issue found. |
 | Package-name lookups | Install mappings and transports are queried and written under the stored package name: install adopts the registry manifest name, uninstall uses the installed package's name and registry (ACT-2026-16, resolved). |
 
 ## Resolved findings
+
+### ACT-2026-92 — Resolved — Low — Technical — Action summary misreports the landscape release and the rollback
+
+- **Where:** [`actionSummary.ts#L41`](../../src/actions/commons/utils/actionSummary.ts#L41) prints a landscape transport as released whenever `landscapeReleaseStarted` is set, but [`landscapeTransport.ts#L22`](../../src/actions/commons/utils/landscapeTransport.ts#L22) sets it before the release and the catch at L25 never clears it; uninstall also sets `output.targetSystem` after a failed release. The failure outcome says "rolled back" from `importStarted`/`deleImportStarted` alone ([`install/index.ts#L508`](../../src/actions/install/index.ts#L508), [`uninstall/index.ts#L206`](../../src/actions/uninstall/index.ts#L206)), also when the rollback failed (`ActionWorkflowRevertError`) or, for a trm-server/trm-rest upgrade, was never attempted on the imported release.
+- **Failure:** the last lines an operator reads contradict the warnings above them: a landscape transport left to release manually is listed without "(not released)", and a partial or skipped rollback is reported as done.
+- **Fix:** record the release outcome separately from the "started" flag, and derive the "rolled back" wording from the error type (and `selfUpdate`).
+
+Resolved: `releaseLandscape` sets `landscapeReleased` only after a successful release, and the summary reports
+"(not released)" from it (`src/actions/commons/utils/landscapeTransport.ts`, `actionSummary.ts`). A failed action is
+described by `failureState`: "rolled back" only when something changed and every rollback step succeeded,
+"rollback incomplete" on an `ActionWorkflowRevertError`, nothing for trm-server/trm-rest upgrades that are never rolled back.
+
+
+### ACT-2026-04 — Resolved — Critical — Technical — Deletion-transport import return code is ignored
+
+- **Where (before):** `releaseDeletionTransport.ts#L53`; `Transport.import()` only logged the RC.
+- **Failure (before):** the real `import(false)` result was discarded. With RC 8/12/16/-1 the uninstall logged "imported", forwarded the deletion transport, removed the TRM record and reported success while the objects remained. The same helper drove the upgrade cleanup and the `import-batch` rollback cleanup.
+- **Resolution (2026-10-15):** every deletion import checks its return code with `TransportImportError.assert`, which throws at RC ≥ 8 or without a return code ([`TransportImportError.ts`](../../src/transport/TransportImportError.ts)): `releaseDeletionTransport` ([#L59](../../src/actions/commons/utils/releaseDeletionTransport.ts#L59)), the uninstall deletion imports ([`generateDeletionTransport.ts#L54`](../../src/actions/uninstall/generateDeletionTransport.ts#L54)), the upgrade deletions imported in the `import-batch` batch (every result checked) and `import-update-deletion` (warns: the trm-server/trm-rest upgrade is not undone). The test import in `generateDeletion` uses the same threshold. `Transport.import` takes the higher of the queue `maxrc` and the final tp status return code.
+
+### ACT-2026-06 — Resolved — High — Technical — Rollback re-imports report success regardless of return code
+
+- **Where (before):** `restoreTransport.ts#L14`, used by `revertInstalledPackageCleanup` and every `prepare-*` revert.
+- **Failure (before):** re-importing the pre-deletion copy or the retained-table backup ended with RC 8/12, yet the revert logged "restored" and resolved.
+- **Resolution (2026-10-15):** `restoreTransport` throws a `TransportImportError` at RC ≥ 8 or without a return code ([`restoreTransport.ts#L16`](../../src/actions/commons/utils/restoreTransport.ts#L16)), so `restoreCleanupBackups` reports it after attempting the other restores and the uninstall revert keeps the staging packages. The `prepare-*` reverts no longer re-import anything: `revertPreparedTransport` deletes or dequeues the dummy, and the objects come back from the BKP backups.
 ### ACT-2026-17 — Resolved — Medium — Technical — Cached transport status is never invalidated
 
 `Transport.delete` and `Transport.release` clear the cached E070 row after the connector call,

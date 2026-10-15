@@ -33,7 +33,7 @@ import { prepareBackup } from "./prepareBackup";
 import { importUpdateDeletion, prepareDeletion } from "./prepareDeletion";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
-import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend, CleanupPlan, PackageCleanupRevert, logActionSummary } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend, CleanupPlan, PackageCleanupRevert, logActionSummary, failureState } from "../commons/utils";
 import { SystemConnector } from "../../systemConnector";
 import { lockResources } from "./lockResources";
 import { cleanupCheckpoint } from "./cleanupCheckpoint";
@@ -325,6 +325,8 @@ type WorkflowRevert = PackageCleanupRevert & {
     },
     /** Set before the landscape transport is released, as SAP may export it and still fail. */
     landscapeReleaseStarted?: boolean,
+    /** Set once the landscape transport release succeeded. */
+    landscapeReleased?: boolean,
     metadataWriteStarted?: boolean,
     /** Set before the install transports are written, as SAP may commit them and still fail. */
     metadataTransportsWriteStarted?: boolean,
@@ -457,7 +459,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
                 logInstallSummary(context, true);
                 return { output: result.output };
             } catch (error) {
-                logInstallSummary(context, false);
+                logInstallSummary(context, false, error);
                 throw error;
             }
         });
@@ -494,7 +496,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
 }
 
 /** Logs what the install left on the system: imported transports, deletions, backups, landscape transport. */
-function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean): void {
+function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean, error?: unknown): void {
     if (!context.runtime?.package) {
         return;
     }
@@ -505,13 +507,13 @@ function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean):
     logActionSummary({
         outcome: succeeded
             ? `${name} ${from}${version} installed on ${SystemConnector.getDest()}.`
-            : `${name} ${from}${version} install failed${context.revert?.importStarted ? ', rolled back' : ''}.`,
+            : `${name} ${from}${version} install failed${failureState(context.revert?.importStarted && !context.runtime.selfUpdate, error)}.`,
         imported: succeeded ? [transports.devc?.instance, transports.tadir?.instance, transports.lang?.instance, ...(transports.cust || []).map(cust => cust.instance)] : [],
         deletions: succeeded ? [context.runtime.deletions?.tadir, context.runtime.deletions?.cust] : [],
         landscape: succeeded ? {
             transport: context.output?.transport,
             targetSystem: context.rawInput.installData?.landscapeTransport?.targetSystem,
-            releaseStarted: context.revert?.landscapeReleaseStarted
+            released: context.revert?.landscapeReleased
         } : undefined,
         revert: context.revert
     });

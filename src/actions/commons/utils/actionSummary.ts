@@ -10,7 +10,7 @@ export type ActionSummary = {
     outcome: string,
     imported?: Transportish[],
     deletions?: Transportish[],
-    landscape?: { transport?: Transportish, targetSystem?: string, releaseStarted?: boolean },
+    landscape?: { transport?: Transportish, targetSystem?: string, released?: boolean },
     revert?: PackageCleanupRevert
 };
 
@@ -38,11 +38,23 @@ export function logActionSummary(summary: ActionSummary): void {
     }
     const landscape = summary.landscape?.transport;
     if (landscape) {
-        lines.push(`Landscape transport ${landscape.trkorr} to ${summary.landscape.targetSystem}${summary.landscape.releaseStarted ? '' : ' (not released)'}`);
+        lines.push(`Landscape transport ${landscape.trkorr} to ${summary.landscape.targetSystem}${summary.landscape.released ? '' : ' (not released)'}`);
     }
     try {
         Logger.info(lines.join('\n'));
     } catch {
         // a summary never changes the result of the action
     }
+}
+
+/**
+ * How a failed action left the system: `, rolled back` when something was changed and the rollback succeeded,
+ * `, rollback incomplete` when a rollback step failed too (see ActionWorkflowRevertError), nothing otherwise
+ * (no change, or a change that is never rolled back).
+ */
+export function failureState(changed: boolean | undefined, error: unknown): string {
+    if ((error as any)?.name === 'ActionWorkflowRevertError') {
+        return ', rollback incomplete: check the system before retrying';
+    }
+    return changed ? ', rolled back' : '';
 }

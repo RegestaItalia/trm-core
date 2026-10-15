@@ -1,6 +1,6 @@
 # Action workflow audits
 
-Audit date: 2026-10-14 (latest finding reproduced from an install log; the original audit was a static source review).
+Audit date: 2026-10-15 (static review of the upgrade and uninstall redesign; ACT-2026-91 was reproduced from an install log; the original audit was a static source review).
 
 These documents are static source audits of every workflow assembled under `src/actions`.
 Each step was reviewed in execution order, including filters, external calls, context mutations,
@@ -36,20 +36,28 @@ feature, missing case).
 | `check-dependencies` | 3 | 0 | 0 | 0 | 0 | [Package dependency check](check-package-dependencies.md) |
 | `check-engines` | 2 | 0 | 0 | 0 | 0 | [Engines check](check-engines.md) |
 | `check-sap-entries` | 2 | 0 | 0 | 0 | 0 | [SAP-entry check](check-sap-entries.md) |
-| `uninstall` | 9 | 0 | 0 | 1 | 0 | [Package uninstall](uninstall.md) |
+| `uninstall` | 10 | 0 | 0 | 1 | 0 | [Package uninstall](uninstall.md) |
 | `install-dependency` | 6 | 0 | 0 | 0 | 0 | [Dependency install](install-dependency.md) |
-| `install` | 25 | 0 | 0 | 0 | 1 | [Package install](install.md) |
+| `install` | 29 | 0 | 0 | 0 | 1 | [Package install](install.md) |
 | `publish` | 15 | 0 | 0 | 0 | 1 | [Package publish](publish.md) |
-| Shared steps/callbacks | 12 | 1 | 1 | 1 | 4 | [Shared infrastructure](shared.md) |
-| **Total** | | **1** | **1** | **2** | **6** | |
+| Shared steps/callbacks | 16 | 0 | 0 | 1 | 4 | [Shared infrastructure](shared.md) |
+| **Total** | | **0** | **0** | **2** | **6** | |
 
 Each workflow report holds its active findings, current step review, and the history of resolved and
 non-relevant findings; this README only aggregates them. Since the 2026-08-27 audit the
 install workflow gained `check-dependants`, `check-engines`, resource locking, transport
 preparation, batch import, landscape-transport skipping on final systems, and retained tables on
 update; `uninstall` and `check-engines` are new workflows; publish gained manifest engines. The shared
-`trm-server-pa` step no longer exists. All active findings describe the current source and are
-included in the index counts.
+`trm-server-pa` step no longer exists. On 2026-10-15 upgrade and uninstall were redesigned: everything the
+cleanup may delete is backed up first in `@X1@TRM (BKP)`/`(BKP C)` transports kept in the import queue,
+deletions are generated from the backups by one shared helper (`generateDeletion`) and, on upgrade,
+imported with the incoming release (`plan-update-cleanup`, `prepare-backup`, `prepare-deletion`,
+`import-update-deletion` replace `generate-update-transport` and `generate-post-import-update-transport`);
+no deletion transport is forwarded, the single landscape transport copies them and is released last
+(uninstall `forward-deletion-transport` replaced by `generate-landscape-transport` and
+`release-landscape-transport`); imports fail from return code 8. This resolved ACT-2026-04, ACT-2026-06 and
+INST-02; ACT-2026-92, found in the new action summary, was resolved in the same change. All active findings describe the current source and are included in the
+index counts.
 
 Two earlier resolutions turned out to be ineffective and are superseded by new findings:
 **SAPCHK-02** (see [ACT-2026-69](check-sap-entries.md)) and **CG3Z-01** (see [ACT-2026-85](cg3z.md)), both now resolved.
@@ -65,6 +73,8 @@ Filters run outside the try block, and filtered-out steps are never reverted.
 
 ## Highest-priority remediation
 
-1. **[ACT-2026-04](shared.md)** and **[ACT-2026-06](shared.md)**, together with re-deciding **INST-02** ([install](install.md#reconsideration-of-accepted-findings)) — enforce import return codes for deletion, restore, and batch imports.
+1. **[ACT-2026-50](uninstall.md)** — check the export of the BKP backups before generating deletions from them, as an object that failed to export is deleted without a restorable copy (uninstall and upgrade).
+2. **[ACT-2026-14](shared.md)** — bound the TMS-queue polling of releases and imports, so a stuck request can't hang an action after SAP state changed.
+3. **[ACT-2026-46](install.md)** — reconnect before the `import-batch` rollback, so a failed reconnect doesn't leave the whole rollback on a closed connection.
 
 These findings were identified by static review and were not reproduced against SAP or a registry.

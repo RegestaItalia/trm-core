@@ -7,7 +7,9 @@ import { removeFromImportQueue } from "./packageCleanup";
 export type LandscapeReleaseRevert = {
     revert?: {
         /** Set before the landscape transport is released, as SAP may export it and still fail. */
-        landscapeReleaseStarted?: boolean
+        landscapeReleaseStarted?: boolean,
+        /** Set once the landscape transport release succeeded. */
+        landscapeReleased?: boolean
     }
 };
 
@@ -22,6 +24,7 @@ export async function releaseLandscape(context: LandscapeReleaseRevert, transpor
     context.revert.landscapeReleaseStarted = true;
     try {
         await transport.release(true, false, logTemporaryFolder);
+        context.revert.landscapeReleased = true;
     } catch (error) {
         Logger.error(`Release of landscape transport ${transport.trkorr} failed: ${error instanceof Error ? error.message : String(error)}`, { important: true });
         Logger.warning(`${completedMessage} ${SystemConnector.getDest()}. Release transport ${transport.trkorr} to ${targetSystem} manually (SE09), or check it in STMS if it was released.`, { important: true });

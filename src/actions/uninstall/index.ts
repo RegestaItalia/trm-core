@@ -5,7 +5,7 @@ import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { E071 } from "../../client";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
-import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource, CleanupPlan, logActionSummary } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource, CleanupPlan, logActionSummary, failureState } from "../commons/utils";
 import { SystemConnector } from "../../systemConnector";
 import { InstallPackageReplacements } from "../install";
 import { init } from "./init";
@@ -120,6 +120,8 @@ type WorkflowRuntime = {
 type WorkflowRevert = PackageCleanupRevert & {
     /** Set before the landscape transport is released, as SAP may export it and still fail. */
     landscapeReleaseStarted?: boolean,
+    /** Set once the landscape transport release succeeded. */
+    landscapeReleased?: boolean,
     metadataRemoveStarted?: boolean,
     metadataPreviousPackageRow?: TrmPackageUpdateData
 }
@@ -194,7 +196,7 @@ const uninstallWorkflow = [
 ];
 
 /** Logs what the uninstall left on the system: deletions, backups, landscape transport. */
-function logUninstallSummary(context: UninstallWorkflowContext, succeeded: boolean): void {
+function logUninstallSummary(context: UninstallWorkflowContext, succeeded: boolean, error?: unknown): void {
     if (!context.runtime?.update) {
         return;
     }
@@ -203,12 +205,12 @@ function logUninstallSummary(context: UninstallWorkflowContext, succeeded: boole
     logActionSummary({
         outcome: succeeded
             ? `${name} ${version} uninstalled from ${SystemConnector.getDest()}.`
-            : `${name} ${version} uninstall failed${context.revert?.deleImportStarted ? ', rolled back' : ''}.`,
+            : `${name} ${version} uninstall failed${failureState(context.revert?.deleImportStarted, error)}.`,
         deletions: succeeded ? context.output?.deletions : [],
         landscape: succeeded ? {
             transport: context.output?.landscapeTransport,
             targetSystem: context.rawInput.uninstallData?.landscapeTransport?.targetSystem,
-            releaseStarted: context.revert?.landscapeReleaseStarted
+            released: context.revert?.landscapeReleased
         } : undefined,
         revert: context.revert
     });
@@ -249,7 +251,7 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
                 logUninstallSummary(context, true);
                 return { output: result.output };
             } catch (error) {
-                logUninstallSummary(context, false);
+                logUninstallSummary(context, false, error);
                 throw error;
             }
         });
