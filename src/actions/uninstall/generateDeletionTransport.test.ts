@@ -372,7 +372,7 @@ describe('generateDeletionTransport', () => {
             const { ctx } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
             imported.import.mockResolvedValueOnce(12);
 
-            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('Test import of deletion transport failed');
+            await expect(generateDeletionTransport.run(ctx)).rejects.toThrow('Test import of deletion transport: transport DEVK9DELE ended with return code 12');
             expect(ctx.revert.deleImportStarted).toBeFalsy();
 
             (Transport.upload as jest.Mock).mockClear();

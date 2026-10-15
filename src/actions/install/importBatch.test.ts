@@ -28,7 +28,7 @@ jest.mock('./updatePackageData', () => ({
 jest.mock('../../transport', () => ({
     Transport: class MockTransport {
         static createToc = jest.fn();
-        static importMultiple = jest.fn();
+        static importMultiple = jest.fn().mockResolvedValue([]);
         static upload = jest.fn();
     }
 }));
@@ -705,10 +705,33 @@ describe('importBatch rollback checkpoint', () => {
         context.runtime.selfUpdate = true;
         (context.runtime.transports.devc.instance.import as jest.Mock).mockResolvedValue(12);
 
-        await expect(importBatch.run(context)).rejects.toThrow(/DEVK900001 failed/);
+        await expect(importBatch.run(context)).rejects.toThrow(/Import of transport DEVK900001: .*return code 12/);
 
         expect(context.runtime.transports.tadir.instance.import).not.toHaveBeenCalled();
         expect(context.revert.importStarted).toBe(true);
+    });
+
+    test.each([8, 12, -1])('a batch transport ending with return code %s fails the import, after every transport is checked', async rc => {
+        const context = makeContext(registryDelete);
+        (Transport.importMultiple as jest.Mock).mockResolvedValueOnce([
+            { trkorr: 'DEVK900001', rc: 4 },
+            { trkorr: 'DEVK900002', rc, message: 'A tool used by tp produced errors' },
+            { trkorr: 'DEVK900003', rc: 0 }
+        ]);
+
+        await expect(importBatch.run(context)).rejects.toThrow(/Import of transport DEVK900002: .*(return code|no return code).*A tool used by tp produced errors/);
+        expect(context.revert.importStarted).toBe(true);
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+    });
+
+    test('batch return codes up to 4 complete the import', async () => {
+        const context = makeContext(registryDelete);
+        (Transport.importMultiple as jest.Mock).mockResolvedValueOnce([
+            { trkorr: 'DEVK900001', rc: 4 },
+            { trkorr: 'DEVK900002', rc: 0 }
+        ]);
+
+        await expect(importBatch.run(context)).resolves.toBeUndefined();
     });
 
     test('a trm-server upgrade checks the user can call the imported release', async () => {
@@ -1112,7 +1135,7 @@ describe('importBatch package transport layers', () => {
     test('packages kept with their original name get the system default layer, read before the import', async () => {
         const events: string[] = [];
         (SystemConnector.getDefaultTransportLayer as jest.Mock).mockImplementation(async () => { events.push('default'); return 'ZDEF'; });
-        (Transport.importMultiple as jest.Mock).mockImplementation(async () => { events.push('import'); });
+        (Transport.importMultiple as jest.Mock).mockImplementation(async () => { events.push('import'); return []; });
 
         await importBatch.run(layerContext());
 
@@ -1129,6 +1152,7 @@ describe('importBatch package transport layers', () => {
             devclass === 'ZROOT' ? { devclass, pdevclass: 'ZOLD' } : undefined);
         (Transport.importMultiple as jest.Mock).mockImplementation(async () => {
             (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZROOT', pdevclass: 'SOURCE' });
+            return [];
         });
         (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZDEF');
 

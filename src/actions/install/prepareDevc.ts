@@ -3,6 +3,7 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { TransportImportError } from "../../transport/TransportImportError";
 import { stopWarning } from "../stopWarning";
 import { revertPreparedTransport, withScopedPrefix } from "../commons/utils";
 import { TRKORR } from "../../client";
@@ -57,18 +58,6 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
                 });
                 context.revert.createdTransports.devc = dummy;
                 await dummy.release(false, true);
-                try {
-                    //saving dummy binaries for a possible revert
-                    context.revert.transports.devc = {
-                        trkorr: dummy.trkorr,
-                        entries: undefined,
-                        binaries: (await dummy.download()).binaries
-                    };
-                } catch (e) {
-                    Logger.error(`Unable to dowload dummy transport!`, true);
-                    Logger.error(e.toString(), true);
-                    Logger.error(`On failure, revert won't be possible!`, true);
-                }
                 context.runtime.transports.devc.binaries.binaries = await context.rawInput.packageData.registry.transport(context.runtime.transports.devc.binaries.trkorr, dummy.trkorr);
                 trkorr = dummy.trkorr;
             } else {
@@ -89,9 +78,7 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
             } else {
                 Logger.loading(`Testing import...`);
                 const testRc = await context.runtime.transports.devc.instance.import(true);
-                if (testRc < 0 || testRc > 8) {
-                    throw new Error(`Test import of SAP packages failed: check logs.`);
-                }
+                TransportImportError.assert(context.runtime.transports.devc.instance.trkorr, testRc, `Test import of SAP packages`, context.runtime.transports.devc.instance.lastImportMessage);
             }
         });
     },
@@ -99,10 +86,7 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
         if (!context.revert.cleanupImported && (context.revert.namespace || context.revert.sapPackages.length > 0)) {
             await deleteImportedEntries(context);
         }
-        if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
-            return;
-        }
-        const snapshot = context.revert.transports.devc;
-        await revertPreparedTransport(context.revert.createdTransports.devc, snapshot);
+        // The dummy is deleted, or only taken out of the queue: never re-imported
+        await revertPreparedTransport(context.revert.createdTransports.devc);
     }
 }

@@ -115,12 +115,6 @@ export const init: Step<InstallWorkflowContext> = {
             transport: undefined
         };
         context.revert = {
-            transports: {
-                devc: undefined,
-                tadir: undefined,
-                lang: undefined,
-                cust: []
-            },
             cleanupTransport: undefined,
             cleanupImported: false,
             cleanupSucceeded: false,

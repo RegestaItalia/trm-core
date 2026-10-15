@@ -11,7 +11,7 @@ import { setTimeout } from "timers/promises";
 import * as fs from "fs";
 import path from "path";
 import { Logger } from "trm-commons";
-import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER, TransportEntries, STMSIQREQ } from "../client";
+import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER, TransportEntries, STMSIQREQ, TPSTAT } from "../client";
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 
@@ -42,6 +42,10 @@ export class Transport {
     private _rootDevclass: DEVCLASS;
     private _entries: TransportEntries;
     public trmIdentifier?: TrmTransportIdentifier;
+    /** Target the transport was last added to the import queue of (by a test import). */
+    private _forwardedTo?: TR_TARGET;
+    /** Final tp message of the last import (or test import) of this transport. */
+    public lastImportMessage?: string;
 
     constructor(public trkorr: TRKORR, private _trTarget?: TR_TARGET) {
         this._fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
@@ -602,88 +606,147 @@ export class Transport {
         }
     }
 
+    /** Polling interval while the SAP status doesn't change: starts at 3 seconds, then backs off. */
+    private static _pollInterval(unchangedPolls: number): number {
+        return unchangedPolls < 10 ? 3000 : unchangedPolls < 30 ? 5000 : 10000;
+    }
+
+    /**
+     * Waits for the transport in the TMS queue of its target.
+     *
+     * Releasing (`checkImpSing` false): until the transport is in the queue.
+     * Importing (`checkImpSing` true): until its import is complete. The import status of the request
+     * (`GET_TR_IMPORT_STATUS`) is read at every check; the whole queue is read only when the status can't
+     * tell (virtual targets, a batch status row of another request, an older backend), and once at the end
+     * for the request return code. The return code is the highest of the queue `maxrc` and the final tp
+     * status return code of this request.
+     */
     private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false): Promise<{ rc: number, message?: string }> {
-        var inQueue = false;
         var rc: number = 12;
         var message: string;
-        var lastCheck: Date;
-        if (this._trTarget) {
-            var inQueueAttempts = 0;
-            var queueReadFailures = 0;
-            Logger.loading(`Checking ${this.trkorr} status...`, skipLog);
-            while (!inQueue) {
-                inQueueAttempts++;
-                Logger.log(`Attempt ${inQueueAttempts}, reading in 3 seconds...`, true);
-                await setTimeout(3000);
-                lastCheck = new Date();
-                if (!checkImpSing) {
-                    Logger.loading(`${Transport.getTransportIcon()}  Releasing, last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}...`, skipLog);
-                } else {
-                    try {
-                        const tpstat = await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget);
-                        if (tpstat.message) {
-                            const statDate = await fromAbapToDate(tpstat.moddate, tpstat.modtime);
-                            Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}, last update ${statDate.toISOString().split("T")[0]} ${statDate.toTimeString().split(" ")[0]}: ${tpstat.message}...`, skipLog);
-                        } else {
-                            Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}...`, skipLog);
-                        }
-                    } catch (e) {
-                        Logger.loading(`Last check ${lastCheck.toISOString().split("T")[0]} ${lastCheck.toTimeString().split(" ")[0]}...`, skipLog);
-                        Logger.warning(`Unable to read status: check continues, this error can be ignored`, true);
-                        Logger.error(e.toString(), true);
-                    }
-                }
-                //reading the queue is outdated now and getTransportImportStatus should be used
-                //HOWEVER it doesn't work for VIRTUAL TARGETS!
-                //for now, keep it like this
-                var tmsQueue: STMSIQREQ[];
+        if (!this._trTarget) {
+            Logger.error(`No target specified, unable to check queue!!`, true);
+            return { rc, message };
+        }
+        const started = Date.now();
+        const elapsed = () => Transport._formatDuration(Date.now() - started);
+        let attempts = 0;
+        let queueReadFailures = 0;
+        let unchangedPolls = 0;
+        let lastStatusKey: string;
+        let finalStatus: TPSTAT;
+        Logger.loading(`Checking ${this.trkorr} status...`, skipLog);
+        while (true) {
+            attempts++;
+            const interval = Transport._pollInterval(unchangedPolls);
+            Logger.log(`Attempt ${attempts}, reading in ${interval / 1000} seconds...`, true);
+            await setTimeout(interval);
+            if (!checkImpSing) {
+                Logger.loading(`${Transport.getTransportIcon()}  Releasing ${this.trkorr} (${elapsed()})...`, skipLog);
+            } else {
+                let status: TPSTAT;
                 try {
-                    tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
-                    queueReadFailures = 0;
+                    status = await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget);
                 } catch (e) {
-                    // an import can replace the TRM backend itself (trm-server upgrade): its API can
-                    // fail while it's being imported and activated
-                    if (++queueReadFailures > 10) {
-                        throw e;
-                    }
-                    Logger.log(`Unable to read ${this._trTarget} import queue (attempt ${queueReadFailures}), retrying: ${e}`, true);
+                    Logger.log(`Unable to read ${this.trkorr} import status, the queue is checked instead: ${e}`, true);
+                }
+                // in a batch import the status row may belong to another request of the batch
+                const ownStatus = status && (!status.trkorr || status.trkorr === this.trkorr) ? status : undefined;
+                const statusKey = ownStatus ? `${ownStatus.status}|${ownStatus.step}|${ownStatus.moddate}${ownStatus.modtime}|${ownStatus.message}` : undefined;
+                if (statusKey && statusKey === lastStatusKey) {
+                    unchangedPolls++;
+                } else {
+                    unchangedPolls = 0;
+                    lastStatusKey = statusKey;
+                }
+                if (ownStatus?.message) {
+                    const unchanged = unchangedPolls > 0 ? `, unchanged since ${Transport._formatAbapTime(ownStatus.modtime)}` : '';
+                    Logger.loading(`Importing ${this.trkorr} (${elapsed()}${unchanged}): ${ownStatus.message}...`, skipLog);
+                } else {
+                    Logger.loading(`Importing ${this.trkorr} (${elapsed()})...`, skipLog);
+                }
+                if (Transport._isFinalStatus(ownStatus)) {
+                    // the import is over: one queue read for the request return code
+                    finalStatus = ownStatus;
+                } else if (ownStatus && Transport._isRunningStatus(ownStatus)) {
                     continue;
                 }
-                tmsQueue = tmsQueue.filter(o => o.trkorr === this.trkorr);
-                tmsQueue = tmsQueue.sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
-                if (!checkImpSing) {
-                    //without check if in import, simply check if in queue
-                    inQueue = tmsQueue.length > 0;
-                } else {
-                    //if importing, get the last transport in queue (if re installing, there are more than 1)
-                    if (tmsQueue.length > 0) {
-                        inQueue = tmsQueue[0].impsing !== 'X';
-                        if (!tmsQueue[0].maxrc) {
-                            //no rc => transport wasn't imported! set as -1 (field is blank, do not confuse with 0 which is success)
-                            rc = -1;
-                        } else {
-                            rc = parseInt(tmsQueue[0].maxrc);
-                        }
-                    } else {
-                        inQueue = false;
-                    }
+            }
+            //the queue is still needed when the status can't tell (e.g. VIRTUAL TARGETS)
+            var tmsQueue: STMSIQREQ[];
+            try {
+                tmsQueue = await SystemConnector.readTmsQueue(this._trTarget);
+                queueReadFailures = 0;
+            } catch (e) {
+                // an import can replace the TRM backend itself (trm-server upgrade): its API can
+                // fail while it's being imported and activated
+                if (++queueReadFailures > 10) {
+                    throw e;
                 }
+                Logger.log(`Unable to read ${this._trTarget} import queue (attempt ${queueReadFailures}), retrying: ${e}`, true);
+                continue;
             }
+            Logger.log(`${this._trTarget} import queue read: ${tmsQueue.length} requests`, true);
+            const entries = tmsQueue.filter(o => o.trkorr === this.trkorr)
+                .sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
             if (!checkImpSing) {
-                //without check of import, we're releasing the transport (publish?)
-                //set rc to -1 as it is irrelevant
-                Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released.`, skipLog);
-                rc = -1;
-            } else {
-                //read final import message
-                try {
-                    message = (await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget)).message;
-                } catch { }
+                //without check if in import, simply check if in queue
+                if (entries.length > 0) {
+                    break;
+                }
+                continue;
             }
-        } else {
-            Logger.error(`No target specified, unable to check queue!!`, true);
+            //if importing, get the last transport in queue (if re installing, there are more than 1)
+            if (entries.length > 0 && entries[0].impsing !== 'X') {
+                //no rc => transport wasn't imported! set as -1 (field is blank, do not confuse with 0 which is success)
+                rc = entries[0].maxrc ? parseInt(entries[0].maxrc) : -1;
+                break;
+            }
+            // the status says the import is over, the queue doesn't yet: check again
+            finalStatus = undefined;
         }
+        if (!checkImpSing) {
+            //without check of import, we're releasing the transport (publish?)
+            //set rc to -1 as it is irrelevant
+            Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released.`, skipLog);
+            return { rc: -1, message };
+        }
+        if (!finalStatus) {
+            try {
+                const status = await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget);
+                if (!status.trkorr || status.trkorr === this.trkorr) {
+                    finalStatus = status;
+                }
+            } catch { }
+        }
+        message = finalStatus?.message;
+        const statusRc = Transport._isFinalStatus(finalStatus) ? parseInt(finalStatus.retcode) : NaN;
+        if (!isNaN(statusRc) && statusRc > rc) {
+            Logger.log(`${this.trkorr} queue return code ${rc}, tp return code ${statusRc}: ${statusRc} is used`, true);
+            rc = statusRc;
+        }
+        Logger.log(`${this.trkorr} import check completed in ${elapsed()}`, true);
         return { rc, message };
+    }
+
+    /** tp status of a finished command: not running, with a numeric return code (8888 means running). */
+    private static _isFinalStatus(status: TPSTAT): boolean {
+        return !!status && status.status === 'F' && (!status.command || status.command === 'IMPORT')
+            && /^\d+$/.test(status.retcode || '') && status.retcode !== '8888';
+    }
+
+    private static _isRunningStatus(status: TPSTAT): boolean {
+        return !!status && status.status === 'R';
+    }
+
+    private static _formatDuration(ms: number): string {
+        const seconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(seconds / 60);
+        return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+    }
+
+    private static _formatAbapTime(time: string): string {
+        return time && time.length === 6 ? `${time.slice(0, 2)}:${time.slice(2, 4)}:${time.slice(4, 6)}` : time;
     }
 
     private static _getFileNames(trkorr: TRKORR, targetSystem: string): FileNames {
@@ -903,6 +966,7 @@ export class Transport {
                 Logger.log(`Starting transport ${transport.trkorr} TMS queue status check`, true);
                 transport._trTarget = target;
                 const queue = await transport._isInTmsQueue(false, true);
+                transport.lastImportMessage = queue.message;
                 Transport._printImportResult(transport.trkorr, queue.rc, queue.message, false);
                 results.push({ trkorr: transport.trkorr, rc: queue.rc, message: queue.message });
             }
@@ -919,8 +983,12 @@ export class Transport {
             throw new Error('Missing transport target.');
         }
         Logger.log(`Starting ${this.trkorr} import ${test ? 'test' : ''}`, true);
-        Logger.loading(`Forwarding transport ${this.trkorr}`, true);
-        await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
+        // a test import already put it in the queue: the real import doesn't forward it again
+        if (!this._forwardedTo || this._forwardedTo !== this._trTarget) {
+            Logger.loading(`Forwarding transport ${this.trkorr}`, true);
+            await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
+            this._forwardedTo = this._trTarget;
+        }
         Logger.loading(`Importing ${this.trkorr}${test ? ' (TEST IMPORT)' : ''}`, true);
         const result = await SystemConnector.importTransport(this.trkorr, this._trTarget, test);
         if (result) {
@@ -932,7 +1000,7 @@ export class Transport {
             // only imported (or deleted) afterwards. Wait for the import recorded in the queue and take its return code.
             if (!test && rc < 8) {
                 Logger.log(`Waiting for transport ${this.trkorr} import to complete`, true);
-                const queue = await this._isInTmsQueue(true, true);
+                const queue = await this._isInTmsQueue(false, true);
                 if (queue.rc >= 0) {
                     rc = queue.rc;
                     message = queue.message;
@@ -944,6 +1012,7 @@ export class Transport {
             rc = queue.rc;
             message = queue.message;
         }
+        this.lastImportMessage = message;
         Transport._printImportResult(this.trkorr, rc, message, test);
         return rc;
     }

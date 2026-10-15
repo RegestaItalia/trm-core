@@ -1,4 +1,5 @@
 export * from "./restoreTransport";
+export * from "./importQueue";
 export * from "./releaseDeletionTransport";
 export * from "./retainedWorkflow";
 export * from "./withScopedPrefix";

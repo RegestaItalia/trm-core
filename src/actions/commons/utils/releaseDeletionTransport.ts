@@ -1,5 +1,6 @@
 import { Inquirer, Logger } from "trm-commons";
 import { BinaryTransport, Transport } from "../../../transport";
+import { TransportImportError } from "../../../transport/TransportImportError";
 import { SystemConnector } from "../../../systemConnector";
 import { AbstractRegistry, RegistryDeletionTransportUnavailableError } from "../../../registry";
 import type { PackageCleanupContext } from "./packageCleanup";
@@ -55,16 +56,15 @@ export async function releaseDeletionTransport(
     } else {
         Logger.loading(`Testing import...`);
         const testRc = await context.runtime.dele.import(true);
-        if (testRc < 0 || testRc > 8) {
-            throw new Error(`Test import of deletion transport failed: check logs.`);
-        }
+        TransportImportError.assert(deletionTransport.trkorr, testRc, `Test import of deletion transport`, context.runtime.dele.lastImportMessage);
     }
     Logger.loading(`Importing ${deletionTransport.trkorr}`, true);
     // Mark before the mutating await: the import may change objects and still fail.
     if (retainSnapshot) {
         context.revert.deleImportStarted = true;
     }
-    await context.runtime.dele.import(false);
+    const rc = await context.runtime.dele.import(false);
+    TransportImportError.assert(deletionTransport.trkorr, rc, `Import of deletion transport`, context.runtime.dele.lastImportMessage);
     Logger.success(`Transport ${deletionTransport.trkorr} imported`, true);
     deletionTransport = context.runtime.dele; //replace
 }

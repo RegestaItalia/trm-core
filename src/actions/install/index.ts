@@ -297,12 +297,6 @@ export type InstallDependencyEntry = {
 
 
 type WorkflowRevert = {
-    transports: {
-        devc: TransportBinary,
-        tadir: TransportBinary,
-        lang?: TransportBinary,
-        cust?: TransportBinary[]
-    },
     cleanupTransport?: Transport,
     cleanupImported?: boolean,
     cleanupSucceeded?: boolean,
