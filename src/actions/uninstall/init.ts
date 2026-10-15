@@ -121,12 +121,13 @@ export const init: Step<UninstallWorkflowContext> = {
 
         //6- check/set system target
         //objects of a temporary package only exist on this system
-        if (!(installed.getDevclass() || '').trim().startsWith('$')) {
+        //the deletions of a nested uninstall are carried by the landscape transport of its parent
+        if (!(installed.getDevclass() || '').trim().startsWith('$') && !context.rawInput.nested) {
             context.rawInput.uninstallData.landscapeTransport.targetSystem = await setLandscapeTarget(
                 context.rawInput.contextData.noInquirer,
                 context.rawInput.uninstallData.landscapeTransport.targetSystem,
-                "Deletion transport target",
-                "Deletion transport won't be forwarded."
+                "Landscape transport target",
+                "Landscape transport won't be generated."
             );
         }
 
@@ -151,7 +152,6 @@ export const init: Step<UninstallWorkflowContext> = {
             sapPackages: [],
             dele: undefined,
             deleImportStarted: false,
-            deleInTargetTms: false,
             metadataRemoveStarted: false,
             metadataPreviousPackageRow: undefined
         };

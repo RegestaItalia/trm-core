@@ -48,7 +48,7 @@ import { join } from 'path';
 function context() {
     return {
         rawInput: {
-            packageData: { name: 'pkg', registry: { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue({ header: Buffer.from('dh'), data: Buffer.from('dd') }) } },
+            packageData: { name: 'pkg', registry: { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue({ empty: false, binaries: { header: Buffer.from('dh'), data: Buffer.from('dd') } }) } },
             contextData: { noInquirer: true },
             installData: {
                 installDevclass: {
@@ -206,7 +206,7 @@ describe('install mutation checkpoints', () => {
         const ctx = context();
         const realRegistry = {
             getRegistryType: () => RegistryType.PRIVATE,
-            delete: jest.fn().mockResolvedValue({ header: Buffer.from('dh'), data: Buffer.from('dd') })
+            delete: jest.fn().mockResolvedValue({ empty: false, binaries: { header: Buffer.from('dh'), data: Buffer.from('dd') } })
         };
         const fileRegistry = {
             getRegistryType: () => RegistryType.LOCAL,
@@ -228,10 +228,16 @@ describe('install mutation checkpoints', () => {
         const source = readFileSync(join(__dirname, 'index.ts'), 'utf8');
         const workflow = /const installWorkflow = \[([\s\S]*?)\];/.exec(source)[1].split(',').map(s => s.trim()).filter(s => s);
         expect(workflow.indexOf('cleanupCheckpoint')).toBe(workflow.indexOf('installDependencies') + 1);
-        for (const step of ['addNamespace', 'generateDevclass', 'generateUpdateTransport', 'prepareDevc', 'importBatch']) {
+        for (const step of ['addNamespace', 'generateDevclass', 'planUpdateCleanup', 'prepareBackup', 'prepareDevc', 'prepareDeletion', 'importBatch']) {
             expect(workflow.indexOf(step)).toBeGreaterThan(workflow.indexOf('cleanupCheckpoint'));
         }
-        expect(workflow.indexOf('generatePostImportUpdateTransport')).toBe(workflow.length - 1);
+        // questions are asked before the first backup; backups before any payload; deletions after the payloads
+        expect(workflow.indexOf('planUpdateCleanup')).toBe(workflow.indexOf('prepareBackup') - 1);
+        expect(workflow.indexOf('prepareBackup')).toBeLessThan(workflow.indexOf('prepareDevc'));
+        expect(workflow.indexOf('prepareDeletion')).toBe(workflow.indexOf('importBatch') - 1);
+        // the install is recorded before the landscape transport is released, last: a failed release doesn't undo it
+        expect(workflow.indexOf('updatePackageData')).toBeLessThan(workflow.indexOf('releaseLandscapeTransport'));
+        expect(workflow.indexOf('releaseLandscapeTransport')).toBe(workflow.length - 1);
     });
 
     test.each(['add-namespace', 'generate-devclass'])('a failure in %s cleans up the parent before the dependencies are rolled back', async failingStep => {
@@ -240,7 +246,7 @@ describe('install mutation checkpoints', () => {
         ctx.runtime.dependencyRollbacks = [async () => { events.push('dependency-rollback'); }];
         ctx.rawInput.packageData.registry.delete.mockImplementation(async () => {
             events.push('parent-cleanup');
-            return { header: Buffer.from('dh'), data: Buffer.from('dd') };
+            return { empty: false, binaries: { header: Buffer.from('dh'), data: Buffer.from('dd') } };
         });
         ctx.revert.packageHierarchy = [{ devclass: 'ZEXISTING', parentcl: 'ZOLD_PARENT' }];
         (SystemConnector.setPackageSuperpackage as jest.Mock).mockImplementation(async () => { events.push('hierarchy-restore'); });

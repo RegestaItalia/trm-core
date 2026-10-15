@@ -32,6 +32,7 @@ function context(keepOriginal = true) {
         runtime: {
             namespace: 'Z',
             update: { getDevclass: () => 'ZOLD' },
+            deletions: { tadir: { trkorr: 'DEVK9DELE' }, cust: { trkorr: 'DEVK9DELEC' } },
             package: { data: { manifest: { name: 'pkg', version: '1.0.0' } } },
             transports: {
                 devc: { instance: { trkorr: 'DEVK9DEVC' } },
@@ -43,7 +44,7 @@ function context(keepOriginal = true) {
                 ]
             }
         },
-        revert: { namespace: '/TEST/', dele: { trkorr: 'DEVK9DELE' } },
+        revert: { namespace: '/TEST/' },
         output: { transport: undefined }
     } as any;
 }
@@ -100,12 +101,12 @@ describe('generateLandscapeTransport rollback', () => {
         ['addObjectsFromTransport', 3],
         ['addObjectsFromTransport', 4],
         ['addObjectsFromTransport', 5],
+        ['addObjectsFromTransport', 6],
+        ['addObjectsFromTransport', 7],
         ['removeComments', 1],
         ['addComment', 1],
         ['addComment', 2],
-        ['addComment', 3],
-        ['setDocumentation', 1],
-        ['lock', 1]
+        ['setDocumentation', 1]
     ] as [string, number][])('failure at %s occurrence %s deletes the landscape request', runFailure);
 
     test('replacement-package branch failure deletes the landscape request', async () => {
@@ -120,6 +121,37 @@ describe('generateLandscapeTransport rollback', () => {
 
         expect(landscape.delete).toHaveBeenCalledTimes(1);
         expect(ctx.output.transport).toBeUndefined();
+    });
+
+    test('the deletions of the upgrade are copied after the release, without any upgrade comment', async () => {
+        const ctx = context();
+
+        await execute('test', [generateLandscapeTransport], ctx);
+
+        expect(landscape.addObjectsFromTransport.mock.calls.map((call: any[]) => call[0])).toEqual([
+            'DEVK9DEVC', 'DEVK9TADIR', 'DEVK9LANG', 'DEVK9CUST1', 'DEVK9CUST2', 'DEVK9DELE', 'DEVK9DELEC'
+        ]);
+        expect(landscape.addComment.mock.calls.map((call: any[]) => call[0])).toEqual(['name=pkg', 'version=1.0.0']);
+    });
+
+    test('a failed lock of a transport carrying deletions only warns: deleted objects may not be lockable', async () => {
+        const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+        failure = { method: 'lock', occurrence: 1 };
+        const ctx = context();
+
+        await execute('test', [generateLandscapeTransport], ctx);
+
+        expect(warning).toHaveBeenCalledWith(expect.stringContaining('could not be locked'), { important: true });
+        expect(ctx.output.transport).toBe(landscape);
+    });
+
+    test('without deletions a failed lock deletes the landscape request', async () => {
+        failure = { method: 'lock', occurrence: 1 };
+        const ctx = context();
+        ctx.runtime.deletions = undefined;
+
+        await expect(execute('test', [generateLandscapeTransport], ctx)).rejects.toThrow();
+        expect(landscape.delete).toHaveBeenCalledTimes(1);
     });
 
     test('a legacy backend, which has no API to lock its objects, leaves them unlocked', async () => {

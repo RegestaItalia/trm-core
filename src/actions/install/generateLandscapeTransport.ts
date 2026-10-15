@@ -4,7 +4,7 @@ import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
 import { Manifest } from "../../manifest";
 import { SystemConnector } from "../../systemConnector";
-import { isDeletionForwardable } from "../commons/utils";
+import { cleanupDeletions } from "./prepareDeletion";
 
 /**
  * Workflow step that creates the landscape transport used to carry installed changes onward.
@@ -21,9 +21,11 @@ import { isDeletionForwardable } from "../commons/utils";
  * 
  * 6- add customizing (if imported)
  * 
- * 7- add comments and documentation
+ * 7- add the deletions of the upgrade
  * 
- * 8- lock objects
+ * 8- add comments and documentation
+ * 
+ * 9- lock objects
  * 
 */
 export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
@@ -103,25 +105,35 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
             await context.output.transport.addObjectsFromTransport(cust.instance.trkorr);
         }
 
-        //7- add comments and documentation
+        //7- add the deletions of the upgrade
+        //the objects and keys are no longer on this system: their release exports them as deletions,
+        //so the following systems get the same cleanup with this single transport
+        const deletions = cleanupDeletions(context);
+        for (const deletion of deletions) {
+            Logger.loading(`Including deletions from transport ${deletion.trkorr}...`, true);
+            await context.output.transport.addObjectsFromTransport(deletion.trkorr);
+        }
+
+        //8- add comments and documentation
         await context.output.transport.removeComments(); //start clean without TRM comments
         await context.output.transport.addComment(`name=${context.runtime.package.data.manifest.name}`);
         await context.output.transport.addComment(`version=${context.runtime.package.data.manifest.version}`);
-        //if previous package was temporary, don't add deletion entries
-        if (isDeletionForwardable(context)) {
-            //avoiding the transport attribute and CTS dependency (requires a CTS project...)
-            //this is the easy solution
-            //for a clean upgrade, first deletion transport then landscape transport should be imported
-            await context.output.transport.addComment(`upgrade=${context.revert.dele.trkorr}`);
-        }
         await context.output.transport.setDocumentation(new Manifest(context.runtime.package.data.manifest).getAbapXml());
 
-        //8- lock objects
+        //9- lock objects
         //what is lockable gets locked here
         //all workbench should be lockable here
         //a legacy backend has no API for it
         if (!context.legacyBackend) {
-            await context.output.transport.lock();
+            try {
+                await context.output.transport.lock();
+            } catch (error) {
+                // deleted objects may not be lockable: the transport is still complete
+                if (deletions.length === 0) {
+                    throw error;
+                }
+                Logger.warning(`Objects of landscape transport ${context.output.transport.trkorr} could not be locked: ${error instanceof Error ? error.message : String(error)}`, { important: true });
+            }
         }
     },
     revert: async (context: InstallWorkflowContext): Promise<void> => {

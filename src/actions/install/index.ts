@@ -28,10 +28,12 @@ import { generateLandscapeTransport } from "./generateLandscapeTransport";
 import { updatePackageData } from "./updatePackageData";
 import { executePostActivities } from "./executePostActivities";
 import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
-import { generatePostImportUpdateTransport, generateUpdateTransport } from "./generateUpdateTransport";
+import { planUpdateCleanup } from "./planUpdateCleanup";
+import { prepareBackup } from "./prepareBackup";
+import { importUpdateDeletion, prepareDeletion } from "./prepareDeletion";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
-import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend, CleanupPlan, PackageCleanupRevert } from "../commons/utils";
 import { lockResources } from "./lockResources";
 import { cleanupCheckpoint } from "./cleanupCheckpoint";
 
@@ -252,7 +254,10 @@ type WorkflowRuntime = {
         lang?: TransportRuntime,
         cust?: TransportRuntime[]
     },
-    dele?: Transport,
+    /** Removal of the installed release on upgrade, planned before anything changes. */
+    cleanupPlan?: CleanupPlan,
+    /** Deletion transports of the upgrade, uploaded and test-imported. */
+    deletions?: { tadir?: Transport, cust?: Transport },
     transportEntries: {
         tdevct: TDEVCT[]
     },
@@ -296,7 +301,7 @@ export type InstallDependencyEntry = {
 }
 
 
-type WorkflowRevert = {
+type WorkflowRevert = PackageCleanupRevert & {
     cleanupTransport?: Transport,
     cleanupImported?: boolean,
     cleanupSucceeded?: boolean,
@@ -306,13 +311,9 @@ type WorkflowRevert = {
     importedCustomizing?: Transport[],
     /**
      * Imported objects, SAP packages included, that were already on the system before the import,
-     * with their previous TADIR row. The rollback cleanup never deletes them.
+     * with their previous TADIR row. The rollback cleanup never deletes them: the backup restores them.
      */
     existingObjectsTadir?: TADIR[],
-    /** Transport of copies backing up {@link WorkflowRevert.existingObjectsTadir}, tracked before it is released. */
-    existingObjectsBackupTransport?: Transport,
-    /** Previous version of the existing objects, re-imported once the rollback cleanup succeeded. */
-    existingObjectsBackup?: TransportBinary,
     packageHierarchy?: TDEVC[],
     packageTransportLayers?: Array<{ devclass: DEVCLASS, transportLayer: string }>,
     createdTransports?: {
@@ -321,19 +322,8 @@ type WorkflowRevert = {
         lang?: Transport,
         cust: Transport[]
     },
-    sapPackages: DEVCLASS[],
-    stagingPackages?: DEVCLASS[],
-    dele?: TransportBinary,
-    deleImportStarted?: boolean,
-    deleInTargetTms?: boolean,
     /** Set before the landscape transport is released, as SAP may export it and still fail. */
     landscapeReleaseStarted?: boolean,
-    cleanupOriginalTadir?: TADIR[],
-    cleanupTemporaryPackages?: TDEVC[],
-    updateCleanupTransport?: Transport,
-    updateTablesBackupTransport?: Transport,
-    retainedTables?: TransportBinary,
-    retainedTableObjects?: Pick<E071, 'pgmid' | 'object' | 'objName'>[],
     metadataWriteStarted?: boolean,
     /** Set before the install transports are written, as SAP may commit them and still fail. */
     metadataTransportsWriteStarted?: boolean,
@@ -415,17 +405,19 @@ const installWorkflow = [
         cleanupCheckpoint,
         addNamespace,
         generateDevclass,
-        generateUpdateTransport,
+        planUpdateCleanup,
+        prepareBackup,
         prepareDevc,
         prepareTadir,
         prepareLang,
         prepareCust,
+        prepareDeletion,
         importBatch,
+        importUpdateDeletion,
         generateLandscapeTransport,
         executePostActivities,
-        releaseLandscapeTransport,
         updatePackageData,
-        generatePostImportUpdateTransport
+        releaseLandscapeTransport
 ];
 
 async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = []): Promise<{

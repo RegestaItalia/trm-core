@@ -96,7 +96,6 @@ export const init: Step<InstallWorkflowContext> = {
                 lang: undefined,
                 cust: []
             },
-            dele: undefined,
             transportEntries: {
                 tdevct: []
             },

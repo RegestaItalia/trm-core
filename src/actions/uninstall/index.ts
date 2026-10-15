@@ -5,7 +5,7 @@ import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { E071 } from "../../client";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
-import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource, CleanupPlan } from "../commons/utils";
 import { InstallPackageReplacements } from "../install";
 import { init } from "./init";
 import { checkDependants } from "./checkDependants";
@@ -13,7 +13,7 @@ import { uninstallNestedPackages } from "./uninstallNestedPackages";
 import { lockResources } from "./lockResources";
 import { generateDeletionTransport } from "./generateDeletionTransport";
 import { removePackageData } from "./removePackageData";
-import { forwardDeletionTransport } from "./forwardDeletionTransport";
+import { generateLandscapeTransport, releaseLandscapeTransport } from "./generateLandscapeTransport";
 
 /** Shared execution settings for the package uninstall action. */
 export type UninstallActionInputContextData = {
@@ -52,9 +52,9 @@ export type UninstallActionInputUninstallData = {
      */
     landscapeTransport?: {
         /**
-         * TMS target that receives the deletion transport. It is selected interactively when omitted.
+         * TMS target of the landscape transport carrying the deletion. It is selected interactively when omitted.
          * When omitted and the system has no transport targets, it is treated as the final system
-         * of the landscape and the deletion transport is not forwarded.
+         * of the landscape and no landscape transport is generated.
          */
         targetSystem?: string;
     };
@@ -84,6 +84,12 @@ export interface UninstallActionInput {
 
     /** Optional validation settings. */
     uninstallData?: UninstallActionInputUninstallData
+
+    /**
+     * Set by an uninstall for the TRM packages installed under it: their deletions are carried by the
+     * landscape transport of the parent uninstall.
+     */
+    nested?: boolean
 }
 
 type WorkflowRuntime = {
@@ -93,6 +99,12 @@ type WorkflowRuntime = {
     /** Transports recorded for the installed release. */
     previousInstallTransports: InstallTransport[],
     dele?: Transport,
+    /** Removal of the installed release, planned before anything changes. */
+    cleanupPlan?: CleanupPlan,
+    /** Deletion transports generated from the backups. */
+    deletions?: { tadir?: Transport, cust?: Transport },
+    /** Deletion transports imported by the uninstalls of the TRM packages installed under this one. */
+    nestedDeletions?: Transport[],
     stopWarningShown: boolean,
     /** TRM packages installed in the SAP packages of the uninstalled one; the outermost ones are uninstalled directly. */
     nestedPackages: { outermost: TrmPackage[], all: TrmPackage[] },
@@ -105,6 +117,8 @@ type WorkflowRuntime = {
 }
 
 type WorkflowRevert = PackageCleanupRevert & {
+    /** Set before the landscape transport is released, as SAP may export it and still fail. */
+    landscapeReleaseStarted?: boolean,
     metadataRemoveStarted?: boolean,
     metadataPreviousPackageRow?: TrmPackageUpdateData
 }
@@ -113,9 +127,13 @@ type WorkflowRevert = PackageCleanupRevert & {
 export type UninstallActionOutput = {
     /** Manifest of the uninstalled release. */
     manifest: TrmManifest,
-    /** Deletion transport imported into the connected system. */
+    /** Deletion transport imported into the connected system (objects, or customizing when no object was deleted). */
     transport?: Transport,
-    /** Landscape target system whose import queue received the deletion transport, when forwarded. */
+    /** Deletion transports imported into the connected system, those of the TRM packages installed underneath included. */
+    deletions?: Transport[],
+    /** Landscape transport carrying the deletion to the following systems, when generated. */
+    landscapeTransport?: Transport,
+    /** Landscape target system of the released landscape transport. */
     targetSystem?: string
 }
 
@@ -169,8 +187,9 @@ const uninstallWorkflow = [
     uninstallNestedPackages,
     lockResources,
     generateDeletionTransport,
-    forwardDeletionTransport,
-    removePackageData
+    removePackageData,
+    generateLandscapeTransport,
+    releaseLandscapeTransport
 ];
 
 async function runUninstall(inputData: UninstallActionInput, retainRollback: boolean, uninstallingPackages: TrmPackage[], parentLockScope?: ActionLockScope): Promise<{
