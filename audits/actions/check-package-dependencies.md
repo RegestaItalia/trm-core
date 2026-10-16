@@ -1,7 +1,7 @@
 # `check-dependencies` workflow audit
 
-Audit date: 2026-10-04
-Entry point: [`checkPackageDependencies`](../../src/actions/checkPackageDependencies/index.ts#L91)
+Audit date: 2026-10-16 (in-depth static review of range validation, duplicate detection and installed-version matching; no new findings)
+Entry point: [`checkPackageDependencies`](../../src/actions/checkPackageDependencies/index.ts#L105)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 

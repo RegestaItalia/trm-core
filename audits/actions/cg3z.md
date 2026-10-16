@@ -1,20 +1,24 @@
 # `cg3z` workflow audit
 
-Audit date: 2026-10-07
-Entry point: [`cg3z`](../../src/actions/cg3z/index.ts#L50)
+Audit date: 2026-10-16 (in-depth static review of archive parsing, overwrite detection and rollback)
+Entry point: [`cg3z`](../../src/actions/cg3z/index.ts#L95)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 
 ## Findings
 
-No active findings.
+### ACT-2026-110 — Low — Technical — Archive entries are decompressed only during the SAP writes
+
+- **Where:** [`cg3z/upload.ts`](../../src/actions/cg3z/upload.ts#L119) (write loop), [`parseTransportArchive`](../../src/actions/cg3z/upload.ts#L28).
+- **Failure:** `parseTransportArchive` checks only entry names. Each entry is decompressed by `getData()` inside the write loop, after `progress[kind]` is set and, for the data file, after the header was written to SAP. adm-zip 0.6.1 throws on a CRC mismatch, an unsupported method or a password-protected entry (`INVALID_PASS_PARAM`). With a corrupt or encrypted data entry, the header is written to the transport directory and then emptied by the revert. With a corrupt header entry, nothing was written, but the revert still writes a 0-byte cofile that did not exist before. In both cases the operator gets the "files were emptied … delete them" warning, because no file-deletion API exists. A 0-byte `K`/`R` entry is also accepted and written, so the failure only shows up when `tp` forwards the request. cg3y rejects empty export files, but cg3z doesn't.
+- **Fix:** in `parseTransportArchive` (or right after it, before the existence check), decompress both entries and reject empty or unreadable entries with a clear error. Keep the buffers and write them in the loop, so that a bad archive changes nothing in SAP. Add tests for a corrupt entry and an empty entry.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `check-server-auth` | Fails closed on any result other than a granted authorization ([ACT-2026-12](shared.md), resolved). |
-| 2 | `upload` | Upload/forward works for well-formed archives; the standard stop warning is shown before the first SAP write, and the TMS text is refreshed only for an overwritten transport (a non-fatal refresh failure is logged with its error message). Archive entries are matched by case-insensitive basename (`K`/`R` + number + `.` + 3-character SID), directories and unrelated files are ignored, and the transport number is uppercased. Before writing, an existing transport (E070 entry, header or data file) is detected and overwritten only per `uploadData.overwrite`, after a confirmation prompt, or never with `noInquirer`; overwritten files are snapshotted and restored on rollback, and a request that existed before the run is never deleted. The import-queue state is read before writing. Each SAP change (header write, data write, forward) is recorded before its call; on rollback the import-queue entry added by the run is removed from the connected system, files created by the run are emptied (no file-deletion API exists; an empty file is treated as missing), overwritten files are restored only after that cleanup succeeded, and no request is ever deleted (ACT-2026-85, resolved). |
+| 2 | `upload` | Upload/forward works for well-formed archives. Entry contents are decompressed only inside the write loop, so a corrupt, encrypted or empty entry is detected after SAP writes started (ACT-2026-110). The archive is parsed once before the workflow, to lock the transport, and again in the step; the standard stop warning is shown before the first SAP write, and the TMS text is refreshed only for an overwritten transport (a non-fatal refresh failure is logged with its error message). Archive entries are matched by case-insensitive basename (`K`/`R` + number + `.` + 3-character SID), directories and unrelated files are ignored, and the transport number is uppercased. Before writing, an existing transport (E070 entry, header or data file) is detected and overwritten only per `uploadData.overwrite`, after a confirmation prompt, or never with `noInquirer`; overwritten files are snapshotted and restored on rollback, and a request that existed before the run is never deleted. The import-queue state is read before writing. Each SAP change (header write, data write, forward) is recorded before its call; on rollback the import-queue entry added by the run is removed from the connected system, files created by the run are emptied (no file-deletion API exists; an empty file is treated as missing), overwritten files are restored only after that cleanup succeeded, and no request is ever deleted (ACT-2026-85, resolved). |
 
 ## Resolved findings
 

@@ -1,19 +1,23 @@
 # `install-dependency` workflow audit
 
-Audit date: 2026-10-05
-Entry point: [`installDependency`](../../src/actions/installDependency/index.ts#L95)
+Audit date: 2026-10-16 (in-depth static review of range handling, lockfile selection, downgrade confirmation and the nested install hand-off)
+Entry point: [`installDependency`](../../src/actions/installDependency/index.ts#L99)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 
 ## Findings
 
-No active findings.
+### ACT-2026-112 — Low — Functional — A blank version range installs the newest release
+
+- **Where:** [`installDependency/init.ts`](../../src/actions/installDependency/init.ts#L36).
+- **Failure:** `init` validates the range with `semver.validRange`, which returns `*` for `''` or whitespace. A direct `installDependency` call with a blank `versionRange` therefore passes and installs the newest release. If any version is installed, it is kept. ACT-2026-78 made every other path reject a blank range: `check-dependencies` `init` and publish use `Manifest.isValidDependencyRange`, so the install workflow never forwards one. Only API callers of this action can still get "any version" by accident. The range is also replaced with its normalized form (`^1.0.0` becomes `>=1.0.0 <2.0.0-0`), and that form appears in the "already installed", lockfile and downgrade messages.
+- **Fix:** validate with `Manifest.isValidDependencyRange` before normalizing. Keep the declared range for messages and use the normalized one only for matching.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
-| 1 | `init` | No issue found. |
+| 1 | `init` | Normalizes the package name, rejects local-registry packages, and fills the optional input objects. A blank range is accepted as `*`, and messages show the normalized range (ACT-2026-112). |
 | 2 | `set-system-packages` | No issue found; the snapshot is consulted by `check-installed-release`. |
 | 3 | `check-installed-release` | Keeps a compatible installed release (no-op output) unless a lockfile pins another version; rejects an unreadable installed manifest (ACT-2026-81, resolved). |
 | 4 | `find-install-release` | Uses the lockfile entry when present and falls back to the newest release in range when the lockfile has none; a lock outside the range aborts with its own error (ACT-2026-79, resolved). Verifies a locked release's metadata and artifact against the lock integrity and passes that integrity to the nested install (ACT-2026-80, resolved). Skipped when the installed release is kept. |

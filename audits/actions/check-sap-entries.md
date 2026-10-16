@@ -1,21 +1,25 @@
 # `check-sap-entries` workflow audit
 
-Audit date: 2026-10-04
-Entry point: [`checkSapEntries`](../../src/actions/checkSapEntries/index.ts#L90)
+Audit date: 2026-10-16 (in-depth static review of the batched entry reads, where-clause building and option-line splitting)
+Entry point: [`checkSapEntries`](../../src/actions/checkSapEntries/index.ts#L87)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
 
 ## Findings
 
-No active findings.
+### ACT-2026-111 — Low — Technical — Entry reads have no row limit
+
+- **Where:** [`checkTableEntries`](../../src/actions/checkSapEntries/analyze.ts#L62) (batch read), [`SystemConnectorBase.checkSapEntryExists`](../../src/systemConnector/SystemConnectorBase.ts#L481) (single read).
+- **Failure:** an existence check needs only one row, but both reads return every matching row. The single read passes no paging. `checkTableCondition`, the engines table check, uses `{ offset: 0, limit: 1 }`. The batch read returns all selected fields of every row that matches any of up to 25 entries. With a partial-key entry (for example `TADIR: [{ PGMID: 'R3TR', OBJECT: 'CLAS' }]`, or a customizing key without its client-dependent fields), RFC_READ_TABLE transfers the whole match set. That can take very long, or fail with a memory or timeout error. A failed batch falls back to single reads, which are also unbounded. Their error then aborts the check (and the install) with "Unable to check required SAP entry …" instead of reporting the entry as found.
+- **Fix:** pass `{ offset: 0, limit: 1 }` in `checkSapEntryExists`. For batches, add a row cap (for example a few rows per entry): when a batch hits the cap, check the entries it did not confirm on their own, with the bounded single read.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. |
-| 2 | `analyze` | No issue found. Only an empty read counts as missing; table-probe and entry read errors abort the check with the table or entry and the original message. Entry conditions are escaped and validated, and invalid entries are thrown rather than reported missing. The table probe uppercases the name and accepts tables and views. Printed rows stay aligned with the header and output statuses follow declaration order. |
-| — | install wrapper `check-sap-entries` | Skips on `noSapEntries`; logs each missing entry at error level, with its table and field values, before aborting. |
+| 2 | `analyze` | Entries with the same field set are read in OR-joined batches of 25 (conditions over 65 characters are read alone, so each `AND`/`OR`-split option line stays within 72 characters). An entry is confirmed when a returned row has equal trimmed values. Otherwise, or when the batch read fails, the entry is checked on its own. Neither read has a row limit (ACT-2026-111). Only an empty single read counts as missing; table-probe and entry read errors abort the check with the table or entry and the original message. Entry conditions are escaped and validated, and invalid entries are thrown rather than reported missing. The table probe uppercases the name and accepts tables and views. Printed rows stay aligned with the header and output statuses follow declaration order. |
+| — | install wrapper `check-sap-entries` | Skips on `noSapEntries`. Logs each missing entry at error level, with its table and field values, and records the count in `runtime.missingSapEntries`. The install `check-engines` step then aborts, so unmet engines are reported in the same run. |
 
 ## Resolved findings
 ### ACT-2026-69 — Resolved — Medium — Technical — Connector swallows every SAP-entry error (SAPCHK-02 ineffective)
