@@ -18,7 +18,7 @@ describe('logActionSummary', () => {
             imported: [{ trkorr: 'DEVK1' }, undefined, { trkorr: 'DEVK2' }],
             deletions: [{ trkorr: 'DEVK3' }],
             landscape: { transport: { trkorr: 'DEVK4' }, targetSystem: 'QAS', released: false },
-            revert: { sapPackages: [], backup: { tadir: { transport: { trkorr: 'DEVK5' } as any, binaries: undefined } } }
+            revert: { sapPackages: [], backup: { tadir: { transport: { trkorr: 'DEVK5' } as any, description: '@X1@TRM (BKP) pkg 1.0.0', binaries: undefined } } }
         });
 
         expect(info).toHaveBeenCalledWith([
@@ -33,7 +33,7 @@ describe('logActionSummary', () => {
     test('a failed install still names the backups', () => {
         const info = jest.spyOn(Logger, 'info').mockImplementation(() => undefined as never);
 
-        logActionSummary({ outcome: 'pkg 2.0.0 install failed, rolled back.', revert: { sapPackages: [], backup: { cust: { transport: { trkorr: 'DEVK6' } as any, binaries: undefined } } } });
+        logActionSummary({ outcome: 'pkg 2.0.0 install failed, rolled back.', revert: { sapPackages: [], backup: { cust: { transport: { trkorr: 'DEVK6' } as any, description: '@X1@TRM (BKP) pkg 1.0.0', binaries: undefined } } } });
 
         expect(info.mock.calls[0][0]).toContain('Backups kept in the DEV import queue for recovery: DEVK6');
     });

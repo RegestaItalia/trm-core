@@ -353,8 +353,8 @@ describe('backupInstalledPackage', () => {
 describe('generateCleanupDeletions', () => {
     function backedUp(ctx: any) {
         ctx.revert.backup = {
-            tadir: { transport: new MockTransport('TSTKBKP1'), binaries: { trkorr: 'TSTKBKP1', binaries: { header: Buffer.from('h'), data: Buffer.from('d') } } },
-            cust: { transport: new MockTransport('TSTKBKP2'), binaries: { trkorr: 'TSTKBKP2', binaries: { header: Buffer.from('h'), data: Buffer.from('d') } } }
+            tadir: { transport: new MockTransport('TSTKBKP1'), description: '@X1@TRM (BKP) pkg 1.0.0', binaries: { trkorr: 'TSTKBKP1', binaries: { header: Buffer.from('h'), data: Buffer.from('d') } } },
+            cust: { transport: new MockTransport('TSTKBKP2'), description: '@X1@TRM (BKP) pkg 1.0.0', binaries: { trkorr: 'TSTKBKP2', binaries: { header: Buffer.from('h'), data: Buffer.from('d') } } }
         };
         return ctx;
     }
@@ -371,12 +371,12 @@ describe('generateCleanupDeletions', () => {
             .mockResolvedValueOnce({ empty: false, binaries: {}, deleted: { e071: [], e071k: [{ table: 'ZCONF', tabkey: '001A' }] } });
 
         await generateCleanupDeletions(ctx, plan({ previewKeys: [{ table: 'ZCONF', tabkey: '100A' }], excludeKeys: [{ table: 'ZCONF', tabkey: '100B' }] }), {
-            version: '1.0.0>2.0.0', requireDeletion: false,
+            requireDeletion: false,
             incoming: { tadir: { subtract: ['TRMK000001'] }, cust: { subtract: ['TRMK000002'] } }
         });
 
-        expect(Transport.createToc).toHaveBeenNthCalledWith(1, { text: '@X1@TRM (DELE) pkg 1.0.0>2.0.0', target: 'TST' });
-        expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (DELE) pkg 1.0.0>2.0.0', target: 'TST' });
+        expect(Transport.createToc).toHaveBeenNthCalledWith(1, { text: '@X1@TRM (DELE) pkg 1.0.0', target: 'TST' });
+        expect(Transport.createToc).toHaveBeenNthCalledWith(2, { text: '@X1@TRM (DELE) pkg 1.0.0', target: 'TST' });
         expect(ctx.rawInput.packageData.registry.delete).toHaveBeenNthCalledWith(1, expect.anything(), {
             target: 'TSTKDEL1', subtract: ['TRMK000001'], exclude: { e071: [obj('PROG', 'ZKEEP')] }
         });
@@ -390,7 +390,7 @@ describe('generateCleanupDeletions', () => {
     test('nothing to delete: no dummy is created', async () => {
         const ctx = backedUp(context([]));
 
-        await generateCleanupDeletions(ctx, plan({ previewObjects: [] }), { version: '1', requireDeletion: false });
+        await generateCleanupDeletions(ctx, plan({ previewObjects: [] }), { requireDeletion: false });
 
         expect(Transport.createToc).not.toHaveBeenCalled();
         expect(ctx.runtime.deletions).toEqual({});
@@ -401,7 +401,7 @@ describe('generateCleanupDeletions', () => {
         (Transport.createToc as jest.Mock).mockResolvedValueOnce(new MockTransport('TSTKDEL1'));
         ctx.rawInput.packageData.registry.delete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('403')));
 
-        await generateCleanupDeletions(ctx, plan(), { version: '1', requireDeletion: false });
+        await generateCleanupDeletions(ctx, plan(), { requireDeletion: false });
 
         expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('TSTKDEL1', 'TST');
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('R3TR PROG ZOLD'), { important: true });
@@ -414,7 +414,7 @@ describe('generateCleanupDeletions', () => {
         const error = new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401'));
         ctx.rawInput.packageData.registry.delete.mockRejectedValue(error);
 
-        await expect(generateCleanupDeletions(ctx, plan(), { version: '1', requireDeletion: true })).rejects.toBe(error);
+        await expect(generateCleanupDeletions(ctx, plan(), { requireDeletion: true })).rejects.toBe(error);
     });
 });
 

@@ -107,7 +107,6 @@ describe('prepare-deletion', () => {
         await prepareDeletion.run(ctx);
 
         expect(generateCleanupDeletions).toHaveBeenCalledWith(ctx, ctx.runtime.cleanupPlan, {
-            version: '1.0.0>2.0.0',
             requireDeletion: false,
             incoming: { tadir: { subtract: ['TRMK000001'] }, cust: { subtract: ['TRMK000002', 'TRMK000003'] } }
         });

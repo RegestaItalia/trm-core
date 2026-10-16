@@ -46,7 +46,6 @@ export const prepareDeletion: Step<InstallWorkflowContext> = {
         const plan = context.runtime.cleanupPlan;
         await withScopedPrefix(`(${Transport.getTransportIcon()}  Upgrade cleanup) `, async () => {
             await generateCleanupDeletions(context, plan, {
-                version: `${plan.installedVersion}>${context.runtime.package.data.manifest.version}`,
                 requireDeletion: false,
                 incoming: incoming(context)
             });

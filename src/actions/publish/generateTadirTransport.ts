@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
 
 /**
@@ -24,7 +25,7 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
         context.runtime.transports.tadir = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.TADIR,
             target: context.rawInput.systemData.transportTarget,
-            text: `@X1@TRM ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
+            text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`)
         });
         await context.runtime.transports.tadir.addObjects(aTadir, false);
     },

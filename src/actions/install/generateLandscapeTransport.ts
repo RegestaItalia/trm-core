@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
+import { trmTransportDescription } from "../../transport/TransportDescription";
 import { Manifest } from "../../manifest";
 import { SystemConnector } from "../../systemConnector";
 import { cleanupDeletions } from "./prepareDeletion";
@@ -45,7 +46,7 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         //1- generate landscape transport
         Logger.loading(`Generating landscape transport...`);
         context.output.transport = await Transport.createWb({
-            text: `@X1@TRM ${context.runtime.package.data.manifest.name} ${context.runtime.package.data.manifest.version}`,
+            text: trmTransportDescription(context.runtime.package.data.manifest.name, context.runtime.package.data.manifest.version),
             target: context.rawInput.installData.landscapeTransport.targetSystem
         });
 

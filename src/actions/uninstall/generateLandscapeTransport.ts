@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { UninstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport } from "../../transport";
+import { trmTransportDescription } from "../../transport/TransportDescription";
 import { releaseLandscape, revertLandscapeRelease, withScopedPrefix } from "../commons/utils";
 
 /**
@@ -29,7 +30,7 @@ export const generateLandscapeTransport: Step<UninstallWorkflowContext> = {
         await withScopedPrefix(`(${Transport.getTransportIcon()}  Landscape) `, async () => {
             Logger.loading(`Generating landscape transport...`);
             context.output.landscapeTransport = await Transport.createWb({
-                text: `@X1@TRM (DELE) ${manifest.name} ${manifest.version}`.slice(0, 60),
+                text: trmTransportDescription(manifest.name, manifest.version, 'DELE'),
                 target: context.rawInput.uninstallData.landscapeTransport.targetSystem
             });
             for (const deletion of context.output.deletions) {

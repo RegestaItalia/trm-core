@@ -1,6 +1,7 @@
 import { Inquirer, Logger } from "trm-commons";
 import { InstallTransport, SystemConnector } from "../../../systemConnector";
 import { getE071KOwner, Transport, TrmTransportIdentifier } from "../../../transport";
+import { deletionDescription, trmTransportDescription } from "../../../transport/TransportDescription";
 import { TransportBinary, TrmPackage } from "../../../trmPackage";
 import { AbstractRegistry, DeleteTransportOptions, DeletionKey, RegistryDeletionTransportUnavailableError } from "../../../registry";
 import { packageDataFromTdevc, getPackageNamespace } from "../../../commons";
@@ -25,6 +26,8 @@ type CleanupObject = Pick<E071, 'pgmid' | 'object' | 'objName'>;
 export type CleanupBackup = {
     /** Released transport of copies: it stays in the import queue for recovery. */
     transport: Transport,
+    /** Its description: the deletion of its content is named after it (see deletionDescription). */
+    description: string,
     binaries: TransportBinary
 };
 
@@ -410,7 +413,7 @@ export async function deleteCleanupStagingPackages(context: PackageCleanupContex
             }
             Logger.loading(`Deleting package ${devclass}...`, true);
             const transport = await Transport.createToc({
-                text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.update.manifest.get().version}`,
+                text: trmTransportDescription(context.rawInput.packageData.name, context.runtime.update.manifest.get().version, 'DELE'),
                 target: SystemConnector.getDest()
             });
             try {
@@ -443,7 +446,7 @@ export async function deleteCleanupStagingPackages(context: PackageCleanupContex
             }
             Logger.loading(`Deleting namespace ${namespace}...`, true);
             const transport = await Transport.createToc({
-                text: `@X1@TRM (DELE) ${context.rawInput.packageData.name} ${context.runtime.update.manifest.get().version}`,
+                text: trmTransportDescription(context.rawInput.packageData.name, context.runtime.update.manifest.get().version, 'DELE'),
                 target: SystemConnector.getDest()
             });
             try {
@@ -1018,11 +1021,6 @@ export async function planInstalledPackageCleanup(context: PackageCleanupContext
     });
 }
 
-
-function backupDescription(kind: 'BKP' | 'DELE', packageName: string, version: string): string {
-    return `@X1@TRM (${kind}) ${packageName} ${version}`.slice(0, 60);
-}
-
 /**
  * Creates, fills, releases and downloads a backup transport of copies. It's never deleted, not even unreleased.
  * Its release log is checked: an object that failed to export has no restorable copy, so the action stops
@@ -1040,6 +1038,7 @@ async function createBackup(context: PackageCleanupContext, description: string,
     await transport.release(false, true, logFolder);
     return {
         transport,
+        description,
         binaries: {
             trkorr: transport.trkorr,
             entries: undefined,
@@ -1095,7 +1094,7 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
     context.revert.backup ||= {};
     if (entries.length > 0) {
         Logger.loading(`Backing up ${entries.length} objects...`);
-        context.revert.backup.tadir = await createBackup(context, backupDescription('BKP', labels.packageName, labels.version), logFolder, async transport => {
+        context.revert.backup.tadir = await createBackup(context, trmTransportDescription(labels.packageName, labels.version, 'BKP'), logFolder, async transport => {
             const { failed } = await addObjectsResiliently(transport, entries);
             for (const { entry, error } of failed) {
                 Logger.warning(`${entry.pgmid} ${entry.object} ${entry.objName} can't be backed up: it's not deleted, and a rollback can't restore it (${error instanceof Error ? error.message : String(error)})`, { important: true });
@@ -1106,7 +1105,7 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
     if (plan?.customizingSources.length > 0) {
         Logger.loading(`Backing up customizing...`);
         // The copy keeps the E071K keys: its release exports the current rows, local changes included.
-        context.revert.backup.cust = await createBackup(context, backupDescription('BKP', labels.packageName, labels.version), logFolder, async transport => {
+        context.revert.backup.cust = await createBackup(context, trmTransportDescription(labels.packageName, labels.version, 'BKP'), logFolder, async transport => {
             for (const trkorr of plan.customizingSources) {
                 Logger.loading(`Including customizing from transport ${trkorr}...`, true);
                 await transport.addObjectsFromTransport(trkorr);
@@ -1127,7 +1126,6 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
  * deleted and the objects left on the system are listed.
  */
 export async function generateCleanupDeletions(context: PackageCleanupContext, plan: CleanupPlan, options: {
-    version: string,
     requireDeletion: boolean,
     incoming?: {
         tadir?: { subtract?: string[], objects?: CleanupObject[] },
@@ -1142,7 +1140,7 @@ export async function generateCleanupDeletions(context: PackageCleanupContext, p
         runs.push({
             kind: 'tadir',
             backup: backup.tadir,
-            description: backupDescription('DELE', plan.packageName, options.version),
+            description: deletionDescription(backup.tadir.description),
             subtract: options.incoming?.tadir?.subtract,
             exclude: { e071: [...plan.excludeObjects, ...(options.incoming?.tadir?.objects || [])].map(o => ({ pgmid: o.pgmid, object: o.object, objName: o.objName })) },
             preview: { e071: [...plan.previewObjects, ...stagedObjects(context)], e071k: [] }
@@ -1152,7 +1150,7 @@ export async function generateCleanupDeletions(context: PackageCleanupContext, p
         runs.push({
             kind: 'cust',
             backup: backup.cust,
-            description: backupDescription('DELE', plan.packageName, options.version),
+            description: deletionDescription(backup.cust.description),
             subtract: options.incoming?.cust?.subtract,
             exclude: { e071k: [...plan.excludeKeys, ...(options.incoming?.cust?.keys || [])] },
             preview: { e071: [], e071k: plan.previewKeys }

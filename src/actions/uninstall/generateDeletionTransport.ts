@@ -40,7 +40,7 @@ export const generateDeletionTransport: Step<UninstallWorkflowContext> = {
             await backupInstalledPackage(context, plan, [], { packageName: plan.packageName, version: plan.installedVersion });
 
             //3- generate the deletion transports
-            await generateCleanupDeletions(context, plan, { version: plan.installedVersion, requireDeletion: true });
+            await generateCleanupDeletions(context, plan, { requireDeletion: true });
 
             //4- import them
             const deletions = [context.runtime.deletions?.tadir, context.runtime.deletions?.cust].filter(Boolean);
