@@ -6,7 +6,7 @@ import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { setLandscapeTarget } from "../commons/prompts";
 import { getNestedPackages, withoutNestedDirtyEntries } from "./uninstallNestedPackages";
-import { getInstalledObjectsLocks, logDirtyEntries, withoutOwnTrmTransports } from "../commons/utils";
+import { getInstalledObjectsLocks, logDirtyEntries, logObjectsLocks, withoutOwnTrmTransports } from "../commons/utils";
 
 /**
  * Workflow step that finds the installed package and initializes rollback state.
@@ -92,7 +92,7 @@ export const init: Step<UninstallWorkflowContext> = {
             context.rawInput.contextData.systemPackages
         );
         if (locks.length > 0) {
-            locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true }));
+            logObjectsLocks(locks);
             throw new Error(`Uninstall aborted. To continue, all cleanup objects and SAP packages must be released`);
         }
         const allDirtyEntries = await withoutOwnTrmTransports(installed.getDirtyEntries(), installed.packageName);

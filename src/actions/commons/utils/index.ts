@@ -14,3 +14,4 @@ export * from "./trmBackend";
 export * from "./transportObjects";
 export * from "./landscapeTransport";
 export * from "./actionSummary";
+export * from "./objectsLocks";

@@ -14,6 +14,7 @@ import { restoreTransport } from "./restoreTransport";
 import { withScopedPrefix } from "./withScopedPrefix";
 import { ActionLockScope, objectLockResource } from "./actionLocks";
 import { getOwningInstallation } from "./owningInstallation";
+import { logObjectsLocks } from "./objectsLocks";
 import { DeletionPreview, generateDeletion } from "./generateDeletion";
 import { dequeueTransport, protectBackupTransport } from "./importQueue";
 import { addObjectsResiliently } from "./transportObjects";
@@ -996,7 +997,7 @@ export async function planInstalledPackageCleanup(context: PackageCleanupContext
                 OBJ_NAME: object.objName
             })));
             if (locks.length > 0) {
-                locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true }));
+                logObjectsLocks(locks);
                 throw new Error(`${target.actionName} aborted. To continue, all cleanup objects and SAP packages must be released`);
             }
         }

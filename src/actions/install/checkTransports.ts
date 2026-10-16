@@ -6,7 +6,7 @@ import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { E071, TADIR, TDEVC, TransportEntries } from "../../client";
 import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons";
-import { getOwningInstallation, TRM_FIXED_TADIR_TRANSPORTS } from "../commons/utils";
+import { getOwningInstallation, logObjectsLocks, TRM_FIXED_TADIR_TRANSPORTS } from "../commons/utils";
 import { TrmPackage } from "../../trmPackage";
 import { createHash } from "crypto";
 
@@ -20,9 +20,7 @@ export async function checkObjectsLocks(e071: E071[]): Promise<void> {
         };
     }));
     if (locks.length > 0) {
-        locks.forEach(l => {
-            Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`, { important: true });
-        });
+        logObjectsLocks(locks);
         throw new Error(`Install aborted. To continue, all objects must be released`);
     }
 }

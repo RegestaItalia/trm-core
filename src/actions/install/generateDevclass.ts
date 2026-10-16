@@ -6,6 +6,7 @@ import type { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 import { getDefaultTransportLayer } from "./defaultTransportLayer";
+import { logObjectsLocks } from "../commons/utils";
 
 /**
  * Workflow step that validates target SAP packages and creates any that are missing.
@@ -55,9 +56,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                 OBJ_NAME: devclass
             })));
             if (locks.length > 0) {
-                locks.forEach(lock => {
-                    Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true });
-                });
+                logObjectsLocks(locks);
                 throw new Error(`Install aborted. To continue, all ABAP packages must be released`);
             }
             Logger.log(`All existing SAP packages released, continue`, true);
