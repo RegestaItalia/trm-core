@@ -34,7 +34,7 @@ describe('Transport import', () => {
         const queue = jest.spyOn(t as any, '_isInTmsQueue').mockResolvedValue({ rc: 4, message: 'warnings' });
 
         await expect(t.import(false)).resolves.toBe(4);
-        expect(queue).toHaveBeenCalledWith(false, true);
+        expect(queue).toHaveBeenCalledWith(false);
     });
 
     test('a test import, or a tp error, returns at once', async () => {

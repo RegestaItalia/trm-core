@@ -6,7 +6,8 @@ jest.mock('../systemConnector', () => ({
         getR3transVersion: jest.fn(async () => 'R3trans version test'),
         getR3transUnicode: jest.fn(async () => true),
         getBinaryFile: jest.fn(),
-        releaseTrkorr: jest.fn()
+        releaseTrkorr: jest.fn(),
+        refreshTransportTmsTxt: jest.fn()
     }
 }));
 
@@ -119,6 +120,53 @@ describe('Transport.readReleaseLog', () => {
         (SystemConnector.getBinaryFile as jest.Mock)
             .mockRejectedValueOnce(new Error('file not found'))
             .mockResolvedValue(FULL_LOG);
+
+        await expect(new Transport(TRKORR).release(false, true, baseFolder)).resolves.toBeUndefined();
+    });
+
+    test('release without a folder waits for its own export, not for an earlier export of the same request', async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockResolvedValueOnce(STALE_LOG) // before the release
+            .mockResolvedValueOnce(STALE_LOG) // export not started yet
+            .mockResolvedValueOnce(Buffer.concat([STALE_LOG, PARTIAL_LOG]))
+            .mockResolvedValue(Buffer.concat([STALE_LOG, FULL_LOG]));
+
+        await expect(new Transport(TRKORR).release(false, true)).resolves.toBeUndefined();
+        expect(SystemConnector.getBinaryFile).toHaveBeenCalledTimes(4);
+    }, 10000);
+
+    test("release without a folder doesn't fail on an export with errors: its files are complete", async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(FAILED_LOG);
+
+        await expect(new Transport(TRKORR).release(false, true)).resolves.toBeUndefined();
+    });
+
+    test('release without a folder times out when the export never ends', async () => {
+        Transport.releaseLogTimeoutMs = 1500;
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(PARTIAL_LOG);
+
+        await expect(new Transport(TRKORR).release(false, true)).rejects.toThrow(`Timed out waiting for transport ${TRKORR} release log`);
+        expect(SystemConnector.refreshTransportTmsTxt).not.toHaveBeenCalled();
+    }, 10000);
+
+    test('release refreshes the TMS text, as a reused request number keeps its earlier text', async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(FULL_LOG);
+
+        await new Transport(TRKORR).release(false, true);
+        expect(SystemConnector.refreshTransportTmsTxt).toHaveBeenCalledWith(TRKORR);
+    });
+
+    test("a failed TMS text refresh doesn't fail the release", async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(FULL_LOG);
+        (SystemConnector.refreshTransportTmsTxt as jest.Mock).mockRejectedValueOnce(new Error('FM not found'));
 
         await expect(new Transport(TRKORR).release(false, true, baseFolder)).resolves.toBeUndefined();
     });

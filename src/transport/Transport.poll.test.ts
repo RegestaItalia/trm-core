@@ -27,7 +27,7 @@ describe('Transport import polling', () => {
 
     function poll() {
         const t = new Transport(TRKORR, 'TST');
-        return (t as any)._isInTmsQueue(true, true) as Promise<{ rc: number, message?: string }>;
+        return (t as any)._isInTmsQueue(true) as Promise<{ rc: number, message?: string }>;
     }
 
     beforeEach(() => {

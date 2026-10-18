@@ -9,6 +9,7 @@ import { TrmPackage } from "../trmPackage";
 import { Manifest } from "../manifest";
 import { setTimeout } from "timers/promises";
 import * as fs from "fs";
+import { tmpdir } from "os";
 import path from "path";
 import { Logger } from "trm-commons";
 import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER, TransportEntries, STMSIQREQ, TPSTAT } from "../client";
@@ -477,9 +478,13 @@ export class Transport {
         return null;
     }
 
+    /**
+     * Releases the transport and waits for its export to end: its files are complete only then.
+     * With `tmpFolder` the export progress is shown and an export with errors fails the release.
+     */
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
         //tp appends to the release log: an earlier export of the same request number may have left one
-        const releaseLogOffset = tmpFolder ? await this._getReleaseLogSize() : 0;
+        const releaseLogOffset = await this._getReleaseLogSize();
         try {
             await SystemConnector.releaseTrkorr(this.trkorr, lock);
         } finally {
@@ -489,8 +494,49 @@ export class Transport {
         if (tmpFolder) {
             await this.readReleaseLog(tmpFolder, releaseLogOffset);
         } else {
-            await this._isInTmsQueue(skipLog, false);
+            await this._waitExport(releaseLogOffset, skipLog);
         }
+        await this._refreshReusedTmsText();
+    }
+
+    /**
+     * Waits for the export appended to the release log after `offset`, without failing on its return code.
+     * The import queue can't tell: a reused request number is already in it while the export is still writing
+     * the data file.
+     */
+    private async _waitExport(offset: number, skipLog: boolean): Promise<number> {
+        const started = Date.now();
+        const tmpFolder = fs.mkdtempSync(path.join(tmpdir(), 'trm-release-'));
+        var poll: Awaited<ReturnType<Transport['_pollReleaseLog']>>;
+        try {
+            poll = await this._pollReleaseLog(tmpFolder, offset, () => {
+                Logger.loading(`${Transport.getTransportIcon()}  Releasing ${this.trkorr} (${Transport._formatDuration(Date.now() - started)})...`, skipLog);
+            });
+        } finally {
+            fs.rmSync(tmpFolder, { recursive: true, force: true });
+        }
+        if (!poll.completed) {
+            throw new Error(`Timed out waiting for transport ${this.trkorr} release log "${poll.releaseLog}".`);
+        }
+        const exitCode = Transport._releaseLogExitCode(poll.logResult);
+        if (exitCode >= 8) {
+            Logger.log(`${this.trkorr} export ended with return code ${exitCode}, check "${poll.releaseLog}"`, true);
+        }
+        Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released.`, skipLog);
+        return exitCode;
+    }
+
+    /** STMS caches request texts by number: a reused request number keeps showing the text of its earlier life. */
+    private async _refreshReusedTmsText(): Promise<void> {
+        try {
+            await this.refreshTmsTxt();
+        } catch (e) {
+            Logger.log(`Couldn't refresh ${this.trkorr} TMS text: ${e?.message || e}`, true);
+        }
+    }
+
+    private static _releaseLogExitCode(logResult: ReleaseLogStep[]): number {
+        return Math.max(0, ...logResult.filter(o => RELEASE_LOG_STEPS.some(step => step.id === o.id)).map(o => o.exitCode || 0));
     }
 
     private async _getReleaseLogSize(): Promise<number> {
@@ -508,9 +554,6 @@ export class Transport {
      * `offset` is the log size before the release: only what this release appended is read.
      */
     public async readReleaseLog(tmpFolder: string, offset: number = 0): Promise<number> {
-        const filePaths = await Transport._getFilePaths(this._fileNames);
-        const localPath = path.join(tmpFolder, this._fileNames.releaseLog);
-
         const systemR3transVersion = await SystemConnector.getR3transVersion();
         const systemR3transUnicode = await SystemConnector.getR3transUnicode();
         Logger.log(`System R3trans: ${systemR3transVersion}`, true);
@@ -527,105 +570,91 @@ export class Transport {
             })
         }));
 
-        var exitWhile = false;
-        var whileResult: 'ERROR' | 'WARNING' | 'SUCCESS' = null;
-        const deadline = Date.now() + Transport.releaseLogTimeoutMs;
-
+        var poll: Awaited<ReturnType<Transport['_pollReleaseLog']>>;
         try {
-            //the log is downloaded into the temporary folder: a local file system error is not "log not ready yet"
-            fs.mkdirSync(tmpFolder, { recursive: true });
-            while (!exitWhile && Date.now() < deadline) {
-                var logResult: ReleaseLogStep[] = [];
-                var logBinary: Buffer;
-                try {
-                    logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
-                } catch (e) {
-                    //log not written yet
-                    logBinary = undefined;
-                }
-                //a log shorter than the offset was replaced, not appended to
-                if (logBinary && logBinary.length >= offset) {
-                    logBinary = logBinary.subarray(offset);
-                }
-                if (logBinary && logBinary.length > 0) {
-                    fs.writeFileSync(localPath, logBinary);
-                    try {
-                        logResult = await (new R3transLogParser(localPath)).getReleaseLog();
-                    } catch (e) {
-                        //log incomplete
-                        logResult = [];
-                    } finally {
-                        fs.rmSync(localPath, { force: true });
-                    }
-                }
-
-                const stepResults = steps.map(step => {
+            poll = await this._pollReleaseLog(tmpFolder, offset, logResult => {
+                for (const step of steps) {
                     const logStep = logResult.find(o => o.id === step.id) || { name: step.name, exitCode: null as number };
-                    return {
-                        step,
-                        stageName: logStep.name + step.namePadding,
-                        exitCode: logStep.exitCode,
-                        parsedExitCode: R3transLogParser.parseExitCode(logStep.exitCode)
-                    };
-                });
-
-                exitWhile = stepResults.every(o => o.exitCode !== null);
-
-                if (stepResults.some(o => o.parsedExitCode.type === 'SUCCESS')) {
-                    whileResult = 'SUCCESS';
-                }
-                if (stepResults.some(o => o.parsedExitCode.type === 'WARNING')) {
-                    whileResult = 'WARNING';
-                }
-                if (stepResults.some(o => o.parsedExitCode.type === 'ERROR')) {
-                    whileResult = 'ERROR';
-                }
-
-                for (const { step, stageName, exitCode, parsedExitCode } of stepResults) {
+                    const parsedExitCode = R3transLogParser.parseExitCode(logStep.exitCode);
                     if (parsedExitCode.type === 'UNKNOWN') {
                         step.progress++;
                     } else if (step.progress < 99) {
                         step.progress = 100;
                     }
                     step.bar.update(step.progress, {
-                        stage: stageName,
-                        exitCode: exitCode || '',
+                        stage: logStep.name + step.namePadding,
+                        exitCode: logStep.exitCode || '',
                         result: parsedExitCode.type !== 'UNKNOWN' ? parsedExitCode.value : 'In progress'
                     });
                 }
-
-                if (!exitWhile) {
-                    await setTimeout(1000); //each second
-                }
-            }
+            });
         } finally {
             multibar.stop();
         }
 
-        var error: Error;
-        var rc: number;
-        if (!exitWhile) {
-            error = new Error(`Timed out waiting for transport ${this.trkorr} release log "${filePaths.releaseLog}".`);
-        } else {
-            if (whileResult === "ERROR") {
-                const exitCode = Math.max(...logResult.filter(o => RELEASE_LOG_STEPS.some(step => step.id === o.id)).map(o => o.exitCode || 0));
-                error = new Error(`Transport ${this.trkorr} export ended with return code ${exitCode} (${R3transLogParser.parseExitCode(exitCode).value}). Check the export log "${filePaths.releaseLog}".`);
-            }
-            if (whileResult === "SUCCESS") {
-                Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released with success.`);
-                rc = 0;
-            }
-            if (whileResult === "WARNING") {
-                Logger.warning(`${Transport.getTransportIcon()}  ${this.trkorr} released with warning.`, { important: true });
-                rc = 4;
-            }
+        if (!poll.completed) {
+            throw new Error(`Timed out waiting for transport ${this.trkorr} release log "${poll.releaseLog}".`);
         }
+        const exitCode = Transport._releaseLogExitCode(poll.logResult);
+        const result = R3transLogParser.parseExitCode(exitCode).type;
+        if (result === 'ERROR') {
+            throw new Error(`Transport ${this.trkorr} export ended with return code ${exitCode} (${R3transLogParser.parseExitCode(exitCode).value}). Check the export log "${poll.releaseLog}".`);
+        }
+        if (result === 'WARNING') {
+            Logger.warning(`${Transport.getTransportIcon()}  ${this.trkorr} released with warning.`, { important: true });
+            return 4;
+        }
+        Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released with success.`);
+        return 0;
+    }
 
-        if (error) {
-            throw error;
-        } else {
-            return rc;
+    /**
+     * Polls the release log until it reports every export step (`completed`) or the timeout expires.
+     * `offset` is the log size before the release: only what this release appended is read.
+     */
+    private async _pollReleaseLog(tmpFolder: string, offset: number, onPoll: (logResult: ReleaseLogStep[]) => void): Promise<{ completed: boolean, logResult: ReleaseLogStep[], releaseLog: string }> {
+        const filePaths = await Transport._getFilePaths(this._fileNames);
+        const localPath = path.join(tmpFolder, this._fileNames.releaseLog);
+        const deadline = Date.now() + Transport.releaseLogTimeoutMs;
+        var logResult: ReleaseLogStep[] = [];
+        var completed = false;
+
+        //the log is downloaded into the temporary folder: a local file system error is not "log not ready yet"
+        fs.mkdirSync(tmpFolder, { recursive: true });
+        while (!completed && Date.now() < deadline) {
+            logResult = [];
+            var logBinary: Buffer;
+            try {
+                logBinary = await SystemConnector.getBinaryFile(filePaths.releaseLog);
+            } catch (e) {
+                //log not written yet
+                logBinary = undefined;
+            }
+            //a log shorter than the offset was replaced, not appended to
+            if (logBinary && logBinary.length >= offset) {
+                logBinary = logBinary.subarray(offset);
+            }
+            if (logBinary && logBinary.length > 0) {
+                fs.writeFileSync(localPath, logBinary);
+                try {
+                    logResult = await (new R3transLogParser(localPath)).getReleaseLog();
+                } catch (e) {
+                    //log incomplete
+                    logResult = [];
+                } finally {
+                    fs.rmSync(localPath, { force: true });
+                }
+            }
+            completed = RELEASE_LOG_STEPS.every(step => {
+                const logStep = logResult.find(o => o.id === step.id);
+                return logStep && logStep.exitCode !== null && logStep.exitCode !== undefined;
+            });
+            onPoll(logResult);
+            if (!completed) {
+                await setTimeout(1000); //each second
+            }
         }
+        return { completed, logResult, releaseLog: filePaths.releaseLog };
     }
 
     /** Polling interval while the SAP status doesn't change: starts at 3 seconds, then backs off. */
@@ -634,16 +663,13 @@ export class Transport {
     }
 
     /**
-     * Waits for the transport in the TMS queue of its target.
-     *
-     * Releasing (`checkImpSing` false): until the transport is in the queue.
-     * Importing (`checkImpSing` true): until its import is complete. The import status of the request
+     * Waits for the import of the transport in the TMS queue of its target to complete. The import status of the request
      * (`GET_TR_IMPORT_STATUS`) is read at every check; the whole queue is read only when the status can't
      * tell (virtual targets, a batch status row of another request, an older backend), and once at the end
      * for the request return code. The return code is the highest of the queue `maxrc` and the final tp
      * status return code of this request.
      */
-    private async _isInTmsQueue(skipLog: boolean, checkImpSing: boolean = false): Promise<{ rc: number, message?: string }> {
+    private async _isInTmsQueue(skipLog: boolean): Promise<{ rc: number, message?: string }> {
         var rc: number = 12;
         var message: string;
         if (!this._trTarget) {
@@ -663,36 +689,32 @@ export class Transport {
             const interval = Transport._pollInterval(unchangedPolls);
             Logger.log(`Attempt ${attempts}, reading in ${interval / 1000} seconds...`, true);
             await setTimeout(interval);
-            if (!checkImpSing) {
-                Logger.loading(`${Transport.getTransportIcon()}  Releasing ${this.trkorr} (${elapsed()})...`, skipLog);
+            let status: TPSTAT;
+            try {
+                status = await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget);
+            } catch (e) {
+                Logger.log(`Unable to read ${this.trkorr} import status, the queue is checked instead: ${e}`, true);
+            }
+            // in a batch import the status row may belong to another request of the batch
+            const ownStatus = status && (!status.trkorr || status.trkorr === this.trkorr) ? status : undefined;
+            const statusKey = ownStatus ? `${ownStatus.status}|${ownStatus.step}|${ownStatus.moddate}${ownStatus.modtime}|${ownStatus.message}` : undefined;
+            if (statusKey && statusKey === lastStatusKey) {
+                unchangedPolls++;
             } else {
-                let status: TPSTAT;
-                try {
-                    status = await SystemConnector.getTransportImportStatus(this.trkorr, this._trTarget);
-                } catch (e) {
-                    Logger.log(`Unable to read ${this.trkorr} import status, the queue is checked instead: ${e}`, true);
-                }
-                // in a batch import the status row may belong to another request of the batch
-                const ownStatus = status && (!status.trkorr || status.trkorr === this.trkorr) ? status : undefined;
-                const statusKey = ownStatus ? `${ownStatus.status}|${ownStatus.step}|${ownStatus.moddate}${ownStatus.modtime}|${ownStatus.message}` : undefined;
-                if (statusKey && statusKey === lastStatusKey) {
-                    unchangedPolls++;
-                } else {
-                    unchangedPolls = 0;
-                    lastStatusKey = statusKey;
-                }
-                if (ownStatus?.message) {
-                    const unchanged = unchangedPolls > 0 ? `, unchanged since ${Transport._formatAbapTime(ownStatus.modtime)}` : '';
-                    Logger.loading(`Importing ${this.trkorr} (${elapsed()}${unchanged}): ${ownStatus.message}...`, skipLog);
-                } else {
-                    Logger.loading(`Importing ${this.trkorr} (${elapsed()})...`, skipLog);
-                }
-                if (Transport._isFinalStatus(ownStatus)) {
-                    // the import is over: one queue read for the request return code
-                    finalStatus = ownStatus;
-                } else if (ownStatus && Transport._isRunningStatus(ownStatus)) {
-                    continue;
-                }
+                unchangedPolls = 0;
+                lastStatusKey = statusKey;
+            }
+            if (ownStatus?.message) {
+                const unchanged = unchangedPolls > 0 ? `, unchanged since ${Transport._formatAbapTime(ownStatus.modtime)}` : '';
+                Logger.loading(`Importing ${this.trkorr} (${elapsed()}${unchanged}): ${ownStatus.message}...`, skipLog);
+            } else {
+                Logger.loading(`Importing ${this.trkorr} (${elapsed()})...`, skipLog);
+            }
+            if (Transport._isFinalStatus(ownStatus)) {
+                // the import is over: one queue read for the request return code
+                finalStatus = ownStatus;
+            } else if (ownStatus && Transport._isRunningStatus(ownStatus)) {
+                continue;
             }
             //the queue is still needed when the status can't tell (e.g. VIRTUAL TARGETS)
             var tmsQueue: STMSIQREQ[];
@@ -711,13 +733,6 @@ export class Transport {
             Logger.log(`${this._trTarget} import queue read: ${tmsQueue.length} requests`, true);
             const entries = tmsQueue.filter(o => o.trkorr === this.trkorr)
                 .sort((a, b) => parseInt(b.bufpos) - parseInt(a.bufpos));
-            if (!checkImpSing) {
-                //without check if in import, simply check if in queue
-                if (entries.length > 0) {
-                    break;
-                }
-                continue;
-            }
             //if importing, get the last transport in queue (if re installing, there are more than 1)
             if (entries.length > 0 && entries[0].impsing !== 'X') {
                 //no rc => transport wasn't imported! set as -1 (field is blank, do not confuse with 0 which is success)
@@ -726,12 +741,6 @@ export class Transport {
             }
             // the status says the import is over, the queue doesn't yet: check again
             finalStatus = undefined;
-        }
-        if (!checkImpSing) {
-            //without check of import, we're releasing the transport (publish?)
-            //set rc to -1 as it is irrelevant
-            Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released.`, skipLog);
-            return { rc: -1, message };
         }
         if (!finalStatus) {
             try {
@@ -1003,7 +1012,7 @@ export class Transport {
                 }
                 Logger.log(`Starting transport ${transport.trkorr} TMS queue status check`, true);
                 transport._trTarget = target;
-                const queue = await transport._isInTmsQueue(false, true);
+                const queue = await transport._isInTmsQueue(false);
                 transport.lastImportMessage = queue.message;
                 Transport._printImportResult(transport.trkorr, queue.rc, queue.message, false);
                 results.push({ trkorr: transport.trkorr, rc: queue.rc, message: queue.message });
@@ -1043,7 +1052,7 @@ export class Transport {
             // only imported (or deleted) afterwards. Wait for the import recorded in the queue and take its return code.
             if (!test && rc < 8) {
                 Logger.log(`Waiting for transport ${this.trkorr} import to complete`, true);
-                const queue = await this._isInTmsQueue(false, true);
+                const queue = await this._isInTmsQueue(false);
                 if (queue.rc >= 0) {
                     rc = queue.rc;
                     message = queue.message;
@@ -1051,7 +1060,7 @@ export class Transport {
             }
         } else {
             Logger.log(`Starting transport ${this.trkorr} TMS queue status check`, true);
-            const queue = await this._isInTmsQueue(false, true);
+            const queue = await this._isInTmsQueue(false);
             rc = queue.rc;
             message = queue.message;
         }
