@@ -11,6 +11,7 @@ import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemCo
 import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { logMessageLog, parseMessageLog } from "./messageLog";
+import { getErrorMessage } from "../commons/getErrorMessage";
 
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
@@ -19,10 +20,6 @@ const connectionCheckTimeoutSeconds = 3;
  * Loads a node-rfc compatible library (a module exporting the RFC `Client`).
  */
 export type RFCLibraryLoader = () => Promise<any>;
-
-function getErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
 
 export class RFCClient implements IClient {
     public async acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {

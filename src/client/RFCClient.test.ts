@@ -44,6 +44,24 @@ const t100 = () => ({
     FIELDS: [{ FIELDNAME: 'SPRSL' }, { FIELDNAME: 'ARBGB' }, { FIELDNAME: 'MSGNR' }, { FIELDNAME: 'TEXT' }]
 });
 
+describe('RFCClient connection errors', () => {
+    it('preserves the message from a plain node-rfc error object', async () => {
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = {
+            open: jest.fn().mockRejectedValue({
+                key: 'RFC_COMMUNICATION_FAILURE',
+                message: 'partner not reached'
+            })
+        };
+
+        const error = await client.open().catch(e => e);
+
+        expect(error).toBeInstanceOf(RFCClientError);
+        expect(error.message).toBe('partner not reached');
+        expect(error.message).not.toBe('[object Object]');
+    });
+});
+
 describe('RFCClient exception log', () => {
     beforeEach(() => {
         jest.clearAllMocks();

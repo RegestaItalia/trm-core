@@ -12,12 +12,9 @@ import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { logMessageLog, parseMessageLog } from "./messageLog";
 import { Agent as HttpsAgent } from "https";
+import { getErrorMessage } from "../commons/getErrorMessage";
 
 const AXIOS_CTX = "RestServer";
-
-function getErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
 
 export class RESTClient implements IClient {
     public async acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
