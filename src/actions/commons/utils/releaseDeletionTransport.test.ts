@@ -11,7 +11,7 @@ jest.mock('../../../transport', () => ({
 }));
 
 import { Logger } from 'trm-commons';
-import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../../registry';
+import { RegistryDeletionTransportUnavailableError, RegistryType } from '../../../registry';
 import { Transport } from '../../../transport';
 import { releaseDeletionTransport } from './releaseDeletionTransport';
 
@@ -91,7 +91,7 @@ describe('releaseDeletionTransport registry', () => {
 
     test('an unauthorized deletion rethrows the original error without deleting the released transport', async () => {
         const transport = deletionTransport();
-        const authorizationError = new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401'));
+        const authorizationError = new RegistryDeletionTransportUnavailableError('endpoint', 'denied', new Error('401'));
         const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockRejectedValue(authorizationError) } as any;
         const ctx = cleanupContext();
 
@@ -105,7 +105,7 @@ describe('releaseDeletionTransport registry', () => {
     });
 
     test('an unauthorized helper deletion keeps the snapshot of the caller', async () => {
-        const authorizationError = new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401'));
+        const authorizationError = new RegistryDeletionTransportUnavailableError('endpoint', 'denied', new Error('401'));
         const registry = { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockRejectedValue(authorizationError) } as any;
         const ctx = cleanupContext();
         const snapshot = { trkorr: 'DEVK9UPGRADE', entries: undefined, binaries: toc };

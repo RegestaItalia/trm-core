@@ -52,7 +52,7 @@ jest.mock('../../transport', () => {
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
-import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
+import { RegistryDeletionTransportUnavailableError, RegistryType } from '../../registry';
 import { generateDeletionTransport } from './generateDeletionTransport';
 import { getInstalledObjectsLocks } from '../commons/utils';
 
@@ -147,7 +147,7 @@ describe('generateDeletionTransport', () => {
 
     test('an unauthorized deletion aborts the uninstall before anything is deleted', async () => {
         const { ctx, registry } = runContext([{ pgmid: 'R3TR', object: 'CLAS', objName: 'Z_CLASS' }]);
-        const error = new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401'));
+        const error = new RegistryDeletionTransportUnavailableError('endpoint', 'denied', new Error('401'));
         registry.delete.mockRejectedValue(error);
 
         await expect(generateDeletionTransport.run(ctx)).rejects.toBe(error);

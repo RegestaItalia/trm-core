@@ -1,6 +1,5 @@
 import { Logger } from 'trm-commons';
 import { RegistryV2 } from './RegistryV2';
-import { RegistryDeletionTransportUnauthorizedError } from './RegistryDeletionTransportUnauthorizedError';
 import { RegistryDeletionTransportUnavailableError } from './RegistryDeletionTransportUnavailableError';
 
 describe('registry deletion transport', () => {
@@ -12,10 +11,6 @@ describe('registry deletion transport', () => {
         const registry = new RegistryV2('http://localhost/registry', 'test');
         (registry as any)._axiosInstance = { post, get };
         return registry;
-    }
-
-    function httpError(status: number) {
-        return Object.assign(new Error(`HTTP ${status}`), { isAxiosError: true, response: { status } });
     }
 
     function sentOptions(): any {
@@ -65,22 +60,12 @@ describe('registry deletion transport', () => {
         expect(download).toHaveBeenCalledWith(expect.objectContaining({ download_link: 'http://dl' }), 'deletion transport');
     });
 
-    test.each([401, 403])('HTTP %s is an unauthorized deletion', async status => {
-        post.mockRejectedValue(httpError(status));
-
-        await expect(registry().delete(backup)).rejects.toBeInstanceOf(RegistryDeletionTransportUnauthorizedError);
-    });
-
-    test.each([400, 404])('with options, HTTP %s makes the deletion unavailable (older registry, unknown release)', async status => {
-        post.mockRejectedValue(httpError(status));
-
-        await expect(registry().delete(backup, { target: 'TSTK900010' })).rejects.toBeInstanceOf(RegistryDeletionTransportUnavailableError);
-    });
-
-    test('without options, other errors are rethrown', async () => {
-        const error = httpError(400);
+    test('any failure makes the deletion unavailable with the registry message', async () => {
+        const error = Object.assign(new Error('Transport deletion requires an active Pro plan'), { status: 403 });
         post.mockRejectedValue(error);
 
-        await expect(registry().delete(backup)).rejects.toBe(error);
+        const rejection = registry().delete(backup);
+        await expect(rejection).rejects.toBeInstanceOf(RegistryDeletionTransportUnavailableError);
+        await expect(rejection).rejects.toMatchObject({ message: 'Transport deletion requires an active Pro plan', originalError: error });
     });
 });

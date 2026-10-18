@@ -35,13 +35,11 @@ jest.mock('../../transport', () => ({
 }));
 
 jest.mock('../../registry', () => {
-    class RegistryDeletionTransportUnavailableError extends Error { }
     return {
         ...jest.requireActual('../../registry/RegistryType'),
-        RegistryDeletionTransportUnavailableError,
-        RegistryDeletionTransportUnauthorizedError: class RegistryDeletionTransportUnauthorizedError extends RegistryDeletionTransportUnavailableError {
-            constructor(public registryEndpoint: string, public originalError: unknown) {
-                super(`Deletion denied by ${registryEndpoint}`);
+        RegistryDeletionTransportUnavailableError: class RegistryDeletionTransportUnavailableError extends Error {
+            constructor(public registryEndpoint: string, message: string, public originalError?: unknown) {
+                super(message);
             }
         }
     };
@@ -49,7 +47,7 @@ jest.mock('../../registry', () => {
 
 import execute from '@simonegaffurini/sammarksworkflow';
 import { Inquirer, Logger } from 'trm-commons';
-import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
+import { RegistryDeletionTransportUnavailableError, RegistryType } from '../../registry';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
 import { deleteImportedEntries, importBatch } from './importBatch';
@@ -247,7 +245,7 @@ describe('importBatch rollback checkpoint', () => {
         if (outcome === 'denied') {
             registryDelete.mockImplementation(async () => {
                 events.push('registry.delete');
-                throw new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied'));
+                throw new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied'));
             });
         } else if (point === 'cleanup.canBeDeleted') {
             registryDelete.mockImplementation(async () => {
@@ -572,7 +570,7 @@ describe('importBatch rollback checkpoint', () => {
     test('reports denied workbench cleanup after attempting every temporary-package cleanup', async () => {
         const context = makeContext(registryDelete);
         context.revert.sapPackages = ['$TMP', '$OTHER'];
-        const authorizationError = new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied'));
+        const authorizationError = new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied'));
         registryDelete.mockRejectedValue(authorizationError);
         (SystemConnector.deleteTemporaryPackage as jest.Mock)
             .mockRejectedValueOnce(new Error('first temporary cleanup failed'))
@@ -848,7 +846,7 @@ describe('importBatch rollback checkpoint', () => {
             context.runtime.rootDevclassBeforeImport.parentcl = '';
             failurePoint = 'clearPackageSuperpackage';
             if (outcome === 'denied') {
-                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied')));
+                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied')));
             }
             const restore = {
                 name: 'restore', run: async () => undefined,
@@ -878,7 +876,7 @@ describe('importBatch rollback checkpoint', () => {
             context.runtime.update = { getDevclass: () => 'ZOLDROOT' };
             failurePoint = 'clearPackageSuperpackage';
             if (outcome === 'denied') {
-                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied')));
+                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied')));
             }
             const restore = {
                 name: 'restore', run: async () => undefined,

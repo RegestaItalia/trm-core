@@ -17,7 +17,6 @@ import { TransportEntries } from "../client";
 import { BinaryTransport } from "../transport";
 import * as AdmZip from "adm-zip";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
-import { RegistryDeletionTransportUnauthorizedError } from "./RegistryDeletionTransportUnauthorizedError";
 import { RegistryDeletionTransportUnavailableError } from "./RegistryDeletionTransportUnavailableError";
 import { DeleteTransportOptions, DeletionTransport } from "./DeletionTransport";
 
@@ -669,16 +668,7 @@ export class RegistryV2 implements AbstractRegistry {
                 headers: formData.getHeaders()
             });
         } catch (e) {
-            const status = this.getErrorStatus(e);
-            // 401: deletion disabled for the user; 403: plan without deletion transports
-            if (status === 401 || status === 403) {
-                throw new RegistryDeletionTransportUnauthorizedError(this.endpoint, e);
-            }
-            // a registry without delta deletion rejects the options; an incoming release it doesn't have can't be subtracted
-            if (options && (status === 400 || status === 404)) {
-                throw new RegistryDeletionTransportUnavailableError(this.endpoint, `Registry "${this.endpoint}" can't generate the deletion transport of this upgrade (HTTP ${status}).`, e);
-            }
-            throw e;
+            throw new RegistryDeletionTransportUnavailableError(this.endpoint, e instanceof Error ? e.message : String(e), e);
         }
         this.assertStatus(deleteResponse.status, [200], 'Deletion transport request');
         const response = deleteResponse.data;

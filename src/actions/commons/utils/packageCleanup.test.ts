@@ -49,7 +49,7 @@ jest.mock('../../../transport', () => {
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../../systemConnector';
 import { Transport } from '../../../transport';
-import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../../registry';
+import { RegistryDeletionTransportUnavailableError, RegistryType } from '../../../registry';
 import {
     backupInstalledPackage, CleanupPlan, generateCleanupDeletions, PackageCleanupTarget, planInstalledPackageCleanup,
     restoreCleanupBackups, revertCleanupDeletions
@@ -399,7 +399,7 @@ describe('generateCleanupDeletions', () => {
     test('an unavailable registry deletion lists the leftovers, takes the dummy out of the queue, and the upgrade goes on', async () => {
         const ctx = backedUp(context([]));
         (Transport.createToc as jest.Mock).mockResolvedValueOnce(new MockTransport('TSTKDEL1'));
-        ctx.rawInput.packageData.registry.delete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('403')));
+        ctx.rawInput.packageData.registry.delete.mockRejectedValue(new RegistryDeletionTransportUnavailableError('endpoint', 'denied', new Error('403')));
 
         await generateCleanupDeletions(ctx, plan(), { requireDeletion: false });
 
@@ -411,7 +411,7 @@ describe('generateCleanupDeletions', () => {
     test('an uninstall requires the deletion', async () => {
         const ctx = backedUp(context([]));
         (Transport.createToc as jest.Mock).mockResolvedValueOnce(new MockTransport('TSTKDEL1'));
-        const error = new RegistryDeletionTransportUnauthorizedError('endpoint', new Error('401'));
+        const error = new RegistryDeletionTransportUnavailableError('endpoint', 'denied', new Error('401'));
         ctx.rawInput.packageData.registry.delete.mockRejectedValue(error);
 
         await expect(generateCleanupDeletions(ctx, plan(), { requireDeletion: true })).rejects.toBe(error);
