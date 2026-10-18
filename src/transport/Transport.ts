@@ -478,6 +478,8 @@ export class Transport {
     }
 
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
+        //tp appends to the release log: an earlier export of the same request number may have left one
+        const releaseLogOffset = tmpFolder ? await this._getReleaseLogSize() : 0;
         try {
             await SystemConnector.releaseTrkorr(this.trkorr, lock);
         } finally {
@@ -485,13 +487,27 @@ export class Transport {
             this._e070 = undefined;
         }
         if (tmpFolder) {
-            await this.readReleaseLog(tmpFolder);
+            await this.readReleaseLog(tmpFolder, releaseLogOffset);
         } else {
             await this._isInTmsQueue(skipLog, false);
         }
     }
 
-    public async readReleaseLog(tmpFolder: string): Promise<number> {
+    private async _getReleaseLogSize(): Promise<number> {
+        const filePaths = await Transport._getFilePaths(this._fileNames);
+        try {
+            return (await SystemConnector.getBinaryFile(filePaths.releaseLog)).length;
+        } catch (e) {
+            //no log yet
+            return 0;
+        }
+    }
+
+    /**
+     * Waits for the release log to report every export step, and returns the export return code.
+     * `offset` is the log size before the release: only what this release appended is read.
+     */
+    public async readReleaseLog(tmpFolder: string, offset: number = 0): Promise<number> {
         const filePaths = await Transport._getFilePaths(this._fileNames);
         const localPath = path.join(tmpFolder, this._fileNames.releaseLog);
 
@@ -527,7 +543,11 @@ export class Transport {
                     //log not written yet
                     logBinary = undefined;
                 }
-                if (logBinary) {
+                //a log shorter than the offset was replaced, not appended to
+                if (logBinary && logBinary.length >= offset) {
+                    logBinary = logBinary.subarray(offset);
+                }
+                if (logBinary && logBinary.length > 0) {
                     fs.writeFileSync(localPath, logBinary);
                     try {
                         logResult = await (new R3transLogParser(localPath)).getReleaseLog();
@@ -588,7 +608,8 @@ export class Transport {
             error = new Error(`Timed out waiting for transport ${this.trkorr} release log "${filePaths.releaseLog}".`);
         } else {
             if (whileResult === "ERROR") {
-                error = new Error(`Error occurred during transport ${this.trkorr} release.`);
+                const exitCode = Math.max(...logResult.filter(o => RELEASE_LOG_STEPS.some(step => step.id === o.id)).map(o => o.exitCode || 0));
+                error = new Error(`Transport ${this.trkorr} export ended with return code ${exitCode} (${R3transLogParser.parseExitCode(exitCode).value}). Check the export log "${filePaths.releaseLog}".`);
             }
             if (whileResult === "SUCCESS") {
                 Logger.success(`${Transport.getTransportIcon()}  ${this.trkorr} released with success.`);

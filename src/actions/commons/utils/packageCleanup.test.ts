@@ -328,7 +328,7 @@ describe('backupInstalledPackage', () => {
         (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);
         const ctx = context([]);
 
-        await expect(backupInstalledPackage(ctx, plan(), [], { packageName: 'pkg', version: '1.0.0' })).rejects.toThrow('release failed');
+        await expect(backupInstalledPackage(ctx, plan(), [], { packageName: 'pkg', version: '1.0.0' })).rejects.toThrow('Backup TSTKBKP3 failed: release failed');
         expect(ctx.revert.backupTransports).toEqual([tadir]);
         expect(tadir.delete).not.toHaveBeenCalled();
     });

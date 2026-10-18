@@ -1035,7 +1035,12 @@ async function createBackup(context: PackageCleanupContext, description: string,
     context.revert.backupTransports ||= [];
     context.revert.backupTransports.push(transport);
     await fill(transport);
-    await transport.release(false, true, logFolder);
+    try {
+        await transport.release(false, true, logFolder);
+    } catch (e) {
+        // An export with errors is never imported: a rollback couldn't restore anything from it.
+        throw new Error(`Backup ${transport.trkorr} failed: ${e instanceof Error ? e.message : String(e)}\nIf the export reports objects with errors (e.g. inactive), fix them before retrying.`);
+    }
     return {
         transport,
         description,

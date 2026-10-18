@@ -52,16 +52,26 @@ function errorMessage(error: any): string {
 /**
  * The engine builds the message as `Workflow error executing '<step>': <String(exception)>`, which
  * repeats the inner error class ("Error: ...") and, for nested workflows, every outer prefix.
- * Describe the failing step path once, followed by the root cause message.
+ * Steps are an implementation detail: the message is the root cause only, and the failing step
+ * path goes to the debug log (see {@link describeFailedSteps}).
  */
 function describeWorkflowError(error: WorkflowError): string {
+    var cause: any = error;
+    while (isWorkflowError(cause) && !(cause as WorkflowRevertError).originalWorkflowError) {
+        cause = cause.originalException;
+    }
+    return errorMessage(cause);
+}
+
+/** The failing step path of a (nested) workflow error, for the debug log. */
+function describeFailedSteps(error: WorkflowError): string {
     const steps: string[] = [];
     var cause: any = error;
     while (isWorkflowError(cause) && !(cause as WorkflowRevertError).originalWorkflowError) {
         steps.push(cause.stepName);
         cause = cause.originalException;
     }
-    return `Workflow error executing '${steps.join("' > '")}': ${errorMessage(cause)}`;
+    return `'${steps.join("' > '")}'`;
 }
 
 /**
@@ -77,7 +87,7 @@ export class ActionWorkflowRevertError extends WorkflowRevertError {
         this.name = 'ActionWorkflowRevertError';
         this.message = [
             describeWorkflowError(originalWorkflowError),
-            ...revertErrors.map(revertError => `Additionally, error reverting step '${revertError.stepName}': ${errorMessage(revertError.originalException)}`)
+            ...revertErrors.map(revertError => `Additionally, rollback failed: ${errorMessage(revertError.originalException)}`)
         ].join('\n');
     }
 }
@@ -105,6 +115,7 @@ export async function executeWorkflow<T extends StepContext>(
     } catch (error) {
         // Reverts only run after a step failure, which the engine always rethrows as a WorkflowError.
         if (isWorkflowError(error)) {
+            Logger.log(`Workflow "${name}" failed executing ${describeFailedSteps(error)}`, true);
             if (revertErrors.length > 0) {
                 throw new ActionWorkflowRevertError(error, revertErrors);
             }
