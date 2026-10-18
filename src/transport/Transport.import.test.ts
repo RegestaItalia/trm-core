@@ -47,6 +47,15 @@ describe('Transport import', () => {
         expect(queue).not.toHaveBeenCalled();
     });
 
+    test('a failed forward or import names the operation, the transport and the system', async () => {
+        const t = transport();
+        (SystemConnector.forwardTransport as jest.Mock).mockRejectedValueOnce(new Error('tp ended with error code 0203'));
+        await expect(t.import(true)).rejects.toThrow('Forward of transport TSTK900001 to TST failed: tp ended with error code 0203');
+
+        (SystemConnector.importTransport as jest.Mock).mockRejectedValueOnce(new Error('no buffer'));
+        await expect(t.import(true)).rejects.toThrow('Test import of transport TSTK900001 to TST failed: no buffer');
+    });
+
     test('a queue without a return code keeps the tp return code', async () => {
         const t = transport();
         jest.spyOn(t as any, '_isInTmsQueue').mockResolvedValue({ rc: -1 });

@@ -6,5 +6,7 @@ export * from "./FilePaths";
 export * from "./Documentation";
 export * from "./TrmTransportIdentifier";
 export * from "./R3transLogParser";export * from "./TransportImportError";
+export * from "./TransportTmsError";
+export * from "./TpLog";
 
 export * from "./TransportDescription";

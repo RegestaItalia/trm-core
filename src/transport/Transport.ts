@@ -14,6 +14,7 @@ import { Logger } from "trm-commons";
 import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE, TROBJ_NAME, LXE_TT_PACKG_LINE, AS4TEXT, PGMID, SOBJ_NAME, RFC_DB_FLD, TMSSYSNAM, TDEVC, TR_AS4USER, TransportEntries, STMSIQREQ, TPSTAT } from "../client";
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
+import { TransportTmsError } from "./TransportTmsError";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
 
@@ -942,15 +943,31 @@ export class Transport {
         return latest;
     }
 
+    /**
+     * Adds the transport to the import queue of the target (import again).
+     * A failure is thrown as a {@link TransportTmsError}, telling whether tp or the transport tools failed.
+     */
+    public static async forward(trkorr: TRKORR, target: TR_TARGET): Promise<void> {
+        try {
+            await SystemConnector.forwardTransport(trkorr, target, target, true);
+        } catch (e) {
+            throw new TransportTmsError('Forward', trkorr, target, e);
+        }
+    }
+
     public static async importMultiple(transports: Transport[], target: TR_TARGET, forward: boolean = true): Promise<{ trkorr: TRKORR, rc: number, message?: string }[]> {
         if (forward) {
             for (const transport of transports) {
                 Logger.loading(`Forwarding transport ${transport.trkorr}`, true);
-                await SystemConnector.forwardTransport(transport.trkorr, target, target, true);
+                await Transport.forward(transport.trkorr, target);
             }
         }
         Logger.loading(`Importing ${transports.map(o => o.trkorr).join(', ')} in batch`, true);
-        await SystemConnector.importTransportMultiple(transports.map(o => o.trkorr), target, false);
+        try {
+            await SystemConnector.importTransportMultiple(transports.map(o => o.trkorr), target, false);
+        } catch (e) {
+            throw new TransportTmsError('Import', transports.map(o => o.trkorr).join(', '), target, e);
+        }
         const results: { trkorr: TRKORR, rc: number, message?: string }[] = [];
         const originalLPrefix = Logger.getPrefix();
         try {
@@ -986,11 +1003,16 @@ export class Transport {
         // a test import already put it in the queue: the real import doesn't forward it again
         if (!this._forwardedTo || this._forwardedTo !== this._trTarget) {
             Logger.loading(`Forwarding transport ${this.trkorr}`, true);
-            await SystemConnector.forwardTransport(this.trkorr, this._trTarget, this._trTarget, true);
+            await Transport.forward(this.trkorr, this._trTarget);
             this._forwardedTo = this._trTarget;
         }
         Logger.loading(`Importing ${this.trkorr}${test ? ' (TEST IMPORT)' : ''}`, true);
-        const result = await SystemConnector.importTransport(this.trkorr, this._trTarget, test);
+        var result: Awaited<ReturnType<typeof SystemConnector.importTransport>>;
+        try {
+            result = await SystemConnector.importTransport(this.trkorr, this._trTarget, test);
+        } catch (e) {
+            throw new TransportTmsError(test ? 'Test import' : 'Import', this.trkorr, this._trTarget, e);
+        }
         if (result) {
             rc = Number(result.tpRetCode);
             if (Array(result.tpStdout)) {
