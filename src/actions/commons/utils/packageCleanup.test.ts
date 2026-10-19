@@ -407,6 +407,37 @@ describe('backupInstalledPackage', () => {
         expect(keys(tadir.addObjects.mock.calls[0][0])).toEqual([`DEVC ${staging}`, 'PROG /NS/OLD', 'PROG ZOLD']);
     });
 
+    test('on a backend older than trm-server 7.0.0 a missing namespace is imported for the staging and deleted with it', async () => {
+        const tadir = new MockTransport('TSTKBKP9');
+        (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);
+        system({ $ROOT: [obj('PROG', '/NS/OLD')] });
+        const ctx = context([]);
+        ctx.missingBackendApis = ['trmServer7'];
+        ctx.runtime.update.manifest = { get: () => ({ version: '1.0.0', namespace: { ns: '/NS/', replicense: 'LICENSE', texts: [{ language: 'E', description: 'NS', owner: 'OWNER' }] } }) };
+
+        await backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', '/NS/OLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' });
+
+        expect(SystemConnector.addNamespace).toHaveBeenCalledWith('/NS/', 'LICENSE', [{ namespace: '/NS/', spras: 'E', descriptn: 'NS', owner: 'OWNER' }]);
+        expect(ctx.revert.temporaryNamespaces).toEqual(['/NS/']);
+        const staging = ctx.revert.stagingPackages[0];
+        expect(staging).toMatch(/^\/NS\/TRMD_/);
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: '/NS/OLD', devclass: staging }));
+        expect(keys(tadir.addObjects.mock.calls[0][0])).toEqual([`DEVC ${staging}`, 'NSPC /NS/', 'PROG /NS/OLD']);
+    });
+
+    test('on a backend older than trm-server 7.0.0 a namespace without a known repair license stops the backup before anything is moved', async () => {
+        system({ $ROOT: [obj('PROG', '/NS/OLD')] });
+        const ctx = context([]);
+        ctx.missingBackendApis = ['trmServer7'];
+
+        await expect(backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', '/NS/OLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' }))
+            .rejects.toThrow("Namespace /NS/ doesn't exist in TST and its repair license is unknown");
+
+        expect(SystemConnector.addNamespace).not.toHaveBeenCalled();
+        expect(SystemConnector.createPackage).not.toHaveBeenCalled();
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+    });
+
     test('objects of a namespace on the system are staged in a package of the namespace', async () => {
         const tadir = new MockTransport('TSTKBKP6');
         (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);
