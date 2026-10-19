@@ -84,7 +84,9 @@ describe('uninstallNestedPackages', () => {
         expect(input).toEqual({
             contextData: { noInquirer: true, systemPackages: [pkg, nested, deeper, sibling, unrelated] },
             packageData: { name: 'nested', registry: nested.registry },
-            uninstallData: { checks: { ignoreDirty: true }, landscapeTransport: { targetSystem: 'QAS' } }
+            uninstallData: { checks: { ignoreDirty: true }, landscapeTransport: { targetSystem: 'QAS' }, ignoreImportErrors: undefined },
+            // their deletions are carried by the landscape transport of this uninstall
+            nested: true
         });
         // Options are copies: the nested uninstall normalizes its own input.
         expect(input.uninstallData.checks).not.toBe(ctx.rawInput.uninstallData.checks);

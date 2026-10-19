@@ -390,4 +390,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getTransportTargets();
     }
 
+    public async getTransportLayers(target: components.TARSYSTEM): Promise<components.DEVLAYER[]> {
+        return this._client.getTransportLayers(target);
+    }
+
 }

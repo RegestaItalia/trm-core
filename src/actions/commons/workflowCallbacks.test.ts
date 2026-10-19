@@ -1,7 +1,13 @@
 import { WorkflowError, WorkflowRevertError } from '@simonegaffurini/sammarksworkflow';
+import { Logger } from 'trm-commons';
 import { ActionWorkflowRevertError, executeWorkflow } from './workflowCallbacks';
 
 describe('executeWorkflow', () => {
+    beforeEach(() => {
+        jest.restoreAllMocks();
+        jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
+    });
+
     test('returns the context when every step succeeds', async () => {
         const context = { done: false };
 
@@ -24,11 +30,11 @@ describe('executeWorkflow', () => {
         expect(error.revertErrors).toBeUndefined();
         expect(error.stepName).toBe('failure');
         expect(error.originalException.message).toBe('step failed');
-        expect(error.message).toBe(`Workflow error executing 'failure': step failed`);
-        expect(error.stack.split('\n')[0]).toBe(`Error: Workflow error executing 'failure': step failed`);
+        expect(error.message).toBe(`step failed`);
+        expect(error.stack.split('\n')[0]).toBe(`Error: step failed`);
     });
 
-    test('describes a nested workflow failure with the step path and the root cause', async () => {
+    test('describes a nested workflow failure with the root cause only, the step path in the debug log', async () => {
         const error = await executeWorkflow('outer', [
             {
                 name: 'check-engines', run: async () => {
@@ -39,7 +45,8 @@ describe('executeWorkflow', () => {
             }
         ], {}, {}).catch(e => e);
 
-        expect(error.message).toBe(`Workflow error executing 'check-engines' > 'check': engines not met`);
+        expect(error.message).toBe(`engines not met`);
+        expect(Logger.log).toHaveBeenCalledWith(`Workflow "outer" failed executing 'check-engines' > 'check'`, true);
         expect(error.originalException.originalException.message).toBe('engines not met');
     });
 
@@ -48,7 +55,7 @@ describe('executeWorkflow', () => {
             { name: 'failure', run: async () => { throw 'plain failure'; } }
         ], {}, {}).catch(e => e);
 
-        expect(error.message).toBe(`Workflow error executing 'failure': plain failure`);
+        expect(error.message).toBe(`plain failure`);
     });
 
     test('attempts every revert and throws a WorkflowRevertError with all rollback failures', async () => {
@@ -77,9 +84,9 @@ describe('executeWorkflow', () => {
         expect(error.stepName).toBe('three');
         expect(error.originalException.message).toBe('three revert failed');
         expect(error.message).toBe([
-            `Workflow error executing 'failure': step failed`,
-            `Additionally, error reverting step 'three': three revert failed`,
-            `Additionally, error reverting step 'one': one revert failed`
+            `step failed`,
+            `Additionally, rollback failed: three revert failed`,
+            `Additionally, rollback failed: one revert failed`
         ].join('\n'));
     });
 

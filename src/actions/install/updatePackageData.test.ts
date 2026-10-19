@@ -69,9 +69,9 @@ describe('install package metadata writes', () => {
         expect(transportsOrder).toBeLessThan((SystemConnector.updateTrmPackageData as jest.Mock).mock.invocationCallOrder[0]);
     });
 
-    test('a trm-server upgrade on a legacy backend writes only the mappings and the package row', async () => {
+    test('a trm-server upgrade on a backend without trmServer7 writes only the mappings and the package row', async () => {
         const ctx = context();
-        ctx.legacyBackend = true;
+        ctx.missingBackendApis = ['trmServer7', 'trmServer8'];
         ctx.runtime.selfUpdate = true;
         ctx.runtime.update = { getMetadataSnapshot: () => storedRow };
         ctx.runtime.previousInstallPackages = [{ originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }];
@@ -101,10 +101,11 @@ describe('install package metadata writes', () => {
         expect(SystemConnector.restoreInstallMetadata).not.toHaveBeenCalled();
     });
 
-    test('an upgrade that kept the installed customizing still records its transports', async () => {
+    test('an upgrade records again the installed customizing transports that still own kept rows', async () => {
         const ctx = context();
         ctx.runtime.update = { packageName: 'pkg' };
         ctx.runtime.skippedCust = ['DEVK900004'];
+        ctx.runtime.cleanupPlan = { retainedCustomizingSources: ['DEVK9OLDC'] };
         ctx.runtime.previousInstallTransports = [
             { trkorr: 'DEVK9OLDC', trmType: 'CUST' },
             { trkorr: 'DEVK9OLDL', trmType: 'LANG' }
@@ -117,6 +118,17 @@ describe('install package metadata writes', () => {
             { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK900003', trm_type: 'CUST' },
             { package_name: 'pkg', package_registry: 'public', trkorr: 'DEVK900002', trm_type: 'LANG' }
         ]);
+    });
+
+    test('an upgrade without customizing import records again every installed customizing transport', async () => {
+        const ctx = context();
+        ctx.runtime.update = { packageName: 'pkg' };
+        ctx.rawInput.installData.import = { noCust: true };
+        ctx.runtime.previousInstallTransports = [{ trkorr: 'DEVK9OLDC', trmType: 'CUST' }];
+
+        await updatePackageData.run(ctx);
+
+        expect((SystemConnector.setInstallTransports as jest.Mock).mock.calls[0][2].map((o: any) => o.trkorr)).toContain('DEVK9OLDC');
     });
 
     test('an upgrade that imported all the new customizing records only the new transports', async () => {

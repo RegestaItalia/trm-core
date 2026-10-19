@@ -3,8 +3,9 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { TransportImportError } from "../../transport/TransportImportError";
 import { stopWarning } from "../stopWarning";
-import { revertPreparedTransport, TRM_FIXED_TADIR_TRANSPORTS, withScopedPrefix } from "../commons/utils";
+import { lacksTrmBackendApis, revertPreparedTransport, TRM_FIXED_TADIR_TRANSPORTS, withScopedPrefix } from "../commons/utils";
 import { TRKORR } from "../../client";
 import { deleteImportedEntries } from "./importBatch";
 
@@ -41,18 +42,6 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
                 });
                 context.revert.createdTransports.tadir = dummy;
                 await dummy.release(false, true);
-                try {
-                    //saving dummy binaries for a possible revert
-                    context.revert.transports.tadir = {
-                        trkorr: dummy.trkorr,
-                        entries: undefined,
-                        binaries: (await dummy.download()).binaries
-                    };
-                } catch (e) {
-                    Logger.error(`Unable to dowload dummy transport!`, true);
-                    Logger.error(e.toString(), true);
-                    Logger.error(`On failure, revert won't be possible!`, true);
-                }
                 context.runtime.transports.tadir.binaries.binaries = await context.rawInput.packageData.registry.transport(context.runtime.transports.tadir.binaries.trkorr, dummy.trkorr);
                 trkorr = dummy.trkorr;
             } else {
@@ -83,14 +72,12 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
             });
 
             //3- test import transport
-            if (context.legacyBackend) {
-                Logger.log(`Skipping test import: legacy TRM backend`, true);
+            if (lacksTrmBackendApis(context, 'trmServer7')) {
+                Logger.log(`Skipping test import: TRM backend older than trm-server 7.0.0`, true);
             } else {
                 Logger.loading(`Testing import...`);
                 const testRc = await context.runtime.transports.tadir.instance.import(true);
-                if (testRc < 0 || testRc > 8) {
-                    throw new Error(`Test import of workbench failed: check logs.`);
-                }
+                TransportImportError.assert(context.runtime.transports.tadir.instance.trkorr, testRc, `Test import of workbench`, context.runtime.transports.tadir.instance.lastImportMessage, context.ignoreImportErrors);
             }
         });
     },
@@ -98,10 +85,7 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
         if (!context.revert.cleanupImported && (context.revert.namespace || context.revert.sapPackages.length > 0)) {
             await deleteImportedEntries(context);
         }
-        if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
-            return;
-        }
-        const snapshot = context.revert.transports.tadir;
-        await revertPreparedTransport(context.revert.createdTransports.tadir, snapshot);
+        // The dummy is deleted, or only taken out of the queue: never re-imported
+        await revertPreparedTransport(context.revert.createdTransports.tadir);
     }
 }

@@ -5,11 +5,20 @@ import { SystemConnector, TRM_REST_PACKAGE_NAME, TRM_SERVER_PACKAGE_NAME } from 
 import { TrmPackage } from "../../../trmPackage";
 
 /**
- * First trm-server and trm-rest releases with the backend APIs this trm-core relies on
- * (action locks, batch import, install transports, test imports, transport object locks).
+ * Backend APIs this trm-core relies on, by generation: the first trm-server and trm-rest releases with them.
+ *
+ * Any action needs the backend this trm-core is built for: a missing API is an error. Only a trm-server/trm-rest
+ * upgrade runs on an older backend (see {@link getMissingTrmBackendApis}), so an action that calls a newer API
+ * during that upgrade checks {@link lacksTrmBackendApis} and continues without it.
  */
-export const TRM_SERVER_API_VERSION = '7.0.0';
-export const TRM_REST_API_VERSION = '6.0.0';
+export const TRM_BACKEND_APIS = {
+    /** Action locks, batch import, install transports, test imports, transport object locks. */
+    trmServer7: { server: '7.0.0', rest: '6.0.0' },
+    /** Transport layers routed to a landscape target. */
+    trmServer8: { server: '8.0.0', rest: '7.0.0' }
+} as const;
+
+export type TrmBackendApis = keyof typeof TRM_BACKEND_APIS;
 
 /**
  * Permanent TADIR transport of the public trm-server and trm-rest: the same request in every release.
@@ -36,15 +45,20 @@ async function installedVersion(read: () => Promise<TrmPackage>): Promise<string
 }
 
 /**
- * Whether the connected TRM backend predates {@link TRM_SERVER_API_VERSION} / {@link TRM_REST_API_VERSION}.
- * Such a backend can only upgrade itself, with the APIs of its own generation: the newer APIs exist
- * only once the upgrade is imported.
+ * Backend API generations ({@link TRM_BACKEND_APIS}) the installed trm-server or trm-rest predates.
+ * Such a backend can only upgrade itself: the newer APIs exist only once the upgrade is imported.
  */
-export async function isLegacyTrmBackend(): Promise<boolean> {
-    const isLegacy = (version: string | undefined, apiVersion: string) => !!version && (!valid(version) || lt(version, apiVersion));
+export async function getMissingTrmBackendApis(): Promise<TrmBackendApis[]> {
+    const isOlder = (version: string | undefined, apiVersion: string) => !!version && (!valid(version) || lt(version, apiVersion));
     const serverVersion = await installedVersion(() => SystemConnector.getTrmServerPackage());
     const restVersion = await installedVersion(() => SystemConnector.getTrmRestPackage());
-    const legacy = isLegacy(serverVersion, TRM_SERVER_API_VERSION) || isLegacy(restVersion, TRM_REST_API_VERSION);
-    Logger.log(`TRM backend: trm-server ${serverVersion || '-'}, trm-rest ${restVersion || '-'}${legacy ? ' (legacy APIs)' : ''}`, true);
-    return legacy;
+    const missing = (Object.keys(TRM_BACKEND_APIS) as TrmBackendApis[]).filter(apis =>
+        isOlder(serverVersion, TRM_BACKEND_APIS[apis].server) || isOlder(restVersion, TRM_BACKEND_APIS[apis].rest));
+    Logger.log(`TRM backend: trm-server ${serverVersion || '-'}, trm-rest ${restVersion || '-'}${missing.length > 0 ? ` (missing APIs: ${missing.join(', ')})` : ''}`, true);
+    return missing;
+}
+
+/** Whether the backend of a trm-server/trm-rest upgrade lacks the `apis` generation: see {@link TRM_BACKEND_APIS}. */
+export function lacksTrmBackendApis(context: { missingBackendApis?: TrmBackendApis[] }, apis: TrmBackendApis): boolean {
+    return !!context.missingBackendApis?.includes(apis);
 }

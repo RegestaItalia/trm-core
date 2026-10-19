@@ -5,7 +5,9 @@ jest.mock('../systemConnector', () => ({
         getFileSystem: jest.fn(async () => ({ filesys: 'UNIX' })),
         getR3transVersion: jest.fn(async () => 'R3trans version test'),
         getR3transUnicode: jest.fn(async () => true),
-        getBinaryFile: jest.fn()
+        getBinaryFile: jest.fn(),
+        releaseTrkorr: jest.fn(),
+        refreshTransportTmsTxt: jest.fn()
     }
 }));
 
@@ -36,6 +38,13 @@ const FULL_LOG = Buffer.from([
     step('150', 'MAIN EXPORT', '0')
 ].join('\n'));
 const PARTIAL_LOG = Buffer.from(step('182', 'CHECK WRITEABILITY OF BUFFERS', '0'));
+const FAILED_LOG = Buffer.from([
+    step('182', 'CHECK WRITEABILITY OF BUFFERS', '0'),
+    step('183', 'EXPORT PREPARATION', '0'),
+    step('150', 'MAIN EXPORT', '8')
+].join('\n'));
+// tp appends: an earlier export of the same request number (e.g. a reused number range) is left in the log
+const STALE_LOG = Buffer.from(FULL_LOG.toString() + '\n');
 
 describe('Transport.readReleaseLog', () => {
     const defaultTimeout = Transport.releaseLogTimeoutMs;
@@ -88,4 +97,83 @@ describe('Transport.readReleaseLog', () => {
 
         await expect(new Transport(TRKORR).readReleaseLog(baseFolder)).rejects.toThrow(`Timed out waiting for transport ${TRKORR} release log`);
     }, 10000);
+
+    test('an export with errors fails with its return code', async () => {
+        (SystemConnector.getBinaryFile as jest.Mock).mockResolvedValue(FAILED_LOG);
+
+        await expect(new Transport(TRKORR).readReleaseLog(baseFolder)).rejects.toThrow(`Transport ${TRKORR} export ended with return code 8`);
+    });
+
+    test('release reads only what its export appended to the log, not an earlier export of the same request', async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockResolvedValueOnce(STALE_LOG) // before the release
+            .mockResolvedValueOnce(STALE_LOG) // export not started yet
+            .mockResolvedValueOnce(Buffer.concat([STALE_LOG, PARTIAL_LOG]))
+            .mockResolvedValue(Buffer.concat([STALE_LOG, FAILED_LOG]));
+
+        await expect(new Transport(TRKORR).release(false, true, baseFolder)).rejects.toThrow(`Transport ${TRKORR} export ended with return code 8`);
+        expect(SystemConnector.releaseTrkorr).toHaveBeenCalledWith(TRKORR, false);
+        expect(SystemConnector.getBinaryFile).toHaveBeenCalledTimes(4);
+    }, 10000);
+
+    test('release reads the whole log when there was none before', async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(FULL_LOG);
+
+        await expect(new Transport(TRKORR).release(false, true, baseFolder)).resolves.toBeUndefined();
+    });
+
+    test('release without a folder waits for its own export, not for an earlier export of the same request', async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockResolvedValueOnce(STALE_LOG) // before the release
+            .mockResolvedValueOnce(STALE_LOG) // export not started yet
+            .mockResolvedValueOnce(Buffer.concat([STALE_LOG, PARTIAL_LOG]))
+            .mockResolvedValue(Buffer.concat([STALE_LOG, FULL_LOG]));
+
+        await expect(new Transport(TRKORR).release(false, true)).resolves.toBeUndefined();
+        expect(SystemConnector.getBinaryFile).toHaveBeenCalledTimes(4);
+    }, 10000);
+
+    test("release without a folder doesn't fail on an export with errors: its files are complete", async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(FAILED_LOG);
+
+        await expect(new Transport(TRKORR).release(false, true)).resolves.toBeUndefined();
+    });
+
+    test('release without a folder times out when the export never ends', async () => {
+        Transport.releaseLogTimeoutMs = 1500;
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(PARTIAL_LOG);
+
+        await expect(new Transport(TRKORR).release(false, true)).rejects.toThrow(`Timed out waiting for transport ${TRKORR} release log`);
+        expect(SystemConnector.refreshTransportTmsTxt).not.toHaveBeenCalled();
+    }, 10000);
+
+    test('release refreshes the TMS text, as a reused request number keeps its earlier text', async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(FULL_LOG);
+
+        await new Transport(TRKORR).release(false, true);
+        expect(SystemConnector.refreshTransportTmsTxt).toHaveBeenCalledWith(TRKORR);
+    });
+
+    test("a failed TMS text refresh doesn't fail the release", async () => {
+        (SystemConnector.getBinaryFile as jest.Mock)
+            .mockRejectedValueOnce(new Error('file not found'))
+            .mockResolvedValue(FULL_LOG);
+        (SystemConnector.refreshTransportTmsTxt as jest.Mock).mockRejectedValueOnce(new Error('FM not found'));
+
+        await expect(new Transport(TRKORR).release(false, true, baseFolder)).resolves.toBeUndefined();
+    });
+
+    test('a log replaced by a shorter one is read whole', async () => {
+        (SystemConnector.getBinaryFile as jest.Mock).mockResolvedValue(FULL_LOG);
+
+        await expect(new Transport(TRKORR).readReleaseLog(baseFolder, FULL_LOG.length + 100)).resolves.toBe(0);
+    });
 });

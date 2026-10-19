@@ -349,4 +349,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getTransportTargets();
     }
 
+    public async getTransportLayers(target: components.TARSYSTEM): Promise<components.DEVLAYER[]> {
+        return this._client.getTransportLayers(target);
+    }
+
 }

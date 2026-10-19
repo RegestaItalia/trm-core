@@ -53,6 +53,10 @@ async function createNamespace(context: InstallWorkflowContext, namespace: strin
     if (aTexts.length === 0) {
         throw new Error(`Cannot use namespace ${namespace}: unknown description.`);
     }
+    if (context.rawInput.contextData.simulate) {
+        context.runtime.simulatedNamespace = namespace;
+        return;
+    }
     if (!context.runtime.stopWarningShown) {
         context.runtime.stopWarningShown = true;
         stopWarning('install');

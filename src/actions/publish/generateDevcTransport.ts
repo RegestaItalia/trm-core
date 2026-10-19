@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
 
 /**
@@ -24,7 +25,7 @@ export const generateDevcTransport: Step<PublishWorkflowContext> = {
         context.runtime.transports.devc = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.DEVC,
             target: context.rawInput.systemData.transportTarget,
-            text: `@X1@TRM (D) ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
+            text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`, 'D')
         });
         await context.runtime.transports.devc.addObjects(aDevc, false);
     },

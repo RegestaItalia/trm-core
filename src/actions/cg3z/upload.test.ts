@@ -27,6 +27,9 @@ jest.mock('../../transport', () => ({
         static getTransportIcon = jest.fn(() => 'TR');
         static readBinaryFiles = jest.fn();
         static writeBinaryFile = jest.fn();
+        static async forward(trkorr: string, target: string) {
+            await jest.requireMock('../../systemConnector').SystemConnector.forwardTransport(trkorr, target, target, true);
+        }
         async getE070(): Promise<any> { return undefined; }
         async canBeDeleted() { return true; }
         async delete() { return undefined; }

@@ -62,7 +62,9 @@ describe('Transport status cache', () => {
     test('release invalidates the cached status', async () => {
         mockStatus('D', 'R');
         const transport = new Transport(TRKORR);
-        jest.spyOn(transport as any, '_isInTmsQueue').mockResolvedValue(undefined);
+        jest.spyOn(transport as any, '_getReleaseLogSize').mockResolvedValue(0);
+        jest.spyOn(transport as any, '_waitExport').mockResolvedValue(0);
+        jest.spyOn(transport as any, '_refreshReusedTmsText').mockResolvedValue(undefined);
 
         await expect(transport.canBeDeleted()).resolves.toBe(true);
         await transport.release(false, true);
@@ -74,6 +76,7 @@ describe('Transport status cache', () => {
         mockStatus('D', 'R');
         (SystemConnector.releaseTrkorr as jest.Mock).mockRejectedValueOnce(new Error('release failed'));
         const transport = new Transport(TRKORR);
+        jest.spyOn(transport as any, '_getReleaseLogSize').mockResolvedValue(0);
 
         await expect(transport.canBeDeleted()).resolves.toBe(true);
         await expect(transport.release(false, true)).rejects.toThrow('release failed');

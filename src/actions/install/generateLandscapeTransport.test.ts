@@ -32,6 +32,7 @@ function context(keepOriginal = true) {
         runtime: {
             namespace: 'Z',
             update: { getDevclass: () => 'ZOLD' },
+            deletions: { tadir: { trkorr: 'DEVK9DELE' }, cust: { trkorr: 'DEVK9DELEC' } },
             package: { data: { manifest: { name: 'pkg', version: '1.0.0' } } },
             transports: {
                 devc: { instance: { trkorr: 'DEVK9DEVC' } },
@@ -43,7 +44,7 @@ function context(keepOriginal = true) {
                 ]
             }
         },
-        revert: { namespace: '/TEST/', dele: { trkorr: 'DEVK9DELE' } },
+        revert: { namespace: '/TEST/' },
         output: { transport: undefined }
     } as any;
 }
@@ -100,10 +101,11 @@ describe('generateLandscapeTransport rollback', () => {
         ['addObjectsFromTransport', 3],
         ['addObjectsFromTransport', 4],
         ['addObjectsFromTransport', 5],
+        ['addObjectsFromTransport', 6],
+        ['addObjectsFromTransport', 7],
         ['removeComments', 1],
         ['addComment', 1],
         ['addComment', 2],
-        ['addComment', 3],
         ['setDocumentation', 1],
         ['lock', 1]
     ] as [string, number][])('failure at %s occurrence %s deletes the landscape request', runFailure);
@@ -122,9 +124,31 @@ describe('generateLandscapeTransport rollback', () => {
         expect(ctx.output.transport).toBeUndefined();
     });
 
-    test('a legacy backend, which has no API to lock its objects, leaves them unlocked', async () => {
+    test('the deletions of the upgrade are copied after the release, without any upgrade comment', async () => {
         const ctx = context();
-        ctx.legacyBackend = true;
+
+        await execute('test', [generateLandscapeTransport], ctx);
+
+        expect(landscape.addObjectsFromTransport.mock.calls.map((call: any[]) => call[0])).toEqual([
+            'DEVK9DEVC', 'DEVK9TADIR', 'DEVK9LANG', 'DEVK9CUST1', 'DEVK9CUST2', 'DEVK9DELE', 'DEVK9DELEC'
+        ]);
+        expect(landscape.addComment.mock.calls.map((call: any[]) => call[0])).toEqual(['name=pkg', 'version=1.0.0']);
+    });
+
+    test('objects are locked before the deletions are copied: deleted objects are never locked', async () => {
+        const ctx = context();
+
+        await execute('test', [generateLandscapeTransport], ctx);
+
+        const lockOrder = landscape.lock.mock.invocationCallOrder[0];
+        const copies = landscape.addObjectsFromTransport.mock.calls.map((call: any[], i: number) => ({ trkorr: call[0], order: landscape.addObjectsFromTransport.mock.invocationCallOrder[i] }));
+        expect(copies.filter((c: any) => c.order < lockOrder).map((c: any) => c.trkorr)).toEqual(['DEVK9DEVC', 'DEVK9TADIR', 'DEVK9LANG', 'DEVK9CUST1', 'DEVK9CUST2']);
+        expect(copies.filter((c: any) => c.order > lockOrder).map((c: any) => c.trkorr)).toEqual(['DEVK9DELE', 'DEVK9DELEC']);
+    });
+
+    test('a backend without trmServer7, which has no API to lock its objects, leaves them unlocked', async () => {
+        const ctx = context();
+        ctx.missingBackendApis = ['trmServer7', 'trmServer8'];
 
         await execute('test', [generateLandscapeTransport], ctx);
 

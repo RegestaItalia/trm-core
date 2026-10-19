@@ -124,7 +124,7 @@ export const upload: Step<Cg3zWorkflowContext> = {
         //4- forward
         Logger.loading(`Forwarding transport ${Transport.getTransportIcon()}  ${trkorr}...`);
         progress.forwarded = true;
-        await SystemConnector.forwardTransport(trkorr, dest, dest, true);
+        await Transport.forward(trkorr, dest);
 
         //5- refresh text (only an overwritten transport can have a stale TMS text)
         if (context.runtime.overwritten) {

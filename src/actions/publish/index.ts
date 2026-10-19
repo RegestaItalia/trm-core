@@ -22,6 +22,7 @@ import { publishToRegistry } from "./publishToRegistry";
 import { updatePackageData } from "./updatePackageData";
 import { ActionLockScope, packageLockResource, withActionLockScope } from "../commons/utils";
 import { lockResources } from "./lockResources";
+import { simulatePublish } from "./simulatePublish";
 
 /** Input required to build and publish a TRM package release from the connected SAP system. */
 export interface PublishActionInput {
@@ -49,6 +50,12 @@ export interface PublishActionInput {
          * Supply it when the client resolves trm-core itself; defaults to the version read from trm-core package.json.
          */
         coreVersion?: string;
+
+        /**
+         * Simulate the publish: every check runs and every question is asked as in a real publish, but no
+         * transport is created and nothing is published. What the publish would do is logged instead.
+         */
+        simulate?: boolean;
     };
 
     /**
@@ -223,8 +230,10 @@ type WorkflowRuntime = {
 export type PublishActionOutput = {
     /** Published package model, including its normalized manifest and registry identity. */
     trmPackage: TrmPackage,
-    /** Generated release artifact containing transports, manifest, and optional source archive. */
-    trmArtifact: TrmArtifact
+    /** Generated release artifact containing transports, manifest, and optional source archive; unset when simulated. */
+    trmArtifact?: TrmArtifact,
+    /** Set when the publish was simulated (`contextData.simulate`): nothing was published. */
+    simulated?: boolean
 }
 
 /** Internal state shared by package-publish workflow steps. */
@@ -270,7 +279,7 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
     inputData.packageData.manifest.sapEntries ??= {};
     inputData.packageData.tags ??= [];
 
-    const workflow = [
+    const checks = [
         checkServerAuth,
         setSystemPackages,
         init,
@@ -278,7 +287,10 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         setCustomizingTransports,
         setManifestValues,
         setOptionalReleaseData,
-        lockResources,
+        lockResources
+    ];
+    const workflow = inputData.contextData.simulate ? [...checks, simulatePublish] : [
+        ...checks,
         generateDevcTransport,
         generateTadirTransport,
         generateLangTransport,
@@ -296,7 +308,8 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
         }, workflowCallbacks);
         return {
             trmPackage: result.output.trmPackage,
-            trmArtifact: result.output.trmArtifact
+            trmArtifact: result.output.trmArtifact,
+            ...(result.output.simulated ? { simulated: true } : {})
         };
     });
 }

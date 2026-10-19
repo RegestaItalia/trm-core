@@ -6,12 +6,12 @@ jest.mock('../commons/utils', () => ({
     ...jest.requireActual('../commons/utils'),
     executeRetainedWorkflow: jest.fn(),
     resolveInstallPackage: jest.fn(),
-    isLegacyTrmBackend: jest.fn()
+    getMissingTrmBackendApis: jest.fn()
 }));
 
 import { Logger } from "trm-commons";
 import { executeWorkflow } from "../commons";
-import { executeRetainedWorkflow, isLegacyTrmBackend, resolveInstallPackage } from "../commons/utils";
+import { executeRetainedWorkflow, getMissingTrmBackendApis, resolveInstallPackage } from "../commons/utils";
 import { SystemConnector } from "../../systemConnector";
 import { install, installWithRollback } from ".";
 
@@ -28,7 +28,7 @@ describe("install action-lock release", () => {
         (resolveInstallPackage as jest.Mock).mockReset().mockResolvedValue({ name: "pkg", registry: { endpoint: "registry", getRegistryType: () => 2 } });
         (executeWorkflow as jest.Mock).mockReset();
         (executeRetainedWorkflow as jest.Mock).mockReset();
-        (isLegacyTrmBackend as jest.Mock).mockReset().mockResolvedValue(false);
+        (getMissingTrmBackendApis as jest.Mock).mockReset().mockResolvedValue([]);
     });
 
     afterEach(() => warning.mockRestore());
@@ -73,17 +73,29 @@ describe("install action-lock release", () => {
         expect((executeRetainedWorkflow as jest.Mock).mock.calls[0][2].inheritedNamespaceLocks).toEqual(["/ACME/"]);
     });
 
-    test.each(["trm-server", "trm-rest"])("%s upgrades a legacy backend, which has no action locks, without them", async name => {
+    test.each(["trm-server", "trm-rest"])("%s upgrades a backend without trmServer7, which has no action locks, without them", async name => {
         const registry = { endpoint: "public", getRegistryType: () => 1 };
         (resolveInstallPackage as jest.Mock).mockResolvedValue({ name, registry });
-        (isLegacyTrmBackend as jest.Mock).mockResolvedValue(true);
+        (getMissingTrmBackendApis as jest.Mock).mockResolvedValue(['trmServer7', 'trmServer8']);
         (executeWorkflow as jest.Mock).mockResolvedValue({ output: { manifest: { name } } });
 
         await install({ packageData: { name, registry } } as any);
 
         expect(acquire).not.toHaveBeenCalled();
         expect(release).not.toHaveBeenCalled();
-        expect((executeWorkflow as jest.Mock).mock.calls[0][2].legacyBackend).toBe(true);
+        expect((executeWorkflow as jest.Mock).mock.calls[0][2].missingBackendApis).toEqual(['trmServer7', 'trmServer8']);
+    });
+
+    test("trm-server is locked on a backend that only lacks newer APIs than the action locks", async () => {
+        const registry = { endpoint: "public", getRegistryType: () => 1 };
+        (resolveInstallPackage as jest.Mock).mockResolvedValue({ name: "trm-server", registry });
+        (getMissingTrmBackendApis as jest.Mock).mockResolvedValue(['trmServer8']);
+        (executeWorkflow as jest.Mock).mockResolvedValue({ output: { manifest: { name: "trm-server" } } });
+
+        await install({ packageData: { name: "trm-server", registry } } as any);
+
+        expect(acquire).toHaveBeenCalledTimes(1);
+        expect((executeWorkflow as jest.Mock).mock.calls[0][2].missingBackendApis).toEqual(['trmServer8']);
     });
 
     test("trm-server is locked on a backend with action locks", async () => {
@@ -95,7 +107,7 @@ describe("install action-lock release", () => {
 
         expect(acquire).toHaveBeenCalledTimes(1);
         expect(release).toHaveBeenCalledTimes(1);
-        expect((executeWorkflow as jest.Mock).mock.calls[0][2].legacyBackend).toBe(false);
+        expect((executeWorkflow as jest.Mock).mock.calls[0][2].missingBackendApis).toEqual([]);
     });
 
     test("the backend generation is only read for trm-server and trm-rest", async () => {
@@ -103,7 +115,8 @@ describe("install action-lock release", () => {
 
         await install(inputData);
 
-        expect(isLegacyTrmBackend).not.toHaveBeenCalled();
+        expect(getMissingTrmBackendApis).not.toHaveBeenCalled();
+        expect((executeWorkflow as jest.Mock).mock.calls[0][2].missingBackendApis).toEqual([]);
     });
 
     test("an ordinary package still requires the action-lock APIs", async () => {

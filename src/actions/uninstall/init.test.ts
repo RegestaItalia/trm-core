@@ -227,7 +227,8 @@ describe('uninstall init', () => {
             .rejects.toThrow('Uninstall aborted. To continue, all cleanup objects and SAP packages must be released');
 
         expect(locks).toHaveBeenCalledWith(pkg, [{ originalDevclass: 'ZORIG', installDevclass: 'ZPKG' }], [pkg]);
-        expect(Logger.error).toHaveBeenCalledWith('R3TR PROG ZPROG is currently locked in transport TSTK900001', { important: true });
+        expect(Logger.error).toHaveBeenCalledWith('1 object is currently locked in transport requests', { important: true });
+        expect(Logger.table).toHaveBeenCalledWith(['Transport', 'PGMID', 'Object', 'Object name'], [['TSTK900001', 'R3TR', 'PROG', 'ZPROG']]);
         expect(prompt).not.toHaveBeenCalled();
         expect(SystemConnector.getTransportTargets).not.toHaveBeenCalled();
     });
@@ -244,8 +245,11 @@ describe('uninstall init', () => {
         await expect(init.run(context('pkg', [pkg], undefined, false)))
             .rejects.toThrow('Uninstall aborted. To continue, all cleanup objects and SAP packages must be released');
 
-        expect(Logger.error).toHaveBeenCalledWith('R3TR CLAS ZCL_EDITED is currently locked in transport TSTK900002', { important: true });
-        expect(Logger.error).toHaveBeenCalledWith('R3TR DEVC ZPKG is currently locked in transport TSTK900003', { important: true });
+        expect(Logger.error).toHaveBeenCalledWith('2 objects are currently locked in transport requests', { important: true });
+        expect(Logger.table).toHaveBeenCalledWith(['Transport', 'PGMID', 'Object', 'Object name'], [
+            ['TSTK900002', 'R3TR', 'CLAS', 'ZCL_EDITED'],
+            ['TSTK900003', 'R3TR', 'DEVC', 'ZPKG']
+        ]);
         expect(prompt).not.toHaveBeenCalled();
         expect(SystemConnector.getTransportTargets).not.toHaveBeenCalled();
     });

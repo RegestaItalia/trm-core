@@ -40,7 +40,9 @@ export class ActionLockScope {
         if (!this.enabled) {
             return;
         }
-        const requested = resources.map(actionLockKey);
+        // A resource requested more than once (e.g. a SAP package of several objects) is sent once
+        const requested = Array.from(new Map(resources.map(actionLockKey)
+            .map(key => [`${key.resourceType}:${key.resourceHash}`, key])).values());
         const fresh = requested.filter(key => !this.held.has(`${key.resourceType}:${key.resourceHash}`));
         if (fresh.length === 0) {
             return;

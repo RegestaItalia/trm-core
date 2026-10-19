@@ -14,6 +14,8 @@ jest.mock('../../systemConnector', () => ({
         getSupportedBulk: jest.fn().mockReturnValue({}),
         getExistingObjects: jest.fn().mockResolvedValue([]),
         getNamespace: jest.fn().mockResolvedValue(undefined),
+        // active transport configuration with layer ZTST routed out of the system
+        readTable: jest.fn(async (table: string) => table === 'TCEVERS' ? [{ version: '0001' }] : table === 'TCERELE' ? [{ translayer: 'ZTST' }] : []),
         createPackage: jest.fn(),
         getLogonUser: jest.fn(() => 'TESTER'),
         ping: jest.fn().mockResolvedValue('PONG'),
@@ -28,31 +30,31 @@ jest.mock('./updatePackageData', () => ({
 jest.mock('../../transport', () => ({
     Transport: class MockTransport {
         static createToc = jest.fn();
-        static importMultiple = jest.fn();
+        static importMultiple = jest.fn().mockResolvedValue([]);
         static upload = jest.fn();
+        static getTransportIcon = jest.fn(() => 'TR');
     }
 }));
 
 jest.mock('../../registry', () => {
-    class RegistryDeletionTransportUnavailableError extends Error { }
     return {
         ...jest.requireActual('../../registry/RegistryType'),
-        RegistryDeletionTransportUnavailableError,
-        RegistryDeletionTransportUnauthorizedError: class RegistryDeletionTransportUnauthorizedError extends RegistryDeletionTransportUnavailableError {
-            constructor(public registryEndpoint: string, public originalError: unknown) {
-                super(`Deletion denied by ${registryEndpoint}`);
+        RegistryDeletionTransportUnavailableError: class RegistryDeletionTransportUnavailableError extends Error {
+            constructor(public registryEndpoint: string, message: string, public originalError?: unknown) {
+                super(message);
             }
         }
     };
 });
 
 import execute from '@simonegaffurini/sammarksworkflow';
-import { Logger } from 'trm-commons';
-import { RegistryDeletionTransportUnauthorizedError, RegistryType } from '../../registry';
+import { Inquirer, Logger } from 'trm-commons';
+import { RegistryDeletionTransportUnavailableError, RegistryType } from '../../registry';
 import { SystemConnector } from '../../systemConnector';
 import { Transport } from '../../transport';
 import { deleteImportedEntries, importBatch } from './importBatch';
 import { cleanupCheckpoint } from './cleanupCheckpoint';
+import { prepareBackup } from './prepareBackup';
 import { recordInstalledRelease } from './updatePackageData';
 
 type RegistryOutcome = 'allowed' | 'denied';
@@ -168,6 +170,8 @@ describe('importBatch rollback checkpoint', () => {
         for (const method of ['loading', 'log', 'success', 'warning', 'error'] as const) {
             jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
         }
+        jest.spyOn(Inquirer, 'getPrefix').mockReturnValue(undefined);
+        jest.spyOn(Inquirer, 'setPrefix').mockImplementation(() => undefined as never);
 
         cleanupTransport = {
             trkorr: 'DEVK9CLEAN',
@@ -196,7 +200,7 @@ describe('importBatch rollback checkpoint', () => {
 
         registryDelete = jest.fn(async () => {
             await fail('registry.delete');
-            return { header: Buffer.from('dh'), data: Buffer.from('dd') };
+            return { empty: false, binaries: { header: Buffer.from('dh'), data: Buffer.from('dd') } };
         });
 
         jest.spyOn(Transport, 'createToc').mockImplementation(async () => {
@@ -243,7 +247,7 @@ describe('importBatch rollback checkpoint', () => {
         if (outcome === 'denied') {
             registryDelete.mockImplementation(async () => {
                 events.push('registry.delete');
-                throw new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied'));
+                throw new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied'));
             });
         } else if (point === 'cleanup.canBeDeleted') {
             registryDelete.mockImplementation(async () => {
@@ -334,10 +338,9 @@ describe('importBatch rollback checkpoint', () => {
         expect(entries).toHaveLength(5);
     });
 
-    test('a failure after import keeps tables retained by the upgrade out of the cleanup', async () => {
+    test('a failure after import keeps the objects backed up by the upgrade out of the cleanup: the backup restores them', async () => {
         const context = makeContext(registryDelete);
-        context.revert.retainedTables = { trkorr: 'DEVK9BKP', entries: undefined, binaries: {} };
-        context.revert.retainedTableObjects = [{ pgmid: 'R3TR', object: 'TABL', objName: 'z_three' }];
+        context.runtime.cleanupPlan = { backupObjects: [{ pgmid: 'R3TR', object: 'TABL', objName: 'z_three' }] };
         failurePoint = 'connect';
         const restore = { name: 'restore', run: async () => undefined, revert: async () => undefined };
 
@@ -347,17 +350,6 @@ describe('importBatch rollback checkpoint', () => {
         expect(entries).not.toContainEqual({ pgmid: 'R3TR', object: 'TABL', objName: 'Z_THREE' });
         expect(entries).toContainEqual({ pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' });
         expect(context.revert.cleanupSucceeded).toBe(true);
-    });
-
-    test('retained tables without a backup are still cleaned up', async () => {
-        const context = makeContext(registryDelete);
-        context.revert.retainedTableObjects = [{ pgmid: 'R3TR', object: 'TABL', objName: 'Z_THREE' }];
-        failurePoint = 'connect';
-        const restore = { name: 'restore', run: async () => undefined, revert: async () => undefined };
-
-        await expect(execute('test', [restore, importBatch], context)).rejects.toThrow('failure at connect');
-
-        expect(cleanupTransport.addObjects.mock.calls[0][0]).toContainEqual({ pgmid: 'R3TR', object: 'TABL', objName: 'Z_THREE' });
     });
 
     test('imported customizing is copied into the cleanup transport instead of added without its keys', async () => {
@@ -506,6 +498,7 @@ describe('importBatch rollback checkpoint', () => {
             { pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG' },
             { pgmid: 'R3TR', object: 'DEVC', objName: staging }
         ]));
+        expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: staging, pdevclass: 'ZTST' }));
         expect(context.revert.cleanupSucceeded).not.toBe(false);
     });
 
@@ -580,7 +573,7 @@ describe('importBatch rollback checkpoint', () => {
     test('reports denied workbench cleanup after attempting every temporary-package cleanup', async () => {
         const context = makeContext(registryDelete);
         context.revert.sapPackages = ['$TMP', '$OTHER'];
-        const authorizationError = new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied'));
+        const authorizationError = new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied'));
         registryDelete.mockRejectedValue(authorizationError);
         (SystemConnector.deleteTemporaryPackage as jest.Mock)
             .mockRejectedValueOnce(new Error('first temporary cleanup failed'))
@@ -673,9 +666,9 @@ describe('importBatch rollback checkpoint', () => {
         expect(events).not.toContain('restore-old-payload');
     });
 
-    test('a legacy backend imports one transport at a time, SAP packages first', async () => {
+    test('a backend without trmServer7 imports one transport at a time, SAP packages first', async () => {
         const context = makeContext(registryDelete);
-        context.legacyBackend = true;
+        context.missingBackendApis = ['trmServer7', 'trmServer8'];
         context.runtime.selfUpdate = true;
 
         await importBatch.run(context);
@@ -693,22 +686,77 @@ describe('importBatch rollback checkpoint', () => {
         });
         expect(order).toEqual([...order].sort((a, b) => a - b));
         // trm-server/trm-rest upgrades are not rolled back after the import: nothing to back up
-        expect(SystemConnector.getExistingObjects).not.toHaveBeenCalled();
         expect(Transport.createToc).not.toHaveBeenCalled();
         // and they are recorded as installed right after it
         expect(recordInstalledRelease).toHaveBeenCalledWith(context);
     });
 
-    test('a legacy backend stops at the first failed import', async () => {
+    test('a backend without trmServer7 stops at the first failed import', async () => {
         const context = makeContext(registryDelete);
-        context.legacyBackend = true;
+        context.missingBackendApis = ['trmServer7', 'trmServer8'];
         context.runtime.selfUpdate = true;
         (context.runtime.transports.devc.instance.import as jest.Mock).mockResolvedValue(12);
 
-        await expect(importBatch.run(context)).rejects.toThrow(/DEVK900001 failed/);
+        await expect(importBatch.run(context)).rejects.toThrow(/Import of transport DEVK900001: .*return code 12/);
 
         expect(context.runtime.transports.tadir.instance.import).not.toHaveBeenCalled();
         expect(context.revert.importStarted).toBe(true);
+    });
+
+    test.each([8, 12, -1])('a batch transport ending with return code %s fails the import, after every transport is checked', async rc => {
+        const context = makeContext(registryDelete);
+        (Transport.importMultiple as jest.Mock).mockResolvedValueOnce([
+            { trkorr: 'DEVK900001', rc: 4 },
+            { trkorr: 'DEVK900002', rc, message: 'A tool used by tp produced errors' },
+            { trkorr: 'DEVK900003', rc: 0 }
+        ]);
+
+        await expect(importBatch.run(context)).rejects.toThrow(/Import of transport DEVK900002: .*(return code|no return code).*A tool used by tp produced errors/);
+        expect(context.revert.importStarted).toBe(true);
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+    });
+
+    test('with ignoreImportErrors, batch return codes from 8 are logged and the import completes', async () => {
+        const context = makeContext(registryDelete);
+        context.ignoreImportErrors = true;
+        (Transport.importMultiple as jest.Mock).mockResolvedValueOnce([
+            { trkorr: 'DEVK900001', rc: 8, message: 'A tool used by tp produced errors' },
+            { trkorr: 'DEVK900002', rc: 12 }
+        ]);
+
+        await expect(importBatch.run(context)).resolves.toBeUndefined();
+        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('DEVK900001'), { important: true });
+        expect(Logger.error).toHaveBeenCalledWith(expect.stringContaining('DEVK900002'), { important: true });
+    });
+
+    test('batch return codes up to 4 complete the import', async () => {
+        const context = makeContext(registryDelete);
+        (Transport.importMultiple as jest.Mock).mockResolvedValueOnce([
+            { trkorr: 'DEVK900001', rc: 4 },
+            { trkorr: 'DEVK900002', rc: 0 }
+        ]);
+
+        await expect(importBatch.run(context)).resolves.toBeUndefined();
+    });
+
+    test('only the TADIR entries that differ from the live ones are written after the import', async () => {
+        const context = makeContext(registryDelete);
+        context.rawInput.installData.installDevclass = { keepOriginal: true, replacements: [] };
+        context.runtime.transports.tadir.binaries.entries.tadir = [
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SAME', devclass: 'ZROOT' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SOURCE', devclass: 'ZROOT' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED', devclass: 'ZROOT' }
+        ];
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SAME', devclass: 'ZROOT', srcsystem: 'TRM' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SOURCE', devclass: 'ZROOT', srcsystem: 'DEV' },
+            { pgmid: 'R3TR', object: 'PROG', objName: 'Z_MOVED', devclass: 'ZOTHER', srcsystem: 'TRM' }
+        ]);
+
+        await importBatch.run(context);
+
+        const written = (SystemConnector.tadirInterface as jest.Mock).mock.calls.map(([o]: any[]) => o.objName).filter((name: string) => name.startsWith('Z_'));
+        expect(written).toEqual(['Z_SOURCE', 'Z_MOVED']);
     });
 
     test('a trm-server upgrade checks the user can call the imported release', async () => {
@@ -752,7 +800,7 @@ describe('importBatch rollback checkpoint', () => {
 
     test('a failed trm-server upgrade import is left in place, without backup or rollback', async () => {
         const context = makeContext(registryDelete);
-        context.legacyBackend = true;
+        context.missingBackendApis = ['trmServer7', 'trmServer8'];
         context.runtime.selfUpdate = true;
         const originalError = new Error('import failed');
         (context.runtime.transports.devc.instance.import as jest.Mock).mockRejectedValue(originalError);
@@ -801,7 +849,7 @@ describe('importBatch rollback checkpoint', () => {
             context.runtime.rootDevclassBeforeImport.parentcl = '';
             failurePoint = 'clearPackageSuperpackage';
             if (outcome === 'denied') {
-                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied')));
+                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied')));
             }
             const restore = {
                 name: 'restore', run: async () => undefined,
@@ -831,7 +879,7 @@ describe('importBatch rollback checkpoint', () => {
             context.runtime.update = { getDevclass: () => 'ZOLDROOT' };
             failurePoint = 'clearPackageSuperpackage';
             if (outcome === 'denied') {
-                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnauthorizedError('registry', new Error('denied')));
+                registryDelete.mockRejectedValue(new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied')));
             }
             const restore = {
                 name: 'restore', run: async () => undefined,
@@ -972,20 +1020,22 @@ describe('importBatch rollback checkpoint', () => {
                 }
             };
             const laterFailure = { name: 'later-failure', run: async () => { throw new Error('failure after importBatch'); } };
-            await expect(execute('test', failAfterStep ? [restore, importBatch, laterFailure] : [restore, importBatch], context)).rejects.toThrow();
+            await expect(execute('test', failAfterStep ? [restore, prepareBackup, importBatch, laterFailure] : [restore, prepareBackup, importBatch], context)).rejects.toThrow();
             return context;
         }
 
         test('only imported R3TR objects not generated by the install are checked', async () => {
             const context = makeExistingContext();
+            await prepareBackup.run(context);
             await importBatch.run(context);
 
             const checked = (SystemConnector.getExistingObjects as jest.Mock).mock.calls[0][0].map((o: any) => `${o.object} ${o.objName}`);
-            expect(checked).toEqual(['PROG Z_ONE', 'TABL Z_EXISTING_TABLE', 'PROG Z_LOCAL', 'DEVC ZROOT', 'DEVC $LOCAL']);
+            expect(checked.sort()).toEqual(['DEVC $LOCAL', 'DEVC ZROOT', 'PROG Z_LOCAL', 'PROG Z_ONE', 'TABL Z_EXISTING_TABLE']);
         });
 
         test('existing objects and packages are backed up before the import', async () => {
             const context = makeExistingContext();
+            await prepareBackup.run(context);
             await importBatch.run(context);
 
             expect(backupTransport.addObjects).toHaveBeenCalledWith([
@@ -993,7 +1043,7 @@ describe('importBatch rollback checkpoint', () => {
                 { pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT' }
             ], false);
             expect(events.indexOf('backup.release')).toBeLessThan(events.indexOf('importMultiple'));
-            expect(context.revert.existingObjectsBackup.trkorr).toBe('DEVK9BKP');
+            expect(context.revert.backup.tadir.binaries.trkorr).toBe('DEVK9BKP');
             expect(context.revert.existingObjectsTadir).toEqual(existingTadir);
             expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Z_LOCAL'), { important: true });
         });
@@ -1035,7 +1085,7 @@ describe('importBatch rollback checkpoint', () => {
             failurePoint = 'backup.import.live';
             const laterFailure = { name: 'later-failure', run: async () => { throw new Error('later'); } };
 
-            await expect(execute('test', [importBatch, laterFailure], context)).rejects.toThrow('later');
+            await expect(execute('test', [prepareBackup, importBatch, laterFailure], context)).rejects.toThrow('later');
 
             expect(events).toContain('backup.import.live');
             for (const object of existingTadir) {
@@ -1045,6 +1095,7 @@ describe('importBatch rollback checkpoint', () => {
 
         test('a failed backup restore is reported by the step revert', async () => {
             const context = makeExistingContext();
+            await prepareBackup.run(context);
             await importBatch.run(context);
             failurePoint = 'backup.import.live';
 
@@ -1064,26 +1115,20 @@ describe('importBatch rollback checkpoint', () => {
 
             expect(Transport.importMultiple).not.toHaveBeenCalled();
             expect(events).not.toContain('backup.upload');
-            const entries = cleanupTransport.addObjects.mock.calls[0]?.[0] || [];
-            expect(entries).not.toContainEqual({ pgmid: 'R3TR', object: 'PROG', objName: 'Z_ONE' });
-            expect(entries).not.toContainEqual({ pgmid: 'R3TR', object: 'DEVC', objName: 'ZROOT' });
-            expect(entries).toContainEqual({ pgmid: 'R3TR', object: 'DEVC', objName: 'ZGENERATED' });
-            if (point === 'backup.release') {
-                expect(backupTransport.delete).toHaveBeenCalled();
-            }
-            expect(context.revert.cleanupSucceeded).toBe(true);
+            // nothing was imported: the existing objects are left alone
+            expect(cleanupTransport.addObjects).not.toHaveBeenCalled();
+            // a backup is never deleted, not even unreleased
+            expect(backupTransport.delete).not.toHaveBeenCalled();
         });
 
-        test('no backup transport is created when every existing object is refused', async () => {
+        test('objects SAP refuses to back up are reported, and the backup is still kept', async () => {
             const context = makeExistingContext();
             backupTransport.addObjects.mockRejectedValue(new Error('not transportable'));
 
-            await importBatch.run(context);
+            await prepareBackup.run(context);
 
-            expect(backupTransport.delete).toHaveBeenCalledTimes(1);
-            expect(backupTransport.release).not.toHaveBeenCalled();
-            expect(context.revert.existingObjectsBackup).toBeUndefined();
-            expect(context.revert.existingObjectsBackupTransport).toBeUndefined();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining("Z_EXISTING_TABLE can't be backed up"), { important: true });
+            expect(backupTransport.delete).not.toHaveBeenCalled();
             expect(context.revert.existingObjectsTadir).toEqual(existingTadir);
         });
     });
@@ -1112,7 +1157,7 @@ describe('importBatch package transport layers', () => {
     test('packages kept with their original name get the system default layer, read before the import', async () => {
         const events: string[] = [];
         (SystemConnector.getDefaultTransportLayer as jest.Mock).mockImplementation(async () => { events.push('default'); return 'ZDEF'; });
-        (Transport.importMultiple as jest.Mock).mockImplementation(async () => { events.push('import'); });
+        (Transport.importMultiple as jest.Mock).mockImplementation(async () => { events.push('import'); return []; });
 
         await importBatch.run(layerContext());
 
@@ -1122,6 +1167,17 @@ describe('importBatch package transport layers', () => {
         expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZSUB', 'ZDEF');
     });
 
+    test('packages without a layer get the one set by set-transport-layer, not the system default', async () => {
+        const context = layerContext();
+        context.runtime.transportLayer = 'ZROUTED';
+
+        await importBatch.run(context);
+
+        expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZROOT', 'ZROUTED');
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZSUB', 'ZROUTED');
+    });
+
     test('a package already on the system keeps its layer, read before the import overwrites it', async () => {
         const context = layerContext();
         context.runtime.update = { getDevclass: () => 'ZROOT' };
@@ -1129,6 +1185,7 @@ describe('importBatch package transport layers', () => {
             devclass === 'ZROOT' ? { devclass, pdevclass: 'ZOLD' } : undefined);
         (Transport.importMultiple as jest.Mock).mockImplementation(async () => {
             (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZROOT', pdevclass: 'SOURCE' });
+            return [];
         });
         (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZDEF');
 

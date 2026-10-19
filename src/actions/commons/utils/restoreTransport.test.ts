@@ -1,5 +1,5 @@
 jest.mock('../../../systemConnector', () => ({
-    SystemConnector: { getDest: jest.fn(() => 'TST') }
+    SystemConnector: { getDest: jest.fn(() => 'TST'), deleteTmsTransport: jest.fn() }
 }));
 
 jest.mock('../../../transport', () => ({
@@ -9,10 +9,12 @@ jest.mock('../../../transport', () => ({
 }));
 
 import { Logger } from 'trm-commons';
+import { SystemConnector } from '../../../systemConnector';
 import { Transport } from '../../../transport';
-import { revertPreparedTransport } from './restoreTransport';
+import { protectBackupTransport } from './importQueue';
+import { restoreTransport, revertPreparedTransport } from './restoreTransport';
 
-describe('revertPreparedTransport', () => {
+describe('restore and revert of transports', () => {
     const snapshot = {
         trkorr: 'DEVK900001', entries: undefined,
         binaries: { header: Buffer.from('h'), data: Buffer.from('d') }
@@ -23,63 +25,65 @@ describe('revertPreparedTransport', () => {
     beforeEach(() => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
-        for (const method of ['loading', 'success'] as const) {
+        for (const method of ['loading', 'success', 'warning'] as const) {
             jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
         }
         generated = {
+            trkorr: 'DEVK900002',
             canBeDeleted: jest.fn().mockResolvedValue(true),
             delete: jest.fn().mockResolvedValue(undefined)
         };
-        restored = { import: jest.fn().mockResolvedValue(undefined) };
+        restored = { import: jest.fn().mockResolvedValue(0) };
         jest.spyOn(Transport, 'upload').mockResolvedValue(restored);
     });
 
-    test('deletes a generated dummy that has not replaced SAP payload', async () => {
-        await revertPreparedTransport(generated, undefined);
+    test('deletes a generated dummy that is still deletable', async () => {
+        await revertPreparedTransport(generated);
 
         expect(generated.delete).toHaveBeenCalledTimes(1);
+        expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
         expect(Transport.upload).not.toHaveBeenCalled();
     });
 
-    test('deletes a still-deletable dummy instead of importing its snapshot', async () => {
-        await revertPreparedTransport(generated, snapshot);
-
-        expect(generated.delete).toHaveBeenCalledTimes(1);
-        expect(Transport.upload).not.toHaveBeenCalled();
-    });
-
-    test('restores the old payload when the generated request is no longer deletable', async () => {
+    test('a released dummy is only taken out of the queue, never re-imported', async () => {
         generated.canBeDeleted.mockResolvedValue(false);
 
-        await revertPreparedTransport(generated, snapshot);
+        await revertPreparedTransport(generated);
 
         expect(generated.delete).not.toHaveBeenCalled();
-        expect(Transport.upload).toHaveBeenCalledWith(snapshot.trkorr, {
-            binary: snapshot.binaries, trTarget: 'TST'
-        });
-        expect(restored.import).toHaveBeenCalledWith(false);
-    });
-
-    test('falls back to snapshot restoration when deletability lookup fails', async () => {
-        generated.canBeDeleted.mockRejectedValue(new Error('status failed'));
-
-        await revertPreparedTransport(generated, snapshot);
-
-        expect(Transport.upload).toHaveBeenCalledTimes(1);
-        expect(restored.import).toHaveBeenCalledWith(false);
-    });
-
-    test('reports a deletability failure when no snapshot exists', async () => {
-        generated.canBeDeleted.mockRejectedValue(new Error('status failed'));
-
-        await expect(revertPreparedTransport(generated, undefined)).rejects.toThrow('status failed');
+        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK900002', 'TST');
         expect(Transport.upload).not.toHaveBeenCalled();
     });
 
-    test('restores a snapshot even when no generated request instance was retained', async () => {
-        await revertPreparedTransport(undefined, snapshot);
+    test('a backup transport is never taken out of the queue', async () => {
+        generated.trkorr = 'DEVK900003';
+        generated.canBeDeleted.mockResolvedValue(false);
+        protectBackupTransport('DEVK900003');
 
-        expect(Transport.upload).toHaveBeenCalledTimes(1);
+        await expect(revertPreparedTransport(generated)).rejects.toThrow('is a backup');
+        expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+    });
+
+    test('nothing to do without a generated dummy', async () => {
+        await revertPreparedTransport(undefined);
+
+        expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+    });
+
+    test('restore imports the snapshot and succeeds up to return code 4', async () => {
+        restored.import.mockResolvedValue(4);
+
+        await restoreTransport(snapshot);
+
+        expect(Transport.upload).toHaveBeenCalledWith(snapshot.trkorr, { binary: snapshot.binaries, trTarget: 'TST' });
         expect(restored.import).toHaveBeenCalledWith(false);
+    });
+
+    test.each([8, 12, -1])('restore fails with return code %s', async rc => {
+        restored.import.mockResolvedValue(rc);
+        restored.lastImportMessage = 'A tool used by tp produced errors';
+
+        await expect(restoreTransport(snapshot)).rejects.toThrow(`Restore of transport ${snapshot.trkorr}`);
+        expect(Logger.success).not.toHaveBeenCalled();
     });
 });

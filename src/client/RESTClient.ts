@@ -5,19 +5,16 @@ import { getAxiosInstance, normalize } from "../commons";
 import { AxiosInstance, AxiosResponse } from "axios";
 import * as FormData from "form-data";
 import { Logger } from "trm-commons";
-import { Login, RESTClientError, SapMessage } from ".";
+import { Login, RESTClientError, SapMessage, formatSapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { logMessageLog, parseMessageLog } from "./messageLog";
 import { Agent as HttpsAgent } from "https";
+import { getErrorMessage } from "../commons/getErrorMessage";
 
 const AXIOS_CTX = "RestServer";
-
-function getErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
 
 export class RESTClient implements IClient {
     public async acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
@@ -152,20 +149,7 @@ export class RESTClient implements IClient {
             `SPRSL EQ '${this._cLangu}' AND ARBGB EQ '${data.class}' AND MSGNR EQ '${msgnr}'`
         );
         if (aT100.length === 1 && aT100[0].text) {
-            var msg = aT100[0].text;
-            var counter = 1;
-            do {
-                if (msg.includes(`&${counter}`)) {
-                    msg = msg.replace(new RegExp(`&${counter}`, 'gmi'), data[`v${counter}`] || '');
-                    msg = msg.replace(new RegExp(`&${counter}&`, 'gmi'), data[`v${counter}`] || '');
-                } else {
-                    msg = msg.replace("&", data[`v${counter}`] || '');
-                }
-                counter++;
-            } while (counter <= 4);
-            msg = msg.replace(new RegExp(`&\\d*`, 'gmi'), '');
-            msg = msg.replace(new RegExp(`&`, 'gmi'), '');
-            return msg.trim();
+            return formatSapMessage(aT100[0].text, data);
         } else {
             throw new RESTClientError("ZMSG_NOT_FOUND", null, null, `Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
         }
@@ -774,6 +758,15 @@ export class RESTClient implements IClient {
     public async getTransportTargets(): Promise<components.TARSYSTEM[]> {
         const result = (await this._axiosInstance.get('/get_tr_targets')).data;
         return result.targets;
+    }
+
+    public async getTransportLayers(target: components.TARSYSTEM): Promise<components.DEVLAYER[]> {
+        const result = (await this._axiosInstance.get('/get_transport_layers', {
+            data: {
+                target: target.trim().toUpperCase()
+            }
+        })).data;
+        return (result.layers || []).map((layer: components.DEVLAYER) => layer.trim());
     }
 
 }

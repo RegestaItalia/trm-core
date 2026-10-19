@@ -10,7 +10,7 @@ jest.mock('../../../systemConnector', () => ({
 import { Logger } from 'trm-commons';
 import { SystemConnector } from '../../../systemConnector';
 import { RegistryType } from '../../../registry';
-import { isLegacyTrmBackend, isTrmBackendPackage } from './trmBackend';
+import { getMissingTrmBackendApis, isTrmBackendPackage, lacksTrmBackendApis } from './trmBackend';
 
 const installed = (version: string) => ({ manifest: { get: () => ({ version }) } });
 
@@ -20,19 +20,28 @@ describe('TRM backend generation', () => {
     });
 
     test.each([
-        ['6.4.1', '5.0.0', true],
-        ['7.0.0', '5.0.0', true],
-        ['6.4.1', undefined, true],
-        ['7.0.0', '6.0.0', false],
-        ['7.0.0', undefined, false]
-    ])('trm-server %s, trm-rest %s: legacy %s', async (server, rest, legacy) => {
+        ['6.4.1', '5.0.0', ['trmServer7', 'trmServer8']],
+        ['7.0.0', '5.0.0', ['trmServer7', 'trmServer8']],
+        ['6.4.1', undefined, ['trmServer7', 'trmServer8']],
+        ['7.0.1', '6.0.0', ['trmServer8']],
+        ['7.0.1', undefined, ['trmServer8']],
+        ['8.0.0', '6.0.0', ['trmServer8']],
+        ['8.0.0', '7.0.0', []],
+        ['8.0.0', undefined, []]
+    ])('trm-server %s, trm-rest %s: missing %j', async (server, rest, missing) => {
         (SystemConnector.getTrmServerPackage as jest.Mock).mockResolvedValue(installed(server));
         if (rest) {
             (SystemConnector.getTrmRestPackage as jest.Mock).mockResolvedValue(installed(rest));
         } else {
             (SystemConnector.getTrmRestPackage as jest.Mock).mockRejectedValue(new Error('Package trm-rest was not found.'));
         }
-        await expect(isLegacyTrmBackend()).resolves.toBe(legacy);
+        await expect(getMissingTrmBackendApis()).resolves.toEqual(missing);
+    });
+
+    test('only the listed generations are lacking, and none outside a backend upgrade', () => {
+        expect(lacksTrmBackendApis({ missingBackendApis: ['trmServer8'] }, 'trmServer8')).toBe(true);
+        expect(lacksTrmBackendApis({ missingBackendApis: ['trmServer8'] }, 'trmServer7')).toBe(false);
+        expect(lacksTrmBackendApis({}, 'trmServer8')).toBe(false);
     });
 
     test('only the public trm-server and trm-rest are the TRM backend', () => {

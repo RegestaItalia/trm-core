@@ -19,3 +19,5 @@ scripts/e2e-revert-matrix.sh
 e2e/work/
 E2E_REPORT*.md
 E2E_PLAN*.md
+
+docs/analysis

@@ -48,7 +48,7 @@ import { join } from 'path';
 function context() {
     return {
         rawInput: {
-            packageData: { name: 'pkg', registry: { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue({ header: Buffer.from('dh'), data: Buffer.from('dd') }) } },
+            packageData: { name: 'pkg', registry: { getRegistryType: () => RegistryType.PRIVATE, delete: jest.fn().mockResolvedValue({ empty: false, binaries: { header: Buffer.from('dh'), data: Buffer.from('dd') } }) } },
             contextData: { noInquirer: true },
             installData: {
                 installDevclass: {
@@ -62,6 +62,7 @@ function context() {
         runtime: {
             namespace: undefined,
             stopWarningShown: true,
+            transportLayer: 'ZLAYER',
             package: {
                 hierarchy: { devclass: 'ORIGINAL', sub: [] },
                 data: {
@@ -206,7 +207,7 @@ describe('install mutation checkpoints', () => {
         const ctx = context();
         const realRegistry = {
             getRegistryType: () => RegistryType.PRIVATE,
-            delete: jest.fn().mockResolvedValue({ header: Buffer.from('dh'), data: Buffer.from('dd') })
+            delete: jest.fn().mockResolvedValue({ empty: false, binaries: { header: Buffer.from('dh'), data: Buffer.from('dd') } })
         };
         const fileRegistry = {
             getRegistryType: () => RegistryType.LOCAL,
@@ -228,10 +229,16 @@ describe('install mutation checkpoints', () => {
         const source = readFileSync(join(__dirname, 'index.ts'), 'utf8');
         const workflow = /const installWorkflow = \[([\s\S]*?)\];/.exec(source)[1].split(',').map(s => s.trim()).filter(s => s);
         expect(workflow.indexOf('cleanupCheckpoint')).toBe(workflow.indexOf('installDependencies') + 1);
-        for (const step of ['addNamespace', 'generateDevclass', 'generateUpdateTransport', 'prepareDevc', 'importBatch']) {
+        for (const step of ['addNamespace', 'generateDevclass', 'planUpdateCleanup', 'prepareBackup', 'prepareDevc', 'prepareDeletion', 'importBatch']) {
             expect(workflow.indexOf(step)).toBeGreaterThan(workflow.indexOf('cleanupCheckpoint'));
         }
-        expect(workflow.indexOf('generatePostImportUpdateTransport')).toBe(workflow.length - 1);
+        // questions are asked before the first backup; backups before any payload; deletions after the payloads
+        expect(workflow.indexOf('planUpdateCleanup')).toBe(workflow.indexOf('prepareBackup') - 1);
+        expect(workflow.indexOf('prepareBackup')).toBeLessThan(workflow.indexOf('prepareDevc'));
+        expect(workflow.indexOf('prepareDeletion')).toBe(workflow.indexOf('importBatch') - 1);
+        // the install is recorded before the landscape transport is released, last: a failed release doesn't undo it
+        expect(workflow.indexOf('updatePackageData')).toBeLessThan(workflow.indexOf('releaseLandscapeTransport'));
+        expect(workflow.indexOf('releaseLandscapeTransport')).toBe(workflow.length - 1);
     });
 
     test.each(['add-namespace', 'generate-devclass'])('a failure in %s cleans up the parent before the dependencies are rolled back', async failingStep => {
@@ -240,7 +247,7 @@ describe('install mutation checkpoints', () => {
         ctx.runtime.dependencyRollbacks = [async () => { events.push('dependency-rollback'); }];
         ctx.rawInput.packageData.registry.delete.mockImplementation(async () => {
             events.push('parent-cleanup');
-            return { header: Buffer.from('dh'), data: Buffer.from('dd') };
+            return { empty: false, binaries: { header: Buffer.from('dh'), data: Buffer.from('dd') } };
         });
         ctx.revert.packageHierarchy = [{ devclass: 'ZEXISTING', parentcl: 'ZOLD_PARENT' }];
         (SystemConnector.setPackageSuperpackage as jest.Mock).mockImplementation(async () => { events.push('hierarchy-restore'); });
@@ -363,61 +370,42 @@ describe('install mutation checkpoints', () => {
     });
 
     describe('transport layer', () => {
-        test('default layer is resolved only when transportable packages are created', async () => {
-            const ctx = context();
-            delete ctx.rawInput.installData.installDevclass.transportLayer;
-            (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZDEF');
-            (SystemConnector.createPackage as jest.Mock).mockResolvedValue(undefined);
-
-            await generateDevclass.run(ctx);
-
-            expect(SystemConnector.getDefaultTransportLayer).toHaveBeenCalledTimes(1);
-            expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: 'ZNEW', pdevclass: 'ZDEF' }));
-        });
-
-        test('explicit layer is used without a default lookup', async () => {
+        test('packages are created with the layer set by set-transport-layer', async () => {
             const ctx = context();
             (SystemConnector.createPackage as jest.Mock).mockResolvedValue(undefined);
 
             await generateDevclass.run(ctx);
 
             expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
-            expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ pdevclass: 'ZLAYER' }));
+            expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: 'ZNEW', pdevclass: 'ZLAYER' }));
         });
 
         test('existing packages need no transport layer', async () => {
             const ctx = context();
-            delete ctx.rawInput.installData.installDevclass.transportLayer;
+            delete ctx.runtime.transportLayer;
             (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZNEW', parentcl: '', dlvunit: 'HOME', tpclass: 'A' });
 
             await generateDevclass.run(ctx);
 
-            expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
             expect(SystemConnector.createPackage).not.toHaveBeenCalled();
         });
 
         test('local packages are created without a transport layer', async () => {
             const ctx = context();
-            delete ctx.rawInput.installData.installDevclass.transportLayer;
             ctx.runtime.namespace = '$';
             ctx.rawInput.installData.installDevclass.replacements[0].installDevclass = '$NEW';
             (SystemConnector.createPackage as jest.Mock).mockResolvedValue(undefined);
 
             await generateDevclass.run(ctx);
 
-            expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
             expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: '$NEW', dlvunit: 'LOCAL', pdevclass: '' }));
         });
 
-        test.each([
-            ['lookup fails', () => (SystemConnector.getDefaultTransportLayer as jest.Mock).mockRejectedValue(new Error('rfc down')), "Couldn't determine system's default transport layer."],
-            ['no default exists', () => (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue(''), 'System has no default transport layer, specify one.']
-        ])('aborts before creating any package when the %s', async (_point, inject, message) => {
+        test('aborts before creating any package when no transport layer was set', async () => {
             const ctx = context();
-            delete ctx.rawInput.installData.installDevclass.transportLayer;
-            inject();
+            delete ctx.runtime.transportLayer;
 
-            await expect(generateDevclass.run(ctx)).rejects.toThrow(message);
+            await expect(generateDevclass.run(ctx)).rejects.toThrow('Transport layer of the new SAP packages was not set.');
             expect(SystemConnector.createPackage).not.toHaveBeenCalled();
             expect(ctx.revert.sapPackages).toEqual([]);
 

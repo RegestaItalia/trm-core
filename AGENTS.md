@@ -3,6 +3,12 @@
 When adding, editing, renaming, or removing a public `SystemConnector` API,
 follow [the SystemConnector API maintenance workflow](docs/development/system-connector-api.md).
 
+When an existing action starts calling a new backend API, remember that trm-core upgrades
+trm-server and trm-rest, so the upgrade runs on a backend without it: register the API in
+`TRM_BACKEND_APIS` and skip it only when `lacksTrmBackendApis` says so. That fallback is
+allowed only for a trm-server/trm-rest upgrade; anywhere else a missing API is an error (see
+[the workflow](docs/development/system-connector-api.md#keep-trm-servertrm-rest-upgrades-working)).
+
 When changing an action that creates, deletes, or modifies SAP-system data, update
 the action's failure-injection and rollback tests in the same change. The revert
 path must make a best-effort cleanup: continue attempting independent cleanup

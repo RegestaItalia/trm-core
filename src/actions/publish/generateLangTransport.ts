@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
 
 /**
@@ -32,7 +33,7 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
         context.runtime.transports.lang = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.LANG,
             target: context.rawInput.systemData.transportTarget,
-            text: `@X1@TRM (L) ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`.slice(0, 60)
+            text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`, 'L')
         });
         var iLanguageObjects: number = 0;
         try {

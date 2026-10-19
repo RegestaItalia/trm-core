@@ -3,8 +3,9 @@ import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { TransportImportError } from "../../transport/TransportImportError";
 import { stopWarning } from "../stopWarning";
-import { revertPreparedTransport, withScopedPrefix } from "../commons/utils";
+import { lacksTrmBackendApis, revertPreparedTransport, withScopedPrefix } from "../commons/utils";
 import { TRKORR } from "../../client";
 import { deleteImportedEntries } from "./importBatch";
 
@@ -57,18 +58,6 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                     });
                     context.revert.createdTransports.cust.push(dummy);
                     await dummy.release(false, true);
-                    try {
-                        //saving dummy binaries for a possible revert
-                        context.revert.transports.cust.push({
-                            trkorr: dummy.trkorr,
-                            entries: undefined,
-                            binaries: (await dummy.download()).binaries
-                        });
-                    } catch (e) {
-                        Logger.error(`Unable to dowload dummy transport!`, true);
-                        Logger.error(e.toString(), true);
-                        Logger.error(`On failure, revert won't be possible!`, true);
-                    }
                     cust.binaries.binaries = await context.rawInput.packageData.registry.transport(cust.binaries.trkorr, dummy.trkorr);
                     trkorr = dummy.trkorr;
                 } else {
@@ -84,14 +73,12 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                 });
 
                 //3- test import transport
-                if (context.legacyBackend) {
-                    Logger.log(`Skipping test import: legacy TRM backend`, true);
+                if (lacksTrmBackendApis(context, 'trmServer7')) {
+                    Logger.log(`Skipping test import: TRM backend older than trm-server 7.0.0`, true);
                 } else {
                     Logger.loading(`Testing import...`);
                     const testRc = await cust.instance.import(true);
-                    if (testRc < 0 || testRc > 8) {
-                        throw new Error(`Test import of customizing failed: check logs.`);
-                    }
+                    TransportImportError.assert(cust.instance.trkorr, testRc, `Test import of customizing`, cust.instance.lastImportMessage, context.ignoreImportErrors);
                 }
             });
         }
@@ -100,27 +87,14 @@ export const prepareCust: Step<InstallWorkflowContext> = {
         if (!context.revert.cleanupImported && (context.revert.namespace || context.revert.sapPackages.length > 0)) {
             await deleteImportedEntries(context);
         }
-        if (context.revert.cleanupImported && !context.revert.cleanupSucceeded) {
-            return;
-        }
         // Each customizing transport is independent: attempt all of them, then surface the first failure.
+        // The dummies are deleted, or only taken out of the queue: never re-imported
         let firstError: unknown;
-        for (const cust of [...context.revert.transports.cust].reverse()) {
-            const generated = context.revert.createdTransports.cust.find(transport => transport.trkorr === cust.trkorr);
+        for (const generated of [...context.revert.createdTransports.cust].reverse()) {
             try {
-                await revertPreparedTransport(generated, cust);
+                await revertPreparedTransport(generated);
             } catch (error) {
                 firstError ||= error;
-            }
-        }
-        for (const generated of [...context.revert.createdTransports.cust].reverse()) {
-            const hasSnapshot = context.revert.transports.cust.some(snapshot => snapshot.trkorr === generated.trkorr);
-            if (!hasSnapshot) {
-                try {
-                    await revertPreparedTransport(generated, undefined);
-                } catch (error) {
-                    firstError ||= error;
-                }
             }
         }
         if (firstError) {

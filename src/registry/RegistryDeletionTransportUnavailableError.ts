@@ -1,6 +1,6 @@
 /**
- * The registry can't generate a deletion transport: the user isn't authorized (e.g. registry plan)
- * or the registry doesn't support it (local .trm files). Cleanups that only tidy up continue without it.
+ * The registry can't generate a deletion transport (request failed, or local .trm files).
+ * The message is the registry's own. Cleanups that only tidy up log it and continue without it.
  */
 export class RegistryDeletionTransportUnavailableError extends Error {
     public readonly registryEndpoint: string;

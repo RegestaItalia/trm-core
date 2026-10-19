@@ -1,9 +1,10 @@
 export * from "./RegistryV2";
 export * from "./RegistryPackageNotFoundError";
 export * from "./RegistryDeletionTransportUnavailableError";
-export * from "./RegistryDeletionTransportUnauthorizedError";
 export * from "./RegistryType";
 export * from "./AbstractRegistry";
 export * from "./FileSystem";
 export * from "./RegistryProvider";
 export * from "./registryKey";
+
+export * from "./DeletionTransport";

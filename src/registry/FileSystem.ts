@@ -7,6 +7,7 @@ import { accessSync, constants, existsSync, lstatSync, mkdirSync, readFileSync }
 import { parse as parsePath } from "path";
 import { writeFile } from "fs/promises";
 import { BinaryTransport } from "../transport";
+import { DeleteTransportOptions, DeletionTransport } from "./DeletionTransport";
 import { createHash } from "crypto";
 import { TransportEntries } from "../client";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
@@ -190,7 +191,7 @@ export class FileSystem implements AbstractRegistry {
         return transport.entries;
     }
 
-    public async delete(_transport: BinaryTransport): Promise<BinaryTransport> {
+    public async delete(_transport: BinaryTransport, _options?: DeleteTransportOptions): Promise<DeletionTransport> {
         throw new RegistryDeletionTransportUnavailableError(LOCAL_RESERVED_KEYWORD, `Local packages (.trm files) can't generate deletion transports.`);
     }
 

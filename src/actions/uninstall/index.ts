@@ -5,7 +5,8 @@ import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
 import { E071 } from "../../client";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
-import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource, CleanupPlan, logActionSummary, failureState } from "../commons/utils";
+import { SystemConnector } from "../../systemConnector";
 import { InstallPackageReplacements } from "../install";
 import { init } from "./init";
 import { checkDependants } from "./checkDependants";
@@ -13,7 +14,7 @@ import { uninstallNestedPackages } from "./uninstallNestedPackages";
 import { lockResources } from "./lockResources";
 import { generateDeletionTransport } from "./generateDeletionTransport";
 import { removePackageData } from "./removePackageData";
-import { forwardDeletionTransport } from "./forwardDeletionTransport";
+import { generateLandscapeTransport, releaseLandscapeTransport } from "./generateLandscapeTransport";
 
 /** Shared execution settings for the package uninstall action. */
 export type UninstallActionInputContextData = {
@@ -50,11 +51,17 @@ export type UninstallActionInputUninstallData = {
     /**
      * Landscape transport-related options.
      */
+    /**
+     * Don't fail on imports ending with return code 8 or higher (deletions and rollback restores): log them as
+     * errors and go on. Defaults to `false`. A transport without return code (not imported) still fails.
+     */
+    ignoreImportErrors?: boolean;
+
     landscapeTransport?: {
         /**
-         * TMS target that receives the deletion transport. It is selected interactively when omitted.
+         * TMS target of the landscape transport carrying the deletion. It is selected interactively when omitted.
          * When omitted and the system has no transport targets, it is treated as the final system
-         * of the landscape and the deletion transport is not forwarded.
+         * of the landscape and no landscape transport is generated.
          */
         targetSystem?: string;
     };
@@ -84,6 +91,12 @@ export interface UninstallActionInput {
 
     /** Optional validation settings. */
     uninstallData?: UninstallActionInputUninstallData
+
+    /**
+     * Set by an uninstall for the TRM packages installed under it: their deletions are carried by the
+     * landscape transport of the parent uninstall.
+     */
+    nested?: boolean
 }
 
 type WorkflowRuntime = {
@@ -93,6 +106,12 @@ type WorkflowRuntime = {
     /** Transports recorded for the installed release. */
     previousInstallTransports: InstallTransport[],
     dele?: Transport,
+    /** Removal of the installed release, planned before anything changes. */
+    cleanupPlan?: CleanupPlan,
+    /** Deletion transports generated from the backups. */
+    deletions?: { tadir?: Transport, cust?: Transport },
+    /** Deletion transports imported by the uninstalls of the TRM packages installed under this one. */
+    nestedDeletions?: Transport[],
     stopWarningShown: boolean,
     /** TRM packages installed in the SAP packages of the uninstalled one; the outermost ones are uninstalled directly. */
     nestedPackages: { outermost: TrmPackage[], all: TrmPackage[] },
@@ -105,6 +124,10 @@ type WorkflowRuntime = {
 }
 
 type WorkflowRevert = PackageCleanupRevert & {
+    /** Set before the landscape transport is released, as SAP may export it and still fail. */
+    landscapeReleaseStarted?: boolean,
+    /** Set once the landscape transport release succeeded. */
+    landscapeReleased?: boolean,
     metadataRemoveStarted?: boolean,
     metadataPreviousPackageRow?: TrmPackageUpdateData
 }
@@ -113,15 +136,21 @@ type WorkflowRevert = PackageCleanupRevert & {
 export type UninstallActionOutput = {
     /** Manifest of the uninstalled release. */
     manifest: TrmManifest,
-    /** Deletion transport imported into the connected system. */
+    /** Deletion transport imported into the connected system (objects, or customizing when no object was deleted). */
     transport?: Transport,
-    /** Landscape target system whose import queue received the deletion transport, when forwarded. */
+    /** Deletion transports imported into the connected system, those of the TRM packages installed underneath included. */
+    deletions?: Transport[],
+    /** Landscape transport carrying the deletion to the following systems, when generated. */
+    landscapeTransport?: Transport,
+    /** Landscape target system of the released landscape transport. */
     targetSystem?: string
 }
 
 /** Internal state shared by package-uninstall workflow steps and rollback handlers. */
 export interface UninstallWorkflowContext extends IActionContext {
     lockScope?: ActionLockScope,
+    /** From `uninstallData.ignoreImportErrors`: imports from return code 8 are logged instead of failing. */
+    ignoreImportErrors?: boolean,
     /** Original action input; optional groups are normalized during initialization. */
     rawInput: UninstallActionInput,
     /** Other packages uninstalled by the same run (the packages it's installed under, and their nested ones): they're not dependants. */
@@ -169,9 +198,31 @@ const uninstallWorkflow = [
     uninstallNestedPackages,
     lockResources,
     generateDeletionTransport,
-    forwardDeletionTransport,
-    removePackageData
+    removePackageData,
+    generateLandscapeTransport,
+    releaseLandscapeTransport
 ];
+
+/** Logs what the uninstall left on the system: deletions, backups, landscape transport. */
+function logUninstallSummary(context: UninstallWorkflowContext, succeeded: boolean, error?: unknown): void {
+    if (!context.runtime?.update) {
+        return;
+    }
+    const name = context.rawInput.packageData.name;
+    const version = context.runtime.update.manifest.get().version;
+    logActionSummary({
+        outcome: succeeded
+            ? `${name} ${version} uninstalled from ${SystemConnector.getDest()}.`
+            : `${name} ${version} uninstall failed${failureState(context.revert?.deleImportStarted, error)}.`,
+        deletions: succeeded ? context.output?.deletions : [],
+        landscape: succeeded ? {
+            transport: context.output?.landscapeTransport,
+            targetSystem: context.rawInput.uninstallData?.landscapeTransport?.targetSystem,
+            released: context.revert?.landscapeReleased
+        } : undefined,
+        revert: context.revert
+    });
+}
 
 async function runUninstall(inputData: UninstallActionInput, retainRollback: boolean, uninstallingPackages: TrmPackage[], parentLockScope?: ActionLockScope): Promise<{
     output: UninstallActionOutput,
@@ -181,7 +232,10 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
     // A nested uninstall locks in its parent scope: the parent cleanup locks the same SAP packages
     // and objects again, and the parent releases them all once it has finished.
     const lockScope = parentLockScope || new ActionLockScope(WORKFLOW_NAME);
-    const context: UninstallWorkflowContext = { rawInput: inputData, lockScope, uninstallingPackages };
+    const context: UninstallWorkflowContext = {
+        rawInput: inputData, lockScope, uninstallingPackages,
+        ignoreImportErrors: !!inputData.uninstallData?.ignoreImportErrors
+    };
     await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
     const release = async (): Promise<void> => {
         let firstError: unknown;
@@ -203,8 +257,14 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
     };
     if (!retainRollback) {
         return withLockRelease(release, async () => {
-            const result = await executeWorkflow<UninstallWorkflowContext>(WORKFLOW_NAME, uninstallWorkflow, context, workflowCallbacks);
-            return { output: result.output };
+            try {
+                const result = await executeWorkflow<UninstallWorkflowContext>(WORKFLOW_NAME, uninstallWorkflow, context, workflowCallbacks);
+                logUninstallSummary(context, true);
+                return { output: result.output };
+            } catch (error) {
+                logUninstallSummary(context, false, error);
+                throw error;
+            }
         });
     }
     let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<UninstallWorkflowContext>>>;

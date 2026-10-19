@@ -140,10 +140,11 @@ describe('install prepare transport rollback', () => {
             await runFailure(kind, step, 'registry');
         });
 
-        test('does not restore or delete the dummy when deletion cleanup failed', async () => {
+        test('takes a released dummy out of the queue, never re-imports it, even when deletion cleanup failed', async () => {
             const ctx = context(registryTransport);
             ctx.revert.cleanupImported = true;
             ctx.revert.cleanupSucceeded = false;
+            dummy.canBeDeleted.mockResolvedValue(false);
             if (kind === 'cust') {
                 ctx.revert.createdTransports.cust.push(dummy);
             } else {
@@ -152,14 +153,14 @@ describe('install prepare transport rollback', () => {
 
             await step.revert(ctx);
 
-            expect(dummy.canBeDeleted).not.toHaveBeenCalled();
             expect(dummy.delete).not.toHaveBeenCalled();
             expect(Transport.upload).not.toHaveBeenCalled();
+            expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith(dummy.trkorr, 'TST');
         });
 
-        test('a legacy backend uploads the transport but has no test import', async () => {
+        test('a backend without trmServer7 uploads the transport but has no test import', async () => {
             const ctx = context(registryTransport);
-            ctx.legacyBackend = true;
+            ctx.missingBackendApis = ['trmServer7', 'trmServer8'];
 
             await step.run(ctx);
 

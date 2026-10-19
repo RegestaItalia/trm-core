@@ -17,141 +17,100 @@ import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
 import { releaseLandscapeTransport } from './releaseLandscapeTransport';
 
-function context(targetSystem = 'TST') {
+function context(targetSystem = 'QAS') {
     const transport = {
         trkorr: 'DEVK9LAND',
         release: jest.fn().mockResolvedValue(undefined),
-        canBeDeleted: jest.fn().mockResolvedValue(true),
+        canBeDeleted: jest.fn().mockResolvedValue(false),
         delete: jest.fn().mockResolvedValue(undefined)
     };
     return {
         ctx: {
             rawInput: {
-                contextData: {},
+                packageData: { name: 'pkg' },
+                contextData: { logTemporaryFolder: '/tmp/trm' },
                 installData: { landscapeTransport: { targetSystem } }
             },
-            runtime: { update: undefined },
-            revert: { dele: { trkorr: 'DEVK9DELE' }, deleInTargetTms: false },
+            runtime: { package: { data: { manifest: { version: '2.0.0' } } } },
+            revert: {},
             output: { transport }
         } as any,
         transport
     };
 }
 
-describe('releaseLandscapeTransport rollback', () => {
+describe('releaseLandscapeTransport', () => {
     beforeEach(() => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
-        jest.spyOn(Logger, 'loading').mockImplementation(() => undefined as never);
-        jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+        for (const method of ['loading', 'warning', 'error'] as const) {
+            jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
+        }
         jest.spyOn(Logger, 'setPrefix').mockImplementation(() => undefined as never);
         jest.spyOn(Logger, 'getPrefix').mockReturnValue(undefined);
         jest.spyOn(Inquirer, 'setPrefix').mockImplementation(() => undefined as never);
         jest.spyOn(Inquirer, 'getPrefix').mockReturnValue(undefined);
-        jest.spyOn(SystemConnector, 'forwardTransport').mockResolvedValue(undefined);
-        jest.spyOn(SystemConnector, 'deleteTmsTransport').mockResolvedValue(undefined);
     });
 
-    test('marks the deletion request before forwarding can commit and throw', async () => {
+    test('releases the landscape transport, and adds nothing else to any import queue', async () => {
         const { ctx, transport } = context();
-        jest.spyOn(SystemConnector, 'forwardTransport').mockRejectedValue(new Error('response lost'));
 
-        await expect(execute('test', [releaseLandscapeTransport], ctx)).rejects.toThrow();
+        await execute('test', [releaseLandscapeTransport], ctx);
 
-        expect(ctx.revert.deleInTargetTms).toBe(true);
-        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK9DELE', 'TST');
-        expect(transport.delete).toHaveBeenCalledTimes(1);
-    });
-
-    test('release failure attempts queue and landscape-transport cleanup', async () => {
-        const { ctx, transport } = context();
-        transport.release.mockRejectedValue(new Error('release failed'));
-
-        await expect(execute('test', [releaseLandscapeTransport], ctx)).rejects.toThrow();
-
-        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledTimes(1);
-        expect(transport.delete).toHaveBeenCalledTimes(1);
-    });
-
-    test('queue cleanup failure does not prevent landscape transport cleanup', async () => {
-        const { ctx, transport } = context();
-        transport.release.mockRejectedValue(new Error('release failed'));
-        jest.spyOn(SystemConnector, 'deleteTmsTransport').mockRejectedValue(new Error('queue cleanup failed'));
-
-        await expect(execute('test', [releaseLandscapeTransport], ctx)).rejects.toThrow();
-
-        expect(transport.canBeDeleted).toHaveBeenCalledTimes(1);
-        expect(transport.delete).toHaveBeenCalledTimes(1);
-    });
-
-    test('deletability failure still happens after queue cleanup was attempted', async () => {
-        const { ctx, transport } = context();
-        transport.release.mockRejectedValue(new Error('release failed'));
-        transport.canBeDeleted.mockRejectedValue(new Error('status failed'));
-
-        await expect(execute('test', [releaseLandscapeTransport], ctx)).rejects.toThrow();
-
-        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledTimes(1);
-        expect(transport.delete).not.toHaveBeenCalled();
-    });
-
-    test('a released landscape transport is removed from the import queue of the connected system', async () => {
-        const { ctx, transport } = context('TST');
-        transport.canBeDeleted.mockResolvedValue(false);
-        const later = { name: 'later', run: async () => { throw new Error('later'); } };
-
-        await expect(execute('test', [releaseLandscapeTransport, later], ctx)).rejects.toThrow('later');
-
-        expect(transport.delete).not.toHaveBeenCalled();
-        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK9LAND', 'TST');
-        expect(Logger.warning).not.toHaveBeenCalled();
-    });
-
-    test('a released landscape transport queued in another system is left there with a warning', async () => {
-        const { ctx, transport } = context('QAS');
-        transport.canBeDeleted.mockResolvedValue(false);
-        const later = { name: 'later', run: async () => { throw new Error('later'); } };
-
-        await expect(execute('test', [releaseLandscapeTransport, later], ctx)).rejects.toThrow('later');
-
-        expect(transport.delete).not.toHaveBeenCalled();
+        expect(transport.release).toHaveBeenCalledWith(true, false, '/tmp/trm');
+        expect(ctx.revert.landscapeReleased).toBe(true);
+        expect(SystemConnector.forwardTransport).not.toHaveBeenCalled();
         expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9LAND'), { important: true });
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9DELE'), { important: true });
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('QAS import queue'), { important: true });
     });
 
-    test('a failed release whose status cannot be read is reported with a warning', async () => {
+    test('a failed release does not undo the install: the transport is left to release manually', async () => {
         const { ctx, transport } = context();
         transport.release.mockRejectedValue(new Error('release failed'));
-        transport.canBeDeleted.mockRejectedValue(new Error('status failed'));
 
-        await expect(execute('test', [releaseLandscapeTransport], ctx)).rejects.toThrow();
+        await expect(execute('test', [releaseLandscapeTransport], ctx)).resolves.toBeDefined();
 
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9LAND'), { important: true });
+        expect(ctx.revert.landscapeReleaseStarted).toBe(true);
+        expect(ctx.revert.landscapeReleased).toBeUndefined();
+        expect(transport.delete).not.toHaveBeenCalled();
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Release transport DEVK9LAND to QAS manually'), { important: true });
     });
 
-    test('a failed queue removal of the released transport is surfaced', async () => {
-        const { ctx, transport } = context('TST');
-        transport.canBeDeleted.mockResolvedValue(false);
-        jest.spyOn(SystemConnector, 'deleteTmsTransport').mockImplementation(async trkorr => {
-            if (trkorr === 'DEVK9LAND') throw new Error('queue removal failed');
+    describe('rollback by a parent install (dependency)', () => {
+        test('a transport not released yet is deleted', async () => {
+            const { ctx, transport } = context();
+            transport.canBeDeleted.mockResolvedValue(true);
+
+            await releaseLandscapeTransport.revert(ctx);
+
+            expect(transport.delete).toHaveBeenCalledTimes(1);
         });
 
-        await expect(releaseLandscapeTransport.revert({ ...ctx, revert: { ...ctx.revert, deleInTargetTms: true, landscapeReleaseStarted: true } })).rejects.toThrow('queue removal failed');
+        test('a released transport is removed from the queue of the connected system', async () => {
+            const { ctx } = context('TST');
+            ctx.revert.landscapeReleaseStarted = true;
 
-        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK9DELE', 'TST');
-        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK9LAND', 'TST');
-    });
+            await releaseLandscapeTransport.revert(ctx);
 
-    test('no warning when the landscape transport is deleted', async () => {
-        const { ctx, transport } = context();
-        transport.release.mockRejectedValue(new Error('release failed'));
+            expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith('DEVK9LAND', 'TST');
+        });
 
-        await expect(execute('test', [releaseLandscapeTransport], ctx)).rejects.toThrow();
+        test('a released transport queued in another system is left there with a warning', async () => {
+            const { ctx } = context('QAS');
+            ctx.revert.landscapeReleaseStarted = true;
 
-        expect(transport.delete).toHaveBeenCalledTimes(1);
-        expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalledWith('DEVK9LAND', expect.anything());
-        expect(Logger.warning).not.toHaveBeenCalled();
+            await releaseLandscapeTransport.revert(ctx);
+
+            expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('remove it manually in STMS'), { important: true });
+        });
+
+        test('a failed status read is surfaced with a warning', async () => {
+            const { ctx, transport } = context();
+            ctx.revert.landscapeReleaseStarted = true;
+            transport.canBeDeleted.mockRejectedValue(new Error('status read failed'));
+
+            await expect(releaseLandscapeTransport.revert(ctx)).rejects.toThrow('status read failed');
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('DEVK9LAND'), { important: true });
+        });
     });
 });

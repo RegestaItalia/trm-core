@@ -11,7 +11,7 @@ import { setTransportTarget } from "../commons/prompts";
 import { validateDevclass } from "../../validators";
 import { DotAbapGit } from "../../abapgit";
 import { minimatch } from "minimatch";
-import { getOwningInstallation } from "../commons/utils";
+import { getOwningInstallation, logObjectsLocks } from "../commons/utils";
 import { checkPackageDependencies } from "./findDependencies";
 
 function nextPrerelease(version: string, identifier?: string): string | null {
@@ -447,7 +447,7 @@ export const init: Step<PublishWorkflowContext> = {
             };
         }));
         if (locks.length > 0) {
-            locks.forEach(l => { Logger.error(`${l.pgmid} ${l.object} ${l.objName} is currently locked in transport ${l.trkorr}`, { important: true }) });
+            logObjectsLocks(locks);
             throw new Error(`To continue, all objects must be released.`);
         } else {
             Logger.log(`All objects released, continue`, true);

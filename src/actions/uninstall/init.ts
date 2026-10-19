@@ -6,7 +6,7 @@ import { RegistryType } from "../../registry";
 import { TrmPackage } from "../../trmPackage";
 import { setLandscapeTarget } from "../commons/prompts";
 import { getNestedPackages, withoutNestedDirtyEntries } from "./uninstallNestedPackages";
-import { getInstalledObjectsLocks, logDirtyEntries, withoutOwnTrmTransports } from "../commons/utils";
+import { getInstalledObjectsLocks, logDirtyEntries, logObjectsLocks, withoutOwnTrmTransports } from "../commons/utils";
 
 /**
  * Workflow step that finds the installed package and initializes rollback state.
@@ -92,7 +92,7 @@ export const init: Step<UninstallWorkflowContext> = {
             context.rawInput.contextData.systemPackages
         );
         if (locks.length > 0) {
-            locks.forEach(lock => Logger.error(`${lock.pgmid} ${lock.object} ${lock.objName} is currently locked in transport ${lock.trkorr}`, { important: true }));
+            logObjectsLocks(locks);
             throw new Error(`Uninstall aborted. To continue, all cleanup objects and SAP packages must be released`);
         }
         const allDirtyEntries = await withoutOwnTrmTransports(installed.getDirtyEntries(), installed.packageName);
@@ -121,12 +121,13 @@ export const init: Step<UninstallWorkflowContext> = {
 
         //6- check/set system target
         //objects of a temporary package only exist on this system
-        if (!(installed.getDevclass() || '').trim().startsWith('$')) {
+        //the deletions of a nested uninstall are carried by the landscape transport of its parent
+        if (!(installed.getDevclass() || '').trim().startsWith('$') && !context.rawInput.nested) {
             context.rawInput.uninstallData.landscapeTransport.targetSystem = await setLandscapeTarget(
                 context.rawInput.contextData.noInquirer,
                 context.rawInput.uninstallData.landscapeTransport.targetSystem,
-                "Deletion transport target",
-                "Deletion transport won't be forwarded."
+                "Landscape transport target",
+                "Landscape transport won't be generated."
             );
         }
 
@@ -151,7 +152,6 @@ export const init: Step<UninstallWorkflowContext> = {
             sapPackages: [],
             dele: undefined,
             deleImportStarted: false,
-            deleInTargetTms: false,
             metadataRemoveStarted: false,
             metadataPreviousPackageRow: undefined
         };

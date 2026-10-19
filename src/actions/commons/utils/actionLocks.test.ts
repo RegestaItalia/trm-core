@@ -37,6 +37,12 @@ describe("persistent action lock scope", () => {
         expect(release.mock.calls[0][1]).toBe(owner);
     });
 
+    test("a resource requested more than once in one call is sent once", async () => {
+        const scope = new ActionLockScope("install");
+        await scope.acquire([{ type: "DEVCLASS", name: "Z_A" }, { type: "DEVCLASS", name: "z_a" }, { type: "OBJECT", name: "R3TR CLAS Z_C" }]);
+        expect(acquire.mock.calls[0][0]).toHaveLength(2);
+    });
+
     test("uncertain acquisition attempts token-scoped cleanup and keeps the original error", async () => {
         acquire.mockRejectedValueOnce(new Error("response lost"));
         release.mockRejectedValueOnce(new Error("cleanup failed"));

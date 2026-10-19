@@ -1,6 +1,6 @@
 # `publish` workflow audit
 
-Audit date: 2026-10-04
+Audit date: 2026-10-16 (in-depth static review of every step, callees included; earlier review 2026-10-04)
 Entry point: [`publish`](../../src/actions/publish/index.ts#L241)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared helper findings referenced below ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are recorded in the [shared audit](shared.md).
@@ -11,22 +11,47 @@ The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes
 
 - **Where:** check in `init`, locks in [`publish/lockResources.ts#L8`](../../src/actions/publish/lockResources.ts#L8) after the prompt steps.
 - **Fix:** re-read objects and SAP locks in `lock-resources`.
+- **Status (2026-10-16):** still present; `lock-resources` only takes TRM action locks on the objects read in `init`, so objects added to the package or locked in a transport while the prompts of steps 3–7 are open are neither shipped nor detected.
+
+### ACT-2026-105 — Medium — Functional — A malformed explicit version is silently replaced by the automatic version
+
+- **Where:** [`publish/init.ts#L163`](../../src/actions/publish/init.ts#L163) cleans the supplied version to `null` when it is not a full semver; [`#L268`](../../src/actions/publish/init.ts#L268) and [`#L291`](../../src/actions/publish/init.ts#L291) then treat it as omitted.
+- **Failure:** a caller passes `packageData.version: "1.2"` (or `1.2.3.4`, or a typo) with `noInquirer`. `clean` returns `null`, so `init` computes `latest + inc` (or `1.0.0` on a first publish), logs only "Automatically set publish version", and the release is published and its transports released under a version the caller never asked for. Registry versions cannot be reused, so the mistake is permanent. Interactively the user is at least asked to confirm the proposed version, but the input is still discarded without saying it was invalid.
+- **Fix:** distinguish "omitted/`latest`" from "supplied but invalid": when the raw input is non-empty, not `latest` and `clean` fails, throw `Invalid version "<input>"` (or, interactively, show it as the reason for the prompt).
+
+### ACT-2026-106 — Low — Functional — Local export of an installed public package refuses the installed version as "already published"
+
+- **Where:** [`publish/init.ts#L182`](../../src/actions/publish/init.ts#L182) builds a synthetic latest release with `versions: [<installed version>]`; [`#L272`](../../src/actions/publish/init.ts#L272) and the prompt validation at [`#L320`](../../src/actions/publish/init.ts#L320) check the version against it.
+- **Failure:** a package installed from the public registry (e.g. v3.2.1) is exported to a `.trm` file with `version: "3.2.1"` (offline copy of the installed release). `init` throws `Version "3.2.1" already published.`, although nothing is published in the target file and every local artifact is otherwise standalone (ACT-2026-56). The synthetic release was added only to prefill defaults (commit "default values for local export"), so the duplicate check looks like a side effect; refusing to rebuild a public version number from the development system may however be intended, in which case the message should say so.
+- **Fix:** for the local synthetic release, use the installed version only to propose the automatic version and to prefill manifest values, and skip the duplicate check (or reject with an explicit "version of the installed public release" message if the restriction is intended).
+
+### ACT-2026-107 — Low — Technical — A non-existent customizing transport fails with a TypeError message
+
+- **Where:** [`publish/setCustomizingTransports.ts#L50`](../../src/actions/publish/setCustomizingTransports.ts#L50) dereferences `(await transport.getE070()).trfunction`; `Transport.getE070` returns `undefined` when E070 has no row.
+- **Failure:** `customizingTransports: ["DEVK90001"]` (typo) or the same input at the add prompt produces `Unable to add transport DEVK90001: cannot read properties of undefined (reading 'trfunction')` instead of saying the request does not exist. No SAP state is changed (the step runs before any transport is generated).
+- **Fix:** in `validateCustomizingTransport`, throw `Transport request does not exist` when `getE070()` returns nothing.
+
+### ACT-2026-108 — Low — Technical — The CLI post-activity editor accepts non-object entries and then crashes
+
+- **Where:** editor validation at [`publish/setManifestValues.ts#L403`](../../src/actions/publish/setManifestValues.ts#L403) only checks that the JSON is an array; [`#L424`](../../src/actions/publish/setManifestValues.ts#L424) reads `data.name` of every entry.
+- **Failure:** an entry such as `null` (e.g. a trailing `, null` left while editing) passes validation, then the loop throws `TypeError: Cannot read properties of null (reading 'name')` and the publish aborts after all the earlier prompts. No SAP state is changed.
+- **Fix:** validate in the editor that every entry is an object with a non-empty `name` string (and `parameters`, when present, an array), as the dependencies editor does for ranges.
 
 ## Step review
 
 | Order | Step | Result |
 |---:|---|---|
 | 1–2 | `check-server-auth`, `set-system-packages` | Shared findings only. |
-| 3 | `init` | A missing local artifact file starts a first publication (ACT-2026-55, resolved); a local publish never reads the overwritten target file as its latest release (ACT-2026-56, resolved); an automatic version increments the latest release as requested, without applying `preRelease` (ACT-2026-60, non-relevant); a prompted version is cleaned before the duplicate check and before it is stored (ACT-2026-67, resolved). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
+| 3 | `init` | A supplied version that is not a full semver is silently replaced by the automatic version (ACT-2026-105). A local export of a package installed from the public registry prefills from its manifest but rejects its installed version as already published (ACT-2026-106). A missing local artifact file starts a first publication (ACT-2026-55, resolved); a local publish never reads the overwritten target file as its latest release (ACT-2026-56, resolved); an automatic version increments the latest release as requested, without applying `preRelease` (ACT-2026-60, non-relevant); a prompted version is cleaned before the duplicate check and before it is stored (ACT-2026-67, resolved). Without a supplied devclass, the devclass of the previous publish is used; non-interactive runs fail clearly when none can be derived, and supplied or derived devclasses are normalized and validated (ACT-2026-61, resolved). The package and its subpackages must use at most one reserved namespace, read after the package objects (ACT-2026-89, resolved). |
 | 4 | `find-dependencies` | No functional issue; mutates caller input ([ACT-2026-20](shared.md)). |
-| 5 | `set-customizing-transports` | Retained transports listed in `dropCustomizingTransports` (or all, with `all`) are dropped before the selection is built, with or without prompts; unknown identifiers and transports both added and dropped are rejected (ACT-2026-63, resolved). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
-| 6 | `set-manifest-values` | Engines are validated strictly on the final manifest, whatever their source (ACT-2026-59, resolved). The public-registry length limits on description, website and git are checked in the prompts and again on the normalized manifest, so non-interactive and copied values are enforced too (ACT-2026-65, resolved). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
+| 5 | `set-customizing-transports` | A non-existent transport is reported with a TypeError message (ACT-2026-107). Retained transports listed in `dropCustomizingTransports` (or all, with `all`) are dropped before the selection is built, with or without prompts; unknown identifiers and transports both added and dropped are rejected (ACT-2026-63, resolved). Adding a transport already in the selection, retained or new, is rejected (ACT-2026-66, resolved). |
+| 6 | `set-manifest-values` | The CLI post-activity editor accepts non-object entries, which then crash the step (ACT-2026-108). Caller-supplied dependencies take precedence over detected ones of the same name and registry (deduplicated by `Manifest.normalize`). Post activity classes not shipped by the package, its dependencies or trm-server are warned about. Engines are validated strictly on the final manifest, whatever their source (ACT-2026-59, resolved). The public-registry length limits on description, website and git are checked in the prompts and again on the normalized manifest, so non-interactive and copied values are enforced too (ACT-2026-65, resolved). `namespace` and `registry` are always derived from the SAP package and the target registry, and values edited as JSON are logged as JSON (ACT-2026-68, resolved). Post activities of the latest release are merged by class (trimmed, uppercased): an input post activity replaces the one of the same class (ACT-2026-62, resolved). Post activities whose class does not exist are removed (ACT-2026-58, resolved). |
 | 7 | `set-optional-release-data` | No issue found. |
-| 8 | `lock-resources` | Object locks not re-checked after locking (ACT-2026-64). |
-| 9–12 | `generate-devc/tadir/lang/cust-transport` | Forward flow correct; reverts re-read the status after an earlier delete ([ACT-2026-17](shared.md), resolved). |
+| 8 | `lock-resources` | Takes TRM action locks on the package, its subpackages and the objects read by `init`; objects and SAP locks are not re-checked after locking (ACT-2026-64). |
+| 9–12 | `generate-devc/tadir/lang/cust-transport` | Each TOC is tracked right after creation; an empty LANG or CUST TOC is deleted and untracked, and a failed delete leaves it tracked for the revert. The CUST revert continues after a failed delete and surfaces the first failure. Reverts re-read the status after an earlier delete ([ACT-2026-17](shared.md), resolved). |
 | 13 | `release-transport` | Prefixes restored, revert best-effort; unbounded release wait ([ACT-2026-14](shared.md)). |
 | 14 | `publish-to-registry` | An async publish whose status cannot be followed fails with an unknown outcome; polling is bounded (ACT-2026-57, resolved). |
-| 15 | `update-package-data` | Accepted best-effort behavior. |
+| 15 | `update-package-data` | Records the registry integrity (or the local artifact hash); failures are logged without rejecting (PUBL-10, non-relevant). |
 
 ## Resolved findings
 ### ACT-2026-63 — Resolved — Medium — Functional — Retained customizing transports cannot be dropped non-interactively

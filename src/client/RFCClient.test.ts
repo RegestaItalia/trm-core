@@ -44,6 +44,24 @@ const t100 = () => ({
     FIELDS: [{ FIELDNAME: 'SPRSL' }, { FIELDNAME: 'ARBGB' }, { FIELDNAME: 'MSGNR' }, { FIELDNAME: 'TEXT' }]
 });
 
+describe('RFCClient connection errors', () => {
+    it('preserves the message from a plain node-rfc error object', async () => {
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = {
+            open: jest.fn().mockRejectedValue({
+                key: 'RFC_COMMUNICATION_FAILURE',
+                message: 'partner not reached'
+            })
+        };
+
+        const error = await client.open().catch(e => e);
+
+        expect(error).toBeInstanceOf(RFCClientError);
+        expect(error.message).toBe('partner not reached');
+        expect(error.message).not.toBe('[object Object]');
+    });
+});
+
 describe('RFCClient exception log', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -229,5 +247,16 @@ describe('RFCClient importTransport', () => {
 
         expect(call.mock.calls[0][1]).toEqual({ SYSTEM: 'DEV', TRKORR: 'DEVK900001' });
         expect(call.mock.calls[1][1]).toEqual({ SYSTEM: 'DEV', TRKORR: 'DEVK900001', TEST: 'X' });
+    });
+});
+
+describe('RFCClient getTransportLayers', () => {
+    it('normalizes the target and the returned layers', async () => {
+        const call = mockCalls({ '/ATRM/GET_TRANSPORT_LAYERS': () => ({ LAYERS: ['SAP ', 'ZQAS'] }) });
+        const client = createClient(call);
+
+        await expect(client.getTransportLayers(' qas ')).resolves.toEqual(['SAP', 'ZQAS']);
+
+        expect(call).toHaveBeenCalledWith('/ATRM/GET_TRANSPORT_LAYERS', { TARGET: 'QAS' }, undefined);
     });
 });

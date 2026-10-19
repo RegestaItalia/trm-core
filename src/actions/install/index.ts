@@ -15,6 +15,7 @@ import { checkDependencyCycles } from "./checkDependencyCycles";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { checkInstallDevclass } from "./checkInstallDevclass";
+import { setTransportLayer } from "./setTransportLayer";
 import { addNamespace } from "./addNamespace";
 import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../../client";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
@@ -28,12 +29,16 @@ import { generateLandscapeTransport } from "./generateLandscapeTransport";
 import { updatePackageData } from "./updatePackageData";
 import { executePostActivities } from "./executePostActivities";
 import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
-import { generatePostImportUpdateTransport, generateUpdateTransport } from "./generateUpdateTransport";
+import { planUpdateCleanup } from "./planUpdateCleanup";
+import { prepareBackup } from "./prepareBackup";
+import { importUpdateDeletion, prepareDeletion } from "./prepareDeletion";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
-import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, getMissingTrmBackendApis, lacksTrmBackendApis, TrmBackendApis, CleanupPlan, PackageCleanupRevert, logActionSummary, failureState } from "../commons/utils";
+import { SystemConnector } from "../../systemConnector";
 import { lockResources } from "./lockResources";
 import { cleanupCheckpoint } from "./cleanupCheckpoint";
+import { simulateInstall } from "./simulateInstall";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
@@ -70,6 +75,13 @@ export type InstallActionInputContextData = {
      * Supply it when the client resolves trm-core itself; defaults to the version read from trm-core package.json.
      */
     coreVersion?: string;
+
+    /**
+     * Simulate the install: every check runs and every question is asked as in a real install,
+     * dependency installs included, but nothing is imported or changed on the system. The changes
+     * the install would make (objects deleted on upgrade, transports imported...) are logged instead.
+     */
+    simulate?: boolean;
 }
 
 /** Options controlling package validation, transport import, and target package mapping. */
@@ -96,6 +108,13 @@ export type InstallActionInputInstallData = {
          * On update, the customizing of the installed release is then kept.
          */
         noCust?: boolean;
+
+        /**
+         * Don't fail on imports ending with return code 8 or higher (test imports, the batch import,
+         * deletions and rollback restores): log them as errors and go on. Defaults to `false`.
+         * A transport without return code (not imported) still fails the install.
+         */
+        ignoreImportErrors?: boolean;
     };
 
     /**
@@ -252,7 +271,10 @@ type WorkflowRuntime = {
         lang?: TransportRuntime,
         cust?: TransportRuntime[]
     },
-    dele?: Transport,
+    /** Removal of the installed release on upgrade, planned before anything changes. */
+    cleanupPlan?: CleanupPlan,
+    /** Deletion transports of the upgrade, uploaded and test-imported. */
+    deletions?: { tadir?: Transport, cust?: Transport },
     transportEntries: {
         tdevct: TDEVCT[]
     },
@@ -271,6 +293,10 @@ type WorkflowRuntime = {
     systemPackagesBeforeDependencies?: TrmPackage[],
     rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean,
+    /** Namespace a simulated install would import. */
+    simulatedNamespace?: string,
+    /** Transport layer of the SAP packages the install creates or imports without one, set by set-transport-layer. */
+    transportLayer?: string,
     /** Customizing transports of the release the user chose not to import (or skipped by noCust / non-interactive mode). */
     skippedCust?: string[],
     /** Release objects found on the system by check-transports, accepted before locking. */
@@ -296,13 +322,7 @@ export type InstallDependencyEntry = {
 }
 
 
-type WorkflowRevert = {
-    transports: {
-        devc: TransportBinary,
-        tadir: TransportBinary,
-        lang?: TransportBinary,
-        cust?: TransportBinary[]
-    },
+type WorkflowRevert = PackageCleanupRevert & {
     cleanupTransport?: Transport,
     cleanupImported?: boolean,
     cleanupSucceeded?: boolean,
@@ -312,13 +332,9 @@ type WorkflowRevert = {
     importedCustomizing?: Transport[],
     /**
      * Imported objects, SAP packages included, that were already on the system before the import,
-     * with their previous TADIR row. The rollback cleanup never deletes them.
+     * with their previous TADIR row. The rollback cleanup never deletes them: the backup restores them.
      */
     existingObjectsTadir?: TADIR[],
-    /** Transport of copies backing up {@link WorkflowRevert.existingObjectsTadir}, tracked before it is released. */
-    existingObjectsBackupTransport?: Transport,
-    /** Previous version of the existing objects, re-imported once the rollback cleanup succeeded. */
-    existingObjectsBackup?: TransportBinary,
     packageHierarchy?: TDEVC[],
     packageTransportLayers?: Array<{ devclass: DEVCLASS, transportLayer: string }>,
     createdTransports?: {
@@ -327,19 +343,10 @@ type WorkflowRevert = {
         lang?: Transport,
         cust: Transport[]
     },
-    sapPackages: DEVCLASS[],
-    stagingPackages?: DEVCLASS[],
-    dele?: TransportBinary,
-    deleImportStarted?: boolean,
-    deleInTargetTms?: boolean,
     /** Set before the landscape transport is released, as SAP may export it and still fail. */
     landscapeReleaseStarted?: boolean,
-    cleanupOriginalTadir?: TADIR[],
-    cleanupTemporaryPackages?: TDEVC[],
-    updateCleanupTransport?: Transport,
-    updateTablesBackupTransport?: Transport,
-    retainedTables?: TransportBinary,
-    retainedTableObjects?: Pick<E071, 'pgmid' | 'object' | 'objName'>[],
+    /** Set once the landscape transport release succeeded. */
+    landscapeReleased?: boolean,
     metadataWriteStarted?: boolean,
     /** Set before the install transports are written, as SAP may commit them and still fail. */
     metadataTransportsWriteStarted?: boolean,
@@ -359,17 +366,21 @@ export type InstallActionOutput = {
     /** Normalized manifest of the installed release. */
     manifest: TrmManifest,
     /** Generated landscape transport, when the installation produced one. */
-    transport?: Transport
+    transport?: Transport,
+    /** Set when the install was simulated (`contextData.simulate`): nothing was installed. */
+    simulated?: boolean
 }
 
 /** Internal state shared by package-install workflow steps and rollback handlers. */
 export interface InstallWorkflowContext extends IActionContext {
     lockScope?: ActionLockScope,
+    /** From `installData.import.ignoreImportErrors`: imports from return code 8 are logged instead of failing. */
+    ignoreImportErrors?: boolean,
     /**
-     * trm-server/trm-rest upgrade on a backend older than the APIs this trm-core needs (see isLegacyTrmBackend):
-     * only the APIs of the installed generation are used.
+     * Backend API generations the installed trm-server/trm-rest lacks, set only when upgrading them
+     * (see TRM_BACKEND_APIS): the steps continue without those APIs. Empty for any other install.
      */
-    legacyBackend?: boolean,
+    missingBackendApis?: TrmBackendApis[],
     /** Custom namespaces already locked by the parent installs of a dependency install. */
     inheritedNamespaceLocks?: string[],
     /** Original action input; optional groups are normalized during initialization. */
@@ -416,22 +427,32 @@ const installWorkflow = [
         checkDependencyCycles,
         setInstallDevclass,
         checkInstallDevclass,
+        setTransportLayer,
         lockResources,
         installDependencies,
         cleanupCheckpoint,
         addNamespace,
         generateDevclass,
-        generateUpdateTransport,
+        planUpdateCleanup,
+        prepareBackup,
         prepareDevc,
         prepareTadir,
         prepareLang,
         prepareCust,
+        prepareDeletion,
         importBatch,
+        importUpdateDeletion,
         generateLandscapeTransport,
         executePostActivities,
-        releaseLandscapeTransport,
         updatePackageData,
-        generatePostImportUpdateTransport
+        releaseLandscapeTransport
+];
+
+// Every step until the cleanup plan only reads the system and asks questions, except generate-devclass
+// (skipped) and add-namespace (which doesn't import the namespace when simulating).
+const simulateInstallWorkflow = [
+        ...installWorkflow.slice(0, installWorkflow.indexOf(planUpdateCleanup) + 1).filter(step => step !== generateDevclass),
+        simulateInstall
 ];
 
 async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = []): Promise<{
@@ -442,11 +463,16 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
 }> {
     //a local artifact is locked under the package it installs, as a remote install of it would be
     const lockPackage = await resolveInstallPackage(inputData.packageData.registry, inputData.packageData.name);
-    // A legacy backend has no action locks: only trm-server and trm-rest can install there, to upgrade it.
-    const legacyBackend = isTrmBackendPackage(lockPackage.registry, lockPackage.name) && await isLegacyTrmBackend();
-    const lockScope = new ActionLockScope(WORKFLOW_NAME, !legacyBackend);
-    const context: InstallWorkflowContext = { rawInput: inputData, lockScope, inheritedNamespaceLocks, legacyBackend };
+    // Only trm-server and trm-rest can install on an older backend, to upgrade it: any other install needs every API.
+    const missingBackendApis = isTrmBackendPackage(lockPackage.registry, lockPackage.name) ? await getMissingTrmBackendApis() : [];
+    // a backend without trmServer7 has no action locks
+    const lockScope = new ActionLockScope(WORKFLOW_NAME, !lacksTrmBackendApis({ missingBackendApis }, 'trmServer7'));
+    const context: InstallWorkflowContext = {
+        rawInput: inputData, lockScope, inheritedNamespaceLocks, missingBackendApis,
+        ignoreImportErrors: !!inputData.installData?.import?.ignoreImportErrors
+    };
     await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);
+    const workflow = inputData.contextData?.simulate ? simulateInstallWorkflow : installWorkflow;
     const release = async (): Promise<void> => {
         let firstError: unknown;
         for (const releaseDependency of [...(context.runtime?.dependencyReleases || [])].reverse()) {
@@ -465,14 +491,20 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     };
     if (!retainRollback) {
         return withLockRelease(release, async () => {
-            const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
-            return { output: result.output };
+            try {
+                const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, workflow, context, workflowCallbacks);
+                logInstallSummary(context, true);
+                return { output: result.output };
+            } catch (error) {
+                logInstallSummary(context, false, error);
+                throw error;
+            }
         });
     }
     let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<InstallWorkflowContext>>>;
     try {
         retained = await executeRetainedWorkflow<InstallWorkflowContext>(
-            WORKFLOW_NAME, installWorkflow, context, workflowCallbacks
+            WORKFLOW_NAME, workflow, context, workflowCallbacks
         );
     } catch (error) {
         await releaseLogged(release);
@@ -498,6 +530,34 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
             if (firstError) throw firstError;
         }
     };
+}
+
+/** Logs what the install left on the system: imported transports, deletions, backups, landscape transport. */
+function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean, error?: unknown): void {
+    if (!context.runtime?.package) {
+        return;
+    }
+    const name = context.rawInput.packageData.name;
+    const version = context.runtime.package.data.manifest.version;
+    const from = context.runtime.update ? `${context.runtime.update.manifest.get().version} → ` : '';
+    const transports = context.runtime.transports;
+    if (succeeded && context.output?.simulated) {
+        // simulate-install already logged what the install would do
+        return;
+    }
+    logActionSummary({
+        outcome: succeeded
+            ? `${name} ${from}${version} installed on ${SystemConnector.getDest()}.`
+            : `${name} ${from}${version} install${context.rawInput.contextData?.simulate ? ' simulation' : ''} failed${failureState(context.revert?.importStarted && !context.runtime.selfUpdate, error)}.`,
+        imported: succeeded ? [transports.devc?.instance, transports.tadir?.instance, transports.lang?.instance, ...(transports.cust || []).map(cust => cust.instance)] : [],
+        deletions: succeeded ? [context.runtime.deletions?.tadir, context.runtime.deletions?.cust] : [],
+        landscape: succeeded ? {
+            transport: context.output?.transport,
+            targetSystem: context.rawInput.installData?.landscapeTransport?.targetSystem,
+            released: context.revert?.landscapeReleased
+        } : undefined,
+        revert: context.revert
+    });
 }
 
 /**

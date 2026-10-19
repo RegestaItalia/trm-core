@@ -58,6 +58,15 @@ Maintain the public signature in `ISystemConnector`, then the forwarding facade 
 
 For edits and renames, trace every occurrence of the old API name and transport mapping with `rg`. For removals, delete the facade, interface member, both connector methods, both client methods, and obsolete dedicated types/exports/tests only when they have no remaining consumers. Do not leave one transport unsupported unless the user explicitly requests that design and the interface represents it accurately.
 
+## Keep trm-server/trm-rest upgrades working
+
+trm-core upgrades trm-server and trm-rest themselves, so an upgrade always runs on the previous backend: an API added in the release being installed doesn't exist yet. When a new API is called by an action that already exists (most notably install), register it before the action calls it:
+
+1. Add or extend a generation in `TRM_BACKEND_APIS` (`src/actions/commons/utils/trmBackend.ts`) with the first trm-server and trm-rest releases that ship the API. Ask for the release numbers if they aren't known: versions are set at release.
+2. Guard the call with `lacksTrmBackendApis(context, '<generation>')` and continue as the action did before the API existed (skip the step, use the previous behaviour, leave a check out). Pass `missingBackendApis` on to helpers that make the call.
+3. Don't catch the "function module not found" / `METHOD_CALL_EXCEPTION` error to fall back: outside a trm-server/trm-rest upgrade `missingBackendApis` is empty, and a missing API is an error, because every other action needs the backend this trm-core is built for.
+4. Test both paths: the upgrade on a backend without the generation continues without the API, and any other action calls it (and fails when it is missing).
+
 ## Verify completeness
 
 Before finishing:
@@ -66,5 +75,6 @@ Before finishing:
 2. Confirm the public method has the same concrete parameter and return types across all six layers and that any new component/structure files are exported.
 3. Search the changed public API path for `any`, `unknown`, raw transport payloads, and transport-specific return unions; replace shortcuts with the resolved concrete contract.
 4. Confirm RFC decoding and REST normalization produce the same logical value, using the closest existing API as the implementation reference.
-5. Run the most relevant tests when present, then run `npm run build`.
-6. Summarize the RFC function module and REST route/method verified through ARC-1, the shared result type, the analogous local API followed, and any backend discrepancy or missing implementation.
+5. When an existing action calls the API, confirm it is registered in `TRM_BACKEND_APIS` and guarded for trm-server/trm-rest upgrades.
+6. Run the most relevant tests when present, then run `npm run build`.
+7. Summarize the RFC function module and REST route/method verified through ARC-1, the shared result type, the analogous local API followed, and any backend discrepancy or missing implementation.

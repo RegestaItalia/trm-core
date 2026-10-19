@@ -1,7 +1,7 @@
 # `check-engines` workflow audit
 
-Audit date: 2026-10-05
-Entry point: [`checkEngines`](../../src/actions/checkEngines/index.ts#L88)
+Audit date: 2026-10-16 (in-depth static review of validation, normalization, range evaluation and the table-condition read; no new findings)
+Entry point: [`checkEngines`](../../src/actions/checkEngines/index.ts#L100)
 
 The [README](README.md#workflow-engine-behavior-assumed-by-this-audit) describes the workflow-engine rollback semantics assumed by this report. Shared findings ([ACT-2026-04](shared.md) to [ACT-2026-21](shared.md)) are listed in the README.
 
@@ -14,8 +14,8 @@ No active findings.
 | Order | Step | Result |
 |---:|---|---|
 | 1 | `init` | No issue found. Validation is non-strict for forward compatibility; normalization keeps unknown properties, including those of table checks and conditions, so `analyze` can fail them. Component, product, and note keys that normalize to the same value are rejected. |
-| 2 | `analyze` | No issue found. Read failures fail requirements and are read once per run, unknown top-level keys and unknown properties inside known checks fail, `anyOf` is handled, and a blank support package level is evaluated and shown as 0. |
-| — | install wrapper `check-engines` | Skips on `noEngines` or when no engines are declared; prints each unmet requirement before aborting; under a failed `anyOf` it also prints each unmet requirement of every alternative, with its reason or actual value, skipping the contents of a satisfied nested `anyOf`. |
+| 2 | `analyze` | No issue found. Table checks read at most one row, with escaped values and the operator validated against the allowed list. Notes are padded to 10 digits, and an obsolete note satisfies any version constraint. Read failures fail requirements and are read once per run, unknown top-level keys and unknown properties inside known checks fail, `anyOf` is handled, and a blank support package level is evaluated and shown as 0. |
+| — | install wrapper `check-engines` | Always runs when `check-sap-entries` recorded missing entries, and aborts with both counts. Otherwise it skips on `noEngines` or when no engines are declared; prints each unmet requirement before aborting; under a failed `anyOf` it also prints each unmet requirement of every alternative, with its reason or actual value, skipping the contents of a satisfied nested `anyOf`. |
 
 ## Resolved findings
 ### ACT-2026-74 — Resolved — Medium — Functional — Unknown properties inside known engine checks pass silently

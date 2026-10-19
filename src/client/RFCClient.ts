@@ -5,12 +5,13 @@ import { normalize, summarizeForLog } from "../commons";
 import { getGlobalNodeModules, Logger } from "trm-commons";
 import { existsSync } from "fs";
 import path from "path";
-import { RFCClientError, SapMessage } from ".";
+import { RFCClientError, SapMessage, formatSapMessage } from ".";
 import * as xml from "xml-js";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { logMessageLog, parseMessageLog } from "./messageLog";
+import { getErrorMessage } from "../commons/getErrorMessage";
 
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
@@ -19,10 +20,6 @@ const connectionCheckTimeoutSeconds = 3;
  * Loads a node-rfc compatible library (a module exporting the RFC `Client`).
  */
 export type RFCLibraryLoader = () => Promise<any>;
-
-function getErrorMessage(error: unknown): string {
-    return error instanceof Error ? error.message : String(error);
-}
 
 export class RFCClient implements IClient {
     public async acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
@@ -212,20 +209,7 @@ export class RFCClient implements IClient {
             `SPRSL EQ '${this._cLangu}' AND ARBGB EQ '${data.class}' AND MSGNR EQ '${msgnr}'`
         );
         if (aT100.length === 1 && aT100[0].text) {
-            var msg = aT100[0].text;
-            var counter = 1;
-            do {
-                if (msg.includes(`&${counter}`)) {
-                    msg = msg.replace(new RegExp(`&${counter}`, 'gmi'), data[`v${counter}`] || '');
-                    msg = msg.replace(new RegExp(`&${counter}&`, 'gmi'), data[`v${counter}`] || '');
-                } else {
-                    msg = msg.replace("&", data[`v${counter}`] || '');
-                }
-                counter++;
-            } while (counter <= 4);
-            msg = msg.replace(new RegExp(`&\\d*`, 'gmi'), '');
-            msg = msg.replace(new RegExp(`&`, 'gmi'), '');
-            return msg.trim();
+            return formatSapMessage(aT100[0].text, data);
         } else {
             throw new RFCClientError("ZMSG_NOT_FOUND", null, null, `Message ${msgnr}, class ${data.class}, lang ${this._cLangu} not found.`);
         }
@@ -852,6 +836,13 @@ export class RFCClient implements IClient {
     public async getTransportTargets(): Promise<components.TARSYSTEM[]> {
         const result = await this._call("/ATRM/GET_TR_TARGETS");
         return result['targets'];
+    }
+
+    public async getTransportLayers(target: components.TARSYSTEM): Promise<components.DEVLAYER[]> {
+        const result = await this._call("/ATRM/GET_TRANSPORT_LAYERS", {
+            target: target.trim().toUpperCase()
+        });
+        return (result['layers'] || []).map((layer: components.DEVLAYER) => layer.trim());
     }
 
 }

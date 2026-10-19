@@ -2,11 +2,10 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallPackageReplacements, InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { installRegistryKey } from "../commons/utils";
+import { installRegistryKey, lacksTrmBackendApis } from "../commons/utils";
 import { Manifest } from "../../manifest";
 import { ZTRM_INSTALLDEVC, ZTRM_INSTALLTR } from "../../client";
 import { TrmTransportIdentifier } from "../../transport";
-import { keepsInstalledCustomizing } from "./generateUpdateTransport";
 
 function installTransportRows(packageName: string, packageRegistry: string, transports: { trkorr: string, trmType: string }[]): ZTRM_INSTALLTR[] {
     return transports.map(transport => ({
@@ -53,10 +52,15 @@ export async function recordInstalledRelease(context: InstallWorkflowContext): P
     const importedCust = (context.runtime.transports.cust || [])
         .filter(cust => cust.instance)
         .map(cust => ({ trkorr: cust.instance.trkorr, trmType: TrmTransportIdentifier.CUST }));
-    const keptCust = context.runtime.update && keepsInstalledCustomizing(context)
-        ? (context.runtime.previousInstallTransports || [])
-            .filter(o => (o.trmType || '').trim().toUpperCase() === TrmTransportIdentifier.CUST && !importedCust.some(k => k.trkorr === o.trkorr))
-            .map(o => ({ trkorr: o.trkorr, trmType: TrmTransportIdentifier.CUST }))
+    // Installed customizing transports that still own rows: all of them without customizing import,
+    // otherwise those with rows kept by the upgrade cleanup (declined, or shipped by skipped transports).
+    const previousCust = (context.runtime.previousInstallTransports || [])
+        .filter(o => (o.trmType || '').trim().toUpperCase() === TrmTransportIdentifier.CUST && !importedCust.some(k => k.trkorr === o.trkorr));
+    const retainedCust = context.rawInput.installData.import?.noCust
+        ? previousCust
+        : previousCust.filter(o => (context.runtime.cleanupPlan?.retainedCustomizingSources || []).includes(o.trkorr));
+    const keptCust = context.runtime.update
+        ? retainedCust.map(o => ({ trkorr: o.trkorr, trmType: TrmTransportIdentifier.CUST }))
         : [];
     const installTr = installTransportRows(context.rawInput.packageData.name, packageRegistry, [
         ...keptCust,
@@ -90,8 +94,8 @@ export async function recordInstalledRelease(context: InstallWorkflowContext): P
     // fail while returning the response.
     context.revert.metadataWriteStarted = true;
     await SystemConnector.setInstallDevc(installDevc);
-    // A legacy backend has neither API: trm-server and trm-rest have no stale mappings nor install transports
-    if (!context.legacyBackend) {
+    // A backend without trmServer7 has neither API: trm-server and trm-rest have no stale mappings nor install transports
+    if (!lacksTrmBackendApis(context, 'trmServer7')) {
         if (staleInstallDevc.length > 0) {
             await SystemConnector.deleteInstallDevc(staleInstallDevc);
         }

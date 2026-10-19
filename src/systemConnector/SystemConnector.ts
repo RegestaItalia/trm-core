@@ -26,59 +26,70 @@ export namespace SystemConnector {
         return systemConnector.releaseActionLocks(keys, ownerToken);
     }
 
-    function checkSystemConnector() {
+    /** Connection checks are repeated at most this often: every API call failing on a lost connection anyway. */
+    export const CONNECTION_CHECK_INTERVAL_MS = 60000;
+    const lastConnectionChecks = new WeakMap<ISystemConnector, number>();
+
+    function assertSystemConnector() {
         if (!systemConnector) {
             throw new Error('System connector not initialized.');
-        } else {
-            return new Promise<void>((res, rej) => {
-                systemConnector.checkConnection().then(() => {
-                    res();
-                }).catch(e => {
-                    rej(e);
-                })
-            });
         }
     }
 
+    /**
+     * Checks the system connector is initialized and, at most once every {@link CONNECTION_CHECK_INTERVAL_MS},
+     * that its connection is alive: a ping before every call doubled the calls of long actions.
+     */
+    async function checkSystemConnector(): Promise<void> {
+        assertSystemConnector();
+        const connector = systemConnector;
+        const lastCheck = lastConnectionChecks.get(connector);
+        if (lastCheck !== undefined && Date.now() - lastCheck < CONNECTION_CHECK_INTERVAL_MS) {
+            return;
+        }
+        await connector.checkConnection();
+        lastConnectionChecks.set(connector, Date.now());
+    }
+
     export function getNewConnection(): ISystemConnector {
-        checkSystemConnector();
+        assertSystemConnector();
         return systemConnector.getNewConnection();
     }
 
     export function getSupportedBulk(): SystemConnectorSupportedBulk {
-        checkSystemConnector();
+        assertSystemConnector();
         return systemConnector.supportedBulk;
     }
 
     export function isStateless(): boolean {
-        checkSystemConnector();
+        assertSystemConnector();
         return systemConnector.isStateless;
     }
 
     export function getConnectionData(): any {
-        checkSystemConnector();
+        assertSystemConnector();
         return systemConnector.getConnectionData();
     }
 
     export function getDest(): components.SYSYSID {
-        checkSystemConnector();
+        assertSystemConnector();
         return systemConnector.getDest();
     }
 
     export function getLogonLanguage(c: boolean): string {
-        checkSystemConnector();
+        assertSystemConnector();
         return systemConnector.getLogonLanguage(c);
     }
 
     export function getLogonUser(): string {
-        checkSystemConnector();
+        assertSystemConnector();
         return systemConnector.getLogonUser();
     }
 
     export async function connect(silent: boolean): Promise<void> {
-        if (!systemConnector) {
-            throw new Error('System connector not initialized.');
-        }
+        assertSystemConnector();
+        // a (re)opened connection is checked again by the next call
+        lastConnectionChecks.delete(systemConnector);
         return systemConnector.connect(silent);
     }
 
@@ -88,8 +99,10 @@ export namespace SystemConnector {
     }
 
     export async function checkConnection(): Promise<boolean> {
-        await checkSystemConnector();
-        return systemConnector.checkConnection();
+        assertSystemConnector();
+        const result = await systemConnector.checkConnection();
+        lastConnectionChecks.set(systemConnector, Date.now());
+        return result;
     }
 
     export async function getTransportStatus(trkorr: TRKORR): Promise<string> {
@@ -120,6 +133,11 @@ export namespace SystemConnector {
     export async function getTransportTargets(): Promise<components.TARSYSTEM[]> {
         await checkSystemConnector();
         return systemConnector.getTransportTargets();
+    }
+
+    export async function getTransportLayers(target: components.TARSYSTEM): Promise<components.DEVLAYER[]> {
+        await checkSystemConnector();
+        return systemConnector.getTransportLayers(target);
     }
 
     export async function getSubpackages(devclass: DEVCLASS): Promise<TDEVC[]> {

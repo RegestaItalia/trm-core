@@ -128,12 +128,16 @@ export const uninstallNestedPackages: Step<UninstallWorkflowContext> = {
                     },
                     uninstallData: {
                         checks: { ...context.rawInput.uninstallData.checks },
-                        landscapeTransport: { ...context.rawInput.uninstallData.landscapeTransport }
-                    }
+                        landscapeTransport: { ...context.rawInput.uninstallData.landscapeTransport },
+                        ignoreImportErrors: context.rawInput.uninstallData.ignoreImportErrors
+                    },
+                    nested: true
                 }, uninstallingPackages.filter(pkg => pkg !== nested), context.lockScope);
                 context.runtime.nestedRollbacks.push(result.rollback);
                 context.runtime.nestedReleases.push(result.release);
                 // The SAP buffers may still list them: the cleanup of this package must not delete them again.
+                // carried by the landscape transport of this uninstall
+                context.runtime.nestedDeletions = [...(context.runtime.nestedDeletions || []), ...(result.output.deletions || [])];
                 if (result.output.transport) {
                     context.runtime.deletedObjects = [
                         ...(context.runtime.deletedObjects || []),

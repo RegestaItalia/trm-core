@@ -1,5 +1,7 @@
 export * from "./restoreTransport";
+export * from "./importQueue";
 export * from "./releaseDeletionTransport";
+export * from "./generateDeletion";
 export * from "./retainedWorkflow";
 export * from "./withScopedPrefix";
 export * from "./actionLocks";
@@ -9,3 +11,7 @@ export * from "./installRegistry";
 export * from "./dirtyEntries";
 export * from "./owningInstallation";
 export * from "./trmBackend";
+export * from "./transportObjects";
+export * from "./landscapeTransport";
+export * from "./actionSummary";
+export * from "./objectsLocks";
