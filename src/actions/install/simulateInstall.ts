@@ -47,8 +47,15 @@ export const simulateInstall: Step<InstallWorkflowContext> = {
         ].filter(Boolean);
         const objects = transports.tadir?.binaries?.entries?.tadir?.length;
         lines.push(`- import transports ${imported.join(', ')}${objects !== undefined ? ` (${objects} objects)` : ''}`);
-        if (context.runtime.existingObjects?.length > 0) {
-            lines.push(`- overwrite ${context.runtime.existingObjects.length} objects already on ${dest}`);
+        // on update, the objects of the installed release are updated, not overwritten
+        const installPackages = new Set(context.runtime.update ? installData.installDevclass.replacements.map(o => o.installDevclass.trim().toUpperCase()) : []);
+        const existing = context.runtime.existingObjects || [];
+        const updated = existing.filter(o => installPackages.has((o.devclass || '').trim().toUpperCase())).length;
+        if (updated > 0) {
+            lines.push(`- update ${updated} objects of the installed release`);
+        }
+        if (existing.length - updated > 0) {
+            lines.push(`- overwrite ${existing.length - updated} objects already on ${dest}, outside the installation`);
         }
         if (context.runtime.skippedCust?.length > 0) {
             lines.push(`- skip customizing transports ${context.runtime.skippedCust.join(', ')}`);

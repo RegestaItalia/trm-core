@@ -103,6 +103,8 @@ describe("simulate-install", () => {
                     cust: [{ binaries: { trkorr: 'CUSTK1' } }]
                 },
                 skippedCust: ['CUSTK2'],
+                update: {},
+                existingObjects: [{ objName: 'ZOLD', devclass: 'ZNEW' }, { objName: 'ZFOREIGN', devclass: 'ZOTHER' }],
                 cleanupPlan: {
                     packageName: 'pkg',
                     installedVersion: '1.0.0',
@@ -126,6 +128,8 @@ describe("simulate-install", () => {
         expect(log).not.toContain('generate SAP packages:\n    ZSUB');
         expect(log).toContain('import transports TADIRK1, CUSTK1 (2 objects)');
         expect(log).toContain('skip customizing transports CUSTK2');
+        expect(log).toContain('update 1 objects of the installed release');
+        expect(log).toContain('overwrite 1 objects already on TST, outside the installation');
         expect(log).toContain('delete 1 objects not shipped anymore:\n    R3TR PROG ZOLD');
         expect(log).toContain('keep 1 objects of the installed release:\n    R3TR CLAS ZCL_KEPT');
         expect(log).toContain('ZTAB 001');
