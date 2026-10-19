@@ -126,6 +126,35 @@ describe('prepare-deletion', () => {
         });
     });
 
+    test('the SAP packages and translations of the incoming release are subtracted too: the backup holds them when they exist', async () => {
+        const ctx = context();
+        ctx.runtime.transports.devc = { binaries: { trkorr: 'TRMK000004', entries: { e071: [{ pgmid: 'R3TR', object: 'DEVC', objName: 'ZPUB' }] } } };
+        ctx.runtime.transports.lang = { binaries: { trkorr: 'TRMK000005', entries: { e071: [] } } };
+        ctx.runtime.cleanupPlan = { installedVersion: '1.0.0' };
+
+        await prepareDeletion.run(ctx);
+
+        expect((generateCleanupDeletions as jest.Mock).mock.calls[0][2].incoming.tadir).toEqual({
+            subtract: ['TRMK000001', 'TRMK000004', 'TRMK000005']
+        });
+    });
+
+    test('incoming transports the registry does not store are excluded by their objects', async () => {
+        const ctx = context();
+        ctx.runtime.transports.devc = { binaries: { trkorr: 'A4DK900001', entries: { e071: [
+            { pgmid: '*', object: 'ZTRM', objName: 'name=pkg' },
+            { pgmid: 'R3TR', object: 'DEVC', objName: 'ZPUB' }
+        ] } } };
+        ctx.runtime.cleanupPlan = { installedVersion: '1.0.0' };
+
+        await prepareDeletion.run(ctx);
+
+        expect((generateCleanupDeletions as jest.Mock).mock.calls[0][2].incoming.tadir).toEqual({
+            subtract: ['TRMK000001'],
+            objects: [{ pgmid: 'R3TR', object: 'DEVC', objName: 'ZPUB' }]
+        });
+    });
+
     test('without a cleanup plan nothing is deleted', async () => {
         await expect(prepareDeletion.filter(context())).resolves.toBe(false);
     });

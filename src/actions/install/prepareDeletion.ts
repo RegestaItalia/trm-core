@@ -16,16 +16,31 @@ const REGISTRY_TRANSPORT = /^TRMK[0-9A-Z]{6}$/;
  */
 function incoming(context: InstallWorkflowContext) {
     const packageName = context.runtime.package.data.manifest?.name || context.rawInput.packageData.name;
-    const tadirTrkorr = context.runtime.transports.tadir.binaries.trkorr;
-    const tadirSubtractable = REGISTRY_TRANSPORT.test(tadirTrkorr || '') && TRM_FIXED_TADIR_TRANSPORTS[packageName] !== tadirTrkorr;
+    // The backups also hold the objects of the incoming release already on the system (its SAP packages too):
+    // every repository transport it ships is subtracted, not only the TADIR one
+    const subtract: string[] = [];
+    const objects: { pgmid: string, object: string, objName: string }[] = [];
+    for (const transport of [context.runtime.transports.tadir, context.runtime.transports.devc, context.runtime.transports.lang]) {
+        const binaries = transport?.binaries;
+        if (!binaries?.trkorr) {
+            continue;
+        }
+        if (REGISTRY_TRANSPORT.test(binaries.trkorr) && TRM_FIXED_TADIR_TRANSPORTS[packageName] !== binaries.trkorr) {
+            subtract.push(binaries.trkorr);
+        } else {
+            const entries = binaries.entries?.tadir || (binaries.entries?.e071 || []).filter(o => o.pgmid.trim().toUpperCase() === 'R3TR');
+            objects.push(...entries.map(o => ({ pgmid: o.pgmid, object: o.object, objName: o.objName })));
+        }
+    }
     const custTrkorrs = incomingRegistryTransports(context, TrmTransportIdentifier.CUST);
     const custSubtractable = custTrkorrs.every(trkorr => REGISTRY_TRANSPORT.test(trkorr));
     const custKeys: DeletionKey[] = (context.runtime.transports.cust || []).flatMap(cust => customizingRows(cust.binaries?.entries))
         .filter(row => row.tabkey !== undefined).map(row => ({ table: row.table, tabkey: row.tabkey }));
     return {
-        tadir: tadirSubtractable
-            ? { subtract: [tadirTrkorr] }
-            : { objects: (context.runtime.transports.tadir.binaries.entries.tadir || []).map(o => ({ pgmid: o.pgmid, object: o.object, objName: o.objName })) },
+        tadir: {
+            ...(subtract.length > 0 ? { subtract } : {}),
+            ...(objects.length > 0 ? { objects } : {})
+        },
         cust: custSubtractable ? { subtract: custTrkorrs } : { keys: custKeys }
     };
 }
