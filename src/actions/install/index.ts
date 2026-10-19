@@ -37,6 +37,7 @@ import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, r
 import { SystemConnector } from "../../systemConnector";
 import { lockResources } from "./lockResources";
 import { cleanupCheckpoint } from "./cleanupCheckpoint";
+import { simulateInstall } from "./simulateInstall";
 
 /** Maps a publisher ABAP package to the package that should receive its objects during installation. */
 export type InstallPackageReplacements = {
@@ -73,6 +74,13 @@ export type InstallActionInputContextData = {
      * Supply it when the client resolves trm-core itself; defaults to the version read from trm-core package.json.
      */
     coreVersion?: string;
+
+    /**
+     * Simulate the install: every check runs and every question is asked as in a real install,
+     * dependency installs included, but nothing is imported or changed on the system. The changes
+     * the install would make (objects deleted on upgrade, transports imported...) are logged instead.
+     */
+    simulate?: boolean;
 }
 
 /** Options controlling package validation, transport import, and target package mapping. */
@@ -284,6 +292,8 @@ type WorkflowRuntime = {
     systemPackagesBeforeDependencies?: TrmPackage[],
     rootDevclassBeforeImport?: TDEVC,
     stopWarningShown: boolean,
+    /** Namespace a simulated install would import. */
+    simulatedNamespace?: string,
     /** Customizing transports of the release the user chose not to import (or skipped by noCust / non-interactive mode). */
     skippedCust?: string[],
     /** Release objects found on the system by check-transports, accepted before locking. */
@@ -353,7 +363,9 @@ export type InstallActionOutput = {
     /** Normalized manifest of the installed release. */
     manifest: TrmManifest,
     /** Generated landscape transport, when the installation produced one. */
-    transport?: Transport
+    transport?: Transport,
+    /** Set when the install was simulated (`contextData.simulate`): nothing was installed. */
+    simulated?: boolean
 }
 
 /** Internal state shared by package-install workflow steps and rollback handlers. */
@@ -432,6 +444,13 @@ const installWorkflow = [
         releaseLandscapeTransport
 ];
 
+// Every step until the cleanup plan only reads the system and asks questions, except generate-devclass
+// (skipped) and add-namespace (which doesn't import the namespace when simulating).
+const simulateInstallWorkflow = [
+        ...installWorkflow.slice(0, installWorkflow.indexOf(planUpdateCleanup) + 1).filter(step => step !== generateDevclass),
+        simulateInstall
+];
+
 async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = []): Promise<{
     output: InstallActionOutput,
     installedPackages?: TrmPackage[],
@@ -448,6 +467,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
         ignoreImportErrors: !!inputData.installData?.import?.ignoreImportErrors
     };
     await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);
+    const workflow = inputData.contextData?.simulate ? simulateInstallWorkflow : installWorkflow;
     const release = async (): Promise<void> => {
         let firstError: unknown;
         for (const releaseDependency of [...(context.runtime?.dependencyReleases || [])].reverse()) {
@@ -467,7 +487,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     if (!retainRollback) {
         return withLockRelease(release, async () => {
             try {
-                const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, installWorkflow, context, workflowCallbacks);
+                const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, workflow, context, workflowCallbacks);
                 logInstallSummary(context, true);
                 return { output: result.output };
             } catch (error) {
@@ -479,7 +499,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<InstallWorkflowContext>>>;
     try {
         retained = await executeRetainedWorkflow<InstallWorkflowContext>(
-            WORKFLOW_NAME, installWorkflow, context, workflowCallbacks
+            WORKFLOW_NAME, workflow, context, workflowCallbacks
         );
     } catch (error) {
         await releaseLogged(release);
@@ -516,10 +536,14 @@ function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean, 
     const version = context.runtime.package.data.manifest.version;
     const from = context.runtime.update ? `${context.runtime.update.manifest.get().version} → ` : '';
     const transports = context.runtime.transports;
+    if (succeeded && context.output?.simulated) {
+        // simulate-install already logged what the install would do
+        return;
+    }
     logActionSummary({
         outcome: succeeded
             ? `${name} ${from}${version} installed on ${SystemConnector.getDest()}.`
-            : `${name} ${from}${version} install failed${failureState(context.revert?.importStarted && !context.runtime.selfUpdate, error)}.`,
+            : `${name} ${from}${version} install${context.rawInput.contextData?.simulate ? ' simulation' : ''} failed${failureState(context.revert?.importStarted && !context.runtime.selfUpdate, error)}.`,
         imported: succeeded ? [transports.devc?.instance, transports.tadir?.instance, transports.lang?.instance, ...(transports.cust || []).map(cust => cust.instance)] : [],
         deletions: succeeded ? [context.runtime.deletions?.tadir, context.runtime.deletions?.cust] : [],
         landscape: succeeded ? {
