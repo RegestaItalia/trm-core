@@ -69,9 +69,9 @@ describe('install package metadata writes', () => {
         expect(transportsOrder).toBeLessThan((SystemConnector.updateTrmPackageData as jest.Mock).mock.invocationCallOrder[0]);
     });
 
-    test('a trm-server upgrade on a legacy backend writes only the mappings and the package row', async () => {
+    test('a trm-server upgrade on a backend without trmServer7 writes only the mappings and the package row', async () => {
         const ctx = context();
-        ctx.legacyBackend = true;
+        ctx.missingBackendApis = ['trmServer7', 'trmServer8'];
         ctx.runtime.selfUpdate = true;
         ctx.runtime.update = { getMetadataSnapshot: () => storedRow };
         ctx.runtime.previousInstallPackages = [{ originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }];

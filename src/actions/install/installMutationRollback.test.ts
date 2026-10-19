@@ -62,6 +62,7 @@ function context() {
         runtime: {
             namespace: undefined,
             stopWarningShown: true,
+            transportLayer: 'ZLAYER',
             package: {
                 hierarchy: { devclass: 'ORIGINAL', sub: [] },
                 data: {
@@ -369,61 +370,42 @@ describe('install mutation checkpoints', () => {
     });
 
     describe('transport layer', () => {
-        test('default layer is resolved only when transportable packages are created', async () => {
-            const ctx = context();
-            delete ctx.rawInput.installData.installDevclass.transportLayer;
-            (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZDEF');
-            (SystemConnector.createPackage as jest.Mock).mockResolvedValue(undefined);
-
-            await generateDevclass.run(ctx);
-
-            expect(SystemConnector.getDefaultTransportLayer).toHaveBeenCalledTimes(1);
-            expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: 'ZNEW', pdevclass: 'ZDEF' }));
-        });
-
-        test('explicit layer is used without a default lookup', async () => {
+        test('packages are created with the layer set by set-transport-layer', async () => {
             const ctx = context();
             (SystemConnector.createPackage as jest.Mock).mockResolvedValue(undefined);
 
             await generateDevclass.run(ctx);
 
             expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
-            expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ pdevclass: 'ZLAYER' }));
+            expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: 'ZNEW', pdevclass: 'ZLAYER' }));
         });
 
         test('existing packages need no transport layer', async () => {
             const ctx = context();
-            delete ctx.rawInput.installData.installDevclass.transportLayer;
+            delete ctx.runtime.transportLayer;
             (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZNEW', parentcl: '', dlvunit: 'HOME', tpclass: 'A' });
 
             await generateDevclass.run(ctx);
 
-            expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
             expect(SystemConnector.createPackage).not.toHaveBeenCalled();
         });
 
         test('local packages are created without a transport layer', async () => {
             const ctx = context();
-            delete ctx.rawInput.installData.installDevclass.transportLayer;
             ctx.runtime.namespace = '$';
             ctx.rawInput.installData.installDevclass.replacements[0].installDevclass = '$NEW';
             (SystemConnector.createPackage as jest.Mock).mockResolvedValue(undefined);
 
             await generateDevclass.run(ctx);
 
-            expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
             expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: '$NEW', dlvunit: 'LOCAL', pdevclass: '' }));
         });
 
-        test.each([
-            ['lookup fails', () => (SystemConnector.getDefaultTransportLayer as jest.Mock).mockRejectedValue(new Error('rfc down')), "Couldn't determine system's default transport layer."],
-            ['no default exists', () => (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue(''), 'System has no default transport layer, specify one.']
-        ])('aborts before creating any package when the %s', async (_point, inject, message) => {
+        test('aborts before creating any package when no transport layer was set', async () => {
             const ctx = context();
-            delete ctx.rawInput.installData.installDevclass.transportLayer;
-            inject();
+            delete ctx.runtime.transportLayer;
 
-            await expect(generateDevclass.run(ctx)).rejects.toThrow(message);
+            await expect(generateDevclass.run(ctx)).rejects.toThrow('Transport layer of the new SAP packages was not set.');
             expect(SystemConnector.createPackage).not.toHaveBeenCalled();
             expect(ctx.revert.sapPackages).toEqual([]);
 

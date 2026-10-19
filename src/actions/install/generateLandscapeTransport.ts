@@ -6,6 +6,7 @@ import { trmTransportDescription } from "../../transport/TransportDescription";
 import { Manifest } from "../../manifest";
 import { SystemConnector } from "../../systemConnector";
 import { cleanupDeletions } from "./prepareDeletion";
+import { lacksTrmBackendApis } from "../commons/utils";
 
 /**
  * Workflow step that creates the landscape transport used to carry installed changes onward.
@@ -109,8 +110,8 @@ export const generateLandscapeTransport: Step<InstallWorkflowContext> = {
         //7- lock objects
         //what is lockable gets locked here: all the imported objects, before the deletions are added,
         //so objects that no longer exist are never locked
-        //a legacy backend has no API for it
-        if (!context.legacyBackend) {
+        //a backend without trmServer7 has no API for it
+        if (!lacksTrmBackendApis(context, 'trmServer7')) {
             await context.output.transport.lock();
         }
 

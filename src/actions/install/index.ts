@@ -15,6 +15,7 @@ import { checkDependencyCycles } from "./checkDependencyCycles";
 import { installDependencies } from "./installDependencies";
 import { setInstallDevclass } from "./setInstallDevclass";
 import { checkInstallDevclass } from "./checkInstallDevclass";
+import { setTransportLayer } from "./setTransportLayer";
 import { addNamespace } from "./addNamespace";
 import { DEVCLASS, E071, TADIR, TDEVC, TDEVCT, ZTRM_INSTALLDEVC } from "../../client";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
@@ -33,7 +34,7 @@ import { prepareBackup } from "./prepareBackup";
 import { importUpdateDeletion, prepareDeletion } from "./prepareDeletion";
 import { checkDependants } from "./checkDependants";
 import { executeRetainedWorkflow } from "../commons/utils";
-import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, isLegacyTrmBackend, CleanupPlan, PackageCleanupRevert, logActionSummary, failureState } from "../commons/utils";
+import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, getMissingTrmBackendApis, lacksTrmBackendApis, TrmBackendApis, CleanupPlan, PackageCleanupRevert, logActionSummary, failureState } from "../commons/utils";
 import { SystemConnector } from "../../systemConnector";
 import { lockResources } from "./lockResources";
 import { cleanupCheckpoint } from "./cleanupCheckpoint";
@@ -294,6 +295,8 @@ type WorkflowRuntime = {
     stopWarningShown: boolean,
     /** Namespace a simulated install would import. */
     simulatedNamespace?: string,
+    /** Transport layer of the SAP packages the install creates or imports without one, set by set-transport-layer. */
+    transportLayer?: string,
     /** Customizing transports of the release the user chose not to import (or skipped by noCust / non-interactive mode). */
     skippedCust?: string[],
     /** Release objects found on the system by check-transports, accepted before locking. */
@@ -374,10 +377,10 @@ export interface InstallWorkflowContext extends IActionContext {
     /** From `installData.import.ignoreImportErrors`: imports from return code 8 are logged instead of failing. */
     ignoreImportErrors?: boolean,
     /**
-     * trm-server/trm-rest upgrade on a backend older than the APIs this trm-core needs (see isLegacyTrmBackend):
-     * only the APIs of the installed generation are used.
+     * Backend API generations the installed trm-server/trm-rest lacks, set only when upgrading them
+     * (see TRM_BACKEND_APIS): the steps continue without those APIs. Empty for any other install.
      */
-    legacyBackend?: boolean,
+    missingBackendApis?: TrmBackendApis[],
     /** Custom namespaces already locked by the parent installs of a dependency install. */
     inheritedNamespaceLocks?: string[],
     /** Original action input; optional groups are normalized during initialization. */
@@ -424,6 +427,7 @@ const installWorkflow = [
         checkDependencyCycles,
         setInstallDevclass,
         checkInstallDevclass,
+        setTransportLayer,
         lockResources,
         installDependencies,
         cleanupCheckpoint,
@@ -459,11 +463,12 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
 }> {
     //a local artifact is locked under the package it installs, as a remote install of it would be
     const lockPackage = await resolveInstallPackage(inputData.packageData.registry, inputData.packageData.name);
-    // A legacy backend has no action locks: only trm-server and trm-rest can install there, to upgrade it.
-    const legacyBackend = isTrmBackendPackage(lockPackage.registry, lockPackage.name) && await isLegacyTrmBackend();
-    const lockScope = new ActionLockScope(WORKFLOW_NAME, !legacyBackend);
+    // Only trm-server and trm-rest can install on an older backend, to upgrade it: any other install needs every API.
+    const missingBackendApis = isTrmBackendPackage(lockPackage.registry, lockPackage.name) ? await getMissingTrmBackendApis() : [];
+    // a backend without trmServer7 has no action locks
+    const lockScope = new ActionLockScope(WORKFLOW_NAME, !lacksTrmBackendApis({ missingBackendApis }, 'trmServer7'));
     const context: InstallWorkflowContext = {
-        rawInput: inputData, lockScope, inheritedNamespaceLocks, legacyBackend,
+        rawInput: inputData, lockScope, inheritedNamespaceLocks, missingBackendApis,
         ignoreImportErrors: !!inputData.installData?.import?.ignoreImportErrors
     };
     await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);

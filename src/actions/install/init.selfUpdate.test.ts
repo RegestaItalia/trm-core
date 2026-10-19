@@ -19,7 +19,7 @@ import { init } from './init';
 describe('install init of a trm-server/trm-rest upgrade', () => {
     function context(name: string, installedVersion: string, version: string, legacyBackend: boolean) {
         return {
-            legacyBackend,
+            missingBackendApis: legacyBackend ? ['trmServer7', 'trmServer8'] : [],
             rawInput: {
                 packageData: {
                     name,
@@ -62,7 +62,7 @@ describe('install init of a trm-server/trm-rest upgrade', () => {
         jest.restoreAllMocks();
     });
 
-    test('a legacy backend has no install transports to read', async () => {
+    test('a backend without trmServer7 has no install transports to read', async () => {
         const ctx = context('trm-server', '6.4.1', '7.0.0', true);
         await init.run(ctx);
         expect(ctx.runtime.selfUpdate).toBe(true);

@@ -6,12 +6,12 @@ jest.mock('../commons/utils', () => ({
     ...jest.requireActual('../commons/utils'),
     executeRetainedWorkflow: jest.fn(),
     resolveInstallPackage: jest.fn(),
-    isLegacyTrmBackend: jest.fn()
+    getMissingTrmBackendApis: jest.fn()
 }));
 
 import { Logger } from "trm-commons";
 import { executeWorkflow } from "../commons";
-import { executeRetainedWorkflow, isLegacyTrmBackend, resolveInstallPackage } from "../commons/utils";
+import { executeRetainedWorkflow, getMissingTrmBackendApis, resolveInstallPackage } from "../commons/utils";
 import { SystemConnector } from "../../systemConnector";
 import { install, installWithRollback } from ".";
 import { simulateInstall } from "./simulateInstall";
@@ -34,7 +34,7 @@ describe("simulated install workflow", () => {
         jest.spyOn(SystemConnector, "acquireActionLocks").mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, "releaseActionLocks").mockResolvedValue(undefined);
         (resolveInstallPackage as jest.Mock).mockReset().mockResolvedValue({ name: "pkg", registry });
-        (isLegacyTrmBackend as jest.Mock).mockReset().mockResolvedValue(false);
+        (getMissingTrmBackendApis as jest.Mock).mockReset().mockResolvedValue([]);
         (executeWorkflow as jest.Mock).mockReset().mockResolvedValue({ output: { manifest: { name: "pkg" }, simulated: true } });
         (executeRetainedWorkflow as jest.Mock).mockReset().mockResolvedValue({ context: { output: { manifest: { name: "pkg" }, simulated: true } }, rollback: jest.fn() });
     });
@@ -47,6 +47,7 @@ describe("simulated install workflow", () => {
         expect(steps.slice(-2)).toEqual(['plan-update-cleanup', 'simulate-install']);
         expect(steps).toContain('install-dependencies');
         expect(steps).toContain('add-namespace');
+        expect(steps).toContain('set-transport-layer');
         expect(steps.filter(step => MUTATING_STEPS.includes(step))).toEqual([]);
         expect(result.simulated).toBe(true);
     });
@@ -95,6 +96,7 @@ describe("simulate-install", () => {
             runtime: {
                 namespace: 'Z',
                 simulatedNamespace: '/ACME/',
+                transportLayer: 'ZQAS',
                 package: { data: { manifest: { name: 'pkg', version: '2.0.0', postActivities: [{ name: 'ZPA' }] } } },
                 transports: {
                     devc: { binaries: { trkorr: 'DEVCK1' } },
@@ -124,7 +126,7 @@ describe("simulate-install", () => {
         const log = info.mock.calls[0][0];
         expect(log).toContain('nothing was changed');
         expect(log).toContain('import namespace /ACME/');
-        expect(log).toContain('ZROOT -> ZNEW');
+        expect(log).toContain('generate SAP packages (transport layer ZQAS):\n    ZROOT -> ZNEW');
         expect(log).not.toContain('generate SAP packages:\n    ZSUB');
         expect(log).toContain('import transports TADIRK1, CUSTK1 (2 objects)');
         expect(log).toContain('skip customizing transports CUSTK2');

@@ -158,9 +158,9 @@ describe('install prepare transport rollback', () => {
             expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith(dummy.trkorr, 'TST');
         });
 
-        test('a legacy backend uploads the transport but has no test import', async () => {
+        test('a backend without trmServer7 uploads the transport but has no test import', async () => {
             const ctx = context(registryTransport);
-            ctx.legacyBackend = true;
+            ctx.missingBackendApis = ['trmServer7', 'trmServer8'];
 
             await step.run(ctx);
 

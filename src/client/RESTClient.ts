@@ -760,4 +760,13 @@ export class RESTClient implements IClient {
         return result.targets;
     }
 
+    public async getTransportLayers(target: components.TARSYSTEM): Promise<components.DEVLAYER[]> {
+        const result = (await this._axiosInstance.get('/get_transport_layers', {
+            data: {
+                target: target.trim().toUpperCase()
+            }
+        })).data;
+        return (result.layers || []).map((layer: components.DEVLAYER) => layer.trim());
+    }
+
 }

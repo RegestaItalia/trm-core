@@ -7,7 +7,7 @@ import { eq, gt, lt, valid } from "semver";
 import { Manifest } from "../../manifest";
 import chalk from "chalk";
 import { setLandscapeTarget } from "../commons/prompts";
-import { logDirtyEntries, resolveInstallPackage, TRM_SERVER_API_VERSION, withoutOwnTrmTransports } from "../commons/utils";
+import { lacksTrmBackendApis, logDirtyEntries, resolveInstallPackage, TRM_BACKEND_APIS, withoutOwnTrmTransports } from "../commons/utils";
 import { RootLock } from "../../lockfile";
 
 function sameName(a: string, b: string): boolean {
@@ -229,9 +229,9 @@ export const init: Step<InstallWorkflowContext> = {
                 context.rawInput.packageData.name,
                 context.runtime.installRegistry
             );
-            // A legacy backend has no install transports table: trm-server and trm-rest ship
+            // A backend without trmServer7 has no install transports table: trm-server and trm-rest ship
             // no customizing or translations, so there is nothing recorded to read.
-            if (!context.legacyBackend) {
+            if (!lacksTrmBackendApis(context, 'trmServer7')) {
                 context.runtime.previousInstallTransports = await SystemConnector.getInstallTransports(
                     context.rawInput.packageData.name,
                     context.runtime.installRegistry
@@ -272,9 +272,10 @@ export const init: Step<InstallWorkflowContext> = {
                     Logger.warning(`${context.rawInput.packageData.name} has changes made on ${SystemConnector.getDest()} that will be overwritten!`, { important: true });
                     logDirtyEntries(dirtyEntries);
                 }
-                if (context.runtime.isTrmServer && valid(installedVersion) && lt(installedVersion, TRM_SERVER_API_VERSION) && !lt(installVersion, TRM_SERVER_API_VERSION)) {
+                const authVersion = TRM_BACKEND_APIS.trmServer7.server;
+                if (context.runtime.isTrmServer && valid(installedVersion) && lt(installedVersion, authVersion) && !lt(installVersion, authVersion)) {
                     // the install continues with the imported release: an unauthorized user can't complete it
-                    Logger.warning(`trm-server ${TRM_SERVER_API_VERSION} authorizes users with authorization object ZTRM_AUTH (ACTVT 16) instead of table /ATRM/USERS: ${SystemConnector.getLogonUser()} and the other TRM users need it.`, { important: true });
+                    Logger.warning(`trm-server ${authVersion} authorizes users with authorization object ZTRM_AUTH (ACTVT 16) instead of table /ATRM/USERS: ${SystemConnector.getLogonUser()} and the other TRM users need it.`, { important: true });
                 }
             }
         } else {

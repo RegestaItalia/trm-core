@@ -135,6 +135,11 @@ export namespace SystemConnector {
         return systemConnector.getTransportTargets();
     }
 
+    export async function getTransportLayers(target: components.TARSYSTEM): Promise<components.DEVLAYER[]> {
+        await checkSystemConnector();
+        return systemConnector.getTransportLayers(target);
+    }
+
     export async function getSubpackages(devclass: DEVCLASS): Promise<TDEVC[]> {
         await checkSystemConnector();
         return systemConnector.getSubpackages(devclass);

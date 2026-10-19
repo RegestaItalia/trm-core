@@ -94,8 +94,8 @@ describe('generateDeletion', () => {
             .rejects.toThrow('Test import of deletion transport: transport TSTK900002 ended with return code 8');
     });
 
-    test('a legacy backend skips the test import', async () => {
-        await generateDeletion({ registry: registry({ empty: false, binaries }), source, dummy, legacyBackend: true });
+    test('a backend without trmServer7 skips the test import', async () => {
+        await generateDeletion({ registry: registry({ empty: false, binaries }), source, dummy, missingBackendApis: ['trmServer7', 'trmServer8'] });
 
         expect(uploaded.import).not.toHaveBeenCalled();
     });

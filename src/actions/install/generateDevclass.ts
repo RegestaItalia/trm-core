@@ -5,7 +5,6 @@ import { getPackageHierarchy, getParentFromHierarchy, packageDataFromTdevc } fro
 import type { DEVCLASS, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
-import { getDefaultTransportLayer } from "./defaultTransportLayer";
 import { logObjectsLocks } from "../commons/utils";
 
 /**
@@ -13,7 +12,7 @@ import { logObjectsLocks } from "../commons/utils";
  * 
  * 1- find packages to generate
  * 
- * 2- generate missing packages (the default transport layer is resolved only for transportable packages)
+ * 2- generate missing packages (transportable ones with the transport layer set by set-transport-layer)
  * 
  * 3- build the package hierarchy, based on the original
  * 
@@ -65,9 +64,8 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         //2- generate missing packages
         if (generate.length > 0) {
             const dlvunit = context.runtime.namespace === '$' ? 'LOCAL' : 'HOME';
-            if (dlvunit !== 'LOCAL' && !context.rawInput.installData.installDevclass.transportLayer) {
-                context.rawInput.installData.installDevclass.transportLayer = await getDefaultTransportLayer();
-                Logger.log(`Setting transport layer to default: ${context.rawInput.installData.installDevclass.transportLayer}`, true);
+            if (dlvunit !== 'LOCAL' && !context.runtime.transportLayer) {
+                throw new Error(`Transport layer of the new SAP packages was not set.`);
             }
             if (!context.runtime.stopWarningShown) {
                 context.runtime.stopWarningShown = true;
@@ -91,7 +89,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                 }
                 await SystemConnector.createPackage(packageDataFromTdevc(originalPackageData, {
                     as4user: SystemConnector.getLogonUser(),
-                    pdevclass: context.rawInput.installData.installDevclass.transportLayer || '',
+                    pdevclass: dlvunit !== 'LOCAL' ? context.runtime.transportLayer : '',
                     devclass,
                     ctext,
                     dlvunit

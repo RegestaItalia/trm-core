@@ -838,4 +838,11 @@ export class RFCClient implements IClient {
         return result['targets'];
     }
 
+    public async getTransportLayers(target: components.TARSYSTEM): Promise<components.DEVLAYER[]> {
+        const result = await this._call("/ATRM/GET_TRANSPORT_LAYERS", {
+            target: target.trim().toUpperCase()
+        });
+        return (result['layers'] || []).map((layer: components.DEVLAYER) => layer.trim());
+    }
+
 }

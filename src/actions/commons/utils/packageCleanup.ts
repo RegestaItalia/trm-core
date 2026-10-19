@@ -19,6 +19,7 @@ import { logObjectsLocks } from "./objectsLocks";
 import { DeletionPreview, generateDeletion } from "./generateDeletion";
 import { dequeueTransport, protectBackupTransport } from "./importQueue";
 import { addObjectsResiliently } from "./transportObjects";
+import type { TrmBackendApis } from "./trmBackend";
 
 type CleanupObject = Pick<E071, 'pgmid' | 'object' | 'objName'>;
 
@@ -69,8 +70,8 @@ export interface PackageCleanupContext {
     lockScope?: ActionLockScope,
     /** Imports ending with return code 8 or higher are logged as errors instead of failing the action. */
     ignoreImportErrors?: boolean,
-    /** Only the APIs of a backend older than this trm-core can be used: no test imports. */
-    legacyBackend?: boolean,
+    /** Backend APIs missing during a trm-server/trm-rest upgrade (see TRM_BACKEND_APIS). */
+    missingBackendApis?: TrmBackendApis[],
     rawInput: {
         packageData: {
             name: string,
@@ -1194,7 +1195,7 @@ export async function generateCleanupDeletions(context: PackageCleanupContext, p
                 subtract: run.subtract,
                 exclude: run.exclude,
                 preview: run.preview,
-                legacyBackend: context.legacyBackend,
+                missingBackendApis: context.missingBackendApis,
                 ignoreImportErrors: context.ignoreImportErrors
             });
         } catch (e) {

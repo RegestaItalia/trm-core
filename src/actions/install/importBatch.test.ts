@@ -663,9 +663,9 @@ describe('importBatch rollback checkpoint', () => {
         expect(events).not.toContain('restore-old-payload');
     });
 
-    test('a legacy backend imports one transport at a time, SAP packages first', async () => {
+    test('a backend without trmServer7 imports one transport at a time, SAP packages first', async () => {
         const context = makeContext(registryDelete);
-        context.legacyBackend = true;
+        context.missingBackendApis = ['trmServer7', 'trmServer8'];
         context.runtime.selfUpdate = true;
 
         await importBatch.run(context);
@@ -688,9 +688,9 @@ describe('importBatch rollback checkpoint', () => {
         expect(recordInstalledRelease).toHaveBeenCalledWith(context);
     });
 
-    test('a legacy backend stops at the first failed import', async () => {
+    test('a backend without trmServer7 stops at the first failed import', async () => {
         const context = makeContext(registryDelete);
-        context.legacyBackend = true;
+        context.missingBackendApis = ['trmServer7', 'trmServer8'];
         context.runtime.selfUpdate = true;
         (context.runtime.transports.devc.instance.import as jest.Mock).mockResolvedValue(12);
 
@@ -797,7 +797,7 @@ describe('importBatch rollback checkpoint', () => {
 
     test('a failed trm-server upgrade import is left in place, without backup or rollback', async () => {
         const context = makeContext(registryDelete);
-        context.legacyBackend = true;
+        context.missingBackendApis = ['trmServer7', 'trmServer8'];
         context.runtime.selfUpdate = true;
         const originalError = new Error('import failed');
         (context.runtime.transports.devc.instance.import as jest.Mock).mockRejectedValue(originalError);
@@ -1162,6 +1162,17 @@ describe('importBatch package transport layers', () => {
         expect(SystemConnector.getDefaultTransportLayer).toHaveBeenCalledTimes(1);
         expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZROOT', 'ZDEF');
         expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZSUB', 'ZDEF');
+    });
+
+    test('packages without a layer get the one set by set-transport-layer, not the system default', async () => {
+        const context = layerContext();
+        context.runtime.transportLayer = 'ZROUTED';
+
+        await importBatch.run(context);
+
+        expect(SystemConnector.getDefaultTransportLayer).not.toHaveBeenCalled();
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZROOT', 'ZROUTED');
+        expect(SystemConnector.setPackageTransportLayer).toHaveBeenCalledWith('ZSUB', 'ZROUTED');
     });
 
     test('a package already on the system keeps its layer, read before the import overwrites it', async () => {

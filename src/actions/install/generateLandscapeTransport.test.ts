@@ -146,9 +146,9 @@ describe('generateLandscapeTransport rollback', () => {
         expect(copies.filter((c: any) => c.order > lockOrder).map((c: any) => c.trkorr)).toEqual(['DEVK9DELE', 'DEVK9DELEC']);
     });
 
-    test('a legacy backend, which has no API to lock its objects, leaves them unlocked', async () => {
+    test('a backend without trmServer7, which has no API to lock its objects, leaves them unlocked', async () => {
         const ctx = context();
-        ctx.legacyBackend = true;
+        ctx.missingBackendApis = ['trmServer7', 'trmServer8'];
 
         await execute('test', [generateLandscapeTransport], ctx);
 

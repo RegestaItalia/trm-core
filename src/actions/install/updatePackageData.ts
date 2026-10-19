@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallPackageReplacements, InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { installRegistryKey } from "../commons/utils";
+import { installRegistryKey, lacksTrmBackendApis } from "../commons/utils";
 import { Manifest } from "../../manifest";
 import { ZTRM_INSTALLDEVC, ZTRM_INSTALLTR } from "../../client";
 import { TrmTransportIdentifier } from "../../transport";
@@ -94,8 +94,8 @@ export async function recordInstalledRelease(context: InstallWorkflowContext): P
     // fail while returning the response.
     context.revert.metadataWriteStarted = true;
     await SystemConnector.setInstallDevc(installDevc);
-    // A legacy backend has neither API: trm-server and trm-rest have no stale mappings nor install transports
-    if (!context.legacyBackend) {
+    // A backend without trmServer7 has neither API: trm-server and trm-rest have no stale mappings nor install transports
+    if (!lacksTrmBackendApis(context, 'trmServer7')) {
         if (staleInstallDevc.length > 0) {
             await SystemConnector.deleteInstallDevc(staleInstallDevc);
         }

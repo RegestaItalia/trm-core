@@ -6,6 +6,7 @@ import { SystemConnector } from "../../../systemConnector";
 import { AbstractRegistry, DeleteTransportOptions, DeletionKey, DeletionObject } from "../../../registry";
 import { resolveInstallRegistry } from "./installRegistry";
 import { dequeueTransport } from "./importQueue";
+import { lacksTrmBackendApis, TrmBackendApis } from "./trmBackend";
 
 /** What the client expects a deletion transport to delete, checked against what the registry reports. */
 export type DeletionPreview = { e071: DeletionObject[], e071k: DeletionKey[] };
@@ -23,8 +24,8 @@ export type GenerateDeletionInput = {
     exclude?: DeleteTransportOptions['exclude'],
     /** Expected deletion: the registry must not delete anything outside it. */
     preview?: DeletionPreview,
-    /** A legacy TRM backend has no test import. */
-    legacyBackend?: boolean,
+    /** Backend APIs missing during a trm-server/trm-rest upgrade: a backend without trmServer7 has no test import. */
+    missingBackendApis?: TrmBackendApis[],
     /** A test import ending with return code 8 or higher is logged as an error instead of failing. */
     ignoreImportErrors?: boolean
 };
@@ -109,10 +110,10 @@ export async function generateDeletion(input: GenerateDeletionInput): Promise<Tr
         binary: deletion.binaries,
         trTarget: SystemConnector.getDest()
     });
-    // A legacy backend has no test import; in the same process the RFC metadata of its import
+    // A backend without trmServer7 has no test import; in the same process the RFC metadata of its import
     // function stays cached even after the upgrade is imported.
-    if (input.legacyBackend) {
-        Logger.log(`Skipping test import of ${trkorr}: legacy TRM backend`, true);
+    if (lacksTrmBackendApis(input, 'trmServer7')) {
+        Logger.log(`Skipping test import of ${trkorr}: TRM backend older than trm-server 7.0.0`, true);
     } else {
         Logger.loading(`Testing import...`);
         const testRc = await transport.import(true);

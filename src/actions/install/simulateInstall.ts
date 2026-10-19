@@ -30,7 +30,8 @@ export const simulateInstall: Step<InstallWorkflowContext> = {
                 }
             }
             if (generated.length > 0) {
-                lines.push(`- generate SAP packages:\n${generated.map(o => `    ${o}`).join('\n')}`);
+                const layer = context.runtime.transportLayer ? ` (transport layer ${context.runtime.transportLayer})` : '';
+                lines.push(`- generate SAP packages${layer}:\n${generated.map(o => `    ${o}`).join('\n')}`);
             }
         }
         const packages = installData.installDevclass.replacements.map(o => o.originalDevclass === o.installDevclass ? o.installDevclass : `${o.originalDevclass} -> ${o.installDevclass}`);

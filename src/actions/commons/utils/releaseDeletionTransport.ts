@@ -37,7 +37,7 @@ export async function releaseDeletionTransport(
         deletion = await generateDeletion({
             registry: deletionRegistry,
             source: { trkorr: deletionTransport.trkorr, entries: undefined, binaries: tocBinaries },
-            legacyBackend: context.legacyBackend,
+            missingBackendApis: context.missingBackendApis,
             ignoreImportErrors: context.ignoreImportErrors
         });
     } catch (e) {

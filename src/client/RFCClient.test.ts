@@ -249,3 +249,14 @@ describe('RFCClient importTransport', () => {
         expect(call.mock.calls[1][1]).toEqual({ SYSTEM: 'DEV', TRKORR: 'DEVK900001', TEST: 'X' });
     });
 });
+
+describe('RFCClient getTransportLayers', () => {
+    it('normalizes the target and the returned layers', async () => {
+        const call = mockCalls({ '/ATRM/GET_TRANSPORT_LAYERS': () => ({ LAYERS: ['SAP ', 'ZQAS'] }) });
+        const client = createClient(call);
+
+        await expect(client.getTransportLayers(' qas ')).resolves.toEqual(['SAP', 'ZQAS']);
+
+        expect(call).toHaveBeenCalledWith('/ATRM/GET_TRANSPORT_LAYERS', { TARGET: 'QAS' }, undefined);
+    });
+});

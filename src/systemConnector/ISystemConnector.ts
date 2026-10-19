@@ -86,6 +86,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getObjectsLocks: (objects: struct.TADIR_KEY[]) => Promise<struct.ZTRM_OBJ_LOCK[]>,
     updateTrmPackageData: (data: TrmPackageUpdateData) => Promise<void>,
     getTransportTargets:() => Promise<components.TARSYSTEM[]>
+    getTransportLayers: (target: components.TARSYSTEM) => Promise<components.DEVLAYER[]>,
     acquireActionLocks: (keys: ActionLockKey[], ownerToken: string, actionName: string) => Promise<void>,
     releaseActionLocks: (keys: ActionLockKey[], ownerToken: string) => Promise<void>
 }

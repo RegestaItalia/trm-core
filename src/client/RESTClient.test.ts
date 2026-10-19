@@ -77,3 +77,15 @@ describe('RESTClient SAP errors without a message', () => {
         expect(getMessage).not.toHaveBeenCalled();
     });
 });
+
+describe('RESTClient getTransportLayers', () => {
+    it('sends the target in the body, like the other GET methods trm-rest reads JSON from', async () => {
+        const client = Object.create(RESTClient.prototype) as RESTClient;
+        const get = jest.fn().mockResolvedValue({ data: { layers: ['SAP ', 'ZQAS'] } });
+        (client as any)._axiosInstance = { get };
+
+        await expect(client.getTransportLayers(' qas ')).resolves.toEqual(['SAP', 'ZQAS']);
+
+        expect(get).toHaveBeenCalledWith('/get_transport_layers', { data: { target: 'QAS' } });
+    });
+});

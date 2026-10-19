@@ -5,7 +5,7 @@ import { SystemConnector } from "../../systemConnector";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { TransportImportError } from "../../transport/TransportImportError";
 import { stopWarning } from "../stopWarning";
-import { revertPreparedTransport, withScopedPrefix } from "../commons/utils";
+import { lacksTrmBackendApis, revertPreparedTransport, withScopedPrefix } from "../commons/utils";
 import { TRKORR } from "../../client";
 import { deleteImportedEntries } from "./importBatch";
 
@@ -70,8 +70,8 @@ export const prepareLang: Step<InstallWorkflowContext> = {
             });
 
             //3- test import transport
-            if (context.legacyBackend) {
-                Logger.log(`Skipping test import: legacy TRM backend`, true);
+            if (lacksTrmBackendApis(context, 'trmServer7')) {
+                Logger.log(`Skipping test import: TRM backend older than trm-server 7.0.0`, true);
             } else {
                 Logger.loading(`Testing import...`);
                 const testRc = await context.runtime.transports.lang.instance.import(true);
