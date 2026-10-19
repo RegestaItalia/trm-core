@@ -27,7 +27,7 @@ function context(postActivities: any[] | undefined, latestPostActivities: any[])
     } as any;
 }
 
-describe('publish setManifestValues post activities merge', () => {
+describe('publish setManifestValues post activities of the latest release', () => {
     beforeEach(() => {
         jest.restoreAllMocks();
         ['log', 'loading', 'error', 'warning', 'info'].forEach(m => jest.spyOn(Logger, m as any).mockImplementation(() => undefined as never));
@@ -35,28 +35,35 @@ describe('publish setManifestValues post activities merge', () => {
         jest.spyOn(SystemConnector, 'getObject').mockResolvedValue(undefined);
     });
 
-    test('an input post activity replaces the latest release one of the same class', async () => {
+    test('input post activities replace the latest release ones', async () => {
         const ctx = context(
-            [{ name: ' zcl_pa ', parameters: [{ name: 'P1', value: 'new' }] }],
-            [{ name: 'ZCL_PA', parameters: [{ name: 'P1', value: 'old' }] }]
+            [{ name: 'ZCL_PA', parameters: [{ name: 'P1', value: 'new' }] }],
+            [{ name: 'ZCL_PA', parameters: [{ name: 'P1', value: 'old' }] }, { name: 'ZCL_OTHER' }]
         );
         await setManifestValues.run(ctx);
         expect(ctx.runtime.manifest.postActivities).toEqual([{ name: 'ZCL_PA', parameters: [{ name: 'P1', value: 'new' }] }]);
     });
 
-    test('latest release post activities of other classes are kept', async () => {
-        const ctx = context(
-            [{ name: 'ZCL_PA' }],
-            [{ name: 'zcl_pa', parameters: [{ name: 'P1', value: 'old' }] }, { name: 'ZCL_OTHER' }]
-        );
+    test('the same class can run more than once, with different parameters', async () => {
+        const activities = [
+            { name: 'ZCL_PA', parameters: [{ name: 'URL', value: '/sap/bc/bsp/reg' }] },
+            { name: 'ZCL_PA', parameters: [{ name: 'URL', value: '/sap/bc/ui5_ui5/reg' }] }
+        ];
+        const ctx = context(activities.map(o => ({ ...o })), [activities[0]]);
         await setManifestValues.run(ctx);
-        expect(ctx.runtime.manifest.postActivities).toEqual([{ name: 'ZCL_PA' }, { name: 'ZCL_OTHER' }]);
+        expect(ctx.runtime.manifest.postActivities).toEqual(activities);
     });
 
     test('without input post activities the latest release ones are used', async () => {
-        const ctx = context(undefined, [{ name: 'ZCL_PA' }]);
-        await setManifestValues.run(ctx);
-        expect(ctx.runtime.manifest.postActivities).toEqual([{ name: 'ZCL_PA' }]);
+        const latest = [
+            { name: 'ZCL_PA', parameters: [{ name: 'URL', value: '/sap/bc/bsp/reg' }] },
+            { name: 'ZCL_PA', parameters: [{ name: 'URL', value: '/sap/bc/ui5_ui5/reg' }] }
+        ];
+        for (const input of [undefined, []]) {
+            const ctx = context(input, latest);
+            await setManifestValues.run(ctx);
+            expect(ctx.runtime.manifest.postActivities).toEqual(latest);
+        }
     });
 });
 

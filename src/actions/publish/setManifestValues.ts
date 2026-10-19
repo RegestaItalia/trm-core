@@ -150,18 +150,9 @@ export const setManifestValues: Step<PublishWorkflowContext> = {
                     context.runtime.manifest.keywords = latestManifest.keywords;
                 }
 
-                //merging input post activities with latest release activities, by class
-                //an input post activity replaces the latest release one of the same class
-                if (context.runtime.manifest.postActivities) {
-                    if (Array.isArray(latestManifest.postActivities)) {
-                        const normalizeClass = (name: string): string => (name || '').trim().toUpperCase();
-                        latestManifest.postActivities.forEach(o => {
-                            if (!context.runtime.manifest.postActivities.find(k => normalizeClass(k.name) === normalizeClass(o.name))) {
-                                context.runtime.manifest.postActivities.push(o);
-                            }
-                        });
-                    }
-                } else {
+                //input post activities replace the latest release ones: a class can run more than once, with
+                //different parameters, so they can't be merged
+                if (!Array.isArray(context.runtime.manifest.postActivities) || context.runtime.manifest.postActivities.length === 0) {
                     context.runtime.manifest.postActivities = latestManifest.postActivities;
                 }
 
