@@ -763,10 +763,15 @@ export async function planInstalledPackageCleanup(context: PackageCleanupContext
         // Local additions remain cleanup candidates even when reused as incoming targets.
         // The first local package owns the decision for its locally added descendants.
         const cleanupGroups = new Map<string, Set<string>>();
+        // SAP packages the incoming release keeps: any other object they contain is a local change the install wipes out.
+        const keptGroup = new Set<string>();
         for (const normalizedDevclass of previousDevclasses.keys()) {
             const locallyAdded = !installedDevclasses.has(normalizedDevclass);
-            if (generatedDevclasses.has(normalizedDevclass) || (!locallyAdded && currentDevclasses.has(normalizedDevclass))
-                || isOtherInstallation(normalizedDevclass)) {
+            if (generatedDevclasses.has(normalizedDevclass) || isOtherInstallation(normalizedDevclass)) {
+                continue;
+            }
+            if (!locallyAdded && currentDevclasses.has(normalizedDevclass)) {
+                keptGroup.add(normalizedDevclass);
                 continue;
             }
             let root = normalizedDevclass;
@@ -784,6 +789,14 @@ export async function planInstalledPackageCleanup(context: PackageCleanupContext
             }
             cleanupGroups.get(root).add(normalizedDevclass);
         }
+        // Kept packages are never removed, so they share a single decision, named after the installation root when kept.
+        // No group of removed or locally added packages has a kept package as its root.
+        let keptRoot: string | undefined;
+        if (keptGroup.size > 0) {
+            const installedRoot = normalize(installed.getDevclass() || '');
+            keptRoot = keptGroup.has(installedRoot) ? installedRoot : keptGroup.values().next().value;
+            cleanupGroups.set(keptRoot, keptGroup);
+        }
 
         const changedDevclassesToDelete: string[] = [];
         // Objects outside both releases in the installation's SAP packages: backed up, deleted once confirmed.
@@ -797,7 +810,9 @@ export async function planInstalledPackageCleanup(context: PackageCleanupContext
             for (const member of group) {
                 for (const object of await SystemConnector.getDevclassObjects(previousDevclasses.get(member), false)) {
                     // Package definitions follow the decision for the whole subtree; namespaces the usage check.
-                    if (!isDevclass(object) && !isNamespace(object) && !deletedKeys.has(objectKey(object))) {
+                    // Generated objects (e.g. the SQL views of a CDS) come and go with the object that generates them.
+                    if (!isDevclass(object) && !isNamespace(object) && normalize(object.genflag || '') !== 'X'
+                        && !deletedKeys.has(objectKey(object))) {
                         objectsAfterImport.set(objectKey(object), object);
                     }
                 }
@@ -817,7 +832,9 @@ export async function planInstalledPackageCleanup(context: PackageCleanupContext
             const packagesToRemove = Array.from(group).filter(member => !currentDevclasses.has(member));
             const extraObjectCount = objectsAfterImport.size + packagesToRemove.filter(member => !installedDevclasses.has(member)).length;
             if (extraObjectCount > 0) {
-                const extraObjectsMessage = `Cleanup of SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} will delete ${extraObjectCount} extra objects outside this installation`;
+                const extraObjectsMessage = root === keptRoot
+                    ? `${extraObjectCount} ${extraObjectCount === 1 ? 'object' : 'objects'} in SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} ${extraObjectCount === 1 ? 'is' : 'are'} not shipped by ${context.rawInput.packageData.name} and will be deleted`
+                    : `Cleanup of SAP package ${devclass}${group.size > 1 ? ' and its subpackages' : ''} will delete ${extraObjectCount} extra objects outside this installation`;
                 // Name the objects, so the user can tell local developments worth keeping.
                 const extraObjectsList = [
                     ...Array.from(objectsAfterImport.values()).map(object => `${object.pgmid} ${object.object} ${object.objName}`),

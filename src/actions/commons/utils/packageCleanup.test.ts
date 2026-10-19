@@ -160,6 +160,45 @@ describe('planInstalledPackageCleanup', () => {
         expect(keys(plan.previewObjects)).toEqual(['PROG ZOLD']);
     });
 
+    test('objects added to SAP packages the incoming release keeps are backed up and deleted, also on a reinstall', async () => {
+        const shipped = [obj('DEVC', 'ZROOT'), obj('DEVC', 'ZSUB'), obj('CLAS', 'ZCL_SHIPPED')];
+        system({
+            ZROOT: [obj('DEVC', 'ZROOT'), obj('SHI3', 'ZLOCAL_NODE')],
+            ZSUB: [obj('DEVC', 'ZSUB'), obj('CLAS', 'ZCL_SHIPPED'), obj('CLAS', 'ZCL_LOCAL')]
+        }, { ZROOT: [{ devclass: 'ZSUB', parentcl: 'ZROOT' }] });
+
+        const plan = await planInstalledPackageCleanup(context(shipped), target(shipped, { keptDevclasses: ['ZROOT', 'ZSUB'] }));
+
+        expect(keys(plan.backupObjects)).toEqual(['CLAS ZCL_LOCAL', 'CLAS ZCL_SHIPPED', 'SHI3 ZLOCAL_NODE']);
+        expect(keys(plan.previewObjects)).toEqual(['CLAS ZCL_LOCAL', 'SHI3 ZLOCAL_NODE']);
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringMatching(/^2 objects in SAP package ZROOT and its subpackages are not shipped by pkg and will be deleted:\n/), { important: true });
+    });
+
+    test('objects added to kept SAP packages are confirmed once for the whole installation, and kept when declined', async () => {
+        const shipped = [obj('DEVC', 'ZROOT'), obj('DEVC', 'ZSUB')];
+        system({
+            ZROOT: [obj('DEVC', 'ZROOT'), obj('PROG', 'ZLOCAL_A')],
+            ZSUB: [obj('DEVC', 'ZSUB'), obj('PROG', 'ZLOCAL_B')]
+        }, { ZROOT: [{ devclass: 'ZSUB', parentcl: 'ZROOT' }] });
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValueOnce({ deleteExtraObjects: false } as any);
+
+        const plan = await planInstalledPackageCleanup(context(shipped, { noInquirer: false }), target(shipped, { keptDevclasses: ['ZROOT', 'ZSUB'] }));
+
+        expect(prompt).toHaveBeenCalledTimes(1);
+        expect(keys(plan.excludeObjects)).toEqual(['PROG ZLOCAL_A', 'PROG ZLOCAL_B']);
+        expect(plan.previewObjects).toEqual([]);
+    });
+
+    test('generated objects, like the SQL views of a CDS, are never cleaned up on their own', async () => {
+        const shipped = [obj('DDLS', 'ZCDS')];
+        system({ ZROOT: [obj('DDLS', 'ZCDS'), { ...obj('STOB', 'ZCDS'), genflag: 'X' }, { ...obj('VIEW', 'ZCDS_SQL'), genflag: 'X' }] });
+
+        const plan = await planInstalledPackageCleanup(context(shipped), target(shipped));
+
+        expect(keys(plan.backupObjects)).toEqual(['DDLS ZCDS']);
+        expect(plan.previewObjects).toEqual([]);
+    });
+
     test('a SAP package is deleted only with its whole subtree, never when the incoming release keeps it', async () => {
         const previous = [obj('DEVC', 'ZROOT'), obj('DEVC', 'ZSUB'), obj('PROG', 'ZOLD')];
         system({ ZROOT: [obj('DEVC', 'ZROOT')], ZSUB: [obj('DEVC', 'ZSUB'), obj('PROG', 'ZOLD')] }, { ZROOT: [{ devclass: 'ZSUB', parentcl: 'ZROOT' }] });
