@@ -14,6 +14,8 @@ jest.mock('../../systemConnector', () => ({
         getSupportedBulk: jest.fn().mockReturnValue({}),
         getExistingObjects: jest.fn().mockResolvedValue([]),
         getNamespace: jest.fn().mockResolvedValue(undefined),
+        // active transport configuration with layer ZTST routed out of the system
+        readTable: jest.fn(async (table: string) => table === 'TCEVERS' ? [{ version: '0001' }] : table === 'TCERELE' ? [{ translayer: 'ZTST' }] : []),
         createPackage: jest.fn(),
         getLogonUser: jest.fn(() => 'TESTER'),
         ping: jest.fn().mockResolvedValue('PONG'),
@@ -496,6 +498,7 @@ describe('importBatch rollback checkpoint', () => {
             { pgmid: 'R3TR', object: 'PROG', objName: '/NS/PROG' },
             { pgmid: 'R3TR', object: 'DEVC', objName: staging }
         ]));
+        expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: staging, pdevclass: 'ZTST' }));
         expect(context.revert.cleanupSucceeded).not.toBe(false);
     });
 

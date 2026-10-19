@@ -18,7 +18,8 @@ jest.mock('../../../systemConnector', () => ({
         getDefaultTransportLayer: jest.fn(),
         getNamespace: jest.fn(),
         getNamespacePackages: jest.fn(),
-        readTable: jest.fn(async () => [{ role: 'C' }]),
+        // TCEVERS/TCERELE: active transport configuration with layer ZTST routed out of TST; TRNSPACE: recipient namespace
+        readTable: jest.fn(async (table: string) => table === 'TCEVERS' ? [{ version: '0001' }] : table === 'TCERELE' ? [{ translayer: 'ZTST' }] : [{ role: 'C' }]),
         addNamespace: jest.fn(),
         getDest: jest.fn(() => 'TST'),
         deleteTmsTransport: jest.fn()
@@ -386,6 +387,99 @@ describe('backupInstalledPackage', () => {
         expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: 'ZOLD', devclass: staging }));
         expect(ctx.revert.cleanupOriginalTadir).toEqual([expect.objectContaining({ objName: 'ZOLD', devclass: '$ROOT' })]);
         expect(keys(tadir.addObjects.mock.calls[0][0])).toEqual([`DEVC ${staging}`, 'PROG ZOLD']);
+        expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ devclass: staging, pdevclass: 'ZTST' }));
+    });
+
+    test('objects of a namespace missing on the system are staged in a customer package, without importing the namespace', async () => {
+        const tadir = new MockTransport('TSTKBKP5');
+        (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);
+        system({ $ROOT: [obj('PROG', '/NS/OLD'), obj('PROG', 'ZOLD')] });
+        const ctx = context([]);
+
+        await backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', '/NS/OLD'), obj('PROG', 'ZOLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' });
+
+        expect(ctx.revert.stagingPackages).toHaveLength(1);
+        const staging = ctx.revert.stagingPackages[0];
+        expect(staging).toMatch(/^ZTRM_DELE_/);
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: '/NS/OLD', devclass: staging }));
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: 'ZOLD', devclass: staging }));
+        expect(SystemConnector.addNamespace).not.toHaveBeenCalled();
+        expect(keys(tadir.addObjects.mock.calls[0][0])).toEqual([`DEVC ${staging}`, 'PROG /NS/OLD', 'PROG ZOLD']);
+    });
+
+    test('objects of a namespace on the system are staged in a package of the namespace', async () => {
+        const tadir = new MockTransport('TSTKBKP6');
+        (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);
+        system({ $ROOT: [obj('PROG', '/NS/OLD')] });
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ trnspacet: { namespace: '/NS/' } });
+        const ctx = context([]);
+
+        await backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', '/NS/OLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' });
+
+        const staging = ctx.revert.stagingPackages[0];
+        expect(staging).toMatch(/^\/NS\/TRMD_/);
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: '/NS/OLD', devclass: staging }));
+    });
+
+    test('a namespace refusing the staging package falls back to a customer package', async () => {
+        const tadir = new MockTransport('TSTKBKP7');
+        (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);
+        system({ $ROOT: [obj('PROG', '/NS/OLD')] });
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ trnspacet: { namespace: '/NS/' } });
+        (SystemConnector.createPackage as jest.Mock).mockImplementation(async (pkg: any) => {
+            if (pkg.devclass.startsWith('/NS/')) {
+                throw new Error('No valid change license exists for namespace /NS/');
+            }
+        });
+        const ctx = context([]);
+
+        try {
+            await backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', '/NS/OLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' });
+        } finally {
+            (SystemConnector.createPackage as jest.Mock).mockReset();
+        }
+
+        const staging = ctx.revert.stagingPackages.find((devclass: string) => devclass.startsWith('ZTRM_DELE_'));
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: '/NS/OLD', devclass: staging }));
+    });
+
+    test('the system default layer is used for the staging package when it is routed', async () => {
+        (Transport.createToc as jest.Mock).mockResolvedValueOnce(new MockTransport('TSTKBKP8'));
+        system({ $ROOT: [obj('PROG', 'ZOLD')] });
+        (SystemConnector.readTable as jest.Mock).mockImplementation(async (table: string) => table === 'TCEVERS' ? [{ version: '0001' }]
+            : table === 'TCERELE' ? [{ translayer: 'ZAAA' }, { translayer: 'ZDEF' }] : [{ role: 'C' }]);
+        (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZDEF');
+        const ctx = context([]);
+
+        try {
+            await backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', 'ZOLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' });
+        } finally {
+            (SystemConnector.readTable as jest.Mock).mockImplementation(async (table: string) => table === 'TCEVERS' ? [{ version: '0001' }]
+                : table === 'TCERELE' ? [{ translayer: 'ZTST' }] : [{ role: 'C' }]);
+            (SystemConnector.getDefaultTransportLayer as jest.Mock).mockReset();
+        }
+
+        expect(SystemConnector.createPackage).toHaveBeenCalledWith(expect.objectContaining({ pdevclass: 'ZDEF' }));
+    });
+
+    test('without a routed transport layer nothing is staged', async () => {
+        system({ $ROOT: [obj('PROG', 'ZOLD')] });
+        (SystemConnector.readTable as jest.Mock).mockImplementation(async (table: string) => table === 'TCEVERS' ? [{ version: '0001' }] : table === 'TCERELE' ? [] : [{ role: 'C' }]);
+        (SystemConnector.getDefaultTransportLayer as jest.Mock).mockResolvedValue('ZDEF');
+        const ctx = context([]);
+
+        try {
+            await expect(backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', 'ZOLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' }))
+                .rejects.toThrow('No transport layer of TST has a consolidation route');
+        } finally {
+            (SystemConnector.readTable as jest.Mock).mockImplementation(async (table: string) => table === 'TCEVERS' ? [{ version: '0001' }]
+                : table === 'TCERELE' ? [{ translayer: 'ZTST' }] : [{ role: 'C' }]);
+            (SystemConnector.getDefaultTransportLayer as jest.Mock).mockReset();
+        }
+
+        expect(SystemConnector.createPackage).not.toHaveBeenCalled();
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+        expect(Transport.createToc).not.toHaveBeenCalled();
     });
 });
 

@@ -41,11 +41,6 @@ export interface PackageCleanupRevert {
      * Not part of the action's packages: they are deleted with the deletion transport, or by {@link deleteCleanupStagingPackages}.
      */
     stagingPackages?: DEVCLASS[],
-    /**
-     * Custom namespaces imported only to stage objects of a temporary installation.
-     * Deleted with the staging packages.
-     */
-    temporaryNamespaces?: string[],
     /** Snapshot of a transport of copies deleted by {@link releaseDeletionTransport} with `retainSnapshot`. */
     dele?: TransportBinary,
     /** Set before the deletion transport import: only then the objects must be restored. */
@@ -435,39 +430,6 @@ export async function deleteCleanupStagingPackages(context: PackageCleanupContex
             firstError ||= error;
         }
     }
-    // Namespaces imported for the staging go once no package uses them.
-    for (const namespace of context.revert.temporaryNamespaces || []) {
-        try {
-            if (!(await SystemConnector.getNamespace(namespace))) {
-                continue;
-            }
-            const packages = await SystemConnector.getNamespacePackages(namespace);
-            if (packages.length > 0) {
-                throw new Error(`Namespace ${namespace} is still used by SAP packages ${packages.map(o => o.devclass).join(', ')}.`);
-            }
-            Logger.loading(`Deleting namespace ${namespace}...`, true);
-            const transport = await Transport.createToc({
-                text: trmTransportDescription(context.rawInput.packageData.name, context.runtime.update.manifest.get().version, 'DELE'),
-                target: SystemConnector.getDest()
-            });
-            try {
-                await transport.addObjects([{ pgmid: 'R3TR', object: 'NSPC', objName: namespace }], false);
-                await releaseDeletionTransport(transport, context.rawInput.packageData.registry, context, false);
-            } catch (error) {
-                try {
-                    if (await transport.canBeDeleted()) {
-                        await transport.delete();
-                    }
-                } catch (deleteError) {
-                    Logger.warning(`Could not delete transport ${transport.trkorr}: ${String(deleteError)}`, { important: true });
-                }
-                throw error;
-            }
-        } catch (error) {
-            Logger.warning(`Could not delete namespace ${namespace}, imported for the cleanup: manual cleanup might be necessary.`, { important: true });
-            firstError ||= error;
-        }
-    }
     if (firstError) {
         throw firstError;
     }
@@ -654,31 +616,37 @@ async function isProducerNamespace(namespace: string): Promise<boolean> {
 }
 
 /**
- * Imports a custom namespace missing on the system, with the repair license of the installed
- * release, so its objects can be staged in a package of the namespace.
+ * Transport layer of the staging packages: they are exported in transports of copies to the system's own
+ * queue, so the layer needs a consolidation route out of the system, or CTS treats their objects as local.
+ * The system default layer when it's routed, otherwise the first routed layer.
  */
-async function importStagingNamespace(context: PackageCleanupContext, namespace: string): Promise<void> {
-    if (await SystemConnector.getNamespace(namespace)) {
-        return;
+export async function getStagingTransportLayer(): Promise<string> {
+    const system = SystemConnector.getDest();
+    const versions: { version: string }[] = await SystemConnector.readTable('TCEVERS', [{ fieldName: 'VERSION' }], `ACTIVE EQ 'A'`);
+    const version = versions[0]?.version;
+    if (!version) {
+        throw new Error(`Transport configuration of ${system} has no active version: configure it in STMS to stage local objects.`);
     }
-    const manifestNamespace = context.runtime.update.manifest.get().namespace;
-    if (!manifestNamespace?.replicense || normalize(manifestNamespace.ns || '') !== normalize(namespace)) {
-        throw new Error(`Namespace ${namespace} doesn't exist in ${SystemConnector.getDest()} and its repair license is unknown: add it in SE03 to delete the objects of the local installation.`);
+    const routes: { translayer: string }[] = await SystemConnector.readTable('TCERELE', [{ fieldName: 'TRANSLAYER' }], `VERSION EQ '${version}' AND INTSYS EQ '${system.replace(/'/g, "''")}'`);
+    const routedLayers = [...new Set(routes.map(route => normalize(route.translayer || '')).filter(Boolean))].sort();
+    let defaultLayer: string | undefined;
+    try {
+        defaultLayer = normalize(await SystemConnector.getDefaultTransportLayer() || '');
+    } catch (e) {
+        Logger.log(`Default transport layer can't be read: ${e instanceof Error ? e.message : String(e)}`, true);
     }
-    Logger.loading(`Importing namespace ${namespace}...`, true);
-    // Track before the mutating await: SAP may commit the namespace and still fail the response.
-    context.revert.temporaryNamespaces ||= [];
-    context.revert.temporaryNamespaces.push(namespace);
-    await SystemConnector.addNamespace(namespace, manifestNamespace.replicense, manifestNamespace.texts.map(o => ({
-        namespace,
-        spras: o.language,
-        descriptn: o.description,
-        owner: o.owner
-    })));
+    if (defaultLayer && routedLayers.includes(defaultLayer)) {
+        return defaultLayer;
+    }
+    if (routedLayers.length === 0) {
+        throw new Error(`No transport layer of ${system} has a consolidation route: configure one in STMS to stage local objects.`);
+    }
+    Logger.log(`Default transport layer ${defaultLayer || '-'} has no consolidation route, staging packages use ${routedLayers[0]}`, true);
+    return routedLayers[0];
 }
 
 /** Creates a short-lived transportable package, in `namespace` when set, so CTS can export local objects. */
-export async function createStagingPackage(context: Pick<PackageCleanupContext, 'revert'>, namespace: string): Promise<string> {
+export async function createStagingPackage(context: Pick<PackageCleanupContext, 'revert'>, namespace: string, transportLayer: string): Promise<string> {
     const prefix = namespace ? `${namespace}TRMD_` : 'ZTRM_DELE_';
     // DEVCLASS allows 30 characters.
     const hexLength = Math.min(16, 30 - prefix.length);
@@ -696,7 +664,7 @@ export async function createStagingPackage(context: Pick<PackageCleanupContext, 
         ctext: 'TRM upgrade cleanup',
         as4user: SystemConnector.getLogonUser(),
         dlvunit: 'HOME',
-        pdevclass: await SystemConnector.getDefaultTransportLayer(),
+        pdevclass: transportLayer,
         // The package immediately receives transported objects. Some systems do not infer
         // change recording from the transport layer when CREATE_PACKAGE is called directly.
         korrflag: 'X'
@@ -706,6 +674,42 @@ export async function createStagingPackage(context: Pick<PackageCleanupContext, 
         devclass: stagingDevclass, srcsystem: 'TRM'
     });
     return stagingDevclass;
+}
+
+/**
+ * Staging package of the objects of `namespace`, created once per namespace in `staging`: a package of the
+ * namespace when it exists on the system, otherwise (or when the namespace refuses it) a customer package.
+ * Namespaced objects can be assigned to a customer package: trm-server writes TADIR at low level when SAP
+ * refuses it (TO 123/124), so a missing namespace is never imported for the staging.
+ */
+export async function getStagingPackage(context: Pick<PackageCleanupContext, 'revert'>, staging: Map<string, string>, namespace: string, transportLayer: string): Promise<string> {
+    const key = normalize(namespace || '');
+    if (staging.has(key)) {
+        return staging.get(key);
+    }
+    let devclass: string | undefined;
+    let namespaceExists = false;
+    if (key) {
+        try {
+            namespaceExists = !!(await SystemConnector.getNamespace(key));
+        } catch (e) {
+            Logger.log(`Namespace ${key} can't be read: ${e instanceof Error ? e.message : String(e)}`, true);
+        }
+    }
+    if (namespaceExists) {
+        try {
+            devclass = await createStagingPackage(context, key, transportLayer);
+        } catch (error) {
+            // the namespace may refuse new packages (e.g. no valid license): stage in a customer package
+            Logger.log(`Could not create a staging package in namespace ${key}: ${error instanceof Error ? error.message : String(error)}`, true);
+        }
+    }
+    if (!devclass) {
+        devclass = staging.get('') || await createStagingPackage(context, '', transportLayer);
+        staging.set('', devclass);
+    }
+    staging.set(key, devclass);
+    return devclass;
 }
 
 /**
@@ -1076,7 +1080,7 @@ async function createBackup(context: PackageCleanupContext, description: string,
  * objects and one for the installed customizing, both `@X1@TRM (BKP)`. A rollback re-imports them.
  *
  * Objects of a temporary (`$`) installation are first assigned to transportable staging packages, deleted
- * with them.
+ * with them: a package of their namespace when it exists, otherwise a customer package.
  */
 export async function backupInstalledPackage(context: PackageCleanupContext, plan: CleanupPlan | undefined, overwrittenObjects: TADIR[], labels: { packageName: string, version: string, logTemporaryFolder?: string }): Promise<void> {
     const logFolder = labels.logTemporaryFolder || join(tmpdir(), 'trm');
@@ -1090,27 +1094,23 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
         const existingObjects = (await SystemConnector.getExistingObjects(localObjects.map(object => ({
             pgmid: object.pgmid, object: object.object, objName: object.objName, devclass: ''
         })))).filter(object => normalize(object.devclass || '').startsWith('$'));
-        // SAP only accepts objects of a custom namespace in packages of that namespace: stage them by namespace.
+        // Staged by namespace: a namespace package keeps a valid assignment, a customer package is assigned at low level.
         const stagingGroups = new Map<string, TADIR[]>();
         for (const object of existingObjects) {
             const namespace = getCustomNamespace(object.objName) || '';
             stagingGroups.set(namespace, [...(stagingGroups.get(namespace) || []), object]);
         }
+        // Resolved before anything is moved: without a routed layer the objects stay where they are.
+        const transportLayer = stagingGroups.size > 0 ? await getStagingTransportLayer() : undefined;
+        const staging = new Map<string, string>();
         context.revert.cleanupOriginalTadir ||= [];
         for (const [namespace, staged] of stagingGroups) {
-            if (namespace) {
-                await importStagingNamespace(context, namespace);
-            }
-            const stagingDevclass = await createStagingPackage(context, namespace);
+            const stagingDevclass = await getStagingPackage(context, staging, namespace, transportLayer);
             objects.set(objectKey({ pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass }), { pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass });
             for (const object of staged) {
                 context.revert.cleanupOriginalTadir.push({ ...object });
                 await SystemConnector.tadirInterface({ ...object, devclass: stagingDevclass, srcsystem: 'TRM' });
             }
-        }
-        // Namespaces imported for the staging go with their staging packages.
-        for (const namespace of context.revert.temporaryNamespaces || []) {
-            objects.set(objectKey({ pgmid: 'R3TR', object: 'NSPC', objName: namespace }), { pgmid: 'R3TR', object: 'NSPC', objName: namespace });
         }
     }
     const entries = Array.from(objects.values()).filter(object => normalize(object.pgmid) === 'R3TR' || normalize(object.pgmid) === 'LIMU');
@@ -1211,12 +1211,9 @@ export async function generateCleanupDeletions(context: PackageCleanupContext, p
     }
 }
 
-/** Staging packages and the namespaces imported for them: deleted with the objects they hold. */
+/** Staging packages: deleted with the objects they hold. */
 function stagedObjects(context: PackageCleanupContext): CleanupObject[] {
-    return [
-        ...(context.revert.stagingPackages || []).map(devclass => ({ pgmid: 'R3TR', object: 'DEVC', objName: devclass })),
-        ...(context.revert.temporaryNamespaces || []).map(namespace => ({ pgmid: 'R3TR', object: 'NSPC', objName: namespace }))
-    ];
+    return (context.revert.stagingPackages || []).map(devclass => ({ pgmid: 'R3TR', object: 'DEVC', objName: devclass }));
 }
 
 /** Deletes the local (`$`) SAP packages of the plan, once the deletion transports removed their objects. */
