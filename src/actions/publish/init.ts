@@ -23,7 +23,8 @@ function nextPrerelease(version: string, identifier?: string): string | null {
             ? inc(version, "prerelease", identifier)
             : `${valid(version)}-${identifier}.0`;
     } else {
-        return inc(version, "prerelease", currentId);
+        //the first prerelease of a version is <version>-0: semver would bump a release version (1.0.0 -> 1.0.1-0)
+        return pre ? inc(version, "prerelease", currentId) : `${valid(version)}-0`;
     }
 }
 
@@ -265,21 +266,21 @@ export const init: Step<PublishWorkflowContext> = {
             if (!context.runtime.latest.data.dist_tags.latest) {
                 throw new Error(`Package has no latest distribution tag assigned! Unable to locate latest release.`);
             }
+            const publishedVersions = context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions);
             if (!context.rawInput.packageData.version || !valid(context.rawInput.packageData.version)) {
                 context.rawInput.packageData.version = inc(context.runtime.latest.data.dist_tags.latest, context.rawInput.packageData.inc || "patch");
                 automaticVersion = true;
-            } else {
-                if (context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions).includes(context.rawInput.packageData.version)) {
-                    throw new Error(`Version "${context.rawInput.packageData.version}" already published.`);
+            } else if (publishedVersions.includes(context.rawInput.packageData.version)) {
+                throw new Error(`Version "${context.rawInput.packageData.version}" already published.`);
+            }
+            //the prerelease continues from the highest one of the same version and identifier, supplied or calculated
+            if (context.rawInput.packageData.preRelease) {
+                const highestPreRelease = getHighestPrerelease(publishedVersions, context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
+                if (highestPreRelease) {
+                    context.rawInput.packageData.version = highestPreRelease;
+                    automaticVersion = true;
                 }
-                if (context.rawInput.packageData.preRelease) {
-                    const highestPreRelease = getHighestPrerelease(context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions), context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
-                    if (highestPreRelease) {
-                        context.rawInput.packageData.version = highestPreRelease;
-                        automaticVersion = true;
-                    }
-                    context.rawInput.packageData.version = nextPrerelease(context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
-                }
+                context.rawInput.packageData.version = nextPrerelease(context.rawInput.packageData.version, context.rawInput.packageData.preReleaseIdentifier);
             }
             if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.PUBLIC) {
                 Logger.log(`Public registry, checking if visibility is the same as latest release`, true);
