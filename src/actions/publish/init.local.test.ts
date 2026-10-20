@@ -158,4 +158,39 @@ describe('publish version resolution', () => {
         await expect(init.run(ctx)).rejects.toThrow('Cannot deliver to registry a TRM package with a local TRM package.');
         expect(prompt).not.toHaveBeenCalled();
     });
+
+    test('pre-release without a version is a prerelease of the calculated version', async () => {
+        const ctx = context(RegistryType.PRIVATE);
+        ctx.rawInput.packageData.preRelease = true;
+        ctx.rawInput.packageData.preReleaseIdentifier = 'rc';
+        await run(ctx);
+        expect(ctx.rawInput.packageData.version).toBe('3.2.2-rc.0');
+    });
+
+    test('pre-release without a version continues from the highest prerelease', async () => {
+        const ctx = context(RegistryType.PRIVATE);
+        ctx.rawInput.packageData.registry.getPackage.mockResolvedValue({
+            ...existing,
+            versions: ['3.2.1', '3.2.2-rc.0'],
+            yanked_versions: ['3.2.2-rc.1']
+        });
+        ctx.rawInput.packageData.preRelease = true;
+        ctx.rawInput.packageData.preReleaseIdentifier = 'rc';
+        await run(ctx);
+        expect(ctx.rawInput.packageData.version).toBe('3.2.2-rc.2');
+    });
+
+    test('pre-release without an identifier keeps the release version', async () => {
+        const ctx = context(RegistryType.PRIVATE, '3.3.0');
+        ctx.rawInput.packageData.preRelease = true;
+        await run(ctx);
+        expect(ctx.rawInput.packageData.version).toBe('3.3.0-0');
+    });
+
+    test('first pre-release without an identifier is 1.0.0-0', async () => {
+        const ctx = context(RegistryType.LOCAL);
+        ctx.rawInput.packageData.preRelease = true;
+        await run(ctx);
+        expect(ctx.rawInput.packageData.version).toBe('1.0.0-0');
+    });
 });
