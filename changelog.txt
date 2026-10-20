@@ -8,6 +8,12 @@ Legend
 + : added
 - : removed
 
+2026-10-20 v11.0.1
+-------------------
+* getNodePackage resolves packages from the trm-core location, whatever the install layout ("Couldn't find package.json")
+* node-rfc searched in every detected global node_modules
+- TRM_PREFER_BUNDLED_PACKAGES environment variable (bundled packages are always preferred)
+
 2026-10-19 v11.0.0
 -------------------
 ! requires trm-server 8.0.0 (transport layers API); a trm-server/trm-rest upgrade still runs on an older backend

@@ -1,67 +1,25 @@
-import { readFileSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
-import { getGlobalNodeModules } from 'trm-commons';
+import { dirname, resolve } from 'node:path';
+import { findNodePackage, getGlobalNodeModulesPaths } from 'trm-commons';
 
+/**
+ * Returns the package.json of an installed package.
+ *
+ * The package is searched from the location of trm-core first, the same way node resolves modules, so the copy in
+ * use is found whatever the install layout is (global, version managers, symlinks, bundled in an app...).
+ * Then from the running script and the working directory (development), then in the global `node_modules`.
+ * @param globalPath global `node_modules` path, searched before the other detected global folders
+ * @param packageName package name (default `trm-core`)
+ * @returns the parsed package.json
+ */
 export function getNodePackage(globalPath?: string, packageName?: string) {
-    if (process.env.TRM_PREFER_BUNDLED_PACKAGES === '1') {
-        const parts = __dirname.split(sep);
-        const index = parts.lastIndexOf('node_modules');
-        const requestedPackage = packageName || 'trm-core';
-
-        if (index !== -1) {
-            try {
-                return JSON.parse(readFileSync(join(parts.slice(0, index + 1).join(sep), requestedPackage, 'package.json'), 'utf8'));
-            } catch { }
-        }
+    packageName = packageName || 'trm-core';
+    const entry = process.argv[1] ? dirname(resolve(process.argv[1])) : undefined;
+    const cwd = process.cwd();
+    const found = findNodePackage(packageName, [__dirname, entry, cwd, resolve(cwd, '..', packageName)], {
+        globalNodeModulesPaths: globalPath ? [globalPath, ...getGlobalNodeModulesPaths({ npm: false })] : undefined
+    });
+    if (!found) {
+        throw new Error(`Couldn't find "${packageName}" package.json!`);
     }
-
-    if(!globalPath){
-        globalPath = getGlobalNodeModules();
-    }
-    if (__dirname.includes(globalPath)) {
-        //prod
-        const parts = __dirname.split(sep);
-        const index = parts.lastIndexOf("node_modules");
-        if (packageName) {
-            try {
-                return JSON.parse(readFileSync(join(parts.slice(0, index + 1).join(sep), packageName, 'package.json'), 'utf8'));
-            } catch { }
-            // try up one folder
-            try {
-                const data = JSON.parse(readFileSync(join(resolve(parts.slice(0, index + 1).join(sep), '..'), 'package.json'), 'utf8'));
-                if (data.name === packageName) {
-                    return data;
-                }
-            } catch { }
-        } else {
-            try {
-                return JSON.parse(readFileSync(join(parts.slice(0, index + 1).join(sep), 'trm-core', 'package.json'), 'utf8'));
-            } catch { }
-        }
-    } else {
-        //dev
-        if(!packageName){
-            packageName = 'trm-core';
-        }
-        //try current directory
-        try {
-            const data = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
-            if (data.name === packageName) {
-                return data;
-            }
-        } catch { }
-        //try node_modules
-        try {
-            return JSON.parse(readFileSync(join(process.cwd(), 'node_modules', packageName, 'package.json'), 'utf8'));
-        } catch { }
-        //up one directory
-        try {
-            return JSON.parse(readFileSync(join(resolve(process.cwd(), ".."), packageName, 'package.json'), 'utf8'));
-        } catch { }
-        //up one directory, in node_modules
-        try {
-            return JSON.parse(readFileSync(join(resolve(process.cwd(), ".."), 'node_modules', packageName, 'package.json'), 'utf8'));
-        } catch { }
-    }
-    throw new Error(`Couldn't find "${packageName}" package.json!`);
+    return found.packageJson;
 }
