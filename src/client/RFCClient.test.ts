@@ -6,7 +6,8 @@ jest.mock('trm-commons', () => ({
         warning: jest.fn(),
         error: jest.fn()
     },
-    getGlobalNodeModules: jest.fn()
+    findNodePackage: jest.fn(),
+    getGlobalNodeModulesPaths: jest.fn(() => [])
 }));
 
 import { Logger } from 'trm-commons';
