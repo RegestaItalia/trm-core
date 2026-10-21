@@ -446,7 +446,11 @@ export class RegistryV2 implements AbstractRegistry {
     }
 
     public async downloadArtifact(fullName: string, version: string = 'latest'): Promise<TrmArtifact> {
-        const packageData = await this.getPackage(fullName, version);
+        return this.fetchArtifact(fullName, version, false);
+    }
+
+    private async fetchArtifact(fullName: string, version: string, refreshPackage: boolean): Promise<TrmArtifact> {
+        const packageData = await this.getPackage(fullName, version, refreshPackage);
         const chunks: Buffer[] = [];
         let buffer: Buffer;
         const logProgress = Logger.progressbar(`↓ ${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
@@ -492,6 +496,13 @@ export class RegistryV2 implements AbstractRegistry {
                 logProgress.stop();
             } catch {
                 // ignore stop errors
+            }
+
+            // An expired package link answers 410 Gone: viewing the package
+            // again generates a new link, so retry once with it.
+            if (!refreshPackage && this.getErrorStatus(e) === 410) {
+                Logger.log(`Package ${fullName} ${version} download link is gone, requesting a new one`, true);
+                return this.fetchArtifact(fullName, version, true);
             }
 
             Logger.error((e as Error).toString(), true);
