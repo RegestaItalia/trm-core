@@ -11,6 +11,7 @@ Legend
 2026-10-21 v11.1.1
 -------------------
 + logPackageDependencies/getPackageDependenciesTree: package dependencies as a tree with one tab per category (TRM, customer, SAP packages) and table columns (TreeTableLog)
+* readme changelog template
 
 2026-10-20 v11.1.0
 -------------------

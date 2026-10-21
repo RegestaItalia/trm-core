@@ -22,7 +22,7 @@ export const setOptionalReleaseData: Step<PublishWorkflowContext> = {
         }
     },
     run: async (context: PublishWorkflowContext): Promise<void> => {
-        const readmeTemplate = `#${context.rawInput.packageData.name}`;
+        const readmeTemplate = `# ${context.rawInput.packageData.name}`;
         const changelogTemplate = `${context.rawInput.packageData.name} changelog
 =================
 
