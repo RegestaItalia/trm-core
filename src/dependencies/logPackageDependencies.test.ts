@@ -40,6 +40,8 @@ describe('getPackageDependenciesTree', () => {
     test('splits the dependencies in tabs with columns', () => {
         const tree = getPackageDependenciesTree(dependencies, { sapEntries: true, trmFoundIn: true });
         expect(tree.layout).toBe('tabs');
+        expect(tree.info).toContain('package ZAPP');
+        expect(tree.children.every(o => !!o.info)).toBe(true);
         expect(tree.children.map(o => o.columns)).toEqual([
             ['Name', 'Type', 'Version', 'Registry', 'Found in'],
             ['Name', 'Type', 'Found in'],
