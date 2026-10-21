@@ -8,9 +8,11 @@ import { AbapPackageDependency, PackageDependencies, TrmPackageDependency } from
  * Text loggers print `text` as usual; loggers that understand it (e.g. the GUI) render a tree table:
  * a node with `columns` is a table whose rows are its children, each row's `cells` aligned with those columns.
  * A node with `layout: 'tabs'` shows each of its children as a separate tab.
+ * `info` explains how to read the node (the whole tree or a tab); paragraphs are separated by blank lines.
  */
 export type TreeTableLog = Omit<TreeLog, 'children'> & {
     layout?: 'tabs',
+    info?: string,
     columns?: string[],
     cells?: string[],
     children?: TreeTableLog[]
@@ -27,6 +29,9 @@ type FoundIn = { object: string, objName: string }[];
 
 const TRM_COLUMNS = ['Name', 'Type', 'Version', 'Registry', 'Found in'];
 const ABAP_COLUMNS = ['Name', 'Type', 'Found in'];
+const ABAP_LEVELS_INFO = 'Rows are nested as package > table > entry > objects: an entry is the key of the table row the dependency points to (e.g. the TADIR entry of an object), the objects are the ones using it.';
+const CUSTOMER_PACKAGES_INFO = `Customer packages that are not TRM packages. ${ABAP_LEVELS_INFO}\n\nA package with these dependencies can't be published: publish them as TRM packages or remove the dependency.`;
+const SAP_PACKAGES_INFO = `SAP standard packages. ${ABAP_LEVELS_INFO}\n\nWhen publishing, the entries are added to the manifest SAP entries and are checked on the target system before install.`;
 
 function plural(count: number, word: string): string {
     return `${count} ${word}${count === 1 ? '' : 's'}`;
@@ -90,12 +95,15 @@ export function getPackageDependenciesTree(dependencies: PackageDependencies, op
     const tree: TreeTableLog = {
         text: `${chalk.bold(dependencies.devclass)} dependencies`,
         layout: 'tabs',
+        info: `What the objects of package ${dependencies.devclass} and its subpackages use from outside of it, one tab per kind of dependency.\n\n"Found in" is the number of distinct objects of ${dependencies.devclass} that use the row.`,
         children: [{
             text: `TRM Packages (${trmPackageDependencies.length})`,
+            info: `TRM packages installed on the system whose objects are used. When publishing, they are added to the manifest dependencies with the version range shown.${options.trmFoundIn ? ' Expand a package to see the objects using it.' : ''}`,
             columns: TRM_COLUMNS,
             children: trmPackageDependencies.map(o => trmPackageNode(o, !!options.trmFoundIn))
         }, {
             text: `Customer packages (${custPackageDependencies.length})`,
+            info: CUSTOMER_PACKAGES_INFO,
             columns: ABAP_COLUMNS,
             children: custPackageDependencies.map(o => abapPackageNode(o, false))
         }]
@@ -103,12 +111,14 @@ export function getPackageDependenciesTree(dependencies: PackageDependencies, op
     if (options.sapEntries) {
         tree.children.push({
             text: `SAP packages (${sapPackageDependencies.length})`,
+            info: SAP_PACKAGES_INFO,
             columns: ABAP_COLUMNS,
             children: sapPackageDependencies.map(o => abapPackageNode(o, true))
         });
     } else if (sapPackageDependencies.length > 0) {
         tree.children.push({
             text: `SAP packages (${sapPackageDependencies.length})`,
+            info: SAP_PACKAGES_INFO,
             columns: ABAP_COLUMNS,
             children: [{
                 text: `Run with flag --sap-entries to view dependencies`,
