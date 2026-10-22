@@ -61,8 +61,13 @@ describe('publish findDependencies', () => {
     });
 
     test('warns when the installed version does not satisfy the declared range', async () => {
+        await findDependencies.run(context([{ name: 'dep', version: '^3.0.0' }]));
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('doesn\'t satisfy declared range "^3.0.0"'), { important: true });
+    });
+
+    test('no warning when an installed prerelease satisfies the declared range', async () => {
         await findDependencies.run(context([{ name: 'dep', version: '^2.0.0' }]));
-        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('doesn\'t satisfy declared range "^2.0.0"'), { important: true });
+        expect(Logger.warning).not.toHaveBeenCalled();
     });
 
     test('no warning when the installed version satisfies the declared range', async () => {
