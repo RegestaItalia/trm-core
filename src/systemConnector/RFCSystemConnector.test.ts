@@ -68,4 +68,13 @@ describe("RFCSystemConnector", () => {
         await new RFCSystemConnector(connection(), login()).connect(true);
         expect(loading).toHaveBeenCalledWith("Connecting to vhcala4hci...", true);
     });
+
+    test("blank SAProuter is ignored", async () => {
+        const loading = jest.spyOn(Logger, "loading").mockImplementation(() => undefined);
+        mockClient({ open: jest.fn().mockResolvedValue(undefined), getDest: jest.fn().mockResolvedValue("A4H") });
+        await new RFCSystemConnector({ ...connection(), saprouter: " " }, login()).connect(true);
+        expect(loading).toHaveBeenCalledWith("Connecting to vhcala4hci...", true);
+        const { RFCClient } = jest.requireMock("../client");
+        expect((RFCClient as jest.Mock).mock.lastCall[0]).not.toHaveProperty("saprouter");
+    });
 });

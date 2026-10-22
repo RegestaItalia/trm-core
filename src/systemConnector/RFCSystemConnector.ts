@@ -36,6 +36,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         this._login.user = this._login.user.toUpperCase();
         this._lang = this._login.lang;
         this._user = this._login.user;
+        //a blank SAProuter (e.g. " " placeholder) means no SAProuter
+        if (typeof this._connection.saprouter === 'string') {
+            this._connection.saprouter = this._connection.saprouter.trim();
+        }
         if (!this._connection.saprouter) {
             delete this._connection.saprouter;
         }
