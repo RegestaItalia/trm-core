@@ -30,7 +30,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   private _installedPackages: TrmPackage[];
   private _sourceTrkorr: string[];
   private _ignoredTrkorr: string[];
-  private _r3transInfoLog: string;
   private _tableKeys: any = {};
   private _rootDevclass: any = {};
   private _timezone: string;
@@ -42,7 +41,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract getTrmRestVersion(): Promise<string>
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
-  protected abstract getR3transInfo(): Promise<string>
   protected abstract getInstalledPackagesBackend(filter?: { name: string, registry: string }): Promise<struct.ZTRM_PACKAGE[]>
   protected abstract getPackageDependenciesInternal(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
   protected abstract getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]>
@@ -564,29 +562,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
         trnspacet: aNamespace[0],
         trnspacett: aNamespacet
       }
-    }
-  }
-
-  public async getR3transVersion(): Promise<string> {
-    if (!this._r3transInfoLog) {
-      this._r3transInfoLog = await this.getR3transInfo();
-    }
-    try {
-      return this._r3transInfoLog.split(/\r?\n|\r|\n/g)[0];
-    } catch (e) {
-      return undefined;
-    }
-  }
-
-  public async getR3transUnicode(): Promise<boolean> {
-    if (!this._r3transInfoLog) {
-      this._r3transInfoLog = await this.getR3transInfo();
-    }
-    try {
-      const outputLine = this._r3transInfoLog.split(/\r?\n|\r|\n/g)[1];
-      return !outputLine.startsWith('non-unicode');
-    } catch (e) {
-      return undefined;
     }
   }
 

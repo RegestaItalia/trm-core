@@ -413,16 +413,6 @@ export namespace SystemConnector {
         return systemConnector.addNamespace(namespace, replicense, texts);
     }
 
-    export async function getR3transVersion(): Promise<string> {
-        await checkSystemConnector();
-        return systemConnector.getR3transVersion();
-    }
-
-    export async function getR3transUnicode(): Promise<boolean> {
-        await checkSystemConnector();
-        return systemConnector.getR3transUnicode();
-    }
-
     export async function isTransportLayerExist(devlayer: components.DEVLAYER): Promise<boolean> {
         await checkSystemConnector();
         return systemConnector.isTransportLayerExist(devlayer);

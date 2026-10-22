@@ -33,8 +33,6 @@ export interface ISystemConnectorBase {
         trnspacet: struct.TRNSPACET,
         trnspacett: struct.TRNSPACETT[]
     }>,
-    getR3transVersion: () => Promise<string>,
-    getR3transUnicode: () => Promise<boolean>,
     isTransportLayerExist: (devlayer: components.DEVLAYER) => Promise<boolean>,
     getTrmServerPackage: () => Promise<TrmPackage>,
     getTrmRestPackage: () => Promise<TrmPackage>,

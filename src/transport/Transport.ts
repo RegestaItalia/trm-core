@@ -554,11 +554,6 @@ export class Transport {
      * `offset` is the log size before the release: only what this release appended is read.
      */
     public async readReleaseLog(tmpFolder: string, offset: number = 0): Promise<number> {
-        const systemR3transVersion = await SystemConnector.getR3transVersion();
-        const systemR3transUnicode = await SystemConnector.getR3transUnicode();
-        Logger.log(`System R3trans: ${systemR3transVersion}`, true);
-        Logger.log(`System R3trans unicode: ${systemR3transUnicode}`, true);
-
         const multibar = Logger.multibar('{stage} [{bar}] {exitCode} {result}', Transport.getTransportIcon());
         const steps = RELEASE_LOG_STEPS.map(step => ({
             ...step,

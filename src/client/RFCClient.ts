@@ -648,11 +648,6 @@ export class RFCClient implements IClient {
         });
     }
 
-    public async getR3transInfo(): Promise<string> {
-        const result = await this._call("/ATRM/GET_R3TRANS_INFO");
-        return result['log'];
-    }
-
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await this._call("/ATRM/DEL_TRANSPORT_TMS", {
             trkorr: trkorr.trim().toUpperCase(),

@@ -3,8 +3,6 @@ jest.mock('../systemConnector', () => ({
         getDest: jest.fn(() => 'TST'),
         getDirTrans: jest.fn(async () => '/usr/sap/trans'),
         getFileSystem: jest.fn(async () => ({ filesys: 'UNIX' })),
-        getR3transVersion: jest.fn(async () => 'R3trans version test'),
-        getR3transUnicode: jest.fn(async () => true),
         getBinaryFile: jest.fn(),
         releaseTrkorr: jest.fn(),
         refreshTransportTmsTxt: jest.fn()
