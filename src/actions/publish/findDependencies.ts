@@ -5,6 +5,8 @@ import { Logger } from "trm-commons";
 import { RegistryType } from "../../registry";
 import { SystemConnector } from "../../systemConnector";
 import * as _ from "lodash";
+import { satisfies } from "semver";
+import { isDependencyPackage } from "./setManifestValues";
 
 /**
  * Analyzes the dependencies of the ABAP package once, and rejects those a release can't have:
@@ -88,10 +90,21 @@ export const findDependencies: Step<PublishWorkflowContext> = {
 
             Logger.log(`Adding TRM package dependencies to manifest`, true);
             Logger.info(`Updating "${context.rawInput.packageData.name}" manifest with dependencies:`);
+            //dependencies declared in input keep their version range, detected ones are added with the installed version
+            const declaredDependencies = [...context.runtime.manifest.dependencies];
             trmDependencies.forEach((o, i) => {
                 const dependencyManifest = o.trmPackage.manifest!.get();
-                const dependencyVersionRange = `^${dependencyManifest.version}`;
                 const dependencyRegistry = o.trmPackage.registry.getRegistryType() === RegistryType.PUBLIC ? undefined : o.trmPackage.registry.endpoint;
+                const declared = declaredDependencies.find(d => isDependencyPackage(o.trmPackage, d));
+                if (declared) {
+                    Logger.log(`Dependency "${dependencyManifest.name}" already declared with range "${declared.version}", installed version ${dependencyManifest.version} not used`, true);
+                    if (!satisfies(dependencyManifest.version, declared.version)) {
+                        Logger.warning(`Installed version ${dependencyManifest.version} of "${dependencyManifest.name}" doesn't satisfy declared range "${declared.version}".`, { important: true });
+                    }
+                    Logger.info(`  (${i + 1}/${trmDependencies.length}) ${dependencyManifest.name}${dependencyRegistry ? ' (' + o.trmPackage.registry.name + ')' : ''} ${declared.version}`);
+                    return;
+                }
+                const dependencyVersionRange = `^${dependencyManifest.version}`;
                 context.runtime.manifest.dependencies.push({
                     name: dependencyManifest.name,
                     version: dependencyVersionRange,

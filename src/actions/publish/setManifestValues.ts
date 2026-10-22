@@ -25,7 +25,7 @@ function checkPublicRegistryLimit(context: PublishWorkflowContext, field: keyof 
     return true;
 }
 
-function isDependencyPackage(trmPackage: TrmPackage, dependency: TrmManifestDependency): boolean {
+export function isDependencyPackage(trmPackage: TrmPackage, dependency: TrmManifestDependency): boolean {
     if (!dependency?.name || !trmPackage.compareName(dependency.name)) {
         return false;
     }
