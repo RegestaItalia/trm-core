@@ -8,6 +8,11 @@ Legend
 + : added
 - : removed
 
+2026-10-22 v11.1.5
+-------------------
+* publish: dependencies declared in input keep their version range over auto-detected ones (was: auto-detected dependency added again with the installed version range)
++ publish: warning when the installed version of a declared dependency doesn't satisfy its range
+
 2026-10-22 v11.1.4
 -------------------
 * RFC connection: blank SAProuter (e.g. " ") is ignored (was: passed to the connection and logged as "<ashost> thru  ")
