@@ -13,7 +13,7 @@
 
 [trm-core](https://www.npmjs.com/package/trm-core) is the server-side component of TRM.
 
-🚚 **TRM (Transport Request Manager)** is a package manager inspired solution built leveraging CTS that simplifies SAP ABAP transports.
+🚚 **TRM (Transport Request Manager)** is an open-source package manager for SAP ABAP that publishes, installs, updates, and uninstalls versioned software through CTS transports.
 
 <p align="center">
   <img src="https://github.com/RegestaItalia/trm-docs/raw/main/docs/assets/logo.png" alt="TRM Logo" />
