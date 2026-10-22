@@ -8,6 +8,10 @@ Legend
 + : added
 - : removed
 
+2026-10-22 v11.1.6
+-------------------
+* publish: installed prerelease of a declared dependency matched against its range (was: e.g. 2.4.0-rc.0 warned as not satisfying ^2.0.0)
+
 2026-10-22 v11.1.5
 -------------------
 * publish: dependencies declared in input keep their version range over auto-detected ones (was: auto-detected dependency added again with the installed version range)
