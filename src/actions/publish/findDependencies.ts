@@ -98,7 +98,7 @@ export const findDependencies: Step<PublishWorkflowContext> = {
                 const declared = declaredDependencies.find(d => isDependencyPackage(o.trmPackage, d));
                 if (declared) {
                     Logger.log(`Dependency "${dependencyManifest.name}" already declared with range "${declared.version}", installed version ${dependencyManifest.version} not used`, true);
-                    if (!satisfies(dependencyManifest.version, declared.version)) {
+                    if (!satisfies(dependencyManifest.version, declared.version, { includePrerelease: true })) {
                         Logger.warning(`Installed version ${dependencyManifest.version} of "${dependencyManifest.name}" doesn't satisfy declared range "${declared.version}".`, { important: true });
                     }
                     Logger.info(`  (${i + 1}/${trmDependencies.length}) ${dependencyManifest.name}${dependencyRegistry ? ' (' + o.trmPackage.registry.name + ')' : ''} ${declared.version}`);
