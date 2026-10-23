@@ -92,10 +92,11 @@ describe('PackageDependencies', () => {
             { object: 'SICF', objName: 'TC_BUILD', dependencies: [dependency] }
         ] as any);
 
-        expect(dependencies.trmPackageDependencies[0].foundIn).toEqual([
+        expect(dependencies.trmPackageDependencies[0].foundIn.map(f => ({ object: f.object, objName: f.objName }))).toEqual([
             { object: 'SICF', objName: 'TC_LIBRARY' },
             { object: 'SICF', objName: 'TC_RUN' },
             { object: 'SICF', objName: 'TC_BUILD' }
         ]);
+        expect(dependencies.trmPackageDependencies[0].foundIn.every(f => f.references.length === 1 && f.references[0].tableName === 'TADIR')).toBe(true);
     });
 });

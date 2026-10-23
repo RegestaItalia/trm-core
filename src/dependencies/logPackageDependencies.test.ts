@@ -10,7 +10,15 @@ describe('getPackageDependenciesTree', () => {
                 manifest: { get: () => ({ version: '1.2.0' }) },
                 registry: { getRegistryType: () => RegistryType.PUBLIC }
             },
-            foundIn: [{ object: 'CLAS', objName: 'ZCL_A' }, { object: 'PROG', objName: 'ZB' }]
+            foundIn: [{
+                object: 'CLAS',
+                objName: 'ZCL_A',
+                references: [{ tableName: 'TADIR', tableKey: { PGMID: 'R3TR', OBJECT: 'CLAS', OBJ_NAME: 'ZCL_DEP ' } }]
+            }, {
+                object: 'PROG',
+                objName: 'ZB',
+                references: [{ tableName: 'TFDIR', tableKey: { FUNCNAME: 'Z_DEP_FM' } }]
+            }]
         }],
         abapPackageDependencies: [{
             abapPackage: { devclass: 'ZCUST' },
@@ -51,6 +59,11 @@ describe('getPackageDependenciesTree', () => {
         expect(tab(tree, 0).children[0].children.map(o => o.cells)).toEqual([
             ['ZCL_A', 'CLAS', '', '', ''],
             ['ZB', 'PROG', '', '', '']
+        ]);
+        // what each object uses from the TRM package
+        expect(tab(tree, 0).children[0].children.map(o => o.children.map(r => r.cells))).toEqual([
+            [['ZCL_DEP', 'CLAS', '', '', '']],
+            [['FUNCNAME: Z_DEP_FM', 'TFDIR', '', '', '']]
         ]);
         const cust = tab(tree, 1).children[0];
         expect(cust.cells).toEqual(['ZCUST', 'Package', '1']);
