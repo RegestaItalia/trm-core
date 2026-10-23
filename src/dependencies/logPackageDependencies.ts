@@ -26,8 +26,10 @@ export type PackageDependenciesLogOptions = {
 }
 
 type FoundIn = { object: string, objName: string }[];
+type References = TrmPackageDependency['foundIn'][number]['references'];
 
 const TRM_COLUMNS = ['Name', 'Type', 'Version', 'Registry', 'Found in'];
+const TRM_LEVELS_INFO = 'Expand a package to see the objects using it, and an object to see what it uses from the TRM package.';
 const ABAP_COLUMNS = ['Name', 'Type', 'Found in'];
 const ABAP_LEVELS_INFO = 'Rows are nested as package > table > entry > objects: an entry is the key of the table row the dependency points to (e.g. the TADIR entry of an object), the objects are the ones using it.';
 const CUSTOMER_PACKAGES_INFO = `Customer packages that are not TRM packages. ${ABAP_LEVELS_INFO}\n\nA package with these dependencies can't be published: publish them as TRM packages or remove the dependency.`;
@@ -41,12 +43,31 @@ function countObjects(foundIn: FoundIn): number {
     return new Set(foundIn.map(f => `${f.object} ${f.objName}`)).size;
 }
 
-function objectNodes(foundIn: FoundIn, columns: number): TreeTableLog[] {
-    return foundIn.map(f => ({
+function objectNode(f: FoundIn[number], columns: number, children: TreeTableLog[] = []): TreeTableLog {
+    return {
         text: `${chalk.bold(f.object)} ${f.objName}`,
         cells: [f.objName, f.object, ...Array(columns - 2).fill('')],
-        children: []
-    }));
+        children
+    };
+}
+
+function objectNodes(foundIn: FoundIn, columns: number): TreeTableLog[] {
+    return foundIn.map(f => objectNode(f, columns));
+}
+
+/** A TADIR entry is shown as the object it identifies, any other entry as its table key. */
+function referenceNodes(references: References, columns: number): TreeTableLog[] {
+    return references.map(r => {
+        const key = r.tableKey || {};
+        const isObject = r.tableName === 'TADIR' && key.OBJECT && key.OBJ_NAME;
+        const name = isObject ? String(key.OBJ_NAME).trim() : Object.entries(key).map(([k, v]) => `${k}: ${String(v).trim()}`).join(', ');
+        const type = isObject ? String(key.OBJECT).trim() : r.tableName;
+        return {
+            text: `uses ${chalk.bold(type)} ${name}`,
+            cells: [name, type, ...Array(columns - 2).fill('')],
+            children: []
+        };
+    });
 }
 
 function trmPackageNode(o: TrmPackageDependency, trmFoundIn: boolean): TreeTableLog {
@@ -56,7 +77,7 @@ function trmPackageNode(o: TrmPackageDependency, trmFoundIn: boolean): TreeTable
     return {
         text: `${o.trmPackage.packageName}${version ? ` ${version}` : ''} (${registry})${trmFoundIn ? `, found in ${plural(objects, 'object')}` : ''}`,
         cells: [o.trmPackage.packageName, 'TRM package', version, registry, String(objects)],
-        children: trmFoundIn ? objectNodes(o.foundIn, TRM_COLUMNS.length) : []
+        children: trmFoundIn ? o.foundIn.map(f => objectNode(f, TRM_COLUMNS.length, referenceNodes(f.references || [], TRM_COLUMNS.length))) : []
     };
 }
 
@@ -98,7 +119,7 @@ export function getPackageDependenciesTree(dependencies: PackageDependencies, op
         info: `What the objects of package ${dependencies.devclass} and its subpackages use from outside of it, one tab per kind of dependency.\n\n"Found in" is the number of distinct objects of ${dependencies.devclass} that use the row.`,
         children: [{
             text: `TRM Packages (${trmPackageDependencies.length})`,
-            info: `TRM packages installed on the system whose objects are used. When publishing, they are added to the manifest dependencies with the version range shown.${options.trmFoundIn ? ' Expand a package to see the objects using it.' : ''}`,
+            info: `TRM packages installed on the system whose objects are used. When publishing, they are added to the manifest dependencies with the version range shown.${options.trmFoundIn ? ` ${TRM_LEVELS_INFO}` : ''}`,
             columns: TRM_COLUMNS,
             children: trmPackageDependencies.map(o => trmPackageNode(o, !!options.trmFoundIn))
         }, {

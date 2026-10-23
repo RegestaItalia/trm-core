@@ -9,7 +9,12 @@ export type TrmPackageDependency = {
     trmPackage: TrmPackage,
     foundIn: {
         object: string,
-        objName: string
+        objName: string,
+        /** Entries of the TRM package used by the object (e.g. the TADIR entry of a class). */
+        references: {
+            tableName: string,
+            tableKey: any
+        }[]
     }[]
 }
 
@@ -66,11 +71,24 @@ export class PackageDependencies {
                             foundIn: []
                         }) - 1;
                     }
-                    if (!this.trmPackageDependencies[depIndex].foundIn.find(f => f.object === o.object && f.objName === o.objName)) {
-                        this.trmPackageDependencies[depIndex].foundIn.push({
+                    var foundIn = this.trmPackageDependencies[depIndex].foundIn.find(f => f.object === o.object && f.objName === o.objName);
+                    if (!foundIn) {
+                        foundIn = {
                             object: o.object,
-                            objName: o.objName
-                        });
+                            objName: o.objName,
+                            references: []
+                        };
+                        this.trmPackageDependencies[depIndex].foundIn.push(foundIn);
+                    }
+                    for (const dep of trmPackage.dependencies) {
+                        for (const tableKey of dep.tabkey) {
+                            if (!foundIn.references.find(r => r.tableName === dep.tabname && _.isEqual(r.tableKey, tableKey))) {
+                                foundIn.references.push({
+                                    tableName: dep.tabname,
+                                    tableKey
+                                });
+                            }
+                        }
                     }
                 }
             }
