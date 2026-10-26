@@ -9,9 +9,16 @@ const PACKAGE_API_RESOURCES = [
 
 /**
  * Failures of a package API call the release can't run: a parameter it doesn't have
- * (`I_SUPPRESS_DIALOG` & co.), or the dialog it sends without it.
+ * (`I_SUPPRESS_DIALOG` & co.), or the dialog it sends without it. `DYN_CALL_METH_PARAM_NOT_FOUND` is the
+ * runtime error of a missing parameter trm-server doesn't catch.
  */
-const UNSUPPORTED_FAILURES = ['DYN_CALL_PARAM_NOT_FOUND', 'DYNPRO_SEND_IN_BACKGROUND'];
+const UNSUPPORTED_FAILURES = ['DYN_CALL_PARAM_NOT_FOUND', 'DYN_CALL_METH_PARAM_NOT_FOUND', 'DYNPRO_SEND_IN_BACKGROUND'];
+
+/**
+ * trm-rest answers an exception trm-server doesn't catch (e.g. a missing parameter of a dynamic call) with
+ * this reason, and the last system message: not the cause, so it's ignored.
+ */
+const REST_UNCAUGHT_EXCEPTION = 'METHOD_CALL_EXCEPTION';
 
 function errorResource(error: any): string {
     return `${error?.resource || error?.config?.url || error?.restError?.config?.url || ''}`.trim().toUpperCase();
@@ -25,7 +32,8 @@ function errorTexts(error: any): string[] {
 
 /**
  * Whether `error`, thrown by a package API call, means the package API doesn't work on this release:
- * - `DYN_CALL_PARAM_NOT_FOUND` or `DYNPRO_SEND_IN_BACKGROUND` (also in the body of a REST dump);
+ * - a missing parameter or a dialog sent in background (also in the body of a REST dump);
+ * - an exception trm-server doesn't catch, over REST (`METHOD_CALL_EXCEPTION`);
  * - an error without a message (`Type:E Number:000`): the old `CL_PACKAGE` raises without one.
  *
  * Anything else (authorizations, messages with text, connection errors) is a real error.
@@ -36,6 +44,9 @@ export function isPackageApiUnsupported(error: unknown): boolean {
         return false;
     }
     if (errorTexts(error).some(text => UNSUPPORTED_FAILURES.some(failure => text.includes(failure)))) {
+        return true;
+    }
+    if (error instanceof ClientError && error.exceptionType === REST_UNCAUGHT_EXCEPTION) {
         return true;
     }
     return error instanceof ClientError && error.exceptionType !== 'TRM_RFC_UNAUTHORIZED'
