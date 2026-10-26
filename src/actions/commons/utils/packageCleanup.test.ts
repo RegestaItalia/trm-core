@@ -53,7 +53,7 @@ import { Transport } from '../../../transport';
 import { RegistryDeletionTransportUnavailableError, RegistryType } from '../../../registry';
 import {
     backupInstalledPackage, CleanupPlan, generateCleanupDeletions, PackageCleanupTarget, planInstalledPackageCleanup,
-    restoreCleanupBackups, revertCleanupDeletions
+    restoreCleanupBackups, restoreTadirAssignments, revertCleanupDeletions
 } from './packageCleanup';
 import { isBackupTransport } from './importQueue';
 
@@ -362,6 +362,21 @@ describe('backupInstalledPackage', () => {
         expect(isBackupTransport('TSTKBKP2')).toBe(true);
     });
 
+    test('a backup no object could be added to is deleted, not released nor kept', async () => {
+        const tadir = new MockTransport('TSTKBKP6');
+        tadir.addObjects.mockRejectedValue(new Error('Unknown syntax "R3TR" "SVIM" "ZCFG"'));
+        (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);
+        const ctx = context([]);
+
+        await backupInstalledPackage(ctx, undefined, [obj('SVIM', 'ZCFG', 'ZROOT') as any], { packageName: 'pkg', version: '1.0.0' });
+
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining(`R3TR SVIM ZCFG can't be backed up`), { important: true });
+        expect(tadir.release).not.toHaveBeenCalled();
+        expect(tadir.delete).toHaveBeenCalled();
+        expect(ctx.revert.backup.tadir).toBeUndefined();
+        expect(ctx.revert.backupTransports).toEqual([]);
+    });
+
     test('a backup is tracked before its release can fail', async () => {
         const tadir = new MockTransport('TSTKBKP3');
         tadir.release.mockRejectedValue(new Error('release failed'));
@@ -616,5 +631,24 @@ describe('cleanup revert', () => {
         expect(order).toEqual(['package', 'import', 'import']);
         expect(Transport.upload).toHaveBeenCalledWith('TSTKBKP2', expect.anything());
         expect(SystemConnector.deleteTmsTransport).not.toHaveBeenCalled();
+    });
+});
+
+describe('restoreTadirAssignments', () => {
+    test('only rows that differ from the live TADIR are written back', async () => {
+        system({ ZROOT: [obj('SVIM', 'ZCFG')], ZOTHER: [obj('PROG', 'ZMOVED')] });
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([
+            { ...obj('SVIM', 'ZCFG', 'ZROOT'), srcsystem: 'TRM' },
+            { ...obj('PROG', 'ZMOVED', 'ZOTHER'), srcsystem: 'TRM' }
+        ]);
+
+        await restoreTadirAssignments([
+            { ...obj('SVIM', 'ZCFG', 'ZROOT'), srcsystem: 'TRM' } as any,
+            { ...obj('PROG', 'ZMOVED', 'ZCUSTOMER'), srcsystem: 'DEV' } as any,
+            { ...obj('PROG', 'ZGONE', 'ZCUSTOMER'), srcsystem: 'DEV' } as any
+        ]);
+
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledTimes(1);
+        expect(SystemConnector.tadirInterface).toHaveBeenCalledWith(expect.objectContaining({ objName: 'ZMOVED', devclass: 'ZCUSTOMER', srcsystem: 'DEV' }));
     });
 });

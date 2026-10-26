@@ -154,6 +154,13 @@ export type InstallActionInputInstallData = {
          * Skip the safety check for repository objects that would be overwritten. Defaults to `false`.
          */
         noExistingObjects?: boolean;
+
+        /**
+         * Don't fail on object types the target system doesn't support: they are logged as warnings.
+         * Their objects make the import end with return code 8 or higher, see `import.ignoreImportErrors`.
+         * Defaults to `false`.
+         */
+        noObjectTypes?: boolean;
     };
 
     /**

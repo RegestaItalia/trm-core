@@ -279,8 +279,6 @@ describe('importBatch rollback checkpoint', () => {
         'importMultiple',
         'closeConnection',
         'connect',
-        'setPackageTransportLayer.1',
-        'setPackageTransportLayer.2',
         'setPackageSuperpackage',
         'tadirInterface.1',
         'tadirInterface.2',
@@ -322,6 +320,22 @@ describe('importBatch rollback checkpoint', () => {
                 expect(events).not.toContain('restore-old-payload');
             }
         });
+    });
+
+    test('a transport layer that cannot be set is a warning: the other packages are set and nothing is rolled back', async () => {
+        failurePoint = 'setPackageTransportLayer.1';
+        const context = makeContext(registryDelete);
+
+        await expect(execute('test', [importBatch], context)).resolves.toBeDefined();
+
+        expect(events).toContain('setPackageTransportLayer.2');
+        expect(events).toContain('setPackageSuperpackage');
+        expect(Logger.warning).toHaveBeenCalledWith(
+            expect.stringMatching(/^Couldn't set transport layer .* on SAP package .* \(failure at setPackageTransportLayer\.1\): set it in SE21\.$/),
+            { important: true }
+        );
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(context.revert.cleanupImported).toBeFalsy();
     });
 
     test('the shared checkpoint contains each imported entry once plus generated objects', async () => {
@@ -1003,7 +1017,10 @@ describe('importBatch rollback checkpoint', () => {
             });
             (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async (objects: any[]) => {
                 await fail('getExistingObjects');
-                return existingTadir.filter(existing => objects.some(object => object.object === existing.object && object.objName === existing.objName));
+                // the import assigns the objects to the source system TRM
+                const imported = events.includes('importMultiple');
+                return existingTadir.filter(existing => objects.some(object => object.object === existing.object && object.objName === existing.objName))
+                    .map(existing => imported ? { ...existing, srcsystem: 'TRM' } : existing);
             });
         });
 
@@ -1121,14 +1138,33 @@ describe('importBatch rollback checkpoint', () => {
             expect(backupTransport.delete).not.toHaveBeenCalled();
         });
 
-        test('objects SAP refuses to back up are reported, and the backup is still kept', async () => {
+        test('objects SAP refuses to back up are reported, and the backup of the others is still kept', async () => {
+            const context = makeExistingContext();
+            backupTransport.addObjects.mockImplementation(async (entries: any[]) => {
+                if (entries.some(entry => entry.objName === 'Z_EXISTING_TABLE')) {
+                    throw new Error('not transportable');
+                }
+            });
+
+            await prepareBackup.run(context);
+
+            expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining("Z_EXISTING_TABLE can't be backed up"), { important: true });
+            expect(backupTransport.delete).not.toHaveBeenCalled();
+            expect(context.revert.backup.tadir.transport).toBe(backupTransport);
+            expect(context.revert.existingObjectsTadir).toEqual(existingTadir);
+        });
+
+        test('a backup SAP refuses every object of is deleted: nothing is restored from it, nor kept for recovery', async () => {
             const context = makeExistingContext();
             backupTransport.addObjects.mockRejectedValue(new Error('not transportable'));
 
             await prepareBackup.run(context);
 
             expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining("Z_EXISTING_TABLE can't be backed up"), { important: true });
-            expect(backupTransport.delete).not.toHaveBeenCalled();
+            expect(backupTransport.release).not.toHaveBeenCalled();
+            expect(backupTransport.delete).toHaveBeenCalled();
+            expect(context.revert.backup.tadir).toBeUndefined();
+            // still tracked: the rollback must not delete them
             expect(context.revert.existingObjectsTadir).toEqual(existingTadir);
         });
     });

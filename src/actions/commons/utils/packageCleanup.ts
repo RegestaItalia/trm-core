@@ -502,17 +502,23 @@ async function restoreCleanupPackages(context: PackageCleanupContext): Promise<v
 }
 
 /**
- * Assigns the objects that still exist back to their previous TADIR rows. Every object is
+ * Assigns the objects that still exist back to their previous TADIR rows, where the live row differs
+ * (an object type the system rejects can't be written back, even unchanged). Every object is
  * attempted; the first failure is thrown afterwards.
  */
 export async function restoreTadirAssignments(originals: TADIR[]): Promise<void> {
     if (originals.length === 0) {
         return;
     }
-    const existing = new Set((await SystemConnector.getExistingObjects(originals)).map(objectKey));
+    const existing = new Map((await SystemConnector.getExistingObjects(originals)).map(object => [objectKey(object), object]));
+    const changed = (object: TADIR): boolean => {
+        const live = existing.get(objectKey(object));
+        return !!live && (normalize(live.devclass || '') !== normalize(object.devclass || '')
+            || (object.srcsystem !== undefined && normalize(live.srcsystem || '') !== normalize(object.srcsystem)));
+    };
     let firstError: unknown;
     for (const object of originals) {
-        if (existing.has(objectKey(object))) {
+        if (changed(object)) {
             try {
                 await SystemConnector.tadirInterface(object);
             } catch (error) {
@@ -1116,11 +1122,12 @@ export async function planInstalledPackageCleanup(context: PackageCleanupContext
 }
 
 /**
- * Creates, fills, releases and downloads a backup transport of copies. It's never deleted, not even unreleased.
+ * Creates, fills, releases and downloads a backup transport of copies. It's never deleted, not even unreleased,
+ * unless `fill` couldn't add anything to it: there is then no backup.
  * Its release log is checked: an object that failed to export has no restorable copy, so the action stops
  * before anything is deleted.
  */
-async function createBackup(context: PackageCleanupContext, description: string, logFolder: string, fill: (transport: Transport) => Promise<void>): Promise<CleanupBackup> {
+async function createBackup(context: PackageCleanupContext, description: string, logFolder: string, fill: (transport: Transport) => Promise<boolean>): Promise<CleanupBackup | undefined> {
     const transport = await Transport.createToc({
         text: description,
         target: SystemConnector.getDest()
@@ -1128,7 +1135,12 @@ async function createBackup(context: PackageCleanupContext, description: string,
     protectBackupTransport(transport.trkorr);
     context.revert.backupTransports ||= [];
     context.revert.backupTransports.push(transport);
-    await fill(transport);
+    if (!(await fill(transport))) {
+        // nothing to restore from: an empty backup would only be imported by a rollback and listed for recovery
+        await transport.delete();
+        context.revert.backupTransports = context.revert.backupTransports.filter(o => o !== transport);
+        return undefined;
+    }
     try {
         await transport.release(false, true, logFolder);
     } catch (e) {
@@ -1198,8 +1210,11 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
             for (const { entry, error } of failed) {
                 Logger.warning(`${entry.pgmid} ${entry.object} ${entry.objName} can't be backed up: it's not deleted, and a rollback can't restore it (${error instanceof Error ? error.message : String(error)})`, { important: true });
             }
+            return failed.length < entries.length;
         });
-        Logger.log(`Objects backed up in ${context.revert.backup.tadir.transport.trkorr}`, true);
+        if (context.revert.backup.tadir) {
+            Logger.log(`Objects backed up in ${context.revert.backup.tadir.transport.trkorr}`, true);
+        }
     }
     if (plan?.customizingSources.length > 0) {
         Logger.loading(`Backing up customizing...`);
@@ -1209,6 +1224,7 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
                 Logger.loading(`Including customizing from transport ${trkorr}...`, true);
                 await transport.addObjectsFromTransport(trkorr);
             }
+            return true;
         });
         Logger.log(`Customizing backed up in ${context.revert.backup.cust.transport.trkorr}`, true);
     }

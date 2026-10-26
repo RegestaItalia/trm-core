@@ -667,9 +667,10 @@ export class Transport {
      * (`GET_TR_IMPORT_STATUS`) is read at every check; the whole queue is read only when the status can't
      * tell (virtual targets, a batch status row of another request, an older backend), and once at the end
      * for the request return code. The return code is the highest of the queue `maxrc` and the final tp
-     * status return code of this request.
+     * status return code of this request. With `batch` (imported with others in one tp command), the tp return
+     * code and message are the whole batch's: the request's own queue return code is used.
      */
-    private async _isInTmsQueue(skipLog: boolean): Promise<{ rc: number, message?: string }> {
+    private async _isInTmsQueue(skipLog: boolean, batch: boolean = false): Promise<{ rc: number, message?: string }> {
         var rc: number = 12;
         var message: string;
         if (!this._trTarget) {
@@ -753,8 +754,13 @@ export class Transport {
         message = finalStatus?.message;
         const statusRc = Transport._isFinalStatus(finalStatus) ? parseInt(finalStatus.retcode) : NaN;
         if (!isNaN(statusRc) && statusRc > rc) {
-            Logger.log(`${this.trkorr} queue return code ${rc}, tp return code ${statusRc}: ${statusRc} is used`, true);
-            rc = statusRc;
+            if (batch) {
+                Logger.log(`${this.trkorr} queue return code ${rc}, batch tp return code ${statusRc}: ${rc} is used`, true);
+                message = undefined;
+            } else {
+                Logger.log(`${this.trkorr} queue return code ${rc}, tp return code ${statusRc}: ${statusRc} is used`, true);
+                rc = statusRc;
+            }
         }
         Logger.log(`${this.trkorr} import check completed in ${elapsed()}`, true);
         return { rc, message };
@@ -1012,7 +1018,7 @@ export class Transport {
                 }
                 Logger.log(`Starting transport ${transport.trkorr} TMS queue status check`, true);
                 transport._trTarget = target;
-                const queue = await transport._isInTmsQueue(false);
+                const queue = await transport._isInTmsQueue(false, transports.length > 1);
                 transport.lastImportMessage = queue.message;
                 Transport._printImportResult(transport.trkorr, queue.rc, queue.message, false);
                 results.push({ trkorr: transport.trkorr, rc: queue.rc, message: queue.message });
