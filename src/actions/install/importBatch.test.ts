@@ -279,6 +279,8 @@ describe('importBatch rollback checkpoint', () => {
         'importMultiple',
         'closeConnection',
         'connect',
+        'setPackageTransportLayer.1',
+        'setPackageTransportLayer.2',
         'setPackageSuperpackage',
         'tadirInterface.1',
         'tadirInterface.2',
@@ -320,22 +322,6 @@ describe('importBatch rollback checkpoint', () => {
                 expect(events).not.toContain('restore-old-payload');
             }
         });
-    });
-
-    test('a transport layer that cannot be set is a warning: the other packages are set and nothing is rolled back', async () => {
-        failurePoint = 'setPackageTransportLayer.1';
-        const context = makeContext(registryDelete);
-
-        await expect(execute('test', [importBatch], context)).resolves.toBeDefined();
-
-        expect(events).toContain('setPackageTransportLayer.2');
-        expect(events).toContain('setPackageSuperpackage');
-        expect(Logger.warning).toHaveBeenCalledWith(
-            expect.stringMatching(/^Couldn't set transport layer .* on SAP package .* \(failure at setPackageTransportLayer\.1\): set it in SE21\.$/),
-            { important: true }
-        );
-        expect(Transport.createToc).not.toHaveBeenCalled();
-        expect(context.revert.cleanupImported).toBeFalsy();
     });
 
     test('the shared checkpoint contains each imported entry once plus generated objects', async () => {
