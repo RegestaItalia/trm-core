@@ -339,6 +339,23 @@ describe('importBatch rollback checkpoint', () => {
         expect(context.revert.cleanupImported).toBeFalsy();
     });
 
+    test('a transport layer the SAP package API cannot set is a manual step, with the other package API steps', async () => {
+        const context = makeContext(registryDelete);
+        const dialog = () => new ClientError('DYNPRO_SEND_IN_BACKGROUND', { class: '', no: '' }, 'Screen output without connection to user.', '/ATRM/TDEVC_INTERFACE');
+        jest.spyOn(SystemConnector, 'setPackageTransportLayer').mockRejectedValue(dialog());
+        jest.spyOn(SystemConnector, 'setPackageSuperpackage').mockRejectedValue(dialog());
+
+        await expect(execute('test', [importBatch], context)).resolves.toBeDefined();
+
+        expect(context.runtime.manualSteps).toEqual([
+            ...context.runtime.transports.devc.binaries.entries.tdevc.map((tdevc: any) => expect.stringMatching(new RegExp(`^(Set transport layer \\S+ on|Remove the transport layer of) SAP package ${tdevc.devclass} in SE21\\.$`))),
+            'Set the superpackage of SAP package ZROOT to ZPARENT in SE21.'
+        ]);
+        expect(Logger.warning).not.toHaveBeenCalledWith(expect.stringContaining("Couldn't set transport layer"), expect.anything());
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(context.revert.cleanupImported).toBeFalsy();
+    });
+
     test('a superpackage the SAP package API cannot set is a manual step: nothing is rolled back', async () => {
         const context = makeContext(registryDelete);
         jest.spyOn(SystemConnector, 'setPackageSuperpackage').mockRejectedValue(
