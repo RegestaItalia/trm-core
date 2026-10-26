@@ -56,6 +56,7 @@ import { deleteImportedEntries, importBatch } from './importBatch';
 import { cleanupCheckpoint } from './cleanupCheckpoint';
 import { prepareBackup } from './prepareBackup';
 import { recordInstalledRelease } from './updatePackageData';
+import { ClientError } from '../../client';
 
 type RegistryOutcome = 'allowed' | 'denied';
 
@@ -279,8 +280,6 @@ describe('importBatch rollback checkpoint', () => {
         'importMultiple',
         'closeConnection',
         'connect',
-        'setPackageTransportLayer.1',
-        'setPackageTransportLayer.2',
         'setPackageSuperpackage',
         'tadirInterface.1',
         'tadirInterface.2',
@@ -322,6 +321,46 @@ describe('importBatch rollback checkpoint', () => {
                 expect(events).not.toContain('restore-old-payload');
             }
         });
+    });
+
+    test('a transport layer that cannot be set is a warning: the other packages are set and nothing is rolled back', async () => {
+        failurePoint = 'setPackageTransportLayer.1';
+        const context = makeContext(registryDelete);
+
+        await expect(execute('test', [importBatch], context)).resolves.toBeDefined();
+
+        expect(events).toContain('setPackageTransportLayer.2');
+        expect(events).toContain('setPackageSuperpackage');
+        expect(Logger.warning).toHaveBeenCalledWith(
+            expect.stringMatching(/^Couldn't set transport layer .* on SAP package .* \(failure at setPackageTransportLayer\.1\): set it in SE21\.$/),
+            { important: true }
+        );
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(context.revert.cleanupImported).toBeFalsy();
+    });
+
+    test('a superpackage the SAP package API cannot set is a manual step: nothing is rolled back', async () => {
+        const context = makeContext(registryDelete);
+        jest.spyOn(SystemConnector, 'setPackageSuperpackage').mockRejectedValue(
+            new ClientError('DYNPRO_SEND_IN_BACKGROUND', { class: '', no: '000' }, 'Screen output without connection to user', '/ATRM/TDEVC_INTERFACE'));
+
+        await expect(execute('test', [importBatch], context)).resolves.toBeDefined();
+
+        expect(context.runtime.manualSteps).toEqual(['Set the superpackage of SAP package ZROOT to ZPARENT in SE21.']);
+        expect(events).toContain('tadirInterface.1');
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(context.revert.cleanupImported).toBeFalsy();
+    });
+
+    test('a superpackage failure with a message is a real error: the import is rolled back', async () => {
+        const context = makeContext(registryDelete);
+        jest.spyOn(SystemConnector, 'setPackageSuperpackage').mockRejectedValue(
+            new ClientError('TRM_RFC_EXCEPTION', { class: 'PAK', no: '012' }, 'No authorization', '/ATRM/TDEVC_INTERFACE'));
+
+        await expect(execute('test', [importBatch], context)).rejects.toThrow('No authorization');
+
+        expect(context.runtime.manualSteps).toBeUndefined();
+        expect(context.revert.cleanupImported).toBe(true);
     });
 
     test('the shared checkpoint contains each imported entry once plus generated objects', async () => {

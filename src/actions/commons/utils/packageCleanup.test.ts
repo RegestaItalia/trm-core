@@ -56,6 +56,11 @@ import {
     restoreCleanupBackups, revertCleanupDeletions
 } from './packageCleanup';
 import { isBackupTransport } from './importQueue';
+import { deletePlannedTemporaryPackages } from './packageCleanup';
+import { ClientError } from '../../../client';
+
+/** The SAP package API can't run on the release (e.g. SAP_BASIS 702 without I_SUPPRESS_DIALOG). */
+const unsupported = () => new ClientError('DYN_CALL_PARAM_NOT_FOUND', { class: '', no: '000' }, '', '/ATRM/CREATE_PACKAGE');
 
 const MockTransport = Transport as any;
 
@@ -514,6 +519,108 @@ describe('backupInstalledPackage', () => {
     });
 });
 
+describe('backupInstalledPackage when the SAP package API is unsupported', () => {
+    afterEach(() => {
+        (SystemConnector.createPackage as jest.Mock).mockReset();
+    });
+
+    test.each([
+        ['DYN_CALL_PARAM_NOT_FOUND', unsupported()],
+        ['an exception without a message', new ClientError('TRM_RFC_EXCEPTION', { class: '', no: '000' }, ' Type:E Number:000', '/ATRM/CREATE_PACKAGE')]
+    ])('%s: local objects stay in their packages, neither backed up nor moved, and the action goes on', async (_label, error) => {
+        const tadir = new MockTransport('TSTKBKP1');
+        (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);
+        system({ $ROOT: [obj('PROG', 'ZOLD'), obj('PROG', '/NS/OLD')], ZROOT: [obj('PROG', 'ZTRANSPORTABLE')] });
+        (SystemConnector.getNamespace as jest.Mock).mockResolvedValue({ trnspacet: { namespace: '/NS/' } });
+        (SystemConnector.createPackage as jest.Mock).mockRejectedValue(error);
+        const ctx = context([]);
+
+        await backupInstalledPackage(ctx, plan({
+            needsStaging: true,
+            backupObjects: [obj('PROG', 'ZOLD'), obj('PROG', '/NS/OLD'), obj('PROG', 'ZTRANSPORTABLE')],
+            excludeObjects: [],
+            previewObjects: [obj('PROG', 'ZOLD'), obj('PROG', '/NS/OLD'), obj('PROG', 'ZTRANSPORTABLE')]
+        }), [], { packageName: 'pkg', version: '1.0.0' });
+
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+        expect(ctx.revert.cleanupOriginalTadir).toEqual([]);
+        // a package the failed call didn't create is not tracked
+        expect(ctx.revert.stagingPackages).toEqual([]);
+        expect(keys(ctx.runtime.cleanupKeptLocal)).toEqual(['PROG /NS/OLD', 'PROG ZOLD']);
+        // the transportable objects are still backed up
+        expect(keys(tadir.addObjects.mock.calls[0][0])).toEqual(['PROG ZTRANSPORTABLE']);
+        expect(ctx.runtime.manualSteps).toEqual([
+            '2 objects of pkg 1.0.0 were kept in local SAP packages $ROOT: they can\'t be backed up, so they aren\'t deleted. Delete them in SE80 if needed.'
+        ]);
+    });
+
+    test('a real error creating the staging package still fails before anything is moved', async () => {
+        system({ $ROOT: [obj('PROG', 'ZOLD')] });
+        (SystemConnector.createPackage as jest.Mock).mockRejectedValue(new ClientError('TRM_RFC_UNAUTHORIZED', { class: 'ZTRM', no: '002' }, 'Unauthorized', '/ATRM/CREATE_PACKAGE'));
+        const ctx = context([]);
+
+        await expect(backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', 'ZOLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' }))
+            .rejects.toThrow('Unauthorized');
+
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(ctx.runtime.cleanupKeptLocal).toBeUndefined();
+    });
+
+    test('an object the incoming release overwrites is not kept as a leftover: a rollback keeps its imported version', async () => {
+        system({ $ROOT: [obj('PROG', 'ZSHARED')] });
+        (SystemConnector.createPackage as jest.Mock).mockRejectedValue(unsupported());
+        const ctx = context([]);
+
+        await backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', 'ZSHARED')], excludeObjects: [], previewObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' });
+
+        expect(ctx.runtime.manualSteps).toBeUndefined();
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('R3TR PROG ZSHARED (temporary SAP package $ROOT) can\'t be backed up'), { important: true });
+    });
+
+    test('an uninstall asks before keeping local objects, and stops before anything is moved when declined', async () => {
+        system({ $ROOT: [obj('PROG', 'ZOLD')] });
+        (SystemConnector.createPackage as jest.Mock).mockRejectedValue(unsupported());
+        const prompt = jest.spyOn(Inquirer, 'prompt').mockResolvedValue({ keepLocal: false } as never);
+        const ctx = context([], { noInquirer: false });
+
+        await expect(backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', 'ZOLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' }, { confirmKeptLocal: true }))
+            .rejects.toThrow('Aborted: 1 objects of pkg 1.0.0 in local SAP packages can\'t be deleted.');
+
+        expect(prompt).toHaveBeenCalledWith(expect.objectContaining({ name: 'keepLocal', type: 'confirm' }));
+        expect(SystemConnector.tadirInterface).not.toHaveBeenCalled();
+        expect(Transport.createToc).not.toHaveBeenCalled();
+    });
+
+    test('without prompts an uninstall keeps the local objects and goes on', async () => {
+        system({ $ROOT: [obj('PROG', 'ZOLD')] });
+        (SystemConnector.createPackage as jest.Mock).mockRejectedValue(unsupported());
+        const prompt = jest.spyOn(Inquirer, 'prompt');
+        const ctx = context([]);
+
+        await backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', 'ZOLD')], excludeObjects: [] }), [], { packageName: 'pkg', version: '1.0.0' }, { confirmKeptLocal: true });
+
+        expect(prompt).not.toHaveBeenCalled();
+        expect(keys(ctx.runtime.cleanupKeptLocal)).toEqual(['PROG ZOLD']);
+        // nothing left to back up
+        expect(Transport.createToc).not.toHaveBeenCalled();
+    });
+
+    test('on a backend older than trm-server 7.0.0 the namespace imported for the staging is kept with the objects', async () => {
+        system({ $ROOT: [obj('PROG', '/NS/OLD')] });
+        (SystemConnector.createPackage as jest.Mock).mockRejectedValue(unsupported());
+        const ctx = context([]);
+        ctx.missingBackendApis = ['trmServer7'];
+        ctx.runtime.update.manifest = { get: () => ({ version: '1.0.0', namespace: { ns: '/NS/', replicense: 'LICENSE', texts: [] } }) };
+
+        await backupInstalledPackage(ctx, plan({ needsStaging: true, backupObjects: [obj('PROG', '/NS/OLD')], excludeObjects: [], previewObjects: [obj('PROG', '/NS/OLD')] }), [], { packageName: 'pkg', version: '1.0.0' });
+
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(ctx.runtime.manualSteps).toContain('Namespace /NS/ was imported to stage the objects of pkg, which are kept: delete it in SE03 once they are deleted.');
+    });
+});
+
 describe('generateCleanupDeletions', () => {
     function backedUp(ctx: any) {
         ctx.revert.backup = {
@@ -551,6 +658,17 @@ describe('generateCleanupDeletions', () => {
         expect(ctx.revert.deletionDummies).toEqual([deleTadir, deleCust]);
     });
 
+    test('objects kept in local packages are not expected to be deleted', async () => {
+        const ctx = backedUp(context([]));
+        ctx.runtime.cleanupKeptLocal = [obj('PROG', 'ZOLD', '$ROOT')];
+
+        await generateCleanupDeletions(ctx, plan({ previewKeys: [] }), { requireDeletion: false });
+
+        // ZOLD was the only object to delete
+        expect(Transport.createToc).not.toHaveBeenCalled();
+        expect(ctx.runtime.deletions).toEqual({});
+    });
+
     test('nothing to delete: no dummy is created', async () => {
         const ctx = backedUp(context([]));
 
@@ -582,7 +700,50 @@ describe('generateCleanupDeletions', () => {
     });
 });
 
+describe('deletePlannedTemporaryPackages', () => {
+    test('local packages holding kept objects, and their superpackages, are not deleted', async () => {
+        const ctx = context([]);
+        ctx.runtime.cleanupKeptLocal = [obj('PROG', 'ZOLD', '$SUB')];
+        const packages: Record<string, any> = {
+            $SUB: { devclass: '$SUB', parentcl: '$ROOT' },
+            $ROOT: { devclass: '$ROOT', parentcl: '' },
+            $OTHER: { devclass: '$OTHER', parentcl: '' }
+        };
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) => packages[devclass]);
+
+        await deletePlannedTemporaryPackages(ctx, plan({ temporaryPackages: [obj('DEVC', '$SUB'), obj('DEVC', '$OTHER'), obj('DEVC', '$ROOT')] }));
+
+        expect((SystemConnector.deleteTemporaryPackage as jest.Mock).mock.calls).toEqual([['$OTHER']]);
+        expect(Logger.warning).not.toHaveBeenCalled();
+    });
+});
+
 describe('cleanup revert', () => {
+    test('a local package the SAP package API cannot recreate is a warning; the backups are still restored', async () => {
+        const ctx = context([]);
+        ctx.revert.cleanupTemporaryPackages = [{ devclass: '$ROOT', parentcl: '', dlvunit: 'LOCAL', ctext: 'Root' }];
+        ctx.revert.backup = { tadir: { binaries: { trkorr: 'TSTKBKP1', binaries: {} } } };
+        (SystemConnector.createPackage as jest.Mock).mockRejectedValueOnce(unsupported());
+        (Transport.upload as jest.Mock).mockResolvedValue(new MockTransport('X'));
+
+        await expect(restoreCleanupBackups(ctx)).resolves.toBeUndefined();
+
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('SAP package $ROOT can\'t be recreated'), { important: true });
+        expect(Transport.upload).toHaveBeenCalledWith('TSTKBKP1', expect.anything());
+    });
+
+    test('a real error recreating a local package is thrown after the backups are restored', async () => {
+        const ctx = context([]);
+        ctx.revert.cleanupTemporaryPackages = [{ devclass: '$ROOT', parentcl: '', dlvunit: 'LOCAL' }];
+        ctx.revert.backup = { tadir: { binaries: { trkorr: 'TSTKBKP1', binaries: {} } } };
+        (SystemConnector.createPackage as jest.Mock).mockRejectedValueOnce(new Error('locked'));
+        (Transport.upload as jest.Mock).mockResolvedValue(new MockTransport('X'));
+
+        await expect(restoreCleanupBackups(ctx)).rejects.toThrow('locked');
+
+        expect(Transport.upload).toHaveBeenCalledWith('TSTKBKP1', expect.anything());
+    });
+
     test('deletion dummies are deleted while possible, otherwise taken out of the queue; every one is attempted', async () => {
         const unreleased = new MockTransport('TSTKDEL1');
         unreleased.canBeDeleted.mockResolvedValue(true);

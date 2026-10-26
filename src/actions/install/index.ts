@@ -309,7 +309,11 @@ type WorkflowRuntime = {
      * Upgrade of trm-server or trm-rest: the installed release runs the install itself. Its objects are
      * only cleaned up after the incoming release is imported, and the import can't be rolled back.
      */
-    selfUpdate?: boolean
+    selfUpdate?: boolean,
+    /** Objects of a local installation kept in their packages on upgrade: see PackageCleanupContext. */
+    cleanupKeptLocal?: TADIR[],
+    /** Changes left to do by hand, listed in the summary (see addManualStep). */
+    manualSteps?: string[]
 }
 
 
@@ -551,6 +555,7 @@ function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean, 
             : `${name} ${from}${version} install${context.rawInput.contextData?.simulate ? ' simulation' : ''} failed${failureState(context.revert?.importStarted && !context.runtime.selfUpdate, error)}.`,
         imported: succeeded ? [transports.devc?.instance, transports.tadir?.instance, transports.lang?.instance, ...(transports.cust || []).map(cust => cust.instance)] : [],
         deletions: succeeded ? [context.runtime.deletions?.tadir, context.runtime.deletions?.cust] : [],
+        manualSteps: succeeded ? context.runtime.manualSteps : undefined,
         landscape: succeeded ? {
             transport: context.output?.transport,
             targetSystem: context.rawInput.installData?.landscapeTransport?.targetSystem,

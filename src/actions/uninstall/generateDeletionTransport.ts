@@ -37,7 +37,7 @@ export const generateDeletionTransport: Step<UninstallWorkflowContext> = {
         }
         await withScopedPrefix(prefix, async () => {
             //2- back up what is deleted
-            await backupInstalledPackage(context, plan, [], { packageName: plan.packageName, version: plan.installedVersion });
+            await backupInstalledPackage(context, plan, [], { packageName: plan.packageName, version: plan.installedVersion }, { confirmKeptLocal: true });
 
             //3- generate the deletion transports
             await generateCleanupDeletions(context, plan, { requireDeletion: true });

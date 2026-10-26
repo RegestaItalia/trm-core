@@ -3,7 +3,7 @@ import { Transport } from "../../transport";
 import { TrmPackage } from "../../trmPackage";
 import { TrmManifest } from "../../manifest";
 import { InstallTransport, TrmPackageUpdateData } from "../../systemConnector";
-import { E071 } from "../../client";
+import { E071, TADIR } from "../../client";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "../commons";
 import { ActionLockScope, releaseLogged, withLockRelease, executeRetainedWorkflow, PackageCleanupRevert, packageLockResource, CleanupPlan, logActionSummary, failureState } from "../commons/utils";
 import { SystemConnector } from "../../systemConnector";
@@ -120,7 +120,11 @@ type WorkflowRuntime = {
     /** Lock releases of the uninstalls of the TRM packages installed under this one. */
     nestedReleases: Array<() => Promise<void>>,
     /** Objects removed by the deletion transports of the TRM packages installed under this one. */
-    deletedObjects?: E071[]
+    deletedObjects?: E071[],
+    /** Objects of a local installation kept in their packages: see PackageCleanupContext. */
+    cleanupKeptLocal?: TADIR[],
+    /** Changes left to do by hand, listed in the summary (see addManualStep). */
+    manualSteps?: string[]
 }
 
 type WorkflowRevert = PackageCleanupRevert & {
@@ -215,6 +219,7 @@ function logUninstallSummary(context: UninstallWorkflowContext, succeeded: boole
             ? `${name} ${version} uninstalled from ${SystemConnector.getDest()}.`
             : `${name} ${version} uninstall failed${failureState(context.revert?.deleImportStarted, error)}.`,
         deletions: succeeded ? context.output?.deletions : [],
+        manualSteps: succeeded ? context.runtime.manualSteps : undefined,
         landscape: succeeded ? {
             transport: context.output?.landscapeTransport,
             targetSystem: context.rawInput.uninstallData?.landscapeTransport?.targetSystem,

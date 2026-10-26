@@ -38,6 +38,15 @@ describe('logActionSummary', () => {
         expect(info.mock.calls[0][0]).toContain('Backups kept in the DEV import queue for recovery: DEVK6');
     });
 
+    test('changes the SAP package API could not make are listed as a warning', () => {
+        jest.spyOn(Logger, 'info').mockImplementation(() => undefined as never);
+        const warning = jest.spyOn(Logger, 'warning').mockImplementation(() => undefined as never);
+
+        logActionSummary({ outcome: 'pkg 1.0.0 installed on DEV.', manualSteps: ['Set the superpackage of SAP package ZSUB to ZROOT in SE21.'] });
+
+        expect(warning).toHaveBeenCalledWith('Complete manually (the SAP package API is unsupported on DEV):\n- Set the superpackage of SAP package ZSUB to ZROOT in SE21.', { important: true });
+    });
+
     test('a failure says whether the rollback completed', () => {
         expect(failureState(true, new Error('x'))).toBe(', rolled back');
         expect(failureState(false, new Error('x'))).toBe('');

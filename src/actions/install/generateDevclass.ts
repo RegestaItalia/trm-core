@@ -1,11 +1,65 @@
 import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
-import { Logger } from "trm-commons";
+import { Inquirer, Logger } from "trm-commons";
 import { getPackageHierarchy, getParentFromHierarchy, packageDataFromTdevc } from "../../commons";
-import type { DEVCLASS, TDEVC } from "../../client";
+import type { DEVCLASS, SCOMPKDTLN, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
-import { logObjectsLocks } from "../commons/utils";
+import { addManualStep, isPackageApiUnsupported, logObjectsLocks, logPackageApiUnsupported } from "../commons/utils";
+
+function describePackage(data: SCOMPKDTLN): string {
+    return [
+        `short text "${data.ctext}"`,
+        `software component ${data.dlvunit}`,
+        data.pdevclass ? `transport layer ${data.pdevclass}` : undefined,
+        data.korrflag ? 'record changes' : undefined,
+        data.mainpack ? `main package ${data.mainpack}` : undefined
+    ].filter(Boolean).join(', ');
+}
+
+/**
+ * The SAP package API is unsupported on this release: the user creates the package, then the install goes on.
+ * Without prompts the install stops: rerun it once the packages exist (they are reused), or keep the original packages.
+ */
+async function waitForManualPackage(context: InstallWorkflowContext, data: SCOMPKDTLN): Promise<void> {
+    const instructions = `Create SAP package ${data.devclass} in SE21 (${describePackage(data)})`;
+    Logger.warning(`SAP package ${data.devclass} can't be created: the SAP package API is unsupported on ${SystemConnector.getDest()}.`, { important: true });
+    if (context.rawInput.contextData?.noInquirer) {
+        throw new Error(`${instructions}, then rerun the install: existing packages are reused. Alternatively, install keeping the original SAP packages.`);
+    }
+    while (!(await SystemConnector.getDevclass(data.devclass))) {
+        const { created } = await Inquirer.prompt({
+            name: 'created',
+            type: 'confirm',
+            message: `${instructions}. Created?`,
+            default: true
+        });
+        if (!created) {
+            throw new Error(`Install aborted: SAP package ${data.devclass} wasn't created.`);
+        }
+    }
+    Logger.log(`SAP package ${data.devclass} created manually`, true);
+}
+
+/** Changes the superpackage of an install package; when the SAP package API is unsupported, it's left to do by hand. */
+async function setSuperpackage(context: InstallWorkflowContext, devclass: DEVCLASS, superpackage?: DEVCLASS): Promise<void> {
+    try {
+        if (superpackage) {
+            await SystemConnector.setPackageSuperpackage(devclass, superpackage);
+        } else {
+            await SystemConnector.clearPackageSuperpackage(devclass);
+        }
+    } catch (error) {
+        if (!isPackageApiUnsupported(error)) {
+            throw error;
+        }
+        logPackageApiUnsupported(`Superpackage of ${devclass}`, error);
+        // a cleared package is a subpackage: its superpackage is set right after
+        if (superpackage) {
+            addManualStep(context, `Set the superpackage of SAP package ${devclass} to ${superpackage} in SE21.`);
+        }
+    }
+}
 
 /**
  * Workflow step that validates target SAP packages and creates any that are missing.
@@ -15,6 +69,9 @@ import { logObjectsLocks } from "../commons/utils";
  * 2- generate missing packages (transportable ones with the transport layer set by set-transport-layer)
  * 
  * 3- build the package hierarchy, based on the original
+ * 
+ * When the SAP package API is unsupported on the release, a package is created by the user (interactive) and
+ * the hierarchy left to do by hand is listed in the summary.
  * 
 */
 export const generateDevclass: Step<InstallWorkflowContext> = {
@@ -87,13 +144,27 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                 if (!context.revert.sapPackages.includes(devclass)) {
                     context.revert.sapPackages.push(devclass);
                 }
-                await SystemConnector.createPackage(packageDataFromTdevc(originalPackageData, {
+                const packageData = packageDataFromTdevc(originalPackageData, {
                     as4user: SystemConnector.getLogonUser(),
                     pdevclass: dlvunit !== 'LOCAL' ? context.runtime.transportLayer : '',
                     devclass,
                     ctext,
                     dlvunit
-                }));
+                });
+                try {
+                    await SystemConnector.createPackage(packageData);
+                } catch (error) {
+                    if (!isPackageApiUnsupported(error)) {
+                        throw error;
+                    }
+                    logPackageApiUnsupported(`Create SAP package ${devclass}`, error);
+                    // created before the call failed: generated like the others
+                    if (!(await SystemConnector.getDevclass(devclass))) {
+                        // a rollback must not delete the package the user creates
+                        context.revert.sapPackages.splice(context.revert.sapPackages.indexOf(devclass), 1);
+                        await waitForManualPackage(context, packageData);
+                    }
+                }
                 if (dlvunit !== 'LOCAL') {
                     await SystemConnector.tadirInterface({
                         pgmid: 'R3TR',
@@ -135,7 +206,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
         for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
             const installRoot = installPackageHierarchy.devclass === packageReplacement.installDevclass;
             if (!installRoot) {
-                await SystemConnector.clearPackageSuperpackage(packageReplacement.installDevclass);
+                await setSuperpackage(context, packageReplacement.installDevclass);
             }
         }
         //add parentcl
@@ -146,7 +217,7 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
                 const installParentCl = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass;
                 if (installParentCl) {
                     if (!installRoot) {
-                        await SystemConnector.setPackageSuperpackage(packageReplacement.installDevclass, installParentCl);
+                        await setSuperpackage(context, packageReplacement.installDevclass, installParentCl);
                     }
                 }
             }

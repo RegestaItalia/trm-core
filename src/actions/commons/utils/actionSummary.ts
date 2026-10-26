@@ -11,7 +11,9 @@ export type ActionSummary = {
     imported?: Transportish[],
     deletions?: Transportish[],
     landscape?: { transport?: Transportish, targetSystem?: string, released?: boolean },
-    revert?: PackageCleanupRevert
+    revert?: PackageCleanupRevert,
+    /** Changes left to do by hand: the SAP package API is unsupported on this release (see addManualStep). */
+    manualSteps?: string[]
 };
 
 function list(transports: Transportish[] = []): string {
@@ -42,6 +44,9 @@ export function logActionSummary(summary: ActionSummary): void {
     }
     try {
         Logger.info(lines.join('\n'));
+        if (summary.manualSteps?.length > 0) {
+            Logger.warning(`Complete manually (the SAP package API is unsupported on ${SystemConnector.getDest()}):\n${summary.manualSteps.map(step => `- ${step}`).join('\n')}`, { important: true });
+        }
     } catch {
         // a summary never changes the result of the action
     }
