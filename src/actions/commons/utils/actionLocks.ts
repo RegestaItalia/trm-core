@@ -34,7 +34,7 @@ export class ActionLockScope {
     private readonly ownerToken = randomUUID().replace(/-/g, "").toUpperCase();
     private readonly held = new Map<string, ActionLockKey>();
 
-    constructor(private readonly actionName: string, private readonly enabled: boolean = true) { }
+    constructor(private readonly actionName: string, public readonly enabled: boolean = true) { }
 
     async acquire(resources: LockResource[]): Promise<void> {
         if (!this.enabled) {

@@ -455,7 +455,7 @@ const simulateInstallWorkflow = [
         simulateInstall
 ];
 
-async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = []): Promise<{
+async function runInstall(inputData: InstallActionInput, retainRollback: boolean, inheritedNamespaceLocks: string[] = [], parentLockScope?: ActionLockScope): Promise<{
     output: InstallActionOutput,
     installedPackages?: TrmPackage[],
     rollback?: () => Promise<void>,
@@ -466,7 +466,12 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     // Only trm-server and trm-rest can install on an older backend, to upgrade it: any other install needs every API.
     const missingBackendApis = isTrmBackendPackage(lockPackage.registry, lockPackage.name) ? await getMissingTrmBackendApis() : [];
     // a backend without trmServer7 has no action locks
-    const lockScope = new ActionLockScope(WORKFLOW_NAME, !lacksTrmBackendApis({ missingBackendApis }, 'trmServer7'));
+    const locksEnabled = !lacksTrmBackendApis({ missingBackendApis }, 'trmServer7');
+    // All installs in the tree share ownership, including resources shared by siblings.
+    // A backend upgrade's disabled scope must not disable locks for an ordinary dependency.
+    const lockScope = parentLockScope?.enabled === locksEnabled
+        ? parentLockScope
+        : new ActionLockScope(WORKFLOW_NAME, locksEnabled);
     const context: InstallWorkflowContext = {
         rawInput: inputData, lockScope, inheritedNamespaceLocks, missingBackendApis,
         ignoreImportErrors: !!inputData.installData?.import?.ignoreImportErrors
@@ -482,10 +487,12 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
                 firstError ||= error;
             }
         }
-        try {
-            await lockScope.release();
-        } catch (error) {
-            firstError ||= error;
+        if (lockScope !== parentLockScope) {
+            try {
+                await lockScope.release();
+            } catch (error) {
+                firstError ||= error;
+            }
         }
         if (firstError) throw firstError;
     };
@@ -563,14 +570,15 @@ function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean, 
 /**
  * Internal transactional entry point used when a parent install must retain rollback ownership.
  * `inheritedNamespaceLocks` are the namespaces the parent installs hold locked until they finish.
+ * A borrowed `parentLockScope` stays held until its owner finishes, including all rollback work.
  */
-export async function installWithRollback(inputData: InstallActionInput, inheritedNamespaceLocks: string[] = []): Promise<{
+export async function installWithRollback(inputData: InstallActionInput, inheritedNamespaceLocks: string[] = [], parentLockScope?: ActionLockScope): Promise<{
     output: InstallActionOutput,
     /** Packages installed by the install's own dependency installs, transitive ones included. */
     installedPackages: TrmPackage[],
     rollback: () => Promise<void>,
     release: () => Promise<void>
 }> {
-    const retained = await runInstall(inputData, true, inheritedNamespaceLocks);
+    const retained = await runInstall(inputData, true, inheritedNamespaceLocks, parentLockScope);
     return { output: retained.output, installedPackages: retained.installedPackages, rollback: retained.rollback, release: retained.release };
 }

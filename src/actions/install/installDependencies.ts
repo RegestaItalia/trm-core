@@ -105,7 +105,7 @@ export const installDependencies: Step<InstallWorkflowContext> = {
                         parentPackage.manifest = new Manifest(_.cloneDeep(context.runtime.package.data.manifest));
                     }
                 }
-                const result = await InstallDependencyWkf(inputData, input => installWithRollback(input, context.runtime.lockedNamespaces || []));
+                const result = await InstallDependencyWkf(inputData, input => installWithRollback(input, context.runtime.lockedNamespaces || [], context.lockScope));
                 if (result.alreadyInstalled) {
                     continue;
                 }
