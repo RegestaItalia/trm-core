@@ -265,6 +265,24 @@ export const init: Step<InstallWorkflowContext> = {
             } else {
                 if (gt(installVersion, installedVersion)) {
                     Logger.info(`${chalk.bold('Upgrading')} ${installedVersion} -> ${installVersion}`);
+                    //show the release changelog, if any: a missing changelog doesn't stop the update
+                    let changelog: string | undefined;
+                    try {
+                        if (!context.rawInput.contextData.noInquirer && Inquirer.isUi() && typeof context.runtime.package.data.changelog === 'string' && context.runtime.package.data.changelog.trim()) {
+                            changelog = context.runtime.package.data.changelog;
+                        }
+                    } catch (e) {
+                        Logger.warning(`Couldn't read ${context.rawInput.packageData.name} v${installVersion} changelog: ${e instanceof Error ? e.message : String(e)}`, true);
+                    }
+                    if (changelog) {
+                        //cancelling the prompt cancels the update
+                        await Inquirer.prompt({
+                            message: `${context.rawInput.packageData.name} v${installVersion} changelog`,
+                            type: 'changelog',
+                            default: changelog,
+                            name: 'changelog'
+                        });
+                    }
                 } else {
                     Logger.warning(`${chalk.bold('Downgrading')} ${installedVersion} -> ${installVersion}`);
                 }
