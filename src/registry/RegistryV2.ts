@@ -17,7 +17,7 @@ import { TransportEntries } from "../client";
 import { BinaryTransport } from "../transport";
 import * as AdmZip from "adm-zip";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
-import { RegistryDeletionTransportUnavailableError } from "./RegistryDeletionTransportUnavailableError";
+import { RegistryDeletionTransportUnavailableError, RegistryProPlanRequiredError } from "./RegistryDeletionTransportUnavailableError";
 import { DeleteTransportOptions, DeletionTransport } from "./DeletionTransport";
 
 /** `POST /delete` response: the deletion transport download, or nothing left to delete. */
@@ -679,7 +679,11 @@ export class RegistryV2 implements AbstractRegistry {
                 headers: formData.getHeaders()
             });
         } catch (e) {
-            throw new RegistryDeletionTransportUnavailableError(this.endpoint, e instanceof Error ? e.message : String(e), e);
+            const message = e instanceof Error ? e.message : String(e);
+            if (RegistryProPlanRequiredError.matches(e)) {
+                throw new RegistryProPlanRequiredError(this.endpoint, message, e);
+            }
+            throw new RegistryDeletionTransportUnavailableError(this.endpoint, message, e);
         }
         this.assertStatus(deleteResponse.status, [200], 'Deletion transport request');
         const response = deleteResponse.data;
