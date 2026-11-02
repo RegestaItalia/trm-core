@@ -1,4 +1,4 @@
-import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Package, Ping, WhoAmI } from "trm-registry-types";
+import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Namespace, Package, PackageInfo, PackageManifest, Ping, Readme, Search, SearchRequest, WhoAmI } from "trm-registry-types";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
 import { BinaryTransport } from "../transport";
@@ -51,4 +51,20 @@ export abstract class AbstractRegistry {
      * provide it (no Pro plan, unknown release, comparison failed, diffs not supported).
      */
     abstract diff: (fullName: string, from: string, to: string, options?: ReleaseDiffOptions) => Promise<ReleaseDiffReport>;
+
+    /*
+     * Optional navigation features: a registry that doesn't implement one throws
+     * {@link RegistryFeatureUnsupportedError}. An unknown or unreadable package (or release)
+     * throws {@link RegistryPackageNotFoundError}. `version` defaults to `latest`.
+     */
+    /** Searches packages (paginated). */
+    abstract search: (req: SearchRequest) => Promise<Search>;
+    /** Navigation metadata of a package release. */
+    abstract getPackageInfo: (fullName: string, version?: string) => Promise<PackageInfo>;
+    /** README of a package release (`readme` is `null` when the release has none). */
+    abstract getReadme: (fullName: string, version?: string) => Promise<Readme>;
+    /** Complete manifest of a package release. */
+    abstract getManifest: (fullName: string, version?: string) => Promise<PackageManifest>;
+    /** Namespace shipped by a package release; not found when the release has no namespace. */
+    abstract getNamespace: (fullName: string, version?: string) => Promise<Namespace>;
 }

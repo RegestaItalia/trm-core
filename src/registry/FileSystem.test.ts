@@ -128,3 +128,55 @@ describe('FileSystem embedded transports', () => {
         await expect(new FileSystem(file).getPackage('offline', '1.0.0')).rejects.toThrow(/republish|couldn't read package/i);
     });
 });
+
+describe('FileSystem navigation', () => {
+    let directory: string;
+    let file: string;
+
+    async function write(extra: Record<string, unknown>) {
+        const value: any = { name: '@org/offline', version: '1.2.0', description: 'Offline Tools', keywords: ['abap', 'tools'], sapEntries: {}, ...extra };
+        const manifest = { setDistFolder: (folder: string) => { value.distFolder = folder; }, get: () => value, getJSON: () => JSON.stringify(value) } as any;
+        writeFileSync(file, (await TrmArtifact.create({ transports: [transport(TrmTransportIdentifier.TADIR, 1)], manifest })).binary);
+    }
+
+    beforeEach(() => {
+        directory = mkdtempSync(join(tmpdir(), 'trm-fs-nav-'));
+        file = join(directory, 'package.trm');
+    });
+
+    afterEach(() => rmSync(directory, { recursive: true, force: true }));
+
+    test('search matches name or description, case-insensitively, with paging', async () => {
+        await write({});
+        const registry = new FileSystem(file);
+        await expect(registry.search({ q: 'OFFLINE' })).resolves.toMatchObject({ total: 1, page: 1, limit: 25, results: [{ name: '@org/offline', version: '1.2.0' }] });
+        await expect(registry.search({ q: 'tools', keywords: ['ABAP'], organizations: ['@org'] })).resolves.toMatchObject({ total: 1 });
+        await expect(registry.search({ q: 'offline', page: 2, limit: 1 })).resolves.toMatchObject({ total: 1, page: 2, limit: 1, results: [] });
+        await expect(registry.search({ q: 'missing' })).resolves.toMatchObject({ total: 0, results: [] });
+        await expect(registry.search({ organizations: ['other'] })).resolves.toMatchObject({ total: 0 });
+        await expect(new FileSystem(join(directory, 'none.trm')).search({ q: 'x' })).resolves.toMatchObject({ total: 0, results: [] });
+    });
+
+    test('info, readme and manifest come from the artifact manifest', async () => {
+        await write({ dependencies: [{ name: 'dep', version: '^1.0.0', registry: 'public' }] });
+        const registry = new FileSystem(file);
+        await expect(registry.getPackageInfo('@org/offline')).resolves.toMatchObject({
+            name: '@org/offline', version: '1.2.0', description: 'Offline Tools', keywords: ['abap', 'tools'], versions: ['1.2.0'],
+            dist_tags: { latest: '1.2.0' }, dependencies: [{ name: 'dep', version: '^1.0.0' }], has_namespace: false
+        });
+        await expect(registry.getReadme('@org/offline')).resolves.toEqual({ name: '@org/offline', version: '1.2.0', readme: null });
+        await expect(registry.getManifest('@org/offline')).resolves.toMatchObject({ name: '@org/offline', version: '1.2.0', manifest: { description: 'Offline Tools' } });
+    });
+
+    test('namespace maps the manifest namespace, or is not found', async () => {
+        await write({ namespace: { ns: '/ABC/', replicense: '12345678901234567890', texts: [{ language: 'E', description: 'ABC', owner: 'Me' }] } });
+        await expect(new FileSystem(file).getNamespace('@org/offline')).resolves.toEqual({
+            namespace: '/ABC/', descriptions: [{ language: 'E', description: 'ABC', owner: 'Me' }]
+        });
+        await expect(new FileSystem(file).getPackageInfo('@org/offline')).resolves.toMatchObject({ has_namespace: true });
+
+        await write({});
+        await expect(new FileSystem(file).getNamespace('@org/offline')).rejects.toBeInstanceOf(RegistryPackageNotFoundError);
+        await expect(new FileSystem(join(directory, 'none.trm')).getPackageInfo('x')).rejects.toBeInstanceOf(RegistryPackageNotFoundError);
+    });
+});
