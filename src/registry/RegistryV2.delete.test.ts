@@ -1,6 +1,6 @@
 import { Logger } from 'trm-commons';
 import { RegistryV2 } from './RegistryV2';
-import { RegistryDeletionTransportUnavailableError } from './RegistryDeletionTransportUnavailableError';
+import { RegistryDeletionTransportUnavailableError, RegistryProPlanRequiredError } from './RegistryDeletionTransportUnavailableError';
 
 describe('registry deletion transport', () => {
     const backup = { header: Buffer.from('h'), data: Buffer.from('d') };
@@ -66,6 +66,33 @@ describe('registry deletion transport', () => {
 
         const rejection = registry().delete(backup);
         await expect(rejection).rejects.toBeInstanceOf(RegistryDeletionTransportUnavailableError);
-        await expect(rejection).rejects.toMatchObject({ message: 'Transport deletion requires an active Pro plan', originalError: error });
+        await expect(rejection).rejects.toMatchObject({ message: 'Transport deletion requires an active Pro plan', originalError: error, status: 403 });
+        await expect(rejection).rejects.not.toBeInstanceOf(RegistryProPlanRequiredError);
+    });
+
+    test('a 402 PRO_PLAN_REQUIRED answer is a Pro plan error, still handled as unavailable', async () => {
+        const error = Object.assign(new Error('Transport deletion requires an active Pro plan'), {
+            status: 402,
+            response: { message: 'Transport deletion requires an active Pro plan', code: 'PRO_PLAN_REQUIRED' }
+        });
+        post.mockRejectedValue(error);
+
+        const rejection = registry().delete(backup);
+        await expect(rejection).rejects.toBeInstanceOf(RegistryProPlanRequiredError);
+        await expect(rejection).rejects.toBeInstanceOf(RegistryDeletionTransportUnavailableError);
+        await expect(rejection).rejects.toMatchObject({
+            message: 'Transport deletion requires an active Pro plan',
+            status: 402,
+            code: 'PRO_PLAN_REQUIRED',
+            registryEndpoint: expect.any(String),
+            originalError: error
+        });
+    });
+
+    test('the code alone identifies a Pro plan error', () => {
+        expect(RegistryProPlanRequiredError.matches({ status: 403, response: { code: 'PRO_PLAN_REQUIRED' } })).toBe(true);
+        expect(RegistryProPlanRequiredError.matches({ status: 402 })).toBe(true);
+        expect(RegistryProPlanRequiredError.matches({ status: 403, response: { message: 'denied' } })).toBe(false);
+        expect(RegistryProPlanRequiredError.matches(new Error('network'))).toBe(false);
     });
 });
