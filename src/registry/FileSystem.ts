@@ -12,6 +12,8 @@ import { createHash } from "crypto";
 import { TransportEntries } from "../client";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
 import { RegistryDeletionTransportUnavailableError } from "./RegistryDeletionTransportUnavailableError";
+import { ReleaseDiffReport } from "./ReleaseDiff";
+import { RegistryDiffError } from "./RegistryDiffError";
 
 export const LOCAL_RESERVED_KEYWORD = 'local';
 
@@ -173,6 +175,10 @@ export class FileSystem implements AbstractRegistry {
 
     public async rmDistTag(): Promise<void> {
         throw new Error(`File system can't remove dist tags!`);
+    }
+
+    public async diff(): Promise<ReleaseDiffReport> {
+        throw new RegistryDiffError(this.endpoint, `File system can't compare releases!`, 501);
     }
 
     public async batchCompare(): Promise<BatchCompareResponse> {

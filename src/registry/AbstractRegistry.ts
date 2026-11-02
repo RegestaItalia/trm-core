@@ -4,6 +4,7 @@ import { TrmArtifact } from "../trmPackage";
 import { BinaryTransport } from "../transport";
 import { DeleteTransportOptions, DeletionTransport } from "./DeletionTransport";
 import { TransportEntries } from "../client";
+import { ReleaseDiffOptions, ReleaseDiffReport } from "./ReleaseDiff";
 
 export interface PublishAdditionalData {
     readme?: string,
@@ -44,4 +45,10 @@ export abstract class AbstractRegistry {
      * Throws {@link RegistryDeletionTransportUnavailableError} when the registry can't generate it.
      */
     abstract delete: (transport: BinaryTransport, options?: DeleteTransportOptions) => Promise<DeletionTransport>;
+    /**
+     * Differences between releases `from` and `to` of a package, computed by the registry (it may take a while:
+     * progress is reported to `options.onProgress`). Throws {@link RegistryDiffError} when the registry can't
+     * provide it (no Pro plan, unknown release, comparison failed, diffs not supported).
+     */
+    abstract diff: (fullName: string, from: string, to: string, options?: ReleaseDiffOptions) => Promise<ReleaseDiffReport>;
 }
