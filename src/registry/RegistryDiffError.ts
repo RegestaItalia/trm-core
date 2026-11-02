@@ -1,5 +1,4 @@
-/** Error code of a registry feature that needs an active Pro plan (HTTP 402 Payment Required). */
-export const PRO_PLAN_REQUIRED = 'PRO_PLAN_REQUIRED';
+import { isProPlanRequired } from "./proPlan";
 
 /**
  * The registry can't provide a release diff. `status` and `code` are the registry's
@@ -25,7 +24,7 @@ export class RegistryDiffError extends Error {
 
     /** The account needs an active Pro plan to compare releases on this registry. */
     public get proPlanRequired(): boolean {
-        return this.status === 402 || this.code === PRO_PLAN_REQUIRED;
+        return isProPlanRequired(this.status, this.code);
     }
 
     /** The registry does not implement release diffs. */

@@ -1,3 +1,5 @@
+import { isProPlanRequired } from "./proPlan";
+
 /**
  * The registry can't generate a deletion transport (request failed, or local .trm files).
  * The message is the registry's own. Cleanups that only tidy up log it and continue without it.
@@ -23,9 +25,6 @@ export class RegistryDeletionTransportUnavailableError extends Error {
     }
 }
 
-/** Error code of a registry feature that needs an active Pro plan (HTTP 402 Payment Required). */
-export const PRO_PLAN_REQUIRED = 'PRO_PLAN_REQUIRED';
-
 /**
  * The registry generates deletion transports only for accounts with an active Pro plan.
  * Handled like any unavailable deletion transport; callers can tell it apart to suggest upgrading.
@@ -42,6 +41,6 @@ export class RegistryProPlanRequiredError extends RegistryDeletionTransportUnava
     public static matches(error: unknown): boolean {
         const status = (error as { status?: unknown } | undefined)?.status;
         const code = (error as { response?: { code?: unknown } } | undefined)?.response?.code;
-        return status === 402 || code === PRO_PLAN_REQUIRED;
+        return isProPlanRequired(status, code);
     }
 }

@@ -2,6 +2,7 @@ export * from "./RegistryV2";
 export * from "./RegistryPackageNotFoundError";
 export * from "./RegistryDeletionTransportUnavailableError";
 export * from "./RegistryDiffError";
+export * from "./proPlan";
 export * from "./ReleaseDiff";
 export * from "./RegistryType";
 export * from "./AbstractRegistry";
