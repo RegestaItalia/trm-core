@@ -188,8 +188,9 @@ describe('nested dependency rollback ownership', () => {
         (TrmPackage.compare as jest.Mock).mockImplementation(() => false);
     });
 
-    test('dependency installs inherit the namespaces locked by the parent', async () => {
+    test('dependency installs inherit the namespaces and lock scope of the parent', async () => {
         const ctx = context();
+        ctx.lockScope = { acquire: jest.fn() };
         ctx.runtime.lockedNamespaces = ['/ACME/'];
         (installDependency as jest.Mock).mockImplementation(async (_input, runner) => {
             await runner({ packageData: { name: 'dep' } });
@@ -198,7 +199,7 @@ describe('nested dependency rollback ownership', () => {
 
         await execute('test', [installDependencies], ctx);
 
-        expect(installWithRollback).toHaveBeenCalledWith({ packageData: { name: 'dep' } }, ['/ACME/']);
+        expect(installWithRollback).toHaveBeenCalledWith({ packageData: { name: 'dep' } }, ['/ACME/'], ctx.lockScope);
     });
 
     describe('transitive installs (diamond A->B->D, A->C->D)', () => {
