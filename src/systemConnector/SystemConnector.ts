@@ -12,6 +12,7 @@ import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { ActionLockKey } from "./ActionLock";
 import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { TrmManifestEngineTableCondition } from "../manifest";
+import type { SystemInfo } from "./SystemInfo";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -526,6 +527,12 @@ export namespace SystemConnector {
     export async function getSoftwareComponents(): Promise<struct.CVERS[]> {
         await checkSystemConnector();
         return systemConnector.getSoftwareComponents();
+    }
+
+    /** Non-identifying system characteristics, read once after connecting. Never throws. */
+    export async function getSystemInfo(): Promise<SystemInfo> {
+        assertSystemConnector();
+        return systemConnector.getSystemInfo();
     }
 
     export async function getInstalledProducts(): Promise<struct.PRDVERS[]> {

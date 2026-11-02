@@ -1,4 +1,4 @@
-import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Package, Ping, WhoAmI } from "trm-registry-types";
+import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Package, Ping, TelemetryRequest, WhoAmI } from "trm-registry-types";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
 import { BinaryTransport } from "../transport";
@@ -51,4 +51,9 @@ export abstract class AbstractRegistry {
      * provide it (no Pro plan, unknown release, comparison failed, diffs not supported).
      */
     abstract diff: (fullName: string, from: string, to: string, options?: ReleaseDiffOptions) => Promise<ReleaseDiffReport>;
+    /**
+     * Sends an opt-in, anonymous telemetry event. It must be transparent to the user: it never throws,
+     * and registries that don't accept telemetry are skipped silently.
+     */
+    abstract telemetry: (event: TelemetryRequest) => Promise<void>;
 }

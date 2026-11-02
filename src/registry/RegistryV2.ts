@@ -1,7 +1,7 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, Ping, Publish, TransportDownload, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, Ping, Publish, TelemetryRequest, TransportDownload, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
@@ -41,6 +41,9 @@ const DIFF_POLL_MAX_INTERVAL_MS = 30000;
 const DIFF_POLL_TIMEOUT_MS = 15 * 60 * 1000;
 const DIFF_POLL_MAX_FAILURES = 3;
 
+/** Telemetry must never slow the user down: the probe and the event share a short timeout. */
+const TELEMETRY_TIMEOUT_MS = 3000;
+
 const isPublishStatus = (status: Publish): boolean => !!status && Number.isInteger(status.steps) && Number.isInteger(status.current_step);
 
 export class RegistryV2 implements AbstractRegistry {
@@ -50,6 +53,7 @@ export class RegistryV2 implements AbstractRegistry {
     private _authData: any;
     private _externalUserAgent: string;
     private _userAgent: string;
+    private _telemetryAvailable: Promise<boolean>;
 
     constructor(public endpoint: string, public name: string = 'Unknown', private _coreVersion?: string) {
         var envEndpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT;
@@ -664,6 +668,33 @@ export class RegistryV2 implements AbstractRegistry {
         const response = await this._axiosInstance.post('/batchCompare', packages);
         this.assertStatus(response.status, [200], 'Batch comparison request');
         return response.data;
+    }
+
+    /**
+     * Sends an opt-in telemetry event. The registry is probed once with `HEAD /telemetry`: when it doesn't
+     * answer (telemetry not supported, unreachable, too slow) no event is sent. Never throws.
+     */
+    public async telemetry(event: TelemetryRequest): Promise<void> {
+        try {
+            if (!(await this.isTelemetryAvailable())) {
+                Logger.log(`Registry "${this.name}" doesn't accept telemetry, skipped.`, true);
+                return;
+            }
+            await this._axiosInstance.post('/telemetry', event, { timeout: TELEMETRY_TIMEOUT_MS });
+            Logger.log(`Telemetry sent to registry "${this.name}".`, true);
+        } catch (e) {
+            Logger.log(`Telemetry not sent to registry "${this.name}": ${e instanceof Error ? e.message : String(e)}`, true);
+        }
+    }
+
+    private isTelemetryAvailable(): Promise<boolean> {
+        if (!this._telemetryAvailable) {
+            this._telemetryAvailable = this._axiosInstance.head('/telemetry', { timeout: TELEMETRY_TIMEOUT_MS }).then(
+                response => response.status >= 200 && response.status < 300,
+                () => false
+            );
+        }
+        return this._telemetryAvailable;
     }
 
     public async delete(transport: BinaryTransport, options?: DeleteTransportOptions): Promise<DeletionTransport> {

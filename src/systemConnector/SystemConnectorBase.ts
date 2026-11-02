@@ -13,6 +13,7 @@ import type { TrmPackageUpdateData } from "./ISystemConnector";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType, registryKey } from "../registry";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
+import { getSystemInfoFromComponents, SystemInfo } from "./SystemInfo";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = '/ATRM/IF_SERVER';
@@ -34,6 +35,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   private _tableKeys: any = {};
   private _rootDevclass: any = {};
   private _timezone: string;
+  private _systemInfo: SystemInfo;
 
   protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]>
   protected abstract getSysname(): string
@@ -702,6 +704,41 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return await this.readTable('CVERS',
       [{ fieldName: 'COMPONENT' }, { fieldName: 'RELEASE' }, { fieldName: 'EXTRELEASE' }, { fieldName: 'COMP_TYPE' }]
     );
+  }
+
+  /** Database system and kernel release; connectors that can't read them return nothing. */
+  protected async getSystemRuntimeInfo(): Promise<Pick<SystemInfo, 'dbSystem' | 'kernelRelease'>> {
+    return {};
+  }
+
+  /**
+   * Non-identifying system characteristics (release levels, database, kernel), read once and then cached:
+   * connectors load them right after connecting. Never throws; data that can't be read is left out
+   * and read again on the next call.
+   */
+  public async getSystemInfo(): Promise<SystemInfo> {
+    if (this._systemInfo) {
+      return this._systemInfo;
+    }
+    let complete = true;
+    let info: SystemInfo = {};
+    try {
+      info = getSystemInfoFromComponents(await this.getSoftwareComponents());
+    } catch (e) {
+      complete = false;
+      Logger.log(`Couldn't read software components for system info: ${e instanceof Error ? e.message : String(e)}`, true);
+    }
+    try {
+      info = { ...info, ...(await this.getSystemRuntimeInfo()) };
+    } catch (e) {
+      complete = false;
+      Logger.log(`Couldn't read database and kernel for system info: ${e instanceof Error ? e.message : String(e)}`, true);
+    }
+    Logger.log(`System info: ${inspect(info, { breakLength: Infinity, compact: true })}`, true);
+    if (complete) {
+      this._systemInfo = info;
+    }
+    return info;
   }
 
   public async getInstalledProducts(): Promise<struct.PRDVERS[]> {

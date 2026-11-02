@@ -8,6 +8,7 @@ import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { TrmManifestEngineTableCondition } from "../manifest";
 import type { TrmPackageUpdateData } from "./ISystemConnector";
+import type { SystemInfo } from "./SystemInfo";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
@@ -44,6 +45,7 @@ export interface ISystemConnectorBase {
     getTableKeys: (tabname: components.TABNAME) => Promise<struct.DD03L[]>,
     getRootDevclass: (devclass: components.DEVCLASS) => Promise<components.DEVCLASS>,
     getSoftwareComponents: () => Promise<struct.CVERS[]>,
+    getSystemInfo: () => Promise<SystemInfo>,
     getInstalledProducts: () => Promise<struct.PRDVERS[]>,
     getNoteStatus: (numm: components.CWBNTNUMM) => Promise<{ prstatus?: components.CWBPRSTAT, versno?: components.CWBNTVERS }>,
     checkTableCondition: (table: components.TABNAME, where: TrmManifestEngineTableCondition[]) => Promise<boolean>,

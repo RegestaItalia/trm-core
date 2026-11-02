@@ -168,6 +168,8 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
             await this._client.open();
             this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
+            // read once: reconnects reuse the cached data
+            await this.getSystemInfo();
         } catch (e) {
             Logger.error(`Connection to ${this._connection.endpoint} as ${this._user} failed.`, silent);
             throw e;

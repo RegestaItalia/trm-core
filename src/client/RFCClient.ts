@@ -10,6 +10,7 @@ import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { logMessageLog, parseMessageLog } from "./messageLog";
 import { getErrorMessage } from "../commons/getErrorMessage";
+import { normalizeSystemLevel } from "../systemConnector/SystemInfo";
 
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
@@ -601,6 +602,15 @@ export class RFCClient implements IClient {
             }
             throw e;
         }
+    }
+
+    /** Database system and kernel release, from the standard RFC_SYSTEM_INFO. */
+    public async getSystemRuntimeInfo(): Promise<{ dbSystem?: string, kernelRelease?: string }> {
+        const result = await this._call("RFC_SYSTEM_INFO");
+        return {
+            dbSystem: normalizeSystemLevel(result['rfcsiExport']?.['rfcdbsys']),
+            kernelRelease: normalizeSystemLevel(result['rfcsiExport']?.['rfckernrl'])
+        };
     }
 
     public async getTrmServerVersion(): Promise<string> {
