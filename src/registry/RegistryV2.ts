@@ -19,6 +19,8 @@ import * as AdmZip from "adm-zip";
 import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
 import { RegistryDeletionTransportUnavailableError } from "./RegistryDeletionTransportUnavailableError";
 import { DeleteTransportOptions, DeletionTransport } from "./DeletionTransport";
+import { isReleaseDiffReport, ReleaseDiffOptions, ReleaseDiffReport } from "./ReleaseDiff";
+import { RegistryDiffError } from "./RegistryDiffError";
 
 /** `POST /delete` response: the deletion transport download, or nothing left to delete. */
 type DeleteTransportResponse = Partial<TransportDownload> & {
@@ -33,6 +35,11 @@ export const PUBLIC_RESERVED_KEYWORD = 'public';
 const PUBLISH_POLL_INTERVAL_MS = 5000;
 const PUBLISH_POLL_TIMEOUT_MS = 30 * 60 * 1000;
 const PUBLISH_POLL_MAX_FAILURES = 3;
+
+const DIFF_POLL_INTERVAL_MS = 3000;
+const DIFF_POLL_MAX_INTERVAL_MS = 30000;
+const DIFF_POLL_TIMEOUT_MS = 15 * 60 * 1000;
+const DIFF_POLL_MAX_FAILURES = 3;
 
 const isPublishStatus = (status: Publish): boolean => !!status && Number.isInteger(status.steps) && Number.isInteger(status.current_step);
 
@@ -695,6 +702,99 @@ export class RegistryV2 implements AbstractRegistry {
             binaries: await this.downloadTransport(response as TransportDownload, 'deletion transport'),
             deleted
         };
+    }
+
+    public async diff(fullName: string, from: string, to: string, options?: ReleaseDiffOptions): Promise<ReleaseDiffReport> {
+        const label = `${fullName} ${from} → ${to}`;
+        const fail = (e: unknown, fallback: string): RegistryDiffError => {
+            if (e instanceof RegistryDiffError) {
+                return e;
+            }
+            const status = this.getErrorStatus(e);
+            const code = (e as { response?: { code?: unknown } })?.response?.code;
+            const message = e instanceof Error && e.message ? e.message : fallback;
+            return new RegistryDiffError(this.endpoint, status === 501 ? `Registry doesn't support release comparison` : message,
+                status, typeof code === 'string' ? code : undefined, e);
+        };
+        // A computed diff answers 302 to the report (followed here); a pending one 202 with a progress URL.
+        const request = async (url: string, params?: Record<string, string>) => {
+            const response = await this._axiosInstance.get(url, { params, maxRedirects: 5 });
+            this.assertStatus(response.status, [200, 202], 'Release diff request');
+            return response;
+        };
+        const report = (data: unknown): ReleaseDiffReport => {
+            if (!isReleaseDiffReport(data)) {
+                throw new RegistryDiffError(this.endpoint, `Registry returned a diff of ${label} in an unsupported format`);
+            }
+            return data;
+        };
+
+        let response;
+        try {
+            response = await request(`/diff/${fullName}`, { from, to });
+        } catch (e) {
+            throw fail(e, `Cannot compare ${label}`);
+        }
+        if (response.status === 200) {
+            return report(response.data);
+        }
+
+        let progress = response.data as Publish;
+        if (!isPublishStatus(progress) || typeof progress.progress_pool_url !== 'string') {
+            throw new RegistryDiffError(this.endpoint, `Registry returned an invalid diff status for ${label}`);
+        }
+        const progressUrl = progress.progress_pool_url;
+        const deadline = Date.now() + (options?.timeoutMs ?? DIFF_POLL_TIMEOUT_MS);
+        const retryAfter = Number(response.headers?.['retry-after']);
+        let interval = options?.pollIntervalMs
+            ?? (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : DIFF_POLL_INTERVAL_MS);
+        let failures = 0;
+        const notify = () => options?.onProgress?.({
+            step: progress.current_step, steps: progress.steps, message: progress.current_step_message
+        });
+        notify();
+        while (progress.current_step < progress.steps && !progress.data?.error) {
+            if (Date.now() >= deadline) {
+                throw new RegistryDiffError(this.endpoint, `Registry did not compute the diff of ${label} in time; try again later`);
+            }
+            await new Promise(resolve => setTimeout(resolve, interval));
+            interval = Math.min(DIFF_POLL_MAX_INTERVAL_MS, Math.round(interval * 1.5));
+            try {
+                progress = (await this._axiosInstance.get<Publish>(progressUrl)).data;
+                failures = 0;
+            } catch (e) {
+                const status = this.getErrorStatus(e);
+                if (status && status >= 400 && status < 500) {
+                    throw fail(e, `Cannot follow the diff of ${label}`);
+                }
+                failures++;
+                Logger.error(e.toString(), true);
+                if (failures >= DIFF_POLL_MAX_FAILURES) {
+                    throw fail(e, `Cannot follow the diff of ${label}`);
+                }
+                continue;
+            }
+            if (!isPublishStatus(progress)) {
+                throw new RegistryDiffError(this.endpoint, `Registry returned an invalid diff status for ${label}`);
+            }
+            notify();
+        }
+        const error = progress.data?.error;
+        if (typeof error === 'string' && error.trim()) {
+            const code = progress.data?.code;
+            throw new RegistryDiffError(this.endpoint, `Registry could not compare ${label}: ${error}`, 422,
+                typeof code === 'string' ? code : 'diff_failed');
+        }
+        const diffUrl = progress.data?.diff_url;
+        try {
+            const result = typeof diffUrl === 'string' && diffUrl ? await request(diffUrl) : await request(`/diff/${fullName}`, { from, to });
+            if (result.status !== 200) {
+                throw new RegistryDiffError(this.endpoint, `Registry did not return the computed diff of ${label}`);
+            }
+            return report(result.data);
+        } catch (e) {
+            throw fail(e, `Cannot download the diff of ${label}`);
+        }
     }
 
     public async transport(trkorr: string, target?: string): Promise<BinaryTransport> {
