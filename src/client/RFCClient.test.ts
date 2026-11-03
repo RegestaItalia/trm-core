@@ -63,6 +63,49 @@ describe('RFCClient connection errors', () => {
     });
 });
 
+describe('RFCClient open timeout', () => {
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    it('fails fast when the system does not answer, and closes a connection that opens late', async () => {
+        jest.useFakeTimers();
+        let resolveOpen: () => void;
+        const stalled = {
+            open: jest.fn(() => new Promise<void>(res => { resolveOpen = res; })),
+            close: jest.fn().mockResolvedValue(undefined)
+        };
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = stalled;
+
+        const opening = client.open().catch(e => e);
+        await jest.advanceTimersByTimeAsync(5000);
+        const error = await opening;
+
+        expect(error).toBeInstanceOf(RFCClientError);
+        expect(error.message).toBe('Timed out after 5 seconds: system not reachable.');
+        expect((client as any)._rfcClient).toBeUndefined();
+        expect(stalled.close).not.toHaveBeenCalled();
+
+        resolveOpen();
+        await jest.runAllTimersAsync();
+        expect(stalled.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the client when it opens in time', async () => {
+        jest.useFakeTimers();
+        const rfc = { open: jest.fn().mockResolvedValue(undefined), close: jest.fn() };
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = rfc;
+
+        await client.open();
+        await jest.runAllTimersAsync();
+
+        expect((client as any)._rfcClient).toBe(rfc);
+        expect(rfc.close).not.toHaveBeenCalled();
+    });
+});
+
 describe('RFCClient exception log', () => {
     beforeEach(() => {
         jest.clearAllMocks();
