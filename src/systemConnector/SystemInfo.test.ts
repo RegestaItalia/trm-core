@@ -56,6 +56,18 @@ describe('system info', () => {
         expect(Logger.log).toHaveBeenCalledWith(expect.stringContaining('System info'), true);
     });
 
+    test('passes the missing backend APIs on, and reads again what was skipped', async () => {
+        const readTable = jest.fn().mockResolvedValue(S4);
+        const runtime = jest.fn()
+            .mockResolvedValueOnce(undefined)
+            .mockResolvedValueOnce({ dbSystem: 'HDB', kernelRelease: '793' });
+        const system = connector(readTable, runtime);
+        expect(await system.getSystemInfo(['trmRest71'])).not.toHaveProperty('dbSystem');
+        expect(runtime).toHaveBeenLastCalledWith(['trmRest71']);
+        expect(await system.getSystemInfo()).toMatchObject({ dbSystem: 'HDB', kernelRelease: '793' });
+        expect(runtime).toHaveBeenLastCalledWith([]);
+    });
+
     test('never throws, and reads again what could not be read', async () => {
         const readTable = jest.fn()
             .mockRejectedValueOnce(new Error('NOT_AUTHORIZED'))

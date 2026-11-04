@@ -7,6 +7,7 @@ import { RFCClientError, SapMessage, formatSapMessage } from ".";
 import * as xml from "xml-js";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
+import { SystemRuntimeInfo } from "./SystemRuntimeInfo";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { logMessageLog, parseMessageLog } from "./messageLog";
 import { getErrorMessage } from "../commons/getErrorMessage";
@@ -627,17 +628,17 @@ export class RFCClient implements IClient {
         } catch (e) {
             //trm-server not installed, outdated or not authorized: read the system ID with the standard RFC
             if (e instanceof RFCClientError && (e.exceptionType === 'FU_NOT_FOUND' || e.exceptionType === 'TRM_RFC_UNAUTHORIZED')) {
-                const result = await this._call("RFC_SYSTEM_INFO");
-                return result['rfcsiExport']['rfcsysid'];
+                return (await this.getSystemRuntimeInfo()).dest;
             }
             throw e;
         }
     }
 
-    /** Database system and kernel release, from the standard RFC_SYSTEM_INFO. */
-    public async getSystemRuntimeInfo(): Promise<{ dbSystem?: string, kernelRelease?: string }> {
+    /** System ID, database system and kernel release, from the standard RFC_SYSTEM_INFO. */
+    public async getSystemRuntimeInfo(): Promise<SystemRuntimeInfo> {
         const result = await this._call("RFC_SYSTEM_INFO");
         return {
+            dest: result['rfcsiExport']?.['rfcsysid'],
             dbSystem: normalizeSystemLevel(result['rfcsiExport']?.['rfcdbsys']),
             kernelRelease: normalizeSystemLevel(result['rfcsiExport']?.['rfckernrl'])
         };

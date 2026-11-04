@@ -13,6 +13,7 @@ import { ActionLockKey } from "./ActionLock";
 import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { TrmManifestEngineTableCondition } from "../manifest";
 import type { SystemInfo } from "./SystemInfo";
+import type { TrmBackendApis } from "../actions/commons/utils/trmBackend";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -519,10 +520,13 @@ export namespace SystemConnector {
         return systemConnector.getSoftwareComponents();
     }
 
-    /** Non-identifying system characteristics, read once after connecting. Never throws. */
-    export async function getSystemInfo(): Promise<SystemInfo> {
+    /**
+     * Non-identifying system characteristics, read once and then cached. Never throws.
+     * @param missingBackendApis only during a trm-server/trm-rest upgrade: the backend API generations it lacks
+     */
+    export async function getSystemInfo(missingBackendApis?: TrmBackendApis[]): Promise<SystemInfo> {
         assertSystemConnector();
-        return systemConnector.getSystemInfo();
+        return systemConnector.getSystemInfo(missingBackendApis);
     }
 
     export async function getInstalledProducts(): Promise<struct.PRDVERS[]> {

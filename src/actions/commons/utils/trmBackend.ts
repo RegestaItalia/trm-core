@@ -15,7 +15,9 @@ export const TRM_BACKEND_APIS = {
     /** Action locks, batch import, install transports, test imports, transport object locks. */
     trmServer7: { server: '7.0.0', rest: '6.0.0' },
     /** Transport layers routed to a landscape target. */
-    trmServer8: { server: '8.0.0', rest: '7.0.0' }
+    trmServer8: { server: '8.0.0', rest: '7.0.0' },
+    /** System info over REST (database system and kernel release): trm-rest only. */
+    trmRest71: { rest: '7.1.0' }
 } as const;
 
 export type TrmBackendApis = keyof typeof TRM_BACKEND_APIS;
@@ -49,11 +51,14 @@ async function installedVersion(read: () => Promise<TrmPackage>): Promise<string
  * Such a backend can only upgrade itself: the newer APIs exist only once the upgrade is imported.
  */
 export async function getMissingTrmBackendApis(): Promise<TrmBackendApis[]> {
-    const isOlder = (version: string | undefined, apiVersion: string) => !!version && (!valid(version) || lt(version, apiVersion));
+    const isOlder = (version: string | undefined, apiVersion: string | undefined) => !!apiVersion && !!version && (!valid(version) || lt(version, apiVersion));
     const serverVersion = await installedVersion(() => SystemConnector.getTrmServerPackage());
     const restVersion = await installedVersion(() => SystemConnector.getTrmRestPackage());
-    const missing = (Object.keys(TRM_BACKEND_APIS) as TrmBackendApis[]).filter(apis =>
-        isOlder(serverVersion, TRM_BACKEND_APIS[apis].server) || isOlder(restVersion, TRM_BACKEND_APIS[apis].rest));
+    const missing = (Object.keys(TRM_BACKEND_APIS) as TrmBackendApis[]).filter(apis => {
+        // a generation can require only one of the two
+        const required: { server?: string, rest?: string } = TRM_BACKEND_APIS[apis];
+        return isOlder(serverVersion, required.server) || isOlder(restVersion, required.rest);
+    });
     Logger.log(`TRM backend: trm-server ${serverVersion || '-'}, trm-rest ${restVersion || '-'}${missing.length > 0 ? ` (missing APIs: ${missing.join(', ')})` : ''}`, true);
     return missing;
 }

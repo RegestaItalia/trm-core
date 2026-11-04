@@ -115,8 +115,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getObjectDependenciesInternal(object, objName);
     }
 
+    // RFC_SYSTEM_INFO is a standard RFC: it doesn't depend on the backend
     protected async getSystemRuntimeInfo(): Promise<Pick<SystemInfo, 'dbSystem' | 'kernelRelease'>> {
-        return this._client.getSystemRuntimeInfo();
+        const { dbSystem, kernelRelease } = await this._client.getSystemRuntimeInfo();
+        return { dbSystem, kernelRelease };
     }
 
     public getConnectionData(): RFCConnection {
@@ -140,8 +142,6 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
             await this._client.open();
             this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
-            // read once: reconnects reuse the cached data
-            await this.getSystemInfo();
         } catch (e) {
             Logger.error(`Connection to ${this.getConnectionLabel()} as ${this._user} failed.`, silent);
             throw e;

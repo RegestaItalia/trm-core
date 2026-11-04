@@ -9,3 +9,4 @@ export * from "./ClientError";
 export * from "./RESTClientError";
 export * from "./RFCClientError";
 export * from "./TransportEntries";
+export * from "./SystemRuntimeInfo";
