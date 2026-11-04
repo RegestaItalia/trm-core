@@ -18,6 +18,10 @@ import { install, installWithRollback } from ".";
 describe("install action-lock release", () => {
     const acquire = jest.spyOn(SystemConnector, "acquireActionLocks");
     const release = jest.spyOn(SystemConnector, "releaseActionLocks");
+    // The action log is covered by its own tests.
+    jest.spyOn(SystemConnector, "logActionStart").mockResolvedValue(undefined);
+    jest.spyOn(SystemConnector, "logActionEnd").mockResolvedValue(undefined);
+    jest.spyOn(SystemConnector, "logTransportEvents").mockResolvedValue(undefined);
     let warning: jest.SpyInstance;
     const inputData = { packageData: { name: "pkg", registry: { endpoint: "registry" } } } as any;
 
@@ -124,5 +128,48 @@ describe("install action-lock release", () => {
 
         await expect(install(inputData)).rejects.toThrow("METHOD_CALL_EXCEPTION");
         expect(executeWorkflow).not.toHaveBeenCalled();
+    });
+
+    test("a retained install rolled back by its parent ends rolled back in the action log, and its rollback runs as it", async () => {
+        const { currentActionLog } = jest.requireActual("../../actionLog");
+        let rollbackActionId: string | undefined;
+        const rollback = jest.fn(async () => { rollbackActionId = currentActionLog()?.actionId; });
+        (executeRetainedWorkflow as jest.Mock).mockResolvedValue({ context: { output: { manifest: { name: "pkg" } } }, rollback });
+        const retained = await installWithRollback(inputData);
+        await retained.rollback();
+
+        const start = (SystemConnector.logActionStart as jest.Mock).mock.calls.at(-1)[0];
+        expect(rollbackActionId).toBe(start.actionId);
+        expect((SystemConnector.logActionEnd as jest.Mock).mock.calls.filter(call => call[0] === start.actionId).map(call => call[1])).toEqual(["S", "B"]);
+    });
+
+    test("a failing action log never fails the install or its lock release", async () => {
+        (SystemConnector.logActionStart as jest.Mock).mockRejectedValueOnce(new Error("log down"));
+        (executeWorkflow as jest.Mock).mockRejectedValue(new Error("workflow failed"));
+
+        await expect(install(inputData)).rejects.toThrow("workflow failed");
+        expect(release).toHaveBeenCalledTimes(1);
+    });
+
+    test("trm-server upgrades a backend without the action log without writing it", async () => {
+        const registry = { endpoint: "public", getRegistryType: () => 1 };
+        (resolveInstallPackage as jest.Mock).mockResolvedValue({ name: "trm-server", registry });
+        (getMissingTrmBackendApis as jest.Mock).mockResolvedValue(['trmServer81']);
+        (executeWorkflow as jest.Mock).mockResolvedValue({ output: { manifest: { name: "trm-server" } } });
+        (SystemConnector.logActionStart as jest.Mock).mockClear();
+
+        await install({ packageData: { name: "trm-server", registry } } as any);
+
+        expect(SystemConnector.logActionStart).not.toHaveBeenCalled();
+        expect(acquire).toHaveBeenCalledTimes(1);
+    });
+
+    test("a simulated install writes no action log", async () => {
+        (executeWorkflow as jest.Mock).mockResolvedValue({ output: { manifest: { name: "pkg" } } });
+        (SystemConnector.logActionStart as jest.Mock).mockClear();
+
+        await install({ ...inputData, contextData: { simulate: true } });
+
+        expect(SystemConnector.logActionStart).not.toHaveBeenCalled();
     });
 });

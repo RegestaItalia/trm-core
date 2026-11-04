@@ -15,6 +15,7 @@ import { lockResources } from "./lockResources";
 import { generateDeletionTransport } from "./generateDeletionTransport";
 import { removePackageData } from "./removePackageData";
 import { generateLandscapeTransport, releaseLandscapeTransport } from "./generateLandscapeTransport";
+import { logRegistry, runWithActionLog, startActionLog } from "../../actionLog";
 
 /** Shared execution settings for the package uninstall action. */
 export type UninstallActionInputContextData = {
@@ -237,6 +238,12 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
         ignoreImportErrors: !!inputData.uninstallData?.ignoreImportErrors
     };
     await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
+    const actionLogInfo = {
+        actionName: WORKFLOW_NAME,
+        packageName: inputData.packageData.name,
+        packageRegistry: logRegistry(inputData.packageData.registry),
+        resolvedVersion: () => context.runtime?.update?.manifest?.get()?.version
+    };
     const release = async (): Promise<void> => {
         let firstError: unknown;
         for (const releaseNested of [...(context.runtime?.nestedReleases || [])].reverse()) {
@@ -258,7 +265,7 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
     if (!retainRollback) {
         return withLockRelease(release, async () => {
             try {
-                const result = await executeWorkflow<UninstallWorkflowContext>(WORKFLOW_NAME, uninstallWorkflow, context, workflowCallbacks);
+                const result = await runWithActionLog(actionLogInfo, () => executeWorkflow<UninstallWorkflowContext>(WORKFLOW_NAME, uninstallWorkflow, context, workflowCallbacks));
                 logUninstallSummary(context, true);
                 return { output: result.output };
             } catch (error) {
@@ -268,11 +275,14 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
         });
     }
     let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<UninstallWorkflowContext>>>;
+    const actionLog = await startActionLog(actionLogInfo);
     try {
-        retained = await executeRetainedWorkflow<UninstallWorkflowContext>(
+        retained = await actionLog.run(() => executeRetainedWorkflow<UninstallWorkflowContext>(
             WORKFLOW_NAME, uninstallWorkflow, context, workflowCallbacks
-        );
+        ));
+        await actionLog.end(false);
     } catch (error) {
+        await actionLog.end(true);
         await releaseLogged(release);
         throw error;
     }
@@ -283,7 +293,7 @@ async function runUninstall(inputData: UninstallActionInput, retainRollback: boo
         rollback: async () => {
             let firstError: unknown;
             try {
-                await retained.rollback();
+                await actionLog.runRollback(() => retained.rollback());
             } catch (error) {
                 firstError = error;
             }

@@ -40,7 +40,7 @@ describe('generateDeletion', () => {
         await expect(generateDeletion({ registry: reg, source, dummy, subtract: ['TRMK000001'], exclude })).resolves.toBe(uploaded);
 
         expect(reg.delete).toHaveBeenCalledWith(source.binaries, { target: 'TSTK900002', subtract: ['TRMK000001'], exclude });
-        expect(Transport.upload).toHaveBeenCalledWith('TSTK900002', { binary: binaries, trTarget: 'TST' });
+        expect(Transport.upload).toHaveBeenCalledWith('TSTK900002', { binary: binaries, trTarget: 'TST', logRole: 'DELE' });
         expect(uploaded.import).toHaveBeenCalledWith(true);
         expect(uploaded.import).not.toHaveBeenCalledWith(false);
     });

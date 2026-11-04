@@ -19,3 +19,4 @@ export * from "./jsonStringifyWithKeyOrder";
 export * from "./adjustTrmServerRestDevclass";
 export * from "./summarizeForLog";
 export * from "./resolveCoreVersion";
+export * from "./session";

@@ -66,7 +66,8 @@ export const prepareLang: Step<InstallWorkflowContext> = {
             context.runtime.transports.lang.instance = await Transport.upload(
                 trkorr, {
                 binary: context.runtime.transports.lang.binaries.binaries,
-                trTarget: SystemConnector.getDest()
+                trTarget: SystemConnector.getDest(),
+                logRole: 'LANG'
             });
 
             //3- test import transport

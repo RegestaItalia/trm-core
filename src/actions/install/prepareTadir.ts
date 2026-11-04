@@ -68,7 +68,8 @@ export const prepareTadir: Step<InstallWorkflowContext> = {
             context.runtime.transports.tadir.instance = await Transport.upload(
                 trkorr, {
                 binary: context.runtime.transports.tadir.binaries.binaries,
-                trTarget: SystemConnector.getDest()
+                trTarget: SystemConnector.getDest(),
+                logRole: 'TADIR'
             });
 
             //3- test import transport

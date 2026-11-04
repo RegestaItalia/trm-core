@@ -304,3 +304,20 @@ describe('RFCClient getTransportLayers', () => {
         expect(call).toHaveBeenCalledWith('/ATRM/GET_TRANSPORT_LAYERS', { TARGET: 'QAS' }, undefined);
     });
 });
+
+describe('RFCClient action log', () => {
+    it('calls the action log function modules with the REST field names', async () => {
+        const client = new RFCClient({}, 'EN');
+        const call = jest.spyOn(client as any, '_call').mockResolvedValue({});
+
+        await client.logActionStart({ actionId: 'A'.repeat(32), sessionId: 'session', actionName: 'publish' });
+        await client.logTransportEvents('A'.repeat(32), [{ trkorr: 'TRMK900001', event: 'RELEASE', role: 'DEVC' }]);
+        await client.logActionEnd('A'.repeat(32), 'S');
+
+        expect(call.mock.calls).toEqual([
+            ['/ATRM/LOG_ACTION_START', { action_id: 'A'.repeat(32), session_id: 'session', parent_action_id: undefined, action_name: 'publish', package_name: undefined, package_registry: undefined, version: undefined }],
+            ['/ATRM/LOG_TR_EVENTS', { action_id: 'A'.repeat(32), events: [{ trkorr: 'TRMK900001', role: 'DEVC', event: 'RELEASE', target: '', retcode: '' }] }],
+            ['/ATRM/LOG_ACTION_END', { action_id: 'A'.repeat(32), status: 'S', version: undefined }]
+        ]);
+    });
+});

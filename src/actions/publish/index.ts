@@ -23,6 +23,7 @@ import { updatePackageData } from "./updatePackageData";
 import { ActionLockScope, packageLockResource, withActionLockScope } from "../commons/utils";
 import { lockResources } from "./lockResources";
 import { simulatePublish } from "./simulatePublish";
+import { logRegistry, runWithActionLog } from "../../actionLog";
 
 /** Input required to build and publish a TRM package release from the connected SAP system. */
 export interface PublishActionInput {
@@ -302,10 +303,18 @@ export async function publish(inputData: PublishActionInput): Promise<PublishAct
     const lockScope = new ActionLockScope(WORKFLOW_NAME);
     await lockScope.acquire([packageLockResource(inputData.packageData.registry, inputData.packageData.name)]);
     return withActionLockScope(lockScope, async () => {
-        const result = await executeWorkflow<PublishWorkflowContext>(WORKFLOW_NAME, workflow, {
+        const context: PublishWorkflowContext = {
             rawInput: inputData,
             lockScope
-        }, workflowCallbacks);
+        };
+        const result = await runWithActionLog({
+            actionName: WORKFLOW_NAME,
+            packageName: inputData.packageData.name,
+            packageRegistry: logRegistry(inputData.packageData.registry),
+            version: inputData.packageData.version,
+            resolvedVersion: () => context.output?.trmPackage?.manifest?.get()?.version,
+            enabled: !inputData.contextData.simulate
+        }, () => executeWorkflow<PublishWorkflowContext>(WORKFLOW_NAME, workflow, context, workflowCallbacks));
         return {
             trmPackage: result.output.trmPackage,
             trmArtifact: result.output.trmArtifact,

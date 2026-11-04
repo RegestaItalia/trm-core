@@ -20,14 +20,18 @@ describe('TRM backend generation', () => {
     });
 
     test.each([
-        ['6.4.1', '5.0.0', ['trmServer7', 'trmServer8']],
-        ['7.0.0', '5.0.0', ['trmServer7', 'trmServer8']],
-        ['6.4.1', undefined, ['trmServer7', 'trmServer8']],
-        ['7.0.1', '6.0.0', ['trmServer8']],
-        ['7.0.1', undefined, ['trmServer8']],
-        ['8.0.0', '6.0.0', ['trmServer8']],
-        ['8.0.0', '7.0.0', []],
-        ['8.0.0', undefined, []]
+        ['6.4.1', '5.0.0', ['trmServer7', 'trmServer8', 'trmServer81']],
+        ['7.0.0', '5.0.0', ['trmServer7', 'trmServer8', 'trmServer81']],
+        ['6.4.1', undefined, ['trmServer7', 'trmServer8', 'trmServer81']],
+        ['7.0.1', '6.0.0', ['trmServer8', 'trmServer81']],
+        ['7.0.1', undefined, ['trmServer8', 'trmServer81']],
+        ['8.0.0', '6.0.0', ['trmServer8', 'trmServer81']],
+        ['8.0.0', '7.0.0', ['trmServer81']],
+        ['8.0.0', undefined, ['trmServer81']],
+        ['8.1.0', '7.0.0', ['trmServer81']],
+        ['8.0.1', '7.1.0', ['trmServer81']],
+        ['8.1.0', '7.1.0', []],
+        ['8.1.0', undefined, []]
     ])('trm-server %s, trm-rest %s: missing %j', async (server, rest, missing) => {
         (SystemConnector.getTrmServerPackage as jest.Mock).mockResolvedValue(installed(server));
         if (rest) {

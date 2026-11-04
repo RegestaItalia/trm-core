@@ -263,3 +263,62 @@ describe('publish transport rollback chain', () => {
         }
     });
 });
+
+describe('publish transport rollback in the action log', () => {
+    const { executeWorkflow, workflowCallbacks } = jest.requireActual('../commons/workflowCallbacks');
+    const { runWithActionLog, setActionLogWriter } = jest.requireActual('../../actionLog');
+
+    beforeEach(() => {
+        jest.restoreAllMocks();
+        jest.clearAllMocks();
+        (Transport as any).created.length = 0;
+        (Transport as any).setFault();
+        for (const method of ['loading', 'log', 'info', 'warning', 'error'] as const) {
+            jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
+        }
+        jest.spyOn(Logger, 'getPrefix').mockReturnValue(undefined);
+        jest.spyOn(Logger, 'setPrefix').mockImplementation(() => undefined as never);
+        jest.spyOn(Logger, 'removePrefix').mockImplementation(() => undefined as never);
+        jest.spyOn(Inquirer, 'getPrefix').mockReturnValue(undefined);
+        jest.spyOn(Inquirer, 'setPrefix').mockImplementation(() => undefined as never);
+        jest.spyOn(Inquirer, 'removePrefix').mockImplementation(() => undefined as never);
+    });
+
+    afterEach(() => setActionLogWriter(undefined));
+
+    const steps = () => [generateDevcTransport, generateTadirTransport, generateLangTransport, generateCustTransport, releaseTransports];
+
+    function writer(fail: boolean) {
+        const write = fail ? jest.fn().mockRejectedValue(new Error('log down')) : jest.fn().mockResolvedValue(undefined);
+        return { logActionStart: write, logActionEnd: fail ? jest.fn().mockRejectedValue(new Error('log down')) : jest.fn().mockResolvedValue(undefined), logTransportEvents: jest.fn().mockResolvedValue(undefined) };
+    }
+
+    test('a failure after transports were generated ends the action rolled back', async () => {
+        const w = writer(false);
+        setActionLogWriter(w);
+        (Transport as any).setFault('release', 1);
+
+        await expect(runWithActionLog({ actionName: 'publish' }, () => executeWorkflow('publish-test', steps(), context(), workflowCallbacks))).rejects.toThrow('failure at release.1');
+
+        expect(w.logActionEnd.mock.calls[0][1]).toBe('B');
+        for (const transport of (Transport as any).created) {
+            expect(transport.delete).toHaveBeenCalled();
+        }
+    });
+
+    test.each([['createToc', 2], ['release', 1]] as [string, number][])('a failing action log never changes the cleanup of a failure at %s occurrence %s', async (method, occurrence) => {
+        setActionLogWriter(writer(true));
+        (Transport as any).setFault(method, occurrence);
+
+        await expect(runWithActionLog({ actionName: 'publish' }, () => executeWorkflow('publish-test', steps(), context(), workflowCallbacks))).rejects.toThrow(`failure at ${method}.${occurrence}`);
+
+        const created = (Transport as any).created as any[];
+        expect(created.length).toBeGreaterThan(0);
+        for (const transport of created) {
+            expect(transport.canBeDeleted).toHaveBeenCalled();
+            if (!transport.released) {
+                expect(transport.delete).toHaveBeenCalled();
+            }
+        }
+    });
+});

@@ -9,7 +9,7 @@ import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { ClientError, RESTClient, RESTClientError, SapMessage, TransportEntries } from "../client";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
-import { ActionLockKey } from "./ActionLock";
+import { ActionLockKey, ActionLogEvent, ActionLogStart, ActionLogStatus } from "./ActionLock";
 import { summarizeForLog } from "../commons/summarizeForLog";
 
 const ENDPOINT_RESOURCE_BASE = '/ztrmserver';
@@ -50,6 +50,18 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
         return this._client.releaseActionLocks(keys, ownerToken);
+    }
+
+    public logActionStart(action: ActionLogStart): Promise<void> {
+        return this._client.logActionStart(action);
+    }
+
+    public logActionEnd(actionId: string, status: ActionLogStatus, version?: string): Promise<void> {
+        return this._client.logActionEnd(actionId, status, version);
+    }
+
+    public logTransportEvents(actionId: string, events: ActionLogEvent[]): Promise<void> {
+        return this._client.logTransportEvents(actionId, events);
     }
     private _dest: components.SYSYSID;
     private _lang: string;

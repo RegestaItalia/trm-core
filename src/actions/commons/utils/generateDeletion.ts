@@ -108,7 +108,8 @@ export async function generateDeletion(input: GenerateDeletionInput): Promise<Tr
     Logger.loading(`Uploading transport...`);
     const transport = await Transport.upload(trkorr, {
         binary: deletion.binaries,
-        trTarget: SystemConnector.getDest()
+        trTarget: SystemConnector.getDest(),
+        logRole: 'DELE'
     });
     // A backend without trmServer7 has no test import; in the same process the RFC metadata of its import
     // function stays cached even after the upgrade is imported.
