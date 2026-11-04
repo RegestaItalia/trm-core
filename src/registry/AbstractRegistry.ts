@@ -1,4 +1,4 @@
-import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Namespace, Package, PackageInfo, PackageManifest, Ping, Readme, Search, SearchRequest, WhoAmI } from "trm-registry-types";
+import { BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Namespace, Package, PackageInfo, PackageManifest, Ping, Readme, Search, SearchRequest, TelemetryRequest, WhoAmI } from "trm-registry-types";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact } from "../trmPackage";
 import { BinaryTransport } from "../transport";
@@ -67,4 +67,10 @@ export abstract class AbstractRegistry {
     abstract getManifest: (fullName: string, version?: string) => Promise<PackageManifest>;
     /** Namespace shipped by a package release; not found when the release has no namespace. */
     abstract getNamespace: (fullName: string, version?: string) => Promise<Namespace>;
+
+    /**
+     * Sends an opt-in, anonymous telemetry event. It must be transparent to the user: it never throws,
+     * and registries that don't accept telemetry are skipped silently.
+     */
+    abstract telemetry: (event: TelemetryRequest) => Promise<void>;
 }

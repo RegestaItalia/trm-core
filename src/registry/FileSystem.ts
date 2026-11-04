@@ -186,6 +186,10 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system cannot compare package versions in registry!`);
     }
 
+    public async telemetry(): Promise<void> {
+        //a local artifact has no registry to collect telemetry
+    }
+
     public async transport(): Promise<BinaryTransport>{
         throw new Error(`File system can't fetch transports!`);
     }

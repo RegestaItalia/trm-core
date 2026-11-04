@@ -14,6 +14,10 @@ Legend
 + RegistryFeatureUnsupportedError: the registry doesn't implement an optional feature (501/405, or 404 without a registry message); remembered per registry instance
 + FileSystem registry: search, info, readme, manifest and namespace read from the local artifact
 ! requires trm-registry-types 5.2.0
++ opt-in install telemetry (`contextData.telemetry`, default false): after an install, an anonymous event (outcome, failure reason/step, durations, import return codes, object counts per type, SAP_BASIS/product/database/kernel levels) is sent to the package registry. Never sends system identifiers, user names or package contents
++ AbstractRegistry.telemetry: RegistryV2 probes `HEAD /telemetry` once and only posts events when the registry answers, with a short timeout; never throws. FileSystem ignores it
++ SystemConnector.getSystemInfo: SAP_BASIS and product levels (CVERS), database and kernel release (RFC_SYSTEM_INFO, RFC only), read once after connecting and logged in debug
+! import-batch records the import duration and return codes
 
 2026-11-02 v11.2.0
 -------------------
