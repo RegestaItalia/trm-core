@@ -10,6 +10,7 @@ import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 import { ActionLockKey } from "./ActionLock";
+import type { SystemInfo } from "./SystemInfo";
 
 export class RFCSystemConnector extends SystemConnectorBase implements ISystemConnector {
     public acquireActionLocks(keys: ActionLockKey[], ownerToken: string, actionName: string): Promise<void> {
@@ -102,10 +103,6 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.tdevcInterface(devclass, parentcl, rmParentCl, devlayer);
     }
 
-    protected async getR3transInfo(): Promise<string> {
-        return this._client.getR3transInfo();
-    }
-
     protected getInstalledPackagesBackend(filter?: { name: string, registry: string }): Promise<struct.ZTRM_PACKAGE[]> {
         return this._client.getInstalledPackagesBackend(filter);
     }
@@ -116,6 +113,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     protected getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]> {
         return this._client.getObjectDependenciesInternal(object, objName);
+    }
+
+    protected async getSystemRuntimeInfo(): Promise<Pick<SystemInfo, 'dbSystem' | 'kernelRelease'>> {
+        return this._client.getSystemRuntimeInfo();
     }
 
     public getConnectionData(): RFCConnection {
@@ -139,6 +140,8 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
             await this._client.open();
             this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
+            // read once: reconnects reuse the cached data
+            await this.getSystemInfo();
         } catch (e) {
             Logger.error(`Connection to ${this.getConnectionLabel()} as ${this._user} failed.`, silent);
             throw e;

@@ -8,6 +8,21 @@ Legend
 + : added
 - : removed
 
+2026-11-04 v11.3.0
+-------------------
++ registry navigation (optional registry features): search, getPackageInfo, getReadme, getManifest, getNamespace (RegistryV2 `GET /search`, `GET /package/{info|readme|manifest|namespace}/{package}`)
++ RegistryFeatureUnsupportedError: the registry doesn't implement an optional feature (501/405, or 404 without a registry message); remembered per registry instance
++ FileSystem registry: search, info, readme, manifest and namespace read from the local artifact
++ opt-in install telemetry (`contextData.telemetry`, default false): after an install, an anonymous event (outcome, failure reason/step, durations, import return codes, object counts per type, SAP_BASIS/product/database/kernel levels) is sent to the package registry. Never sends system identifiers, user names or package contents
++ AbstractRegistry.telemetry: RegistryV2 probes `HEAD /telemetry` once and only posts events when the registry answers, with a short timeout; never throws. FileSystem ignores it
++ SystemConnector.getSystemInfo: SAP_BASIS and product levels (CVERS), database and kernel release (RFC_SYSTEM_INFO, RFC only), read once after connecting and logged in debug
+* RFC connection open times out after 5 seconds when the system doesn't answer (was: an unreachable host could hang for minutes); a connection that opens late is closed
+! import-batch records the import duration and return codes
+! release log: R3trans version and unicode flag are no longer read (was: ran R3trans on the application server and failed the release when the OS command wasn't allowed)
+- SystemConnector.getR3transVersion, SystemConnector.getR3transUnicode and the clients' getR3transInfo (GET_R3TRANS_INFO)
+! requires trm-registry-types 5.2.0
+! minimatch 11 (npm audit fix, glob override)
+
 2026-11-02 v11.2.0
 -------------------
 + registry diff: compare two releases of a package (RegistryV2 `GET /diff`, follows the registry's progress until the diff is computed)

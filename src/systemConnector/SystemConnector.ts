@@ -12,6 +12,7 @@ import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { ActionLockKey } from "./ActionLock";
 import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { TrmManifestEngineTableCondition } from "../manifest";
+import type { SystemInfo } from "./SystemInfo";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -413,16 +414,6 @@ export namespace SystemConnector {
         return systemConnector.addNamespace(namespace, replicense, texts);
     }
 
-    export async function getR3transVersion(): Promise<string> {
-        await checkSystemConnector();
-        return systemConnector.getR3transVersion();
-    }
-
-    export async function getR3transUnicode(): Promise<boolean> {
-        await checkSystemConnector();
-        return systemConnector.getR3transUnicode();
-    }
-
     export async function isTransportLayerExist(devlayer: components.DEVLAYER): Promise<boolean> {
         await checkSystemConnector();
         return systemConnector.isTransportLayerExist(devlayer);
@@ -526,6 +517,12 @@ export namespace SystemConnector {
     export async function getSoftwareComponents(): Promise<struct.CVERS[]> {
         await checkSystemConnector();
         return systemConnector.getSoftwareComponents();
+    }
+
+    /** Non-identifying system characteristics, read once after connecting. Never throws. */
+    export async function getSystemInfo(): Promise<SystemInfo> {
+        assertSystemConnector();
+        return systemConnector.getSystemInfo();
     }
 
     export async function getInstalledProducts(): Promise<struct.PRDVERS[]> {

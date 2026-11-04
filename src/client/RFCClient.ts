@@ -10,9 +10,11 @@ import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { logMessageLog, parseMessageLog } from "./messageLog";
 import { getErrorMessage } from "../commons/getErrorMessage";
+import { normalizeSystemLevel } from "../systemConnector/SystemInfo";
 
 const nodeRfcLib = 'node-rfc';
 const connectionCheckTimeoutSeconds = 3;
+const openTimeoutSeconds = 5;
 
 /**
  * Loads a node-rfc compatible library (a module exporting the RFC `Client`).
@@ -80,10 +82,39 @@ export class RFCClient implements IClient {
     public async open() {
         try {
             Logger.loading(`Opening RFC connection`, true);
-            await (await this.getRfcClient()).open();
+            await this.openWithTimeout(await this.getRfcClient());
             Logger.success(`RFC open`, true);
         } catch (e) {
             throw new RFCClientError("ZNO_CONN", null, e, getErrorMessage(e));
+        }
+    }
+
+    /**
+     * node-rfc has no connect timeout: an unreachable host can hang open() for minutes.
+     * On timeout the client is dropped (a later open() starts over) and, should its
+     * open() still succeed, that late connection is closed.
+     */
+    private async openWithTimeout(rfcClient: any): Promise<void> {
+        let timer: NodeJS.Timeout;
+        let timedOut = false;
+        const opening = Promise.resolve(rfcClient.open());
+        const timeout = new Promise<never>((_, reject) => {
+            timer = setTimeout(() => {
+                timedOut = true;
+                if (this._rfcClient === rfcClient) {
+                    this._rfcClient = undefined;
+                }
+                opening.then(() => rfcClient.close()).catch(() => { });
+                reject(new Error(`Timed out after ${openTimeoutSeconds} seconds: system not reachable.`));
+            }, openTimeoutSeconds * 1000);
+        });
+        try {
+            await Promise.race([opening, timeout]);
+        } finally {
+            clearTimeout(timer);
+            if (!timedOut) {
+                timeout.catch(() => { });
+            }
         }
     }
 
@@ -603,6 +634,15 @@ export class RFCClient implements IClient {
         }
     }
 
+    /** Database system and kernel release, from the standard RFC_SYSTEM_INFO. */
+    public async getSystemRuntimeInfo(): Promise<{ dbSystem?: string, kernelRelease?: string }> {
+        const result = await this._call("RFC_SYSTEM_INFO");
+        return {
+            dbSystem: normalizeSystemLevel(result['rfcsiExport']?.['rfcdbsys']),
+            kernelRelease: normalizeSystemLevel(result['rfcsiExport']?.['rfckernrl'])
+        };
+    }
+
     public async getTrmServerVersion(): Promise<string> {
         const result = await this._call("/ATRM/VERSION");
         return result['version'];
@@ -646,11 +686,6 @@ export class RFCClient implements IClient {
             replicense: replicense,
             texts: texts
         });
-    }
-
-    public async getR3transInfo(): Promise<string> {
-        const result = await this._call("/ATRM/GET_R3TRANS_INFO");
-        return result['log'];
     }
 
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {

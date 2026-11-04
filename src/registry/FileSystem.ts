@@ -1,4 +1,4 @@
-import { AuthenticationType, BatchCompareResponse, MessageType, Package, Ping, WhoAmI } from "trm-registry-types";
+import { AuthenticationType, BatchCompareResponse, MessageType, Namespace, Package, PackageInfo, PackageManifest, Ping, Readme, Search, SearchRequest, WhoAmI } from "trm-registry-types";
 import { AbstractRegistry } from "./AbstractRegistry";
 import { RegistryType } from "./RegistryType";
 import { TrmArtifact, TrmPackage } from "../trmPackage";
@@ -14,6 +14,7 @@ import { RegistryPackageNotFoundError } from "./RegistryPackageNotFoundError";
 import { RegistryDeletionTransportUnavailableError } from "./RegistryDeletionTransportUnavailableError";
 import { ReleaseDiffReport } from "./ReleaseDiff";
 import { RegistryDiffError } from "./RegistryDiffError";
+import { Manifest, TrmManifest } from "../manifest";
 
 export const LOCAL_RESERVED_KEYWORD = 'local';
 
@@ -185,6 +186,10 @@ export class FileSystem implements AbstractRegistry {
         throw new Error(`File system cannot compare package versions in registry!`);
     }
 
+    public async telemetry(): Promise<void> {
+        //a local artifact has no registry to collect telemetry
+    }
+
     public async transport(): Promise<BinaryTransport>{
         throw new Error(`File system can't fetch transports!`);
     }
@@ -199,6 +204,133 @@ export class FileSystem implements AbstractRegistry {
 
     public async delete(_transport: BinaryTransport, _options?: DeleteTransportOptions): Promise<DeletionTransport> {
         throw new RegistryDeletionTransportUnavailableError(LOCAL_RESERVED_KEYWORD, `Local packages (.trm files) can't generate deletion transports.`);
+    }
+
+    /** Manifest of the local artifact, `undefined` when there is no artifact file. */
+    private async getLocalManifest(): Promise<TrmManifest | undefined> {
+        if (!this._filePath) {
+            throw new Error(`Missing file path!`);
+        }
+        if (!existsSync(this._filePath)) {
+            return undefined;
+        }
+        const manifest = (await this.getArtifact()).getManifest();
+        return manifest ? manifest.get() : undefined;
+    }
+
+    /**
+     * Manifest of the local artifact for a package navigation read: like {@link getPackage}, the artifact
+     * is the only release, whatever name and version are requested.
+     */
+    private async getNavigationManifest(fullName: string, version: string): Promise<TrmManifest> {
+        const manifest = await this.getLocalManifest();
+        if (!manifest) {
+            throw new RegistryPackageNotFoundError(fullName, version, this._filePath, undefined);
+        }
+        return manifest;
+    }
+
+    private static getKeywords(manifest: TrmManifest): string[] {
+        if (typeof manifest.keywords === 'string') {
+            return Manifest.stringKeywordsToArray(manifest.keywords);
+        }
+        return Array.isArray(manifest.keywords) ? manifest.keywords : [];
+    }
+
+    private getReleaseDate(): string {
+        try {
+            return lstatSync(this._filePath).mtime.toISOString();
+        } catch {
+            return new Date(0).toISOString();
+        }
+    }
+
+    public async search(req: SearchRequest): Promise<Search> {
+        const limit = Math.min(25, Math.max(1, Math.floor(req?.limit || 25)));
+        const page = Math.max(1, Math.floor(req?.page || 1));
+        const manifest = await this.getLocalManifest();
+        const matches: TrmManifest[] = [];
+        if (manifest) {
+            const q = (req?.q || '').trim().toLowerCase();
+            const keywords = FileSystem.getKeywords(manifest).map(k => k.toLowerCase());
+            const organization = /^@([^/]+)\//.exec(manifest.name || '')?.[1]?.toLowerCase();
+            const textMatch = !q || (manifest.name || '').toLowerCase().includes(q) || (manifest.description || '').toLowerCase().includes(q);
+            const keywordsMatch = (req?.keywords || []).every(k => keywords.includes(k.toLowerCase()));
+            const organizationsMatch = !req?.organizations?.length
+                || req.organizations.some(o => o.replace(/^@/, '').toLowerCase() === organization);
+            // a local artifact has no registry maintainers
+            const maintainersMatch = !req?.maintainers?.length;
+            if (textMatch && keywordsMatch && organizationsMatch && maintainersMatch) {
+                matches.push(manifest);
+            }
+        }
+        const releaseDate = this.getReleaseDate();
+        return {
+            total: matches.length,
+            page,
+            limit,
+            results: matches.slice((page - 1) * limit, page * limit).map(m => ({
+                name: m.name,
+                version: m.version,
+                description: m.description,
+                license: m.license,
+                maintainers: [],
+                release_date: releaseDate,
+                downloads: 0,
+                private: !!m.private
+            }))
+        };
+    }
+
+    public async getPackageInfo(fullName: string, version: string = 'latest'): Promise<PackageInfo> {
+        const manifest = await this.getNavigationManifest(fullName, version);
+        const releaseDate = this.getReleaseDate();
+        return {
+            name: manifest.name,
+            version: manifest.version,
+            description: manifest.description,
+            license: manifest.license,
+            release_date: releaseDate,
+            private: !!manifest.private,
+            deprecated: false,
+            website: manifest.website,
+            git: manifest.git,
+            keywords: FileSystem.getKeywords(manifest),
+            maintainers: [],
+            downloads: 0,
+            versions: [manifest.version],
+            version_dates: { [manifest.version]: releaseDate },
+            yanked_versions: [],
+            dist_tags: { latest: manifest.version },
+            dependencies: (manifest.dependencies || []).map(d => ({ name: d.name, version: d.version })),
+            has_namespace: !!manifest.namespace?.ns
+        };
+    }
+
+    public async getReadme(fullName: string, version: string = 'latest'): Promise<Readme> {
+        const manifest = await this.getNavigationManifest(fullName, version);
+        // .trm artifacts don't embed a README
+        return { name: manifest.name, version: manifest.version, readme: null };
+    }
+
+    public async getManifest(fullName: string, version: string = 'latest'): Promise<PackageManifest> {
+        const manifest = await this.getNavigationManifest(fullName, version);
+        return { name: manifest.name, version: manifest.version, manifest };
+    }
+
+    public async getNamespace(fullName: string, version: string = 'latest'): Promise<Namespace> {
+        const manifest = await this.getNavigationManifest(fullName, version);
+        if (!manifest.namespace?.ns) {
+            throw new RegistryPackageNotFoundError(fullName, version, this._filePath, undefined);
+        }
+        return {
+            namespace: manifest.namespace.ns,
+            descriptions: (manifest.namespace.texts || []).map(t => ({
+                language: t.language,
+                description: t.description,
+                ...(t.owner ? { owner: t.owner } : {})
+            }))
+        };
     }
 
     /**

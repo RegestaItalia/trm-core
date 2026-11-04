@@ -555,11 +555,6 @@ export class RESTClient implements IClient {
         });
     }
 
-    public async getR3transInfo(): Promise<string> {
-        const result = (await this._axiosInstance.get('/get_r3trans_info')).data;
-        return result.log;
-    }
-
     public async deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await this._axiosInstance.delete('/delete_tms_transport', {
             data: {

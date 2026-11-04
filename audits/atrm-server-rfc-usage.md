@@ -4,7 +4,7 @@ Analysis date: 2026-10-16 (previous run: 2026-08-26)
 
 ## Scope and interpretation
 
-- The function-module inventory comes from ARC-1, reading function group `/ATRM/SERVER` with its generated includes expanded. ARC-1 returned 56 function modules (`/ATRM/LSERVERU01` to `U56`); `RFCClient` calls exactly the same 56.
+- The function-module inventory comes from ARC-1, reading function group `/ATRM/SERVER` with its generated includes expanded. ARC-1 returned 55 function modules; `RFCClient` calls exactly the same 55.
 - **Called by `RFCClient`** means the function module appears as a literal `/ATRM/...` target passed to `RFCClient._call(...)`.
 - **`RFCClient` method called by system connector** means the enclosing `RFCClient` method is invoked by `RFCSystemConnector`, including protected adapter methods inherited by `SystemConnectorBase`.
 - **System connector method called in project** means the corresponding connector path is called elsewhere in project source. This includes calls made from `SystemConnectorBase` to concrete or protected connector methods. The forwarding declaration in `SystemConnector.ts` is not, by itself, treated as usage. Calls in generated `dist/` files mirror `src/`; they were not treated as additional independent usage. `src/test.ts` is a local development script excluded from the published package (`package.json` `files`), so calls made only there are not usage.
@@ -47,7 +47,6 @@ Analysis date: 2026-10-16 (previous run: 2026-08-26)
 | `/ATRM/GET_FILE_SYS` | Yes | Yes | Yes |
 | `/ATRM/GET_INSTALLED_PACKAGES` | Yes | Yes | Yes |
 | `/ATRM/GET_OBJS_LOCKS` | Yes | Yes | Yes |
-| `/ATRM/GET_R3TRANS_INFO` | Yes | Yes | Yes |
 | `/ATRM/GET_TRANSPORT_ENTRIES` | Yes | Yes | Yes |
 | `/ATRM/GET_TRANSPORT_LAYER` | Yes | Yes | Yes |
 | `/ATRM/GET_TR_IMPORT_STATUS` | Yes | Yes | Yes |

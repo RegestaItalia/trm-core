@@ -13,6 +13,7 @@ import type { TrmPackageUpdateData } from "./ISystemConnector";
 import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType, registryKey } from "../registry";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
+import { getSystemInfoFromComponents, SystemInfo } from "./SystemInfo";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = '/ATRM/IF_SERVER';
@@ -30,10 +31,10 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   private _installedPackages: TrmPackage[];
   private _sourceTrkorr: string[];
   private _ignoredTrkorr: string[];
-  private _r3transInfoLog: string;
   private _tableKeys: any = {};
   private _rootDevclass: any = {};
   private _timezone: string;
+  private _systemInfo: SystemInfo;
 
   protected abstract readTable(tableName: components.TABNAME, fields: struct.RFC_DB_FLD[], options?: string, paging?: { offset: number, limit: number }): Promise<any[]>
   protected abstract getSysname(): string
@@ -42,7 +43,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   protected abstract getTrmRestVersion(): Promise<string>
   protected abstract listDevclassObjects(devclass: components.DEVCLASS): Promise<struct.TADIR[]>
   protected abstract tdevcInterface(devclass: components.DEVCLASS, parentcl?: components.DEVCLASS, rmParentCl?: boolean, devlayer?: components.DEVLAYER): Promise<void>
-  protected abstract getR3transInfo(): Promise<string>
   protected abstract getInstalledPackagesBackend(filter?: { name: string, registry: string }): Promise<struct.ZTRM_PACKAGE[]>
   protected abstract getPackageDependenciesInternal(devclass: components.DEVCLASS, includeSubPackages: boolean, logId?: components.ZTRM_POLLING_ID): Promise<struct.ZTRM_OBJECT_DEPENDENCIES[]>
   protected abstract getObjectDependenciesInternal(object: components.TROBJTYPE, objName: components.SOBJ_NAME): Promise<struct.ZTRM_OBJECT_DEPENDENCY[]>
@@ -567,29 +567,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
   }
 
-  public async getR3transVersion(): Promise<string> {
-    if (!this._r3transInfoLog) {
-      this._r3transInfoLog = await this.getR3transInfo();
-    }
-    try {
-      return this._r3transInfoLog.split(/\r?\n|\r|\n/g)[0];
-    } catch (e) {
-      return undefined;
-    }
-  }
-
-  public async getR3transUnicode(): Promise<boolean> {
-    if (!this._r3transInfoLog) {
-      this._r3transInfoLog = await this.getR3transInfo();
-    }
-    try {
-      const outputLine = this._r3transInfoLog.split(/\r?\n|\r|\n/g)[1];
-      return !outputLine.startsWith('non-unicode');
-    } catch (e) {
-      return undefined;
-    }
-  }
-
   public async isTransportLayerExist(devlayer: components.DEVLAYER): Promise<boolean> {
     const aTransportLayer: any[] = (await this.readTable('TCETRAL',
       [{ fieldName: 'VERSION' }, { fieldName: 'TRANSLAYER' }],
@@ -702,6 +679,41 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     return await this.readTable('CVERS',
       [{ fieldName: 'COMPONENT' }, { fieldName: 'RELEASE' }, { fieldName: 'EXTRELEASE' }, { fieldName: 'COMP_TYPE' }]
     );
+  }
+
+  /** Database system and kernel release; connectors that can't read them return nothing. */
+  protected async getSystemRuntimeInfo(): Promise<Pick<SystemInfo, 'dbSystem' | 'kernelRelease'>> {
+    return {};
+  }
+
+  /**
+   * Non-identifying system characteristics (release levels, database, kernel), read once and then cached:
+   * connectors load them right after connecting. Never throws; data that can't be read is left out
+   * and read again on the next call.
+   */
+  public async getSystemInfo(): Promise<SystemInfo> {
+    if (this._systemInfo) {
+      return this._systemInfo;
+    }
+    let complete = true;
+    let info: SystemInfo = {};
+    try {
+      info = getSystemInfoFromComponents(await this.getSoftwareComponents());
+    } catch (e) {
+      complete = false;
+      Logger.log(`Couldn't read software components for system info: ${e instanceof Error ? e.message : String(e)}`, true);
+    }
+    try {
+      info = { ...info, ...(await this.getSystemRuntimeInfo()) };
+    } catch (e) {
+      complete = false;
+      Logger.log(`Couldn't read database and kernel for system info: ${e instanceof Error ? e.message : String(e)}`, true);
+    }
+    Logger.log(`System info: ${inspect(info, { breakLength: Infinity, compact: true })}`, true);
+    if (complete) {
+      this._systemInfo = info;
+    }
+    return info;
   }
 
   public async getInstalledProducts(): Promise<struct.PRDVERS[]> {

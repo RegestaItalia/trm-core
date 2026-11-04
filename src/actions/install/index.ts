@@ -28,6 +28,7 @@ import { importBatch } from "./importBatch";
 import { generateLandscapeTransport } from "./generateLandscapeTransport";
 import { updatePackageData } from "./updatePackageData";
 import { executePostActivities } from "./executePostActivities";
+import { sendInstallTelemetry } from "./telemetry";
 import { releaseLandscapeTransport } from "./releaseLandscapeTransport";
 import { planUpdateCleanup } from "./planUpdateCleanup";
 import { prepareBackup } from "./prepareBackup";
@@ -82,6 +83,14 @@ export type InstallActionInputContextData = {
      * the install would make (objects deleted on upgrade, transports imported...) are logged instead.
      */
     simulate?: boolean;
+
+    /**
+     * Send opt-in, anonymous telemetry to the package registry after the install: outcome, durations,
+     * import return codes, object counts per type and non-identifying system levels (SAP_BASIS, product,
+     * database, kernel). Never sends system identifiers, user names or package contents. Defaults to `false`.
+     * Sending never fails the install, and registries that don't accept telemetry are skipped.
+     */
+    telemetry?: boolean;
 }
 
 /** Options controlling package validation, transport import, and target package mapping. */
@@ -251,6 +260,14 @@ export interface InstallActionInput {
     dependency?: boolean
 }
 
+/** Import duration and return codes of the import-batch step, for the opt-in telemetry. */
+export type ImportTelemetry = {
+    startedAt: number,
+    durationMs?: number,
+    /** Import return code by transport number. */
+    returnCodes: Record<string, number>
+}
+
 type TransportRuntime = {
     binaries?: TransportBinary,
     instance?: Transport
@@ -275,6 +292,8 @@ type WorkflowRuntime = {
     cleanupPlan?: CleanupPlan,
     /** Deletion transports of the upgrade, uploaded and test-imported. */
     deletions?: { tadir?: Transport, cust?: Transport },
+    /** Set by import-batch. */
+    importTelemetry?: ImportTelemetry,
     transportEntries: {
         tdevct: TDEVCT[]
     },
@@ -497,13 +516,16 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
         if (firstError) throw firstError;
     };
     if (!retainRollback) {
+        const startedAt = Date.now();
         return withLockRelease(release, async () => {
             try {
                 const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, workflow, context, workflowCallbacks);
                 logInstallSummary(context, true);
+                await sendInstallTelemetry(context, startedAt);
                 return { output: result.output };
             } catch (error) {
                 logInstallSummary(context, false, error);
+                await sendInstallTelemetry(context, startedAt, error);
                 throw error;
             }
         });

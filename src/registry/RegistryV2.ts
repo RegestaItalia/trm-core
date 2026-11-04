@@ -1,7 +1,7 @@
 import { RegistryType } from "./RegistryType";
 import normalizeUrl from "@esm2cjs/normalize-url";
 import { AxiosError, AxiosHeaders, AxiosInstance, CreateAxiosDefaults } from "axios";
-import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, OAuth2Data, Package, Ping, Publish, TransportDownload, WhoAmI } from "trm-registry-types";
+import { AuthOAuth2, AuthenticationType, BatchCompareRequest, BatchCompareResponse, Deprecate, DistTagAdd, DistTagRm, Namespace, OAuth2Data, Package, PackageInfo, PackageManifest, Ping, Publish, Readme, Search, SearchRequest, TelemetryRequest, TransportDownload, WhoAmI } from "trm-registry-types";
 import { TrmArtifact } from "../trmPackage/TrmArtifact";
 import * as FormData from "form-data";
 import { Logger, Inquirer } from "trm-commons";
@@ -21,6 +21,7 @@ import { RegistryDeletionTransportUnavailableError, RegistryProPlanRequiredError
 import { DeleteTransportOptions, DeletionTransport } from "./DeletionTransport";
 import { isReleaseDiffReport, ReleaseDiffOptions, ReleaseDiffReport } from "./ReleaseDiff";
 import { RegistryDiffError } from "./RegistryDiffError";
+import { RegistryFeature, RegistryFeatureUnsupportedError } from "./RegistryFeatureUnsupportedError";
 
 /** `POST /delete` response: the deletion transport download, or nothing left to delete. */
 type DeleteTransportResponse = Partial<TransportDownload> & {
@@ -41,15 +42,21 @@ const DIFF_POLL_MAX_INTERVAL_MS = 30000;
 const DIFF_POLL_TIMEOUT_MS = 15 * 60 * 1000;
 const DIFF_POLL_MAX_FAILURES = 3;
 
+/** Telemetry must never slow the user down: the probe and the event share a short timeout. */
+const TELEMETRY_TIMEOUT_MS = 3000;
+
 const isPublishStatus = (status: Publish): boolean => !!status && Number.isInteger(status.steps) && Number.isInteger(status.current_step);
 
 export class RegistryV2 implements AbstractRegistry {
     private _cache: NodeCache = new NodeCache({ stdTTL: 60, useClones: false });
+    /** Optional features this registry was found not to implement. */
+    private _unsupportedFeatures: Set<RegistryFeature> = new Set();
     private _registryType: RegistryType;
     private _axiosInstance: AxiosInstance;
     private _authData: any;
     private _externalUserAgent: string;
     private _userAgent: string;
+    private _telemetryAvailable: Promise<boolean>;
 
     constructor(public endpoint: string, public name: string = 'Unknown', private _coreVersion?: string) {
         var envEndpoint = process.env.TRM_PUBLIC_REGISTRY_ENDPOINT;
@@ -666,6 +673,33 @@ export class RegistryV2 implements AbstractRegistry {
         return response.data;
     }
 
+    /**
+     * Sends an opt-in telemetry event. The registry is probed once with `HEAD /telemetry`: when it doesn't
+     * answer (telemetry not supported, unreachable, too slow) no event is sent. Never throws.
+     */
+    public async telemetry(event: TelemetryRequest): Promise<void> {
+        try {
+            if (!(await this.isTelemetryAvailable())) {
+                Logger.log(`Registry "${this.name}" doesn't accept telemetry, skipped.`, true);
+                return;
+            }
+            await this._axiosInstance.post('/telemetry', event, { timeout: TELEMETRY_TIMEOUT_MS });
+            Logger.log(`Telemetry sent to registry "${this.name}".`, true);
+        } catch (e) {
+            Logger.log(`Telemetry not sent to registry "${this.name}": ${e instanceof Error ? e.message : String(e)}`, true);
+        }
+    }
+
+    private isTelemetryAvailable(): Promise<boolean> {
+        if (!this._telemetryAvailable) {
+            this._telemetryAvailable = this._axiosInstance.head('/telemetry', { timeout: TELEMETRY_TIMEOUT_MS }).then(
+                response => response.status >= 200 && response.status < 300,
+                () => false
+            );
+        }
+        return this._telemetryAvailable;
+    }
+
     public async delete(transport: BinaryTransport, options?: DeleteTransportOptions): Promise<DeletionTransport> {
         const formData = new FormData.default();
         formData.append('header', transport.header, {
@@ -799,6 +833,99 @@ export class RegistryV2 implements AbstractRegistry {
         } catch (e) {
             throw fail(e, `Cannot download the diff of ${label}`);
         }
+    }
+
+    public async search(req: SearchRequest): Promise<Search> {
+        const list = (values?: string[]) => values && values.length > 0 ? values.join(',') : undefined;
+        const params = _.omitBy({
+            q: req?.q,
+            keywords: list(req?.keywords),
+            maintainers: list(req?.maintainers),
+            organizations: list(req?.organizations),
+            sort: req?.sort,
+            page: req?.page,
+            limit: req?.limit
+        }, value => value === undefined || value === null || value === '');
+        return this.navigationRequest<Search>('search', '/search', params, 'Package search request',
+            data => Array.isArray(data?.results));
+    }
+
+    public async getPackageInfo(fullName: string, version: string = 'latest'): Promise<PackageInfo> {
+        return this.packageNavigationRequest<PackageInfo>('info', fullName, version, 'Package info request',
+            data => typeof data?.name === 'string' && Array.isArray(data?.versions) && typeof data?.has_namespace === 'boolean');
+    }
+
+    public async getReadme(fullName: string, version: string = 'latest'): Promise<Readme> {
+        return this.packageNavigationRequest<Readme>('readme', fullName, version, 'Package README request',
+            data => typeof data?.name === 'string' && (typeof data?.readme === 'string' || data?.readme === null));
+    }
+
+    public async getManifest(fullName: string, version: string = 'latest'): Promise<PackageManifest> {
+        return this.packageNavigationRequest<PackageManifest>('manifest', fullName, version, 'Package manifest request',
+            data => typeof data?.name === 'string' && data?.manifest !== null && typeof data?.manifest === 'object');
+    }
+
+    public async getNamespace(fullName: string, version: string = 'latest'): Promise<Namespace> {
+        return this.packageNavigationRequest<Namespace>('namespace', fullName, version, 'Package namespace request',
+            data => typeof data?.namespace === 'string' && Array.isArray(data?.descriptions));
+    }
+
+    /** Successful package navigation reads are cached like {@link getPackage}, per feature, package and version. */
+    private async packageNavigationRequest<T>(feature: RegistryFeature, fullName: string, version: string,
+        operation: string, isValid: (data: any) => boolean): Promise<T> {
+        const cacheKey = `navigation-${feature}-${fullName}-${version}`;
+        const cached = this._cache.get<T>(cacheKey);
+        if (cached !== undefined) {
+            return cached;
+        }
+        const data = await this.navigationRequest<T>(feature, `/package/${feature}/${fullName}`, { version }, operation, isValid, fullName, version);
+        this._cache.set(cacheKey, data);
+        return data;
+    }
+
+    /**
+     * GET on an optional navigation route. 501/405, a 404 without a registry error message (the route doesn't exist)
+     * or an unexpected payload mean the registry doesn't implement the feature: remembered, later calls fail immediately.
+     * A 404 with a registry message is an unknown or unreadable package (only for package routes).
+     */
+    private async navigationRequest<T>(feature: RegistryFeature, url: string, params: Record<string, unknown>, operation: string,
+        isValid: (data: any) => boolean, fullName?: string, version?: string): Promise<T> {
+        if (this._unsupportedFeatures.has(feature)) {
+            throw new RegistryFeatureUnsupportedError(feature, this.endpoint);
+        }
+        let response;
+        try {
+            response = await this._axiosInstance.get(url, { params });
+        } catch (e) {
+            const status = this.getErrorStatus(e);
+            if (status === 501 || status === 405 || (status === 404 && !this.hasRegistryErrorMessage(e))) {
+                this._unsupportedFeatures.add(feature);
+                throw new RegistryFeatureUnsupportedError(feature, this.endpoint, status, e);
+            }
+            if (status === 404 && fullName !== undefined) {
+                throw new RegistryPackageNotFoundError(fullName, version, this.endpoint, e);
+            }
+            throw e;
+        }
+        this.assertStatus(response.status, [200], operation);
+        if (!isValid(response.data)) {
+            this._unsupportedFeatures.add(feature);
+            throw new RegistryFeatureUnsupportedError(feature, this.endpoint, response.status);
+        }
+        return response.data;
+    }
+
+    /** Whether a failed request carries a registry error body (`{ message }`), as opposed to e.g. an HTML "Cannot GET" page. */
+    private hasRegistryErrorMessage(error: unknown): boolean {
+        const registryError = error as {
+            response?: any;
+            axiosError?: AxiosError;
+            isAxiosError?: boolean;
+        };
+        const body = registryError.axiosError
+            ? registryError.axiosError.response?.data
+            : registryError.isAxiosError ? registryError.response?.data : registryError.response;
+        return !!body && typeof body === 'object' && !Array.isArray(body) && typeof body.message === 'string';
     }
 
     public async transport(trkorr: string, target?: string): Promise<BinaryTransport> {
