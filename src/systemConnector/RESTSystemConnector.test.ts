@@ -60,6 +60,46 @@ describe("RESTSystemConnector", () => {
             expect(connector.getDest()).toBe("A4H");
         });
 
+        test("system info includes the database and kernel read through trm-rest", async () => {
+            const client = {
+                open: jest.fn().mockResolvedValue(undefined),
+                getDest: jest.fn().mockResolvedValue("A4H"),
+                readTable: jest.fn().mockResolvedValue([{ component: "SAP_BASIS", release: "758", extrelease: "0002" }]),
+                getSystemRuntimeInfo: jest.fn().mockResolvedValue({ dest: "A4H", dbSystem: "HDB", kernelRelease: "793" })
+            };
+            mockClient(client);
+            const connector = new RESTSystemConnector({ endpoint: "http://vhcala4hci:50000" }, login());
+            await connector.connect(true);
+            await expect(connector.getSystemInfo()).resolves.toEqual({
+                basisRelease: "758", basisSp: "0002", product: "NETWEAVER", productRelease: "758", productSp: "0002", dbSystem: "HDB", kernelRelease: "793"
+            });
+            expect(client.getSystemRuntimeInfo).toHaveBeenCalledTimes(1);
+        });
+
+        test("system info skips the database and kernel when trm-rest lacks them", async () => {
+            const client = {
+                open: jest.fn().mockResolvedValue(undefined),
+                getDest: jest.fn().mockResolvedValue("A4H"),
+                readTable: jest.fn().mockResolvedValue([{ component: "SAP_BASIS", release: "758", extrelease: "0002" }]),
+                getSystemRuntimeInfo: jest.fn()
+            };
+            mockClient(client);
+            const connector = new RESTSystemConnector({ endpoint: "http://vhcala4hci:50000" }, login());
+            await connector.connect(true);
+            await expect(connector.getSystemInfo(["trmRest71"])).resolves.toEqual({
+                basisRelease: "758", basisSp: "0002", product: "NETWEAVER", productRelease: "758", productSp: "0002"
+            });
+            expect(client.getSystemRuntimeInfo).not.toHaveBeenCalled();
+        });
+
+        test("connect doesn't read the system info", async () => {
+            const client = { open: jest.fn().mockResolvedValue(undefined), getDest: jest.fn().mockResolvedValue("A4H"), readTable: jest.fn(), getSystemRuntimeInfo: jest.fn() };
+            mockClient(client);
+            await new RESTSystemConnector({ endpoint: "http://vhcala4hci:50000" }, login()).connect(true);
+            expect(client.readTable).not.toHaveBeenCalled();
+            expect(client.getSystemRuntimeInfo).not.toHaveBeenCalled();
+        });
+
         test("connect fails when the system ID can't be read", async () => {
             const client = { open: jest.fn().mockResolvedValue(undefined), getDest: jest.fn().mockRejectedValue(new Error("boom")) };
             mockClient(client);

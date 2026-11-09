@@ -9,6 +9,8 @@ import { Login, RESTClientError, SapMessage, formatSapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
+import { SystemRuntimeInfo } from "./SystemRuntimeInfo";
+import { normalizeSystemLevel } from "../systemConnector/SystemInfo";
 import { ActionLockKey } from "./struct/ActionLockKey";
 import { ActionLogEvent, ActionLogStart, ActionLogStatus } from "./struct/ActionLog";
 import { actionLogEventRow } from "./actionLogEventRow";
@@ -545,12 +547,34 @@ export class RESTClient implements IClient {
     }
 
     public async getDest(): Promise<components.SYSYSID> {
-        const result = (await this._axiosInstance.get('/get_dest', {
+        try {
+            const result = (await this._axiosInstance.get('/get_dest', {
+                params: {
+                    rfcdest: this.rfcdest
+                }
+            })).data;
+            return result.dest;
+        } catch (e) {
+            //not authorized: read the system ID with the system info, which doesn't require TRM authorization
+            if (e instanceof RESTClientError && e.exceptionType === 'TRM_RFC_UNAUTHORIZED') {
+                return (await this.getSystemRuntimeInfo()).dest;
+            }
+            throw e;
+        }
+    }
+
+    /** System ID, database system and kernel release, from the standard RFC_SYSTEM_INFO. */
+    public async getSystemRuntimeInfo(): Promise<SystemRuntimeInfo> {
+        const result = (await this._axiosInstance.get('/get_system_info', {
             params: {
                 rfcdest: this.rfcdest
             }
         })).data;
-        return result.dest;
+        return {
+            dest: result.dest,
+            dbSystem: normalizeSystemLevel(result.dbSystem),
+            kernelRelease: normalizeSystemLevel(result.kernelRelease)
+        };
     }
 
     public async getTransportObjectsBulk(trkorr: components.TRKORR): Promise<struct.TADIR[]> {

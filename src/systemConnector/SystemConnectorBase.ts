@@ -14,6 +14,7 @@ import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, Regi
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
 import { getSystemInfoFromComponents, SystemInfo } from "./SystemInfo";
+import type { TrmBackendApis } from "../actions/commons/utils/trmBackend";
 
 export const TRM_SERVER_PACKAGE_NAME: string = 'trm-server';
 export const TRM_SERVER_INTF: string = '/ATRM/IF_SERVER';
@@ -681,17 +682,21 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     );
   }
 
-  /** Database system and kernel release; connectors that can't read them return nothing. */
-  protected async getSystemRuntimeInfo(): Promise<Pick<SystemInfo, 'dbSystem' | 'kernelRelease'>> {
+  /**
+   * Database system and kernel release; connectors that can't read them return nothing.
+   * `undefined` when skipped because the backend lacks the API (`missingBackendApis`, see `TRM_BACKEND_APIS`).
+   */
+  protected async getSystemRuntimeInfo(missingBackendApis: TrmBackendApis[]): Promise<Pick<SystemInfo, 'dbSystem' | 'kernelRelease'> | undefined> {
     return {};
   }
 
   /**
-   * Non-identifying system characteristics (release levels, database, kernel), read once and then cached:
-   * connectors load them right after connecting. Never throws; data that can't be read is left out
-   * and read again on the next call.
+   * Non-identifying system characteristics (release levels, database, kernel), read once and then cached.
+   * Never throws; data that can't be read is left out and read again on the next call.
+   * @param missingBackendApis only during a trm-server/trm-rest upgrade: the backend API generations it lacks,
+   * whose calls are skipped (see `getMissingTrmBackendApis`)
    */
-  public async getSystemInfo(): Promise<SystemInfo> {
+  public async getSystemInfo(missingBackendApis: TrmBackendApis[] = []): Promise<SystemInfo> {
     if (this._systemInfo) {
       return this._systemInfo;
     }
@@ -704,7 +709,12 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       Logger.log(`Couldn't read software components for system info: ${e instanceof Error ? e.message : String(e)}`, true);
     }
     try {
-      info = { ...info, ...(await this.getSystemRuntimeInfo()) };
+      const runtime = await this.getSystemRuntimeInfo(missingBackendApis);
+      if (runtime) {
+        info = { ...info, ...runtime };
+      } else {
+        complete = false;
+      }
     } catch (e) {
       complete = false;
       Logger.log(`Couldn't read database and kernel for system info: ${e instanceof Error ? e.message : String(e)}`, true);

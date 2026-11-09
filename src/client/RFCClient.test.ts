@@ -239,6 +239,14 @@ describe('RFCClient getDest', () => {
         await expect(createClient(call).getDest()).rejects.toBeInstanceOf(RFCClientError);
         expect(call.mock.calls.map(c => c[0])).toEqual(['/ATRM/GET_DEST']);
     });
+
+    it('reads the system ID, database and kernel from RFC_SYSTEM_INFO', async () => {
+        const call = mockCalls({
+            'RFC_SYSTEM_INFO': () => ({ RFCSI_EXPORT: { RFCSYSID: 'A4H', RFCDBSYS: 'HDB', RFCKERNRL: '793' } })
+        });
+
+        await expect(createClient(call).getSystemRuntimeInfo()).resolves.toEqual({ dest: 'A4H', dbSystem: 'HDB', kernelRelease: '793' });
+    });
 });
 
 describe('RFCClient getTransportEntries', () => {

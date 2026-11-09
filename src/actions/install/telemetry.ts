@@ -93,7 +93,7 @@ export async function buildInstallTelemetry(context: InstallWorkflowContext, sta
         package: { name: manifest.name, version: manifest.version },
         outcome: error ? 'failure' : 'success',
         durationMs: Math.max(0, Date.now() - startedAt),
-        system: await SystemConnector.getSystemInfo(),
+        system: await SystemConnector.getSystemInfo(context.missingBackendApis),
         client: { core: resolveCoreVersion(context.rawInput.contextData?.coreVersion) }
     };
     const previousVersion = context.runtime.update?.manifest?.get()?.version;

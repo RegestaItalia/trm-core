@@ -44,6 +44,11 @@ describe('install telemetry', () => {
         jest.restoreAllMocks();
     });
 
+    test('the system info skips the APIs a trm-server/trm-rest upgrade lacks', async () => {
+        await buildInstallTelemetry(context({ missingBackendApis: ['trmRest71'] } as any), Date.now());
+        expect(SystemConnector.getSystemInfo).toHaveBeenCalledWith(['trmRest71']);
+    });
+
     test('a successful install reports durations, return codes and object counts, no names', async () => {
         const event = await buildInstallTelemetry(context(), Date.now() - 1000);
         expect(event).toMatchObject({
