@@ -55,6 +55,22 @@ describe('Transport import polling', () => {
         await expect(poll()).resolves.toEqual({ rc: 8, message: 'A tool used by tp produced errors' });
     });
 
+    test('in a batch the tp return code is the whole batch one: the request queue return code is the result', async () => {
+        getStatus.mockResolvedValue(status('F', '0008', 'A tool used by tp produced errors'));
+        readQueue.mockResolvedValue([queueRow('', '0004')]);
+        const t = new Transport(TRKORR, 'TST');
+
+        await expect((t as any)._isInTmsQueue(true, true)).resolves.toEqual({ rc: 4, message: undefined });
+    });
+
+    test('in a batch a request that failed keeps its return code and the tp message', async () => {
+        getStatus.mockResolvedValue(status('F', '0008', 'A tool used by tp produced errors'));
+        readQueue.mockResolvedValue([queueRow('', '0008')]);
+        const t = new Transport(TRKORR, 'TST');
+
+        await expect((t as any)._isInTmsQueue(true, true)).resolves.toEqual({ rc: 8, message: 'A tool used by tp produced errors' });
+    });
+
     test('a status row of another request of the batch is ignored: the queue decides', async () => {
         getStatus.mockResolvedValue(status('F', '0012', 'other request', 'TSTK900002'));
         readQueue
