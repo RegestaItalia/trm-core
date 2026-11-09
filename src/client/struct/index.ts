@@ -39,6 +39,7 @@ export * from "./TPSTDOUT";
 export * from "./TPLOGPTR";
 export * from "./STMS_TP_IMPORT";
 export * from "./ActionLockKey";
+export * from "./ActionLog";
 
 export * from "./CVERS";
 export * from "./PRDVERS";

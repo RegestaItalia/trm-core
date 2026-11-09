@@ -4,17 +4,20 @@ import { Transport } from "../../../transport";
 import { TransportImportError } from "../../../transport/TransportImportError";
 import { SystemConnector } from "../../../systemConnector";
 import { dequeueTransport } from "./importQueue";
+import { recordTransportEvent } from "../../../actionLog";
 
 /** Re-imports a transport snapshot (e.g. a backup) into the connected system. Fails on return codes from 8. */
 export async function restoreTransport(snapshot: TransportBinary, ignoreImportErrors?: boolean): Promise<void> {
     Logger.loading(`Restoring transport ${snapshot.trkorr}...`, true);
     const transport = await Transport.upload(snapshot.trkorr, {
         binary: snapshot.binaries,
-        trTarget: SystemConnector.getDest()
+        trTarget: SystemConnector.getDest(),
+        logRole: 'BKP'
     });
     //avoid test import, it should be fine?...
     const rc = await transport.import(false);
     TransportImportError.assert(snapshot.trkorr, rc, `Restore of transport ${snapshot.trkorr}`, transport.lastImportMessage, ignoreImportErrors);
+    await recordTransportEvent(snapshot.trkorr, 'RESTORE', { role: 'BKP', target: SystemConnector.getDest(), retcode: rc });
     Logger.success(`Transport ${snapshot.trkorr} restored`, true);
 }
 

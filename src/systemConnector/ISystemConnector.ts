@@ -5,7 +5,7 @@ import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { RFCConnection } from "./RFCConnection";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
-import { ActionLockKey } from "./ActionLock";
+import { ActionLockKey, ActionLogEvent, ActionLogStart, ActionLogStatus } from "./ActionLock";
 
 export interface TrmPackageUpdateData {
     package_name: string,
@@ -88,5 +88,8 @@ export interface ISystemConnector extends ISystemConnectorBase {
     getTransportTargets:() => Promise<components.TARSYSTEM[]>
     getTransportLayers: (target: components.TARSYSTEM) => Promise<components.DEVLAYER[]>,
     acquireActionLocks: (keys: ActionLockKey[], ownerToken: string, actionName: string) => Promise<void>,
-    releaseActionLocks: (keys: ActionLockKey[], ownerToken: string) => Promise<void>
+    releaseActionLocks: (keys: ActionLockKey[], ownerToken: string) => Promise<void>,
+    logActionStart: (action: ActionLogStart) => Promise<void>,
+    logActionEnd: (actionId: string, status: ActionLogStatus, version?: string) => Promise<void>,
+    logTransportEvents: (actionId: string, events: ActionLogEvent[]) => Promise<void>
 }

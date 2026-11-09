@@ -15,7 +15,9 @@ export const TRM_BACKEND_APIS = {
     /** Action locks, batch import, install transports, test imports, transport object locks. */
     trmServer7: { server: '7.0.0', rest: '6.0.0' },
     /** Transport layers routed to a landscape target. */
-    trmServer8: { server: '8.0.0', rest: '7.0.0' }
+    trmServer8: { server: '8.0.0', rest: '7.0.0' },
+    /** Action log (transaction /ATRM/LOG). */
+    trmServer81: { server: '8.1.0', rest: '7.1.0' }
 } as const;
 
 export type TrmBackendApis = keyof typeof TRM_BACKEND_APIS;

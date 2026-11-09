@@ -16,6 +16,10 @@ import { uninstall, uninstallWithRollback } from ".";
 describe("uninstall action-lock release", () => {
     const acquire = jest.spyOn(SystemConnector, "acquireActionLocks");
     const release = jest.spyOn(SystemConnector, "releaseActionLocks");
+    // The action log is covered by its own tests.
+    jest.spyOn(SystemConnector, "logActionStart").mockResolvedValue(undefined);
+    jest.spyOn(SystemConnector, "logActionEnd").mockResolvedValue(undefined);
+    jest.spyOn(SystemConnector, "logTransportEvents").mockResolvedValue(undefined);
     let warning: jest.SpyInstance;
     const inputData = { packageData: { name: "pkg", registry: { endpoint: "registry" } } } as any;
 
@@ -85,5 +89,26 @@ describe("uninstall action-lock release", () => {
         await parent.release();
         expect(release).toHaveBeenCalledTimes(1);
         expect(release.mock.calls[0][0]).toHaveLength(2);
+    });
+
+    test("a retained uninstall rolled back by its parent ends rolled back in the action log, and its rollback runs as it", async () => {
+        const { currentActionLog } = jest.requireActual("../../actionLog");
+        let rollbackActionId: string | undefined;
+        const rollback = jest.fn(async () => { rollbackActionId = currentActionLog()?.actionId; });
+        (executeRetainedWorkflow as jest.Mock).mockResolvedValue({ context: { output: { manifest: { name: "pkg" } } }, rollback });
+        const retained = await uninstallWithRollback(inputData, []);
+        await retained.rollback();
+
+        const start = (SystemConnector.logActionStart as jest.Mock).mock.calls.at(-1)[0];
+        expect(rollbackActionId).toBe(start.actionId);
+        expect((SystemConnector.logActionEnd as jest.Mock).mock.calls.filter(call => call[0] === start.actionId).map(call => call[1])).toEqual(["S", "B"]);
+    });
+
+    test("a failing action log never fails the uninstall or its lock release", async () => {
+        (SystemConnector.logActionStart as jest.Mock).mockRejectedValueOnce(new Error("log down"));
+        (executeWorkflow as jest.Mock).mockRejectedValue(new Error("workflow failed"));
+
+        await expect(uninstall(inputData)).rejects.toThrow("workflow failed");
+        expect(release).toHaveBeenCalledTimes(1);
     });
 });

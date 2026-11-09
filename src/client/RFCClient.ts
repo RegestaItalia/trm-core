@@ -8,6 +8,8 @@ import * as xml from "xml-js";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
 import { ActionLockKey } from "./struct/ActionLockKey";
+import { ActionLogEvent, ActionLogStart, ActionLogStatus } from "./struct/ActionLog";
+import { actionLogEventRow } from "./actionLogEventRow";
 import { logMessageLog, parseMessageLog } from "./messageLog";
 import { getErrorMessage } from "../commons/getErrorMessage";
 import { normalizeSystemLevel } from "../systemConnector/SystemInfo";
@@ -42,6 +44,33 @@ export class RFCClient implements IClient {
                 resource_hash: key.resourceHash,
                 resource_name: key.resourceName
             }))
+        });
+    }
+
+    public async logActionStart(action: ActionLogStart): Promise<void> {
+        await this._call("/ATRM/LOG_ACTION_START", {
+            action_id: action.actionId,
+            session_id: action.sessionId,
+            parent_action_id: action.parentActionId,
+            action_name: action.actionName,
+            package_name: action.packageName,
+            package_registry: action.packageRegistry,
+            version: action.version
+        });
+    }
+
+    public async logActionEnd(actionId: string, status: ActionLogStatus, version?: string): Promise<void> {
+        await this._call("/ATRM/LOG_ACTION_END", {
+            action_id: actionId,
+            status,
+            version
+        });
+    }
+
+    public async logTransportEvents(actionId: string, events: ActionLogEvent[]): Promise<void> {
+        await this._call("/ATRM/LOG_TR_EVENTS", {
+            action_id: actionId,
+            events: events.map(actionLogEventRow)
         });
     }
     protected _rfcClient: any;

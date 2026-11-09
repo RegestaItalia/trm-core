@@ -13,6 +13,7 @@ import { SystemConnector } from '../../../systemConnector';
 import { Transport } from '../../../transport';
 import { protectBackupTransport } from './importQueue';
 import { restoreTransport, revertPreparedTransport } from './restoreTransport';
+import { runWithActionLog, setActionLogWriter } from '../../../actionLog';
 
 describe('restore and revert of transports', () => {
     const snapshot = {
@@ -75,7 +76,7 @@ describe('restore and revert of transports', () => {
 
         await restoreTransport(snapshot);
 
-        expect(Transport.upload).toHaveBeenCalledWith(snapshot.trkorr, { binary: snapshot.binaries, trTarget: 'TST' });
+        expect(Transport.upload).toHaveBeenCalledWith(snapshot.trkorr, { binary: snapshot.binaries, trTarget: 'TST', logRole: 'BKP' });
         expect(restored.import).toHaveBeenCalledWith(false);
     });
 
@@ -85,5 +86,18 @@ describe('restore and revert of transports', () => {
 
         await expect(restoreTransport(snapshot)).rejects.toThrow(`Restore of transport ${snapshot.trkorr}`);
         expect(Logger.success).not.toHaveBeenCalled();
+    });
+
+    test('a restore of the running action is recorded as such, after its import', async () => {
+        const writer = { logActionStart: jest.fn().mockResolvedValue(undefined), logActionEnd: jest.fn().mockResolvedValue(undefined), logTransportEvents: jest.fn().mockResolvedValue(undefined) };
+        setActionLogWriter(writer);
+        try {
+            restored.import.mockResolvedValue(4);
+            await runWithActionLog({ actionName: 'install' }, () => restoreTransport(snapshot));
+        } finally {
+            setActionLogWriter(undefined);
+        }
+
+        expect(writer.logTransportEvents).toHaveBeenCalledWith(expect.any(String), [{ trkorr: 'DEVK900001', event: 'RESTORE', role: 'BKP', target: 'TST', retcode: 4 }]);
     });
 });

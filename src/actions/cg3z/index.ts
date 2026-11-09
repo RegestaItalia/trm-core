@@ -2,6 +2,7 @@ import { checkServerAuth, executeWorkflow, workflowCallbacks } from "..";
 import { parseTransportArchive, upload } from "./upload";
 import { ActionLockScope, withActionLockScope } from "../commons/utils";
 import { TRKORR } from "../../client";
+import { assignTransportRole, runWithActionLog } from "../../actionLog";
 
 /** Shared execution settings for the CG3Z action. */
 export type Cg3zActionInputContextData = {
@@ -103,10 +104,13 @@ export async function cg3z(inputData: Cg3zActionInput): Promise<Cg3zActionOutput
     inputData.contextData ??= {};
     inputData.uploadData ??= {};
     return withActionLockScope(lockScope, async () => {
-        const result = await executeWorkflow<Cg3zWorkflowContext>(WORKFLOW_NAME, workflow, {
-            rawInput: inputData,
-            runtime: {}
-        }, workflowCallbacks);
+        const result = await runWithActionLog({ actionName: WORKFLOW_NAME }, async () => {
+            assignTransportRole(trkorr, 'CG3Z');
+            return executeWorkflow<Cg3zWorkflowContext>(WORKFLOW_NAME, workflow, {
+                rawInput: inputData,
+                runtime: {}
+            }, workflowCallbacks);
+        });
         return { trkorr: result.output.trkorr };
     });
 }

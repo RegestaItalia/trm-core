@@ -69,7 +69,8 @@ export const prepareDevc: Step<InstallWorkflowContext> = {
             context.runtime.transports.devc.instance = await Transport.upload(
                 trkorr, {
                 binary: context.runtime.transports.devc.binaries.binaries,
-                trTarget: SystemConnector.getDest()
+                trTarget: SystemConnector.getDest(),
+                logRole: 'DEVC'
             });
 
             //4- test import transport

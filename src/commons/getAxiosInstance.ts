@@ -1,9 +1,10 @@
 import axios, { AxiosInstance, AxiosResponse, CreateAxiosDefaults } from "axios";
 import { inspect } from "util";
-import { CliLogFileLogger, Logger } from "trm-commons";
+import { Logger } from "trm-commons";
 import { parse as htmlParser } from 'node-html-parser';
 import { randomUUID } from "crypto";
 import { summarizeForLog, summarizeUrlForLog } from "./summarizeForLog";
+import { getSessionId } from "./session";
 
 export const AXIOS_SESSION_HEADER = 'X-TRM-SESSION-ID';
 export const AXIOS_INTERNAL_HEADER = 'X-TRM-REQUEST-ID';
@@ -23,9 +24,7 @@ export function getAxiosInstance(config: CreateAxiosDefaults<any>, sCtx: AxiosCt
     instance.interceptors.request.use((request) => {
         const internalId = randomUUID();
         request.headers.set(AXIOS_INTERNAL_HEADER, internalId);
-        if (Logger.logger instanceof CliLogFileLogger) {
-            request.headers.set(AXIOS_SESSION_HEADER, Logger.logger.getSessionId());
-        }
+        request.headers.set(AXIOS_SESSION_HEADER, getSessionId());
         var sRequest = `${request.method} ${summarizeUrlForLog(request.baseURL, request.url)}`;
         if (request.params) {
             sRequest += `, parameters: ${inspect(summarizeForLog(request.params), { breakLength: Infinity, compact: true })}`;

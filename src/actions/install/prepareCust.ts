@@ -69,7 +69,8 @@ export const prepareCust: Step<InstallWorkflowContext> = {
                 cust.instance = await Transport.upload(
                     trkorr, {
                     binary: cust.binaries.binaries,
-                    trTarget: SystemConnector.getDest()
+                    trTarget: SystemConnector.getDest(),
+                    logRole: 'CUST'
                 });
 
                 //3- test import transport
