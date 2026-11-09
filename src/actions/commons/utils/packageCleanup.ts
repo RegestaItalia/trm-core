@@ -20,6 +20,7 @@ import { DeletionPreview, generateDeletion } from "./generateDeletion";
 import { dequeueTransport, protectBackupTransport } from "./importQueue";
 import { addObjectsResiliently } from "./transportObjects";
 import { lacksTrmBackendApis, TrmBackendApis } from "./trmBackend";
+import { addManualStep, isPackageApiUnsupported, logPackageApiUnsupported, StagingUnavailableError } from "./packageApiFallback";
 
 type CleanupObject = Pick<E071, 'pgmid' | 'object' | 'objName'>;
 
@@ -100,7 +101,14 @@ export interface PackageCleanupContext {
          * Objects already deleted by this run (the uninstalls of the TRM packages installed underneath):
          * the system may still list them for a while after their deletion transport import.
          */
-        deletedObjects?: Pick<E071, 'pgmid' | 'object' | 'objName'>[]
+        deletedObjects?: Pick<E071, 'pgmid' | 'object' | 'objName'>[],
+        /**
+         * Objects of a temporary (`$`) installation left in their local packages: no staging package can be
+         * created (the SAP package API is unsupported). Neither backed up nor deleted.
+         */
+        cleanupKeptLocal?: TADIR[],
+        /** Changes left to do by hand, listed in the summary (see addManualStep). */
+        manualSteps?: string[]
     },
     revert?: PackageCleanupRevert
 }
@@ -493,6 +501,11 @@ async function restoreCleanupPackages(context: PackageCleanupContext): Promise<v
                 tpclass: pkg.tpclass
             });
         } catch (error) {
+            if (isPackageApiUnsupported(error)) {
+                logPackageApiUnsupported(`Recreate SAP package ${pkg.devclass}`, error);
+                Logger.warning(`SAP package ${pkg.devclass} can't be recreated: the SAP package API is unsupported on ${SystemConnector.getDest()}. Create it in SE21 (${pkg.ctext || 'no description'}${pkg.parentcl ? `, superpackage ${pkg.parentcl}` : ''}), then reassign its objects.`, { important: true });
+                continue;
+            }
             firstError ||= error;
         }
     }
@@ -721,16 +734,24 @@ export async function createStagingPackage(context: Pick<PackageCleanupContext, 
     // even when the connector response fails.
     context.revert.stagingPackages ||= [];
     context.revert.stagingPackages.push(stagingDevclass);
-    await SystemConnector.createPackage({
-        devclass: stagingDevclass,
-        ctext: 'TRM upgrade cleanup',
-        as4user: SystemConnector.getLogonUser(),
-        dlvunit: 'HOME',
-        pdevclass: transportLayer,
-        // The package immediately receives transported objects. Some systems do not infer
-        // change recording from the transport layer when CREATE_PACKAGE is called directly.
-        korrflag: 'X'
-    });
+    try {
+        await SystemConnector.createPackage({
+            devclass: stagingDevclass,
+            ctext: 'TRM upgrade cleanup',
+            as4user: SystemConnector.getLogonUser(),
+            dlvunit: 'HOME',
+            pdevclass: transportLayer,
+            // The package immediately receives transported objects. Some systems do not infer
+            // change recording from the transport layer when CREATE_PACKAGE is called directly.
+            korrflag: 'X'
+        });
+    } catch (error) {
+        // not created: nothing to delete, and no staging package to list in the deletion preview
+        if (isPackageApiUnsupported(error) && !(await SystemConnector.getDevclass(stagingDevclass).catch(() => true))) {
+            context.revert.stagingPackages = context.revert.stagingPackages.filter(devclass => devclass !== stagingDevclass);
+        }
+        throw error;
+    }
     await SystemConnector.tadirInterface({
         pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass,
         devclass: stagingDevclass, srcsystem: 'TRM'
@@ -746,6 +767,8 @@ export async function createStagingPackage(context: Pick<PackageCleanupContext, 
  *
  * A backend older than trm-server 7.0.0 (a trm-server/trm-rest upgrade) has no fallback for TO 124: a missing
  * namespace is imported temporarily, and its objects are staged in a package of the namespace.
+ *
+ * Throws {@link StagingUnavailableError} when the SAP package API is unsupported on this release.
  */
 export async function getStagingPackage(context: Pick<PackageCleanupContext, 'revert' | 'runtime' | 'missingBackendApis'>, staging: Map<string, string>, namespace: string, transportLayer: string): Promise<string> {
     const key = normalize(namespace || '');
@@ -764,7 +787,11 @@ export async function getStagingPackage(context: Pick<PackageCleanupContext, 're
     if (key && !namespaceExists && lacksTrmBackendApis(context, 'trmServer7')) {
         // no customer package fallback: the backend can't assign the objects to it
         await importStagingNamespace(context, key);
-        devclass = await createStagingPackage(context, key, transportLayer);
+        try {
+            devclass = await createStagingPackage(context, key, transportLayer);
+        } catch (error) {
+            throw isPackageApiUnsupported(error) ? new StagingUnavailableError(key, error) : error;
+        }
         staging.set(key, devclass);
         return devclass;
     }
@@ -777,7 +804,11 @@ export async function getStagingPackage(context: Pick<PackageCleanupContext, 're
         }
     }
     if (!devclass) {
-        devclass = staging.get('') || await createStagingPackage(context, '', transportLayer);
+        try {
+            devclass = staging.get('') || await createStagingPackage(context, '', transportLayer);
+        } catch (error) {
+            throw isPackageApiUnsupported(error) ? new StagingUnavailableError(key, error) : error;
+        }
         staging.set('', devclass);
     }
     staging.set(key, devclass);
@@ -1147,14 +1178,49 @@ async function createBackup(context: PackageCleanupContext, description: string,
 }
 
 /**
+ * Keeps objects of a temporary (`$`) installation in their local packages, because no staging package can be
+ * created: they can't be exported, so they are neither backed up nor deleted. Objects the cleanup would have
+ * deleted are listed in the summary; the others are overwritten by the import, which a rollback can't undo.
+ * With `confirm` (interactive), the user decides whether to continue.
+ */
+async function keepLocalObjects(context: PackageCleanupContext, plan: CleanupPlan | undefined, kept: TADIR[], labels: { packageName: string, version: string }, confirm?: boolean): Promise<void> {
+    const preview = new Set((plan?.previewObjects || []).map(objectKey));
+    const leftovers = kept.filter(object => preview.has(objectKey(object)));
+    const packages = [...new Set(kept.map(object => normalize(object.devclass || '')))].sort().join(', ');
+    Logger.log(`Kept in local packages: ${kept.map(object => `${object.pgmid} ${object.object} ${object.objName} (${object.devclass})`).join(', ')}`, true);
+    if (confirm && leftovers.length > 0 && !context.rawInput.contextData?.noInquirer) {
+        const { keepLocal } = await Inquirer.prompt({
+            name: 'keepLocal',
+            type: 'confirm',
+            message: `${leftovers.length} objects of ${labels.packageName} ${labels.version} in local SAP packages ${packages} can't be deleted: the SAP package API can't create the transportable package needed to back them up. Continue and keep them?`,
+            default: true
+        });
+        if (!keepLocal) {
+            throw new Error(`Aborted: ${leftovers.length} objects of ${labels.packageName} ${labels.version} in local SAP packages can't be deleted.`);
+        }
+    }
+    context.runtime.cleanupKeptLocal = [...(context.runtime.cleanupKeptLocal || []), ...kept];
+    if (leftovers.length > 0) {
+        addManualStep(context, `${leftovers.length} objects of ${labels.packageName} ${labels.version} were kept in local SAP packages ${packages}: they can't be backed up, so they aren't deleted. Delete them in SE80 if needed.`);
+    }
+    for (const object of kept.filter(object => !preview.has(objectKey(object)))) {
+        Logger.warning(`${object.pgmid} ${object.object} ${object.objName} (temporary SAP package ${object.devclass}) can't be backed up: a rollback keeps its imported version.`, { important: true });
+    }
+}
+
+/**
  * Backs up what {@link planInstalledPackageCleanup} may delete, and `overwrittenObjects` (objects the incoming
  * release overwrites), in released transports of copies kept in the import queue: `@X1@TRM (BKP)` for the
  * objects and one for the installed customizing, both `@X1@TRM (BKP)`. A rollback re-imports them.
  *
  * Objects of a temporary (`$`) installation are first assigned to transportable staging packages, deleted
- * with them (see {@link getStagingPackage}).
+ * with them (see {@link getStagingPackage}). When the SAP package API can't create them, the objects stay in
+ * their local packages, neither backed up nor deleted (see {@link keepLocalObjects}).
  */
-export async function backupInstalledPackage(context: PackageCleanupContext, plan: CleanupPlan | undefined, overwrittenObjects: TADIR[], labels: { packageName: string, version: string, logTemporaryFolder?: string }): Promise<void> {
+export async function backupInstalledPackage(context: PackageCleanupContext, plan: CleanupPlan | undefined, overwrittenObjects: TADIR[], labels: { packageName: string, version: string, logTemporaryFolder?: string }, options: {
+    /** Ask before keeping local objects (an uninstall leaves them on the system). */
+    confirmKeptLocal?: boolean
+} = {}): Promise<void> {
     const logFolder = labels.logTemporaryFolder || join(tmpdir(), 'trm');
     const objects = new Map<string, CleanupObject>([
         ...(plan?.backupObjects || []),
@@ -1175,9 +1241,28 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
         // Resolved before anything is moved: without a routed layer the objects stay where they are.
         const transportLayer = stagingGroups.size > 0 ? await getStagingTransportLayer() : undefined;
         const staging = new Map<string, string>();
-        context.revert.cleanupOriginalTadir ||= [];
+        // Every staging package is resolved before any object is moved: a failure never leaves objects half-staged.
+        const resolved: { staged: TADIR[], stagingDevclass: string }[] = [];
+        const keptNamespaces = new Set<string>();
+        const kept: TADIR[] = [];
         for (const [namespace, staged] of stagingGroups) {
-            const stagingDevclass = await getStagingPackage(context, staging, namespace, transportLayer);
+            try {
+                resolved.push({ staged, stagingDevclass: await getStagingPackage(context, staging, namespace, transportLayer) });
+            } catch (error) {
+                if (!(error instanceof StagingUnavailableError)) {
+                    throw error;
+                }
+                logPackageApiUnsupported(error.message, error.cause);
+                keptNamespaces.add(normalize(namespace));
+                kept.push(...staged);
+            }
+        }
+        if (kept.length > 0) {
+            await keepLocalObjects(context, plan, kept, labels, options.confirmKeptLocal);
+            kept.forEach(object => objects.delete(objectKey(object)));
+        }
+        context.revert.cleanupOriginalTadir ||= [];
+        for (const { staged, stagingDevclass } of resolved) {
             objects.set(objectKey({ pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass }), { pgmid: 'R3TR', object: 'DEVC', objName: stagingDevclass });
             for (const object of staged) {
                 context.revert.cleanupOriginalTadir.push({ ...object });
@@ -1186,6 +1271,11 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
         }
         // Namespaces imported for the staging go with their staging packages.
         for (const namespace of context.revert.temporaryNamespaces || []) {
+            if (keptNamespaces.has(normalize(namespace))) {
+                // its objects are kept: the namespace stays too
+                addManualStep(context, `Namespace ${namespace} was imported to stage the objects of ${labels.packageName}, which are kept: delete it in SE03 once they are deleted.`);
+                continue;
+            }
             objects.set(objectKey({ pgmid: 'R3TR', object: 'NSPC', objName: namespace }), { pgmid: 'R3TR', object: 'NSPC', objName: namespace });
         }
     }
@@ -1234,15 +1324,18 @@ export async function generateCleanupDeletions(context: PackageCleanupContext, p
     context.runtime.deletions = {};
     context.revert.deletionDummies ||= [];
     const backup = context.revert.backup || {};
+    // kept objects have no backup: they're never deleted
+    const kept = new Set((context.runtime.cleanupKeptLocal || []).map(objectKey));
+    const previewObjects = plan.previewObjects.filter(object => !kept.has(objectKey(object)));
     const runs: Array<{ kind: 'tadir' | 'cust', backup: CleanupBackup, description: string, subtract?: string[], exclude: DeleteTransportOptions['exclude'], preview: DeletionPreview }> = [];
-    if (backup.tadir && plan.previewObjects.length > 0) {
+    if (backup.tadir && previewObjects.length > 0) {
         runs.push({
             kind: 'tadir',
             backup: backup.tadir,
             description: deletionDescription(backup.tadir.description),
             subtract: options.incoming?.tadir?.subtract,
             exclude: { e071: [...plan.excludeObjects, ...(options.incoming?.tadir?.objects || [])].map(o => ({ pgmid: o.pgmid, object: o.object, objName: o.objName })) },
-            preview: { e071: [...plan.previewObjects, ...stagedObjects(context)], e071k: [] }
+            preview: { e071: [...previewObjects, ...stagedObjects(context)], e071k: [] }
         });
     }
     if (backup.cust && plan.previewKeys.length > 0) {
@@ -1280,7 +1373,7 @@ export async function generateCleanupDeletions(context: PackageCleanupContext, p
             }
             await dequeueTransport(dummy.trkorr, 'deletion');
             const leftovers = run.kind === 'tadir'
-                ? plan.previewObjects.filter(object => !(options.incoming?.tadir?.objects || []).some(o => objectKey(o) === objectKey(object))).map(object => `${object.pgmid} ${object.object} ${object.objName}`)
+                ? previewObjects.filter(object => !(options.incoming?.tadir?.objects || []).some(o => objectKey(o) === objectKey(object))).map(object => `${object.pgmid} ${object.object} ${object.objName}`)
                 : plan.previewKeys.map(key => `${key.table} ${key.tabkey}`);
             Logger.warning(`${e.message} ${leftovers.length} ${run.kind === 'tadir' ? 'objects' : 'customizing keys'} of ${plan.packageName} ${plan.installedVersion} not shipped anymore are left on ${SystemConnector.getDest()}: delete them manually if needed.\n${leftovers.slice(0, 50).join('\n')}${leftovers.length > 50 ? `\n...and ${leftovers.length - 50} more` : ''}`, { important: true });
         }
@@ -1308,11 +1401,26 @@ export async function deletePlannedTemporaryPackages(context: PackageCleanupCont
             context.revert.cleanupTemporaryPackages.push({ ...pkg });
         }
     }
+    // Packages still holding kept objects, and their superpackages, aren't empty.
+    const notEmpty = new Set((context.runtime.cleanupKeptLocal || []).map(object => normalize(object.devclass || '')));
+    const snapshots = new Map(context.revert.cleanupTemporaryPackages.map(pkg => [normalize(pkg.devclass), pkg]));
+    for (const devclass of [...notEmpty]) {
+        for (let parent = snapshots.get(devclass)?.parentcl; parent && !notEmpty.has(normalize(parent)); parent = snapshots.get(normalize(parent))?.parentcl) {
+            notEmpty.add(normalize(parent));
+        }
+    }
+    const temporaryPackages = plan.temporaryPackages.filter(devclass => !notEmpty.has(normalize(devclass.objName)));
+    if (temporaryPackages.length < plan.temporaryPackages.length) {
+        Logger.log(`Local SAP packages kept with their objects: ${plan.temporaryPackages.filter(o => !temporaryPackages.includes(o)).map(o => o.objName).join(', ')}`, true);
+    }
+    if (temporaryPackages.length === 0) {
+        return;
+    }
     try {
-        await deleteTemporaryCleanupPackages(plan.temporaryPackages);
+        await deleteTemporaryCleanupPackages(temporaryPackages);
     } catch (e) {
         // Their objects are already deleted: an empty local package is a harmless leftover.
-        Logger.warning(`Could not delete local SAP package(s) ${plan.temporaryPackages.map(o => o.objName).join(', ')} (${e instanceof Error ? e.message : String(e)}): delete them manually.`, { important: true });
+        Logger.warning(`Could not delete local SAP package(s) ${temporaryPackages.map(o => o.objName).join(', ')} (${e instanceof Error ? e.message : String(e)}): delete them manually.`, { important: true });
     }
 }
 
