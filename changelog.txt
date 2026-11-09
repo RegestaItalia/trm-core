@@ -8,6 +8,22 @@ Legend
 + : added
 - : removed
 
+2026-11-09 v11.4.0
+-------------------
++ action log (transaction /ATRM/LOG in trm-server): install (with dependencies), publish, uninstall and cg3z record each action on SAP with session, parent action, package, version, status and the transports they create, release, forward, import, delete, dequeue and restore, with their role. Best-effort: a failed write warns once and the action continues; rollbacks end the action with status B
++ SystemConnector.logActionStart, SystemConnector.logActionEnd, SystemConnector.logTransportEvents (trm-server 8.1.0 / trm-rest 7.1.0, backend API generation trmServer81); a trm-server/trm-rest upgrade on an older backend skips the log
++ getSessionId: session ID owned by core, also sent as the X-TRM-SESSION-ID header
++ system info over REST: RESTClient.getSystemRuntimeInfo reads system ID, database system and kernel release (trm-rest 7.1.0 `GET /get_system_info`, backend API generation trmRest71)
++ install: `noObjectTypes` check restored: object types the target system doesn't support are warnings instead of errors
++ install/update/uninstall: when the SAP package API is unsupported (e.g. SAP_BASIS 702: DYN_CALL_PARAM_NOT_FOUND, DYN_CALL_METH_PARAM_NOT_FOUND, empty message, DYNPRO_SEND_IN_BACKGROUND) the action finishes: staging packages that can't be created leave local objects in place, generated install packages are created by the user in SE21 (interactive), superpackages and transport layers that can't be set are listed in the summary's manual steps, and rollback restores that can't run are warnings with what to restore by hand
+! getDest over REST falls back to the system info when the user isn't authorized to TRM, like RFC
+! SystemConnector.getSystemInfo takes the missing backend APIs; the system info is no longer read on connect, only when the telemetry needs it
+! install: setting the transport layer of an imported SAP package is best-effort (a failure warns instead of rolling back)
+* rollback writes back only TADIR rows that differ from the live ones (was: unsupported object types failed the rollback even when unchanged)
+* a backup transport no object could be added to is deleted instead of released and kept
+* batch imports report each transport's own queue return code (was: the batch-wide tp return code)
+! requires trm-server 8.1.0
+
 2026-11-04 v11.3.0
 -------------------
 + registry navigation (optional registry features): search, getPackageInfo, getReadme, getManifest, getNamespace (RegistryV2 `GET /search`, `GET /package/{info|readme|manifest|namespace}/{package}`)
