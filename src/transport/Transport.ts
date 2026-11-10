@@ -16,6 +16,8 @@ import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE,
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 import { TransportTmsError } from "./TransportTmsError";
+import { assignTransportRole, recordTransportEvent, recordTransportImports, transportRole } from "../actionLog";
+import type { ActionLogTransportRole } from "../client/struct/ActionLog";
 
 export const COMMENT_OBJ: TROBJTYPE = 'ZTRM';
 
@@ -662,9 +664,10 @@ export class Transport {
      * (`GET_TR_IMPORT_STATUS`) is read at every check; the whole queue is read only when the status can't
      * tell (virtual targets, a batch status row of another request, an older backend), and once at the end
      * for the request return code. The return code is the highest of the queue `maxrc` and the final tp
-     * status return code of this request.
+     * status return code of this request. With `batch` (imported with others in one tp command), the tp return
+     * code and message are the whole batch's: the request's own queue return code is used.
      */
-    private async _isInTmsQueue(skipLog: boolean): Promise<{ rc: number, message?: string }> {
+    private async _isInTmsQueue(skipLog: boolean, batch: boolean = false): Promise<{ rc: number, message?: string }> {
         var rc: number = 12;
         var message: string;
         if (!this._trTarget) {
@@ -748,8 +751,13 @@ export class Transport {
         message = finalStatus?.message;
         const statusRc = Transport._isFinalStatus(finalStatus) ? parseInt(finalStatus.retcode) : NaN;
         if (!isNaN(statusRc) && statusRc > rc) {
-            Logger.log(`${this.trkorr} queue return code ${rc}, tp return code ${statusRc}: ${statusRc} is used`, true);
-            rc = statusRc;
+            if (batch) {
+                Logger.log(`${this.trkorr} queue return code ${rc}, batch tp return code ${statusRc}: ${rc} is used`, true);
+                message = undefined;
+            } else {
+                Logger.log(`${this.trkorr} queue return code ${rc}, tp return code ${statusRc}: ${statusRc} is used`, true);
+                rc = statusRc;
+            }
         }
         Logger.log(`${this.trkorr} import check completed in ${elapsed()}`, true);
         return { rc, message };
@@ -840,6 +848,7 @@ export class Transport {
         Logger.loading(`Creating transport request (TOC)...`, true);
         const trkorr = await SystemConnector.createTocTransport(data.text, data.target);
         Logger.success(`Transport request ${trkorr} generated successfully.`, true);
+        await recordTransportEvent(trkorr, 'CREATE', { role: transportRole({ trmIdentifier: data.trmIdentifier, text: data.text }) });
         return new Transport(trkorr, data.target).setTrmIdentifier(data.trmIdentifier);
     }
 
@@ -850,6 +859,7 @@ export class Transport {
         Logger.loading(`Creating transport request (CUST)...`, true);
         const trkorr = await SystemConnector.createCustTransport(data.text, data.target);
         Logger.success(`Transport request ${trkorr} generated successfully.`, true);
+        await recordTransportEvent(trkorr, 'CREATE', { role: 'CUST' });
         return new Transport(trkorr, data.target).setTrmIdentifier(TrmTransportIdentifier.CUST);
     }
 
@@ -860,6 +870,7 @@ export class Transport {
         Logger.loading(`Creating transport request (LANG)...`, true);
         const trkorr = await SystemConnector.createWbTransport(data.text, data.target);
         Logger.success(`Transport request ${trkorr} generated successfully.`, true);
+        await recordTransportEvent(trkorr, 'CREATE', { role: 'LANG' });
         return new Transport(trkorr, data.target).setTrmIdentifier(TrmTransportIdentifier.LANG);
     }
 
@@ -870,13 +881,17 @@ export class Transport {
         Logger.loading(`Creating transport request (WB)...`, true);
         const trkorr = await SystemConnector.createWbTransport(data.text, data.target);
         Logger.success(`Transport request ${trkorr} generated successfully.`, true);
+        await recordTransportEvent(trkorr, 'CREATE', { role: transportRole({ text: data.text, workbench: true }) });
         return new Transport(trkorr, null);
     }
 
     public static async upload(trkorr: TRKORR, data: {
         binary: BinaryTransport,
-        trTarget?: TR_TARGET
+        trTarget?: TR_TARGET,
+        /** Role of the transport in the running TRM action (action log). */
+        logRole?: ActionLogTransportRole
     }): Promise<Transport> {
+        assignTransportRole(trkorr, data.logRole);
         Logger.loading(`Reading binary content...`, true);
         Logger.success(`Transport ${trkorr} read success.`, true);
         const fileNames = Transport._getFileNames(trkorr, SystemConnector.getDest());
@@ -1007,11 +1022,12 @@ export class Transport {
                 }
                 Logger.log(`Starting transport ${transport.trkorr} TMS queue status check`, true);
                 transport._trTarget = target;
-                const queue = await transport._isInTmsQueue(false);
+                const queue = await transport._isInTmsQueue(false, transports.length > 1);
                 transport.lastImportMessage = queue.message;
                 Transport._printImportResult(transport.trkorr, queue.rc, queue.message, false);
                 results.push({ trkorr: transport.trkorr, rc: queue.rc, message: queue.message });
             }
+            await recordTransportImports(target, results);
             return results;
         } finally {
             Logger.setPrefix(originalLPrefix);
@@ -1061,6 +1077,9 @@ export class Transport {
         }
         this.lastImportMessage = message;
         Transport._printImportResult(this.trkorr, rc, message, test);
+        if (!test) {
+            await recordTransportImports(this._trTarget, [{ trkorr: this.trkorr, rc }]);
+        }
         return rc;
     }
 

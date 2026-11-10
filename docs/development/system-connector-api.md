@@ -62,7 +62,7 @@ For edits and renames, trace every occurrence of the old API name and transport 
 
 trm-core upgrades trm-server and trm-rest themselves, so an upgrade always runs on the previous backend: an API added in the release being installed doesn't exist yet. When a new API is called by an action that already exists (most notably install), register it before the action calls it:
 
-1. Add or extend a generation in `TRM_BACKEND_APIS` (`src/actions/commons/utils/trmBackend.ts`) with the first trm-server and trm-rest releases that ship the API. Ask for the release numbers if they aren't known: versions are set at release.
+1. Add or extend a generation in `TRM_BACKEND_APIS` (`src/actions/commons/utils/trmBackend.ts`) with the first trm-server and trm-rest releases that ship the API (only the one that ships it, when the API is in trm-server or trm-rest alone). Ask for the release numbers if they aren't known: versions are set at release.
 2. Guard the call with `lacksTrmBackendApis(context, '<generation>')` and continue as the action did before the API existed (skip the step, use the previous behaviour, leave a check out). Pass `missingBackendApis` on to helpers that make the call.
 3. Don't catch the "function module not found" / `METHOD_CALL_EXCEPTION` error to fall back: outside a trm-server/trm-rest upgrade `missingBackendApis` is empty, and a missing API is an error, because every other action needs the backend this trm-core is built for.
 4. Test both paths: the upgrade on a backend without the generation continues without the API, and any other action calls it (and fails when it is missing).

@@ -9,10 +9,12 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
-import { ActionLockKey } from "./ActionLock";
+import { ActionLockKey, ActionLogEvent, ActionLogStart, ActionLogStatus } from "./ActionLock";
 import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { TrmManifestEngineTableCondition } from "../manifest";
 import type { SystemInfo } from "./SystemInfo";
+import { recordTransportEvent, setActionLogWriter } from "../actionLog/ActionLog";
+import type { TrmBackendApis } from "../actions/commons/utils/trmBackend";
 
 export namespace SystemConnector {
     export var systemConnector: ISystemConnector;
@@ -25,6 +27,21 @@ export namespace SystemConnector {
     export async function releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
         await checkSystemConnector();
         return systemConnector.releaseActionLocks(keys, ownerToken);
+    }
+
+    export async function logActionStart(action: ActionLogStart): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.logActionStart(action);
+    }
+
+    export async function logActionEnd(actionId: string, status: ActionLogStatus, version?: string): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.logActionEnd(actionId, status, version);
+    }
+
+    export async function logTransportEvents(actionId: string, events: ActionLogEvent[]): Promise<void> {
+        await checkSystemConnector();
+        return systemConnector.logTransportEvents(actionId, events);
     }
 
     /** Connection checks are repeated at most this often: every API call failing on a lost connection anyway. */
@@ -308,12 +325,14 @@ export namespace SystemConnector {
 
     export async function deleteTrkorr(trkorr: components.TRKORR): Promise<void> {
         await checkSystemConnector();
-        return systemConnector.deleteTrkorr(trkorr);
+        await systemConnector.deleteTrkorr(trkorr);
+        await recordTransportEvent(trkorr, 'DELETE');
     }
 
     export async function releaseTrkorr(trkorr: components.TRKORR, lock: boolean, timeout?: number): Promise<void> {
         await checkSystemConnector();
-        return systemConnector.releaseTrkorr(trkorr, lock, timeout);
+        await systemConnector.releaseTrkorr(trkorr, lock, timeout);
+        await recordTransportEvent(trkorr, 'RELEASE');
     }
 
     export async function trCopy(from: components.TRKORR, to: components.TRKORR, doc: boolean): Promise<void> {
@@ -333,7 +352,8 @@ export namespace SystemConnector {
 
     export async function forwardTransport(trkorr: components.TRKORR, target: components.TMSSYSNAM, source: components.TMSSYSNAM, importAgain: boolean): Promise<void> {
         await checkSystemConnector();
-        return systemConnector.forwardTransport(trkorr, target, source, importAgain);
+        await systemConnector.forwardTransport(trkorr, target, source, importAgain);
+        await recordTransportEvent(trkorr, 'FORWARD', { target });
     }
 
     export async function importTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM, test: boolean): Promise<struct.STMS_TP_IMPORT | void> {
@@ -431,7 +451,8 @@ export namespace SystemConnector {
 
     export async function deleteTmsTransport(trkorr: components.TRKORR, system: components.TMSSYSNAM): Promise<void> {
         await checkSystemConnector();
-        return systemConnector.deleteTmsTransport(trkorr, system);
+        await systemConnector.deleteTmsTransport(trkorr, system);
+        await recordTransportEvent(trkorr, 'DEQUEUE', { target: system });
     }
 
     export async function refreshTransportTmsTxt(trkorr: components.TRKORR): Promise<void> {
@@ -519,10 +540,13 @@ export namespace SystemConnector {
         return systemConnector.getSoftwareComponents();
     }
 
-    /** Non-identifying system characteristics, read once after connecting. Never throws. */
-    export async function getSystemInfo(): Promise<SystemInfo> {
+    /**
+     * Non-identifying system characteristics, read once and then cached. Never throws.
+     * @param missingBackendApis only during a trm-server/trm-rest upgrade: the backend API generations it lacks
+     */
+    export async function getSystemInfo(missingBackendApis?: TrmBackendApis[]): Promise<SystemInfo> {
         assertSystemConnector();
-        return systemConnector.getSystemInfo();
+        return systemConnector.getSystemInfo(missingBackendApis);
     }
 
     export async function getInstalledProducts(): Promise<struct.PRDVERS[]> {
@@ -556,3 +580,10 @@ export namespace SystemConnector {
     }
 
 }
+
+// Transport events of TRM actions go to the SAP action log (transaction /ATRM/LOG) through the system connector.
+setActionLogWriter({
+    logActionStart: (action) => SystemConnector.logActionStart(action),
+    logActionEnd: (actionId, status, version) => SystemConnector.logActionEnd(actionId, status, version),
+    logTransportEvents: (actionId, events) => SystemConnector.logTransportEvents(actionId, events)
+});

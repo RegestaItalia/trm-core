@@ -9,7 +9,11 @@ import { Login, RESTClientError, SapMessage, formatSapMessage } from ".";
 import { parse as parseMultipart } from "parse-multipart-data";
 import { TrmPackageMetadataRestoreData, TrmPackageUpdateData } from "../systemConnector";
 import { TransportEntries } from "./TransportEntries";
+import { SystemRuntimeInfo } from "./SystemRuntimeInfo";
+import { normalizeSystemLevel } from "../systemConnector/SystemInfo";
 import { ActionLockKey } from "./struct/ActionLockKey";
+import { ActionLogEvent, ActionLogStart, ActionLogStatus } from "./struct/ActionLog";
+import { actionLogEventRow } from "./actionLogEventRow";
 import { logMessageLog, parseMessageLog } from "./messageLog";
 import { Agent as HttpsAgent } from "https";
 import { getErrorMessage } from "../commons/getErrorMessage";
@@ -37,6 +41,33 @@ export class RESTClient implements IClient {
                 resource_hash: key.resourceHash,
                 resource_name: key.resourceName
             }))
+        });
+    }
+
+    public async logActionStart(action: ActionLogStart): Promise<void> {
+        await this._axiosInstance.post('/log_action_start', {
+            action_id: action.actionId,
+            session_id: action.sessionId,
+            parent_action_id: action.parentActionId,
+            action_name: action.actionName,
+            package_name: action.packageName,
+            package_registry: action.packageRegistry,
+            version: action.version
+        });
+    }
+
+    public async logActionEnd(actionId: string, status: ActionLogStatus, version?: string): Promise<void> {
+        await this._axiosInstance.post('/log_action_end', {
+            action_id: actionId,
+            status,
+            version
+        });
+    }
+
+    public async logTransportEvents(actionId: string, events: ActionLogEvent[]): Promise<void> {
+        await this._axiosInstance.post('/log_tr_events', {
+            action_id: actionId,
+            events: events.map(actionLogEventRow)
         });
     }
     protected _axiosInstance: AxiosInstance;
@@ -516,12 +547,34 @@ export class RESTClient implements IClient {
     }
 
     public async getDest(): Promise<components.SYSYSID> {
-        const result = (await this._axiosInstance.get('/get_dest', {
+        try {
+            const result = (await this._axiosInstance.get('/get_dest', {
+                params: {
+                    rfcdest: this.rfcdest
+                }
+            })).data;
+            return result.dest;
+        } catch (e) {
+            //not authorized: read the system ID with the system info, which doesn't require TRM authorization
+            if (e instanceof RESTClientError && e.exceptionType === 'TRM_RFC_UNAUTHORIZED') {
+                return (await this.getSystemRuntimeInfo()).dest;
+            }
+            throw e;
+        }
+    }
+
+    /** System ID, database system and kernel release, from the standard RFC_SYSTEM_INFO. */
+    public async getSystemRuntimeInfo(): Promise<SystemRuntimeInfo> {
+        const result = (await this._axiosInstance.get('/get_system_info', {
             params: {
                 rfcdest: this.rfcdest
             }
         })).data;
-        return result.dest;
+        return {
+            dest: result.dest,
+            dbSystem: normalizeSystemLevel(result.dbSystem),
+            kernelRelease: normalizeSystemLevel(result.kernelRelease)
+        };
     }
 
     public async getTransportObjectsBulk(trkorr: components.TRKORR): Promise<struct.TADIR[]> {

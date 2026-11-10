@@ -288,15 +288,16 @@ export const checkTransports: Step<InstallWorkflowContext> = {
 
         //7- check all object types are supported
         Logger.loading(`Checking objects support...`);
-        const missingTypes: string[] = [];
         const systemObjectList = await SystemConnector.getObjectsList();
-        mergedE071.filter(o => o.pgmid !== '*').forEach(o => {
-            if (!systemObjectList.find(k => k.pgmid === o.pgmid && k.object === o.object) && !missingTypes.includes(`${o.pgmid} ${o.object}`)) {
-                missingTypes.push(`${o.pgmid} ${o.object}`);
-            }
-        });
+        const packageTypes = [...new Set(mergedE071.filter(o => o.pgmid !== '*').map(o => `${o.pgmid} ${o.object}`))];
+        const missingTypes = packageTypes.filter(type => !systemObjectList.find(k => `${k.pgmid} ${k.object}` === type));
+        // the RFC response log is truncated: the outcome of every package object type is logged here
+        Logger.log(`Object types in the package, against ${systemObjectList.length} supported by ${SystemConnector.getDest()}: ${packageTypes.map(type => `${type} (${missingTypes.includes(type) ? 'not supported' : 'supported'})`).join(', ')}`, true);
         if (missingTypes.length > 0) {
-            throw new Error(`Package contains objects that aren't supported in your system: ${missingTypes.join(', ')}`);
+            if (!context.rawInput.installData.checks?.noObjectTypes) {
+                throw new Error(`Package contains objects that aren't supported in your system: ${missingTypes.join(', ')}, install without object types check (expert mode).`);
+            }
+            Logger.warning(`Package contains objects that aren't supported in your system: ${missingTypes.join(', ')}\nTheir import ends with return code 8 or higher: install ignoring import errors, or it is rolled back.`, { important: true });
         }
 
         //8- check objects existance

@@ -9,7 +9,7 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { SystemConnectorBase } from "./SystemConnectorBase";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
-import { ActionLockKey } from "./ActionLock";
+import { ActionLockKey, ActionLogEvent, ActionLogStart, ActionLogStatus } from "./ActionLock";
 import type { SystemInfo } from "./SystemInfo";
 
 export class RFCSystemConnector extends SystemConnectorBase implements ISystemConnector {
@@ -19,6 +19,18 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
 
     public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
         return this._client.releaseActionLocks(keys, ownerToken);
+    }
+
+    public logActionStart(action: ActionLogStart): Promise<void> {
+        return this._client.logActionStart(action);
+    }
+
+    public logActionEnd(actionId: string, status: ActionLogStatus, version?: string): Promise<void> {
+        return this._client.logActionEnd(actionId, status, version);
+    }
+
+    public logTransportEvents(actionId: string, events: ActionLogEvent[]): Promise<void> {
+        return this._client.logTransportEvents(actionId, events);
     }
     private _dest: components.SYSYSID;
     private _lang: string;
@@ -115,8 +127,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.getObjectDependenciesInternal(object, objName);
     }
 
+    // RFC_SYSTEM_INFO is a standard RFC: it doesn't depend on the backend
     protected async getSystemRuntimeInfo(): Promise<Pick<SystemInfo, 'dbSystem' | 'kernelRelease'>> {
-        return this._client.getSystemRuntimeInfo();
+        const { dbSystem, kernelRelease } = await this._client.getSystemRuntimeInfo();
+        return { dbSystem, kernelRelease };
     }
 
     public getConnectionData(): RFCConnection {
@@ -140,8 +154,6 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
             await this._client.open();
             this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
-            // read once: reconnects reuse the cached data
-            await this.getSystemInfo();
         } catch (e) {
             Logger.error(`Connection to ${this.getConnectionLabel()} as ${this._user} failed.`, silent);
             throw e;

@@ -38,6 +38,7 @@ import { executeRetainedWorkflow } from "../commons/utils";
 import { ActionLockScope, releaseLogged, withLockRelease, packageLockResource, resolveInstallPackage, isTrmBackendPackage, getMissingTrmBackendApis, lacksTrmBackendApis, TrmBackendApis, CleanupPlan, PackageCleanupRevert, logActionSummary, failureState } from "../commons/utils";
 import { SystemConnector } from "../../systemConnector";
 import { lockResources } from "./lockResources";
+import { logRegistry, runWithActionLog, startActionLog } from "../../actionLog";
 import { cleanupCheckpoint } from "./cleanupCheckpoint";
 import { simulateInstall } from "./simulateInstall";
 
@@ -163,6 +164,13 @@ export type InstallActionInputInstallData = {
          * Skip the safety check for repository objects that would be overwritten. Defaults to `false`.
          */
         noExistingObjects?: boolean;
+
+        /**
+         * Don't fail on object types the target system doesn't support: they are logged as warnings.
+         * Their objects make the import end with return code 8 or higher, see `import.ignoreImportErrors`.
+         * Defaults to `false`.
+         */
+        noObjectTypes?: boolean;
     };
 
     /**
@@ -328,7 +336,11 @@ type WorkflowRuntime = {
      * Upgrade of trm-server or trm-rest: the installed release runs the install itself. Its objects are
      * only cleaned up after the incoming release is imported, and the import can't be rolled back.
      */
-    selfUpdate?: boolean
+    selfUpdate?: boolean,
+    /** Objects of a local installation kept in their packages on upgrade: see PackageCleanupContext. */
+    cleanupKeptLocal?: TADIR[],
+    /** Changes left to do by hand, listed in the summary (see addManualStep). */
+    manualSteps?: string[]
 }
 
 
@@ -497,6 +509,15 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
     };
     await lockScope.acquire([packageLockResource(lockPackage.registry, lockPackage.name)]);
     const workflow = inputData.contextData?.simulate ? simulateInstallWorkflow : installWorkflow;
+    // The SAP action log (/ATRM/LOG): a backend upgrade can run on a backend without it.
+    const actionLogInfo = {
+        actionName: WORKFLOW_NAME,
+        packageName: lockPackage.name,
+        packageRegistry: logRegistry(lockPackage.registry),
+        version: inputData.packageData.version,
+        resolvedVersion: () => context.runtime?.package?.data?.manifest?.version,
+        enabled: !inputData.contextData?.simulate && !lacksTrmBackendApis({ missingBackendApis }, 'trmServer81')
+    };
     const release = async (): Promise<void> => {
         let firstError: unknown;
         for (const releaseDependency of [...(context.runtime?.dependencyReleases || [])].reverse()) {
@@ -519,7 +540,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
         const startedAt = Date.now();
         return withLockRelease(release, async () => {
             try {
-                const result = await executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, workflow, context, workflowCallbacks);
+                const result = await runWithActionLog(actionLogInfo, () => executeWorkflow<InstallWorkflowContext>(WORKFLOW_NAME, workflow, context, workflowCallbacks));
                 logInstallSummary(context, true);
                 await sendInstallTelemetry(context, startedAt);
                 return { output: result.output };
@@ -531,11 +552,14 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
         });
     }
     let retained: Awaited<ReturnType<typeof executeRetainedWorkflow<InstallWorkflowContext>>>;
+    const actionLog = await startActionLog(actionLogInfo);
     try {
-        retained = await executeRetainedWorkflow<InstallWorkflowContext>(
+        retained = await actionLog.run(() => executeRetainedWorkflow<InstallWorkflowContext>(
             WORKFLOW_NAME, workflow, context, workflowCallbacks
-        );
+        ));
+        await actionLog.end(false);
     } catch (error) {
+        await actionLog.end(true);
         await releaseLogged(release);
         throw error;
     }
@@ -547,7 +571,7 @@ async function runInstall(inputData: InstallActionInput, retainRollback: boolean
         rollback: async () => {
             let firstError: unknown;
             try {
-                await retained.rollback();
+                await actionLog.runRollback(() => retained.rollback());
             } catch (error) {
                 firstError = error;
             }
@@ -580,6 +604,7 @@ function logInstallSummary(context: InstallWorkflowContext, succeeded: boolean, 
             : `${name} ${from}${version} install${context.rawInput.contextData?.simulate ? ' simulation' : ''} failed${failureState(context.revert?.importStarted && !context.runtime.selfUpdate, error)}.`,
         imported: succeeded ? [transports.devc?.instance, transports.tadir?.instance, transports.lang?.instance, ...(transports.cust || []).map(cust => cust.instance)] : [],
         deletions: succeeded ? [context.runtime.deletions?.tadir, context.runtime.deletions?.cust] : [],
+        manualSteps: succeeded ? context.runtime.manualSteps : undefined,
         landscape: succeeded ? {
             transport: context.output?.transport,
             targetSystem: context.rawInput.installData?.landscapeTransport?.targetSystem,

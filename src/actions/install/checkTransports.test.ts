@@ -93,6 +93,34 @@ describe('check-transports existing objects with unknown root devclass', () => {
         ]));
     });
 
+    test('object types the system does not support fail the check', async () => {
+        (SystemConnector.getObjectsList as jest.Mock).mockResolvedValue([{ pgmid: 'R3TR', object: 'DEVC' }]);
+        await expect(checkTransports.run(context({ noInquirer: true, noExistingObjects: true }))).rejects.toThrow(
+            `Package contains objects that aren't supported in your system: R3TR CLAS, install without object types check (expert mode).`
+        );
+        expect(SystemConnector.getExistingObjects).not.toHaveBeenCalled();
+    });
+
+    test('the outcome of every package object type is logged', async () => {
+        await checkTransports.run(context({ noInquirer: true, noExistingObjects: true }));
+        expect(Logger.log).toHaveBeenCalledWith('Object types in the package, against 1 supported by TST: R3TR CLAS (supported)', true);
+
+        (SystemConnector.getObjectsList as jest.Mock).mockResolvedValue([{ pgmid: 'R3TR', object: 'DEVC' }]);
+        await expect(checkTransports.run(context({ noInquirer: true, noExistingObjects: true }))).rejects.toThrow();
+        expect(Logger.log).toHaveBeenCalledWith('Object types in the package, against 1 supported by TST: R3TR CLAS (not supported)', true);
+    });
+
+    test('noObjectTypes turns unsupported object types into a warning', async () => {
+        (SystemConnector.getObjectsList as jest.Mock).mockResolvedValue([{ pgmid: 'R3TR', object: 'DEVC' }]);
+        const ctx = context({ noInquirer: true, noExistingObjects: true });
+        ctx.rawInput.installData.checks.noObjectTypes = true;
+        await expect(checkTransports.run(ctx)).resolves.toBeUndefined();
+        expect(Logger.warning).toHaveBeenCalledWith(
+            expect.stringContaining(`Package contains objects that aren't supported in your system: R3TR CLAS\nTheir import ends with return code 8 or higher`),
+            { important: true }
+        );
+    });
+
     test('SAP packages of the release are not checked: the install packages are chosen later', async () => {
         const ctx = context({ noInquirer: false });
         ctx.runtime.update = undefined;

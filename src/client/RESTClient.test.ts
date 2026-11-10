@@ -1,4 +1,5 @@
 import { RESTClient } from './RESTClient';
+import { RESTClientError } from './RESTClientError';
 
 describe('RESTClient deleteTmsTransport', () => {
     it('normalizes the transport and the target system like forwardTransport', async () => {
@@ -87,5 +88,65 @@ describe('RESTClient getTransportLayers', () => {
         await expect(client.getTransportLayers(' qas ')).resolves.toEqual(['SAP', 'ZQAS']);
 
         expect(get).toHaveBeenCalledWith('/get_transport_layers', { data: { target: 'QAS' } });
+    });
+});
+
+describe('RESTClient action log', () => {
+    it('posts the action log to the trm-rest methods with the RFC field names', async () => {
+        const client = Object.create(RESTClient.prototype) as RESTClient;
+        const post = jest.fn().mockResolvedValue({});
+        (client as any)._axiosInstance = { post };
+
+        await client.logActionStart({ actionId: 'A'.repeat(32), sessionId: 'session', actionName: 'install', parentActionId: 'B'.repeat(32), packageName: 'pkg', packageRegistry: 'public', version: 'latest' });
+        await client.logTransportEvents('A'.repeat(32), [{ trkorr: 'TRMK900001', event: 'IMPORT', role: 'TADIR', target: 'TST', retcode: 4 }, { trkorr: 'TRMK900002', event: 'CREATE' }]);
+        await client.logActionEnd('A'.repeat(32), 'B', '1.2.3');
+
+        expect(post.mock.calls).toEqual([
+            ['/log_action_start', { action_id: 'A'.repeat(32), session_id: 'session', parent_action_id: 'B'.repeat(32), action_name: 'install', package_name: 'pkg', package_registry: 'public', version: 'latest' }],
+            ['/log_tr_events', { action_id: 'A'.repeat(32), events: [
+                { trkorr: 'TRMK900001', role: 'TADIR', event: 'IMPORT', target: 'TST', retcode: '0004' },
+                { trkorr: 'TRMK900002', role: '', event: 'CREATE', target: '', retcode: '' }
+            ] }],
+            ['/log_action_end', { action_id: 'A'.repeat(32), status: 'B', version: '1.2.3' }]
+        ]);
+    });
+});
+
+describe('RESTClient system info', () => {
+    function client(get: jest.Mock) {
+        const instance = Object.create(RESTClient.prototype) as RESTClient;
+        (instance as any)._axiosInstance = { get };
+        instance.rfcdest = 'NONE';
+        return instance;
+    }
+
+    it('reads the system ID, database and kernel of the RFC destination', async () => {
+        const get = jest.fn().mockResolvedValue({ data: { dest: 'A4H', dbSystem: 'HDB', kernelRelease: ' 793 ' } });
+
+        await expect(client(get).getSystemRuntimeInfo()).resolves.toEqual({ dest: 'A4H', dbSystem: 'HDB', kernelRelease: '793' });
+        expect(get).toHaveBeenCalledWith('/get_system_info', { params: { rfcdest: 'NONE' } });
+    });
+
+    it('reads the system ID from trm-rest', async () => {
+        const get = jest.fn().mockResolvedValue({ data: { dest: 'A4H' } });
+
+        await expect(client(get).getDest()).resolves.toBe('A4H');
+        expect(get.mock.calls.map(c => c[0])).toEqual(['/get_dest']);
+    });
+
+    it('falls back to the system info when not authorized', async () => {
+        const get = jest.fn()
+            .mockRejectedValueOnce(new RESTClientError('TRM_RFC_UNAUTHORIZED', { class: undefined, no: undefined }, null))
+            .mockResolvedValueOnce({ data: { dest: 'A4H', dbSystem: 'HDB', kernelRelease: '793' } });
+
+        await expect(client(get).getDest()).resolves.toBe('A4H');
+        expect(get.mock.calls.map(c => c[0])).toEqual(['/get_dest', '/get_system_info']);
+    });
+
+    it('does not fall back on other errors', async () => {
+        const get = jest.fn().mockRejectedValue(new RESTClientError('METHOD_CALL_EXCEPTION', { class: undefined, no: undefined }, null));
+
+        await expect(client(get).getDest()).rejects.toBeInstanceOf(RESTClientError);
+        expect(get.mock.calls.map(c => c[0])).toEqual(['/get_dest']);
     });
 });

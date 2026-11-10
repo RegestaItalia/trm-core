@@ -9,6 +9,7 @@ import { ValueHelpContext, ValueHelpPage } from "trm-commons";
 import { TrmManifestEngineTableCondition } from "../manifest";
 import type { TrmPackageUpdateData } from "./ISystemConnector";
 import type { SystemInfo } from "./SystemInfo";
+import type { TrmBackendApis } from "../actions/commons/utils/trmBackend";
 
 export interface ISystemConnectorBase {
     getTransportStatus: (trkorr: components.TRKORR) => Promise<string>,
@@ -43,7 +44,7 @@ export interface ISystemConnectorBase {
     getTableKeys: (tabname: components.TABNAME) => Promise<struct.DD03L[]>,
     getRootDevclass: (devclass: components.DEVCLASS) => Promise<components.DEVCLASS>,
     getSoftwareComponents: () => Promise<struct.CVERS[]>,
-    getSystemInfo: () => Promise<SystemInfo>,
+    getSystemInfo: (missingBackendApis?: TrmBackendApis[]) => Promise<SystemInfo>,
     getInstalledProducts: () => Promise<struct.PRDVERS[]>,
     getNoteStatus: (numm: components.CWBNTNUMM) => Promise<{ prstatus?: components.CWBPRSTAT, versno?: components.CWBNTVERS }>,
     checkTableCondition: (table: components.TABNAME, where: TrmManifestEngineTableCondition[]) => Promise<boolean>,

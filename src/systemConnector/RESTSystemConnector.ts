@@ -9,8 +9,10 @@ import { SystemConnectorBase } from "./SystemConnectorBase";
 import { RESTConnection } from "./RESTConnection";
 import { ClientError, RESTClient, RESTClientError, SapMessage, TransportEntries } from "../client";
 import { SystemConnectorSupportedBulk } from "./SystemConnectorSupportedBulk";
-import { ActionLockKey } from "./ActionLock";
+import { ActionLockKey, ActionLogEvent, ActionLogStart, ActionLogStatus } from "./ActionLock";
 import { summarizeForLog } from "../commons/summarizeForLog";
+import type { SystemInfo } from "./SystemInfo";
+import type { TrmBackendApis } from "../actions/commons/utils/trmBackend";
 
 const ENDPOINT_RESOURCE_BASE = '/ztrmserver';
 const NONE_DEST = 'NONE';
@@ -50,6 +52,18 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
 
     public releaseActionLocks(keys: ActionLockKey[], ownerToken: string): Promise<void> {
         return this._client.releaseActionLocks(keys, ownerToken);
+    }
+
+    public logActionStart(action: ActionLogStart): Promise<void> {
+        return this._client.logActionStart(action);
+    }
+
+    public logActionEnd(actionId: string, status: ActionLogStatus, version?: string): Promise<void> {
+        return this._client.logActionEnd(actionId, status, version);
+    }
+
+    public logTransportEvents(actionId: string, events: ActionLogEvent[]): Promise<void> {
+        return this._client.logTransportEvents(actionId, events);
     }
     private _dest: components.SYSYSID;
     private _lang: string;
@@ -150,6 +164,15 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         return this._client.getObjectDependencies(object, objName);
     }
 
+    protected async getSystemRuntimeInfo(missingBackendApis: TrmBackendApis[]): Promise<Pick<SystemInfo, 'dbSystem' | 'kernelRelease'> | undefined> {
+        if (missingBackendApis.includes('trmRest71')) {
+            Logger.log(`trm-rest has no system info: database system and kernel release skipped.`, true);
+            return undefined;
+        }
+        const { dbSystem, kernelRelease } = await this._client.getSystemRuntimeInfo();
+        return { dbSystem, kernelRelease };
+    }
+
     public getConnectionData(): RESTConnection {
         return this._connection;
     }
@@ -164,8 +187,6 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
             await this._client.open();
             this._dest = await this._client.getDest();
             Logger.success(`Connected to ${this.getDest()} as ${this._user}.`, silent);
-            // read once: reconnects reuse the cached data
-            await this.getSystemInfo();
         } catch (e) {
             Logger.error(`Connection to ${this._connection.endpoint} as ${this._user} failed.`, silent);
             throw e;

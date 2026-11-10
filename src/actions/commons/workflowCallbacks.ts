@@ -1,6 +1,7 @@
 import { Inquirer, inspect, Logger } from "trm-commons";
 import execute, { Step, StepContext, WorkflowCallbacks, WorkflowError, WorkflowRevertError } from "@simonegaffurini/sammarksworkflow";
 import { summarizeForLog } from "../../commons";
+import { markActionRolledBack } from "../../actionLog";
 
 /**
  * Default callbacks used by TRM actions to log workflow, step, and rollback lifecycle events.
@@ -23,6 +24,7 @@ export const workflowCallbacks: WorkflowCallbacks<any> = {
         Logger.log(`Failed "${step.name}" step: ${error.message}`, true);
     },
     onRevertStart(step, context) {
+        markActionRolledBack();
         Logger.log(`Starting revert "${step.name}" step`, true);
         Logger.setPrefix(`(Rollback) `);
         Inquirer.setPrefix(`(Rollback) `);
