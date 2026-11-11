@@ -2,7 +2,7 @@ import { PackageDependencies } from "../../dependencies";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "..";
 import { ReleaseType } from "semver";
-import { DEVCLASS, TADIR, TR_TARGET, TRKORR, TRNSPACET, TRNSPACETT, ZTY_SER_OBJ } from "../../client";
+import { DEVCLASS, TADIR, TRKORR, TRNSPACET, TRNSPACETT, ZTY_SER_OBJ } from "../../client";
 import { TrmManifest, TrmManifestBase } from "../../manifest";
 import { AbstractRegistry } from "../../registry";
 import { Package } from "trm-registry-types";
@@ -116,18 +116,6 @@ export interface PublishActionInput {
          */
         manifest?: TrmManifestBase;
     };
-
-    /**
-         * Data related to the origin system.
-         */
-    systemData?: {
-
-        /**
-         * TMS target assigned to generated publish transports. It is selected interactively when omitted.
-         * When the system has no transport targets, the system itself is the target.
-         */
-        transportTarget?: TR_TARGET;
-    }
 
     /**
      * Data related to package publish.
@@ -269,7 +257,6 @@ const WORKFLOW_NAME = 'publish';
  */
 export async function publish(inputData: PublishActionInput): Promise<PublishActionOutput> {
     inputData.contextData ??= {};
-    inputData.systemData ??= {};
     inputData.publishData ??= { keepLatestReleaseManifestValues: true };
     inputData.publishData.keepLatestReleaseManifestValues ??= true;
     inputData.publishData.customizingTransports ??= [];
