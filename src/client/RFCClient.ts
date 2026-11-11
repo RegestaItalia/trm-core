@@ -688,6 +688,14 @@ export class RFCClient implements IClient {
         return result['return'];
     }
 
+    /** HTTP base URL (protocol://host:port[/service]) of the system, optionally with an ICF service path appended. RFC only: there is no REST equivalent. */
+    public async getHttpBaseUrl(service?: string): Promise<string> {
+        const result = await this._call("/ATRM/GET_HTTP_BASE_URL", {
+            service: service
+        });
+        return result['baseUrl'];
+    }
+
     public async renameTransportRequest(trkorr: components.TRKORR, as4text: components.AS4TEXT): Promise<void> {
         await this._call("/ATRM/RENAME_TRANSPORT_REQUEST", {
             trkorr: trkorr.trim().toUpperCase(),
