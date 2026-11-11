@@ -7,7 +7,7 @@ import { clean, inc, parse, prerelease, rcompare, valid } from "semver";
 import { SystemConnector } from "../../systemConnector";
 import { RegistryPackageNotFoundError, RegistryType } from "../../registry";
 import chalk from "chalk";
-import { setTransportTarget } from "../commons/prompts";
+import { setPublishTarget } from "../commons/prompts";
 import { validateDevclass } from "../../validators";
 import { DotAbapGit } from "../../abapgit";
 import { minimatch } from "minimatch";
@@ -455,10 +455,8 @@ export const init: Step<PublishWorkflowContext> = {
         }
 
         //12- check/set system target
-        Logger.loading(`Checking system target...`);
-        context.rawInput.systemData.transportTarget = await setTransportTarget(
+        context.rawInput.systemData.transportTarget = await setPublishTarget(
             context.rawInput.contextData.noInquirer,
-            await SystemConnector.getTransportTargets(),
             context.rawInput.systemData.transportTarget,
             "Publish transport target"
         );

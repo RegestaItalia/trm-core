@@ -124,6 +124,7 @@ export interface PublishActionInput {
 
         /**
          * TMS target assigned to generated publish transports. It is selected interactively when omitted.
+         * When the system has no transport targets, the system itself is the target.
          */
         transportTarget?: TR_TARGET;
     }
