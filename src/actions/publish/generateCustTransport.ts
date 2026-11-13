@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
 
 /**
@@ -39,7 +40,7 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
             aggregate = aggregate.concat(await (custInstance.getTasks()));
             const transport = await Transport.createToc({
                 trmIdentifier: TrmTransportIdentifier.CUST,
-                target: context.rawInput.systemData.transportTarget,
+                target: SystemConnector.getDest(),
                 text: cust.description.trim().slice(0, 60),
             });
             // Track the TOC before populating it so workflow rollback can delete it if a

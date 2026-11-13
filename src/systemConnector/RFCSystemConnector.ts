@@ -172,6 +172,11 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.trmServerPing();
     }
 
+    /** HTTP base URL (protocol://host:port[/service]) of the system, optionally with an ICF service path appended. RFC only: there is no REST equivalent. */
+    public async getHttpBaseUrl(service?: string): Promise<string> {
+        return this._client.getHttpBaseUrl(service);
+    }
+
     public async getFileSystem(): Promise<struct.FILESYS> {
         return this._client.getFileSystem();
     }

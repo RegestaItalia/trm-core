@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
 import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
 
@@ -24,7 +25,7 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
         const aTadir = context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
         context.runtime.transports.tadir = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.TADIR,
-            target: context.rawInput.systemData.transportTarget,
+            target: SystemConnector.getDest(),
             text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`)
         });
         await context.runtime.transports.tadir.addObjects(aTadir, false);

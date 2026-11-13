@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
 import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
 
@@ -24,7 +25,7 @@ export const generateDevcTransport: Step<PublishWorkflowContext> = {
         const aDevc = context.runtime.sapPackage.objects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
         context.runtime.transports.devc = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.DEVC,
-            target: context.rawInput.systemData.transportTarget,
+            target: SystemConnector.getDest(),
             text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`, 'D')
         });
         await context.runtime.transports.devc.addObjects(aDevc, false);

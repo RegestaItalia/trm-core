@@ -8,6 +8,15 @@ Legend
 + : added
 - : removed
 
+2026-11-13 v11.5.0
+-------------------
++ releaseOpenActionLocks: clients call it when a command ends to retry the release of SAP action locks still held (failed release, or an uncertain acquisition whose cleanup failed)
++ RFCSystemConnector.getHttpBaseUrl: HTTP base URL of the system, optionally with an ICF service path (RFC only, /ATRM/GET_HTTP_BASE_URL)
+! publish: transports always target the connected system and are removed from its import queue right after release (a failed removal only warns); works on systems without transport targets
+- PublishActionInput.systemData (transportTarget)
+* install/uninstall: TK 599 ("No task for editing objects can be determined") when creating the staging package (e.g. SAP_BASIS 702) keeps local objects in their packages with a manual step instead of aborting
+! requires trm-server 8.2.0
+
 2026-11-09 v11.4.0
 -------------------
 + action log (transaction /ATRM/LOG in trm-server): install (with dependencies), publish, uninstall and cg3z record each action on SAP with session, parent action, package, version, status and the transports they create, release, forward, import, delete, dequeue and restore, with their role. Best-effort: a failed write warns once and the action continues; rollbacks end the action with status B

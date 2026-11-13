@@ -53,15 +53,37 @@ export function isPackageApiUnsupported(error: unknown): boolean {
         && !!error.sapMessage && !`${error.sapMessage.class || ''}`.trim();
 }
 
+/** Backend resources that create an SAP package. */
+const CREATE_PACKAGE_RESOURCES = ['/ATRM/CREATE_PACKAGE', '/CREATE_PACKAGE'];
+
+/**
+ * Whether `error`, thrown creating a transportable staging package, means none can be created on this release:
+ * the SAP package API is unsupported (see {@link isPackageApiUnsupported}), or saving the package needs a task to
+ * record it and none can be determined without a dialog (TK 599, e.g. on SAP_BASIS 702, whose `IF_PACKAGE~SAVE`
+ * has no `I_SUPPRESS_CORR_INSERT`).
+ */
+export function isStagingPackageUnavailable(error: unknown): boolean {
+    if (isPackageApiUnsupported(error)) {
+        return true;
+    }
+    const resource = errorResource(error);
+    if (!CREATE_PACKAGE_RESOURCES.some(o => resource === o || resource.endsWith(o))) {
+        return false;
+    }
+    return error instanceof ClientError
+        && `${error.sapMessage?.class || ''}`.trim().toUpperCase() === 'TK'
+        && `${error.sapMessage?.no || ''}`.trim() === '599';
+}
+
 /** Logs (debug) why a package API failure was classified as unsupported, so a log shows which path was taken. */
 export function logPackageApiUnsupported(operation: string, error: unknown): void {
     Logger.log(`${operation}: the SAP package API is unsupported on this release (${error instanceof Error ? error.message : String(error)})`, true);
 }
 
-/** No transportable staging package can be created: the SAP package API is unsupported on this release. */
+/** No transportable staging package can be created on this release (see {@link isStagingPackageUnavailable}). */
 export class StagingUnavailableError extends Error {
     constructor(public namespace: string, public cause: unknown) {
-        super(`A staging package${namespace ? ` in namespace ${namespace}` : ''} can't be created: the SAP package API is unsupported on this release.`);
+        super(`A staging package${namespace ? ` in namespace ${namespace}` : ''} can't be created: the SAP package API can't create transportable packages on this release.`);
         this.name = 'StagingUnavailableError';
 
         Object.setPrototypeOf(this, new.target.prototype);
