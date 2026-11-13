@@ -23,7 +23,7 @@ export const simulatePublish: Step<PublishWorkflowContext> = {
         if (!publishData.noCustomizingTransports && context.runtime.customizing.new.length > 0) {
             transports.push(`CUST (${context.runtime.customizing.new.map(o => o.trkorr).join(', ')})`);
         }
-        lines.push(`- generate and release transports ${transports.join(', ')}${context.rawInput.systemData.transportTarget ? ` to ${context.rawInput.systemData.transportTarget}` : ''}`);
+        lines.push(`- generate and release transports ${transports.join(', ')} on ${SystemConnector.getDest()}, then remove them from its import queue`);
         lines.push(`- include ${objects.length} objects of SAP package ${packageData.devclass}`);
         const excluded = context.runtime.abapGit.excludedObjects || [];
         if (excluded.length > 0) {

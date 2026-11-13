@@ -1,3 +1,9 @@
+jest.mock('../../systemConnector', () => ({
+    SystemConnector: {
+        getDest: jest.fn(() => 'TST'),
+        deleteTmsTransport: jest.fn(async () => undefined)
+    }
+}));
 jest.mock('../../transport', () => {
     const created: any[] = [];
     let sequence = 0;
@@ -52,12 +58,12 @@ import { generateLangTransport } from './generateLangTransport';
 import { generateCustTransport } from './generateCustTransport';
 import { releaseTransports } from './releaseTransports';
 import { TrmArtifact } from '../../trmPackage';
+import { SystemConnector } from '../../systemConnector';
 
 function context() {
     return {
         rawInput: {
             contextData: {},
-            systemData: { transportTarget: 'TST' },
             packageData: { name: 'pkg', version: '1.0.0', tags: [] },
             publishData: { noLanguageTransport: false, noCustomizingTransports: false }
         },
@@ -153,6 +159,36 @@ describe('publish transport rollback chain', () => {
             if (!transport.released) {
                 expect(transport.delete).toHaveBeenCalled();
             }
+        }
+    });
+
+    test('transports target the system itself and leave its import queue after release', async () => {
+        const ctx = context();
+
+        await execute('publish-test', steps(), ctx);
+
+        const created = (Transport as any).created as any[];
+        expect(created.length).toBeGreaterThan(0);
+        for (const call of (Transport.createToc as jest.Mock).mock.calls) {
+            expect(call[0].target).toBe('TST');
+        }
+        for (const transport of created.filter(o => o.released)) {
+            expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith(transport.trkorr, 'TST');
+        }
+    });
+
+    test('a failed import queue removal warns and the publish continues', async () => {
+        const ctx = context();
+        (SystemConnector.deleteTmsTransport as jest.Mock).mockRejectedValueOnce(new Error('queue locked'));
+
+        await execute('publish-test', steps(), ctx);
+
+        const released = ((Transport as any).created as any[]).filter(o => o.released);
+        expect(released.length).toBe(ctx.runtime.aggregatedTransports.length);
+        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledTimes(released.length);
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('queue locked'), { important: true });
+        for (const transport of released) {
+            expect(transport.delete).not.toHaveBeenCalled();
         }
     });
 

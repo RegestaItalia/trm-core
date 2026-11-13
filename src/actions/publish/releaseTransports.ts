@@ -2,11 +2,18 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Inquirer, Logger } from "trm-commons";
 import { Transport } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
+import { dequeueTransport } from "../commons/utils/importQueue";
 
 /**
  * Workflow step that annotates and releases every generated publish transport.
  * 
  * 1- release
+ * 2- remove from the import queue
+ * 
+ * The transports target the system itself: once released they wait in its own import queue, where
+ * an import would overwrite newer development with the published copy. They are removed from it right
+ * after the release; a failed removal only warns, the published content is not affected.
  * 
 */
 export const releaseTransports: Step<PublishWorkflowContext> = {
@@ -33,6 +40,12 @@ export const releaseTransports: Step<PublishWorkflowContext> = {
                 Logger.log(`Ready to release transport ${transport.trkorr}, ${transport.trmIdentifier}`, true);
                 Logger.loading(`${Transport.getTransportIcon()}  Releasing ${transport.trkorr}...`);
                 await transport.release(false, false, context.rawInput.contextData.logTemporaryFolder);
+                //2- remove from the import queue
+                try {
+                    await dequeueTransport(transport.trkorr, 'publish');
+                } catch (error) {
+                    Logger.warning(`Couldn't remove transport ${transport.trkorr} from ${SystemConnector.getDest()} import queue, remove it manually in STMS: ${error instanceof Error ? error.message : String(error)}`, { important: true });
+                }
             }
         } finally {
             Logger.setPrefix(originalLoggerPrefix);

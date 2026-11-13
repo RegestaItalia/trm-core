@@ -2,6 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
 import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
 
@@ -32,7 +33,7 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
         const aDevc = context.runtime.sapPackage.objects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
         context.runtime.transports.lang = await Transport.createToc({
             trmIdentifier: TrmTransportIdentifier.LANG,
-            target: context.rawInput.systemData.transportTarget,
+            target: SystemConnector.getDest(),
             text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`, 'L')
         });
         var iLanguageObjects: number = 0;
