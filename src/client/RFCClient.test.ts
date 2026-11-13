@@ -302,6 +302,26 @@ describe('RFCClient importTransport', () => {
     });
 });
 
+describe('RFCClient getHttpBaseUrl', () => {
+    it('passes the service path and returns the base URL', async () => {
+        const call = mockCalls({ '/ATRM/GET_HTTP_BASE_URL': () => ({ BASE_URL: 'https://vhcala4hci:44300/ztrmserver' }) });
+        const client = createClient(call);
+
+        await expect(client.getHttpBaseUrl('/ztrmserver')).resolves.toEqual('https://vhcala4hci:44300/ztrmserver');
+
+        expect(call).toHaveBeenCalledWith('/ATRM/GET_HTTP_BASE_URL', { SERVICE: '/ztrmserver' }, undefined);
+    });
+
+    it('omits the service when not given', async () => {
+        const call = mockCalls({ '/ATRM/GET_HTTP_BASE_URL': () => ({ BASE_URL: 'https://vhcala4hci:44300' }) });
+        const client = createClient(call);
+
+        await expect(client.getHttpBaseUrl()).resolves.toEqual('https://vhcala4hci:44300');
+
+        expect(call).toHaveBeenCalledWith('/ATRM/GET_HTTP_BASE_URL', {}, undefined);
+    });
+});
+
 describe('RFCClient getTransportLayers', () => {
     it('normalizes the target and the returned layers', async () => {
         const call = mockCalls({ '/ATRM/GET_TRANSPORT_LAYERS': () => ({ LAYERS: ['SAP ', 'ZQAS'] }) });
