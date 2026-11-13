@@ -1,6 +1,6 @@
 import { Logger } from 'trm-commons';
 import { ClientError } from '../../../client';
-import { addManualStep, isPackageApiUnsupported } from './packageApiFallback';
+import { addManualStep, isPackageApiUnsupported, isStagingPackageUnavailable } from './packageApiFallback';
 
 beforeEach(() => {
     jest.spyOn(Logger, 'log').mockImplementation(() => undefined as never);
@@ -41,6 +41,29 @@ describe('isPackageApiUnsupported', () => {
         ['a plain error', new Error('DYN_CALL_PARAM_NOT_FOUND')]
     ])('%s is a real error', (_label, error) => {
         expect(isPackageApiUnsupported(error)).toBe(false);
+    });
+});
+
+describe('isStagingPackageUnavailable', () => {
+    test.each([
+        ['the package API is unsupported', new ClientError('TRM_RFC_EXCEPTION', { class: '', no: '000' }, 'failed', '/ATRM/CREATE_PACKAGE')],
+        // SAP_BASIS 702: IF_PACKAGE~SAVE has no I_SUPPRESS_CORR_INSERT and can't determine a task without a dialog
+        ['no task to record the package (RFC)', new ClientError('TRM_RFC_EXCEPTION', { class: 'TK', no: '599' }, 'No task for editing objects can be determined', '/ATRM/CREATE_PACKAGE')],
+        ['no task to record the package (REST)', new ClientError('TRM_REST_EXCEPTION', { class: 'TK', no: '599' }, 'No task for editing objects can be determined', '/create_package')]
+    ])('%s', (_label, error) => {
+        expect(isStagingPackageUnavailable(error)).toBe(true);
+    });
+
+    test.each([
+        ['TK 599 from another API', new ClientError('TRM_RFC_EXCEPTION', { class: 'TK', no: '599' }, 'failed', '/ATRM/TADIR_INTERFACE')],
+        ['another message creating the package', new ClientError('TRM_RFC_EXCEPTION', { class: 'PAK', no: '012' }, 'No authorization', '/ATRM/CREATE_PACKAGE')],
+        ['a plain error', new Error('No task for editing objects can be determined')]
+    ])('%s is a real error', (_label, error) => {
+        expect(isStagingPackageUnavailable(error)).toBe(false);
+    });
+
+    test('TK 599 is not a package API failure elsewhere', () => {
+        expect(isPackageApiUnsupported(new ClientError('TRM_RFC_EXCEPTION', { class: 'TK', no: '599' }, 'failed', '/ATRM/CREATE_PACKAGE'))).toBe(false);
     });
 });
 
