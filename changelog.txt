@@ -15,6 +15,7 @@ Legend
 ! publish: transports always target the connected system and are removed from its import queue right after release (a failed removal only warns); works on systems without transport targets
 - PublishActionInput.systemData (transportTarget)
 * install/uninstall: TK 599 ("No task for editing objects can be determined") when creating the staging package (e.g. SAP_BASIS 702) keeps local objects in their packages with a manual step instead of aborting
+* publish: a local export of a package installed from the public registry no longer rejects the installed version as already published (the installed release only suggests the version)
 ! requires trm-server 8.2.0
 
 2026-11-09 v11.4.0

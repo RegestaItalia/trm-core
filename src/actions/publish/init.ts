@@ -246,7 +246,8 @@ export const init: Step<PublishWorkflowContext> = {
         //on automatic version, manual validation by user
         Logger.loading(`Validating version...`);
         var automaticVersion: boolean = false;
-        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
+        const isLocal = context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL;
+        if (isLocal) {
             //the target file is overwritten, it's not a previous release of this package:
             //every local artifact is a standalone publication
             Logger.log(`Local publish: target file is not read as latest release`, true);
@@ -265,7 +266,8 @@ export const init: Step<PublishWorkflowContext> = {
             if (!context.runtime.latest.data.dist_tags.latest) {
                 throw new Error(`Package has no latest distribution tag assigned! Unable to locate latest release.`);
             }
-            const publishedVersions = context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions);
+            //a local export is a standalone file: the installed release only suggests the version, any version can be exported
+            const publishedVersions = isLocal ? [] : context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions);
             if (!context.rawInput.packageData.version || !valid(context.rawInput.packageData.version)) {
                 context.rawInput.packageData.version = inc(context.runtime.latest.data.dist_tags.latest, context.rawInput.packageData.inc || "patch");
                 automaticVersion = true;
@@ -317,7 +319,7 @@ export const init: Step<PublishWorkflowContext> = {
                         //compare the version as it will be stored (cleaned)
                         const version = clean(v || '');
                         if (version) {
-                            const publishedVersions = context.runtime.latest.data
+                            const publishedVersions = context.runtime.latest.data && !isLocal
                                 ? context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions)
                                 : [];
                             if (publishedVersions.includes(version)) {
