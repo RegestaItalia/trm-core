@@ -18,6 +18,7 @@ Legend
 * publish: a local export of a package installed from the public registry no longer rejects the installed version as already published (the installed release only suggests the version)
 + progressBar, multiProgressBar, renderProgressBar: the TRM progress bar style (█░ bar, optional glue), used by every progress bar
 ! progress bars use the TRM style instead of "[===>---]"; transport release bars keep the transport icon as glue, followed by a space for terminals that draw it two columns wide
+! transport import and release polling logged with Logger.transportProgress (trm-commons 5.6.0): same CLI output, GUIs can update one progress view in place instead of a message per check
 ! install: the existing objects check, the ownership check of existing objects and the finalize step show a progress bar; the existing objects are checked in chunks (100 objects, 1000 with the bulk API)
 ! check SAP entries: progress bar instead of the percentage in the loading message; missing tables are reported after the check
 ! requires trm-server 8.2.0

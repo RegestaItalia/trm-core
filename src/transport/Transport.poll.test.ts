@@ -32,7 +32,7 @@ describe('Transport import polling', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        for (const method of ['loading', 'log', 'success', 'warning', 'error'] as const) {
+        for (const method of ['loading', 'transportProgress', 'log', 'success', 'warning', 'error'] as const) {
             jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
         }
     });
@@ -71,6 +71,25 @@ describe('Transport import polling', () => {
         await expect((t as any)._isInTmsQueue(true, true)).resolves.toEqual({ rc: 8, message: 'A tool used by tp produced errors' });
     });
 
+    test('every check reports the import progress of the same operation, with the tp step', async () => {
+        getStatus
+            .mockResolvedValueOnce(status('R', '8888', 'running MAIN IMPORT'))
+            .mockResolvedValueOnce(status('R', '8888', 'running MAIN IMPORT'))
+            .mockResolvedValueOnce(status('F', '0000', 'done'));
+        readQueue.mockResolvedValue([queueRow('', '0000')]);
+
+        await poll();
+        const calls = (Logger.transportProgress as jest.Mock).mock.calls;
+        expect(calls).toHaveLength(3);
+        const [first, second] = calls.map(([progress]) => progress);
+        expect(first).toMatchObject({ trkorr: TRKORR, action: 'import', step: 'running MAIN IMPORT', unchangedSince: undefined });
+        expect(first.text).toMatch(new RegExp(`^Importing ${TRKORR} \\(.+\\): running MAIN IMPORT\\.\\.\\.$`));
+        expect(second.unchangedSince).toBeDefined();
+        expect(second.text).toContain(`unchanged since ${second.unchangedSince}`);
+        expect(new Set(calls.map(([progress]) => progress.started)).size).toBe(1);
+        expect(calls.every(([, debug]) => debug === true)).toBe(true);
+    });
+
     test('a status row of another request of the batch is ignored: the queue decides', async () => {
         getStatus.mockResolvedValue(status('F', '0012', 'other request', 'TSTK900002'));
         readQueue
@@ -79,8 +98,9 @@ describe('Transport import polling', () => {
 
         await expect(poll()).resolves.toEqual({ rc: 4, message: undefined });
         expect(readQueue).toHaveBeenCalledTimes(2);
-        for (const [message] of (Logger.loading as jest.Mock).mock.calls) {
-            expect(message).not.toContain('other request');
+        for (const [progress] of (Logger.transportProgress as jest.Mock).mock.calls) {
+            expect(progress.text).not.toContain('other request');
+            expect(progress.step).toBeUndefined();
         }
     });
 

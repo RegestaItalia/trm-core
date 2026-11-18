@@ -512,7 +512,12 @@ export class Transport {
         var poll: Awaited<ReturnType<Transport['_pollReleaseLog']>>;
         try {
             poll = await this._pollReleaseLog(tmpFolder, offset, () => {
-                Logger.loading(`${Transport.getTransportIcon()}  Releasing ${this.trkorr} (${Transport._formatDuration(Date.now() - started)})...`, skipLog);
+                Logger.transportProgress({
+                    trkorr: this.trkorr,
+                    action: 'release',
+                    started,
+                    text: `${Transport.getTransportIcon()}  Releasing ${this.trkorr} (${Transport._formatDuration(Date.now() - started)})...`
+                }, skipLog);
             });
         } finally {
             fs.rmSync(tmpFolder, { recursive: true, force: true });
@@ -703,12 +708,17 @@ export class Transport {
                 unchangedPolls = 0;
                 lastStatusKey = statusKey;
             }
-            if (ownStatus?.message) {
-                const unchanged = unchangedPolls > 0 ? `, unchanged since ${Transport._formatAbapTime(ownStatus.modtime)}` : '';
-                Logger.loading(`Importing ${this.trkorr} (${elapsed()}${unchanged}): ${ownStatus.message}...`, skipLog);
-            } else {
-                Logger.loading(`Importing ${this.trkorr} (${elapsed()})...`, skipLog);
-            }
+            const unchangedSince = ownStatus?.message && unchangedPolls > 0 ? Transport._formatAbapTime(ownStatus.modtime) : undefined;
+            Logger.transportProgress({
+                trkorr: this.trkorr,
+                action: 'import',
+                started,
+                text: ownStatus?.message
+                    ? `Importing ${this.trkorr} (${elapsed()}${unchangedSince ? `, unchanged since ${unchangedSince}` : ''}): ${ownStatus.message}...`
+                    : `Importing ${this.trkorr} (${elapsed()})...`,
+                step: ownStatus?.message || undefined,
+                unchangedSince
+            }, skipLog);
             if (Transport._isFinalStatus(ownStatus)) {
                 // the import is over: one queue read for the request return code
                 finalStatus = ownStatus;
