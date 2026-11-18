@@ -3,7 +3,7 @@ import { CheckSapEntriesWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { getSapEntryConditions } from "../../manifest";
-import { normalize } from "../../commons";
+import { normalize, progressBar } from "../../commons";
 
 /** Entries read with one query. */
 export const SAP_ENTRIES_BATCH_SIZE = 25;
@@ -144,67 +144,77 @@ export const analyze: Step<CheckSapEntriesWorkflowContext> = {
 
         //2- check entries
         let checked = 0;
-        const progress = (table: string) => Logger.loading(`Checking ${entriesCount} SAP entries: ${Math.floor(checked * 100 / entriesCount)}% (${table.trim()})...`);
-        for (const table of Object.keys(context.output.sapEntries)) {
-            const requiredEntries: any[] = context.output.sapEntries[table];
-            progress(table);
-            var tableExists = false;
-            try {
-                for (const object of ['TABL', 'VIEW']) {
-                    tableExists = await SystemConnector.checkSapEntryExists('TADIR', {
-                        pgmid: 'R3TR',
-                        object,
-                        obj_name: table.trim().toUpperCase()
-                    });
-                    if (tableExists) {
-                        break;
-                    }
-                }
-            } catch (e) {
-                const reason = e instanceof Error ? e.message : String(e);
-                throw new Error(`Unable to check whether required SAP table "${table}" exists: ${reason}`);
-            }
-            if (!tableExists) {
-                context.runtime.missingTables.push(table);
-                requiredEntries.forEach(tableEntry => {
-                    context.runtime.entriesStatus.bad.push({
-                        table,
-                        tableEntry
-                    });
-                });
-                checked += requiredEntries.length;
-                Logger.error(`Required ${requiredEntries.length} entries in ${table}, but table or view was not found`, { debug: !context.rawInput.printOptions.information, important: true });
-            } else {
-                var printTableHead: string[] = ['Table name'];
-                var printTableData: string[][] = [];
-                printTableHead = printTableHead.concat(tableFields.find(o => o.tableName === table).fields);
-                printTableHead.push('Status');
-                const statuses = await checkTableEntries(table, requiredEntries, count => {
-                    checked += count;
-                    progress(table);
-                });
-                requiredEntries.forEach((tableEntry, index) => {
-                    const exists = statuses[index];
-                    if(exists){
-                        context.runtime.entriesStatus.good.push({
-                            table,
-                            tableEntry
+        // printed once the bar is done: a message would break its line
+        const missingTableErrors: string[] = [];
+        const bar = progressBar('Checking SAP entries {bar} {percentage}% ({value}/{total}) {table}');
+        const progress = (table: string) => bar.update(checked, { table: table.trim() });
+        bar.start(entriesCount, 0, { table: '' });
+        try {
+            for (const table of Object.keys(context.output.sapEntries)) {
+                const requiredEntries: any[] = context.output.sapEntries[table];
+                progress(table);
+                var tableExists = false;
+                try {
+                    for (const object of ['TABL', 'VIEW']) {
+                        tableExists = await SystemConnector.checkSapEntryExists('TADIR', {
+                            pgmid: 'R3TR',
+                            object,
+                            obj_name: table.trim().toUpperCase()
                         });
-                    }else{
+                        if (tableExists) {
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    const reason = e instanceof Error ? e.message : String(e);
+                    throw new Error(`Unable to check whether required SAP table "${table}" exists: ${reason}`);
+                }
+                if (!tableExists) {
+                    context.runtime.missingTables.push(table);
+                    requiredEntries.forEach(tableEntry => {
                         context.runtime.entriesStatus.bad.push({
                             table,
                             tableEntry
                         });
-                    }
-                    const entryStatus = exists ? `OK` : `NOT FOUND`;
-                    printTableData.push([table, ...printTableHead.slice(1, -1).map(field => tableEntry[field] ?? ''), entryStatus]);
-                });
-                logTable.push({
-                    header: printTableHead,
-                    data: printTableData
-                });
+                    });
+                    checked += requiredEntries.length;
+                    progress(table);
+                    missingTableErrors.push(`Required ${requiredEntries.length} entries in ${table}, but table or view was not found`);
+                } else {
+                    var printTableHead: string[] = ['Table name'];
+                    var printTableData: string[][] = [];
+                    printTableHead = printTableHead.concat(tableFields.find(o => o.tableName === table).fields);
+                    printTableHead.push('Status');
+                    const statuses = await checkTableEntries(table, requiredEntries, count => {
+                        checked += count;
+                        progress(table);
+                    });
+                    requiredEntries.forEach((tableEntry, index) => {
+                        const exists = statuses[index];
+                        if(exists){
+                            context.runtime.entriesStatus.good.push({
+                                table,
+                                tableEntry
+                            });
+                        }else{
+                            context.runtime.entriesStatus.bad.push({
+                                table,
+                                tableEntry
+                            });
+                        }
+                        const entryStatus = exists ? `OK` : `NOT FOUND`;
+                        printTableData.push([table, ...printTableHead.slice(1, -1).map(field => tableEntry[field] ?? ''), entryStatus]);
+                    });
+                    logTable.push({
+                        header: printTableHead,
+                        data: printTableData
+                    });
+                }
             }
+        } finally {
+            bar.stop();
         }
+        missingTableErrors.forEach(message => Logger.error(message, { debug: !context.rawInput.printOptions.information, important: true }));
 
         //3- print tables
         logTable.forEach(t => {

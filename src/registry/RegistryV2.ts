@@ -10,7 +10,7 @@ import { Protocol } from "../protocol";
 import opener from "opener";
 import { OAuth2Body } from "trm-registry-types";
 import _, { add } from 'lodash';
-import { getAxiosInstance, getNodePackage, normalize } from "../commons";
+import { getAxiosInstance, getNodePackage, normalize, progressBar } from "../commons";
 import { AbstractRegistry, PublishAdditionalData, PublishResult } from "./AbstractRegistry";
 import NodeCache from "node-cache";
 import { TransportEntries } from "../client";
@@ -467,7 +467,7 @@ export class RegistryV2 implements AbstractRegistry {
         const packageData = await this.getPackage(fullName, version, refreshPackage);
         const chunks: Buffer[] = [];
         let buffer: Buffer;
-        const logProgress = Logger.progressbar(`↓ ${fullName} ${version} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
+        const logProgress = progressBar(`↓ ${fullName} ${version} {bar} {percentage}% | {value}/{total} bytes`);
 
         try {
             const response = await this._axiosInstance.get(packageData.download_link, {
@@ -575,7 +575,7 @@ export class RegistryV2 implements AbstractRegistry {
         if (response.status === 202) { //publish is async
             let publishStatus = response.data;
             const progressPoolUrl = publishStatus.progress_pool_url;
-            const logProgress = Logger.progressbar(`↑ ${fullName} ${version} [{bar}] {value}/{total} {message} | Last refresh: {lastRefresh}`, '>');
+            const logProgress = progressBar(`↑ ${fullName} ${version} {bar} {value}/{total} {message} | Last refresh: {lastRefresh}`);
 
             logProgress.start(publishStatus.steps, publishStatus.current_step, {
                 message: publishStatus.current_step_message || '',
@@ -946,7 +946,7 @@ export class RegistryV2 implements AbstractRegistry {
         //from cache if it exists, else ignore
         const ping: Ping | undefined = this._cache.get('ping') && !(this._cache.get('ping') instanceof Error) ? this._cache.get('ping') : undefined;
 
-        const logProgress = Logger.progressbar(`↓ ${label} [{bar}] {percentage}% | {value}/{total} bytes`, '>');
+        const logProgress = progressBar(`↓ ${label} {bar} {percentage}% | {value}/{total} bytes`);
 
         try {
             const response = await this._axiosInstance.get(transportDownload.download_link, {

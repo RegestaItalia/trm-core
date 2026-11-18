@@ -13,6 +13,7 @@ import execute from '@simonegaffurini/sammarksworkflow';
 import { SystemConnector } from '../../systemConnector';
 import { RegistryType } from '../../registry';
 import { updatePackageData } from './updatePackageData';
+import { Logger } from 'trm-commons';
 
 function context() {
     return {
@@ -171,6 +172,34 @@ describe('install package metadata writes', () => {
         expect(SystemConnector.setInstallDevc).not.toHaveBeenCalled();
         expect(SystemConnector.updateTrmPackageData).not.toHaveBeenCalled();
         expect(SystemConnector.restoreInstallMetadata).not.toHaveBeenCalled();
+    });
+
+    test('the finalize progress bar counts the metadata calls of the install', async () => {
+        const bar = { start: jest.fn(), update: jest.fn(), stop: jest.fn() };
+        jest.spyOn(Logger, 'progressbar').mockReturnValue(bar as any);
+        const ctx = context();
+        ctx.runtime.update = {};
+        ctx.runtime.previousInstallPackages = [{ originalDevclass: 'ZOLD', installDevclass: 'ZOLD_TARGET' }];
+
+        await updatePackageData.run(ctx);
+
+        // stored row read, mappings, stale mappings, install transports, package row
+        expect(bar.start).toHaveBeenCalledWith(5, 0, expect.anything());
+        expect(bar.update.mock.calls.map(([value]) => value)).toEqual([1, 2, 3, 4, 5]);
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+    });
+
+    test('the finalize progress bar is stopped when a metadata write fails', async () => {
+        const bar = { start: jest.fn(), update: jest.fn(), stop: jest.fn() };
+        jest.spyOn(Logger, 'progressbar').mockReturnValue(bar as any);
+        jest.spyOn(SystemConnector, 'setInstallDevc').mockRejectedValue(new Error('mapping write failed'));
+
+        await expect(updatePackageData.run(context())).rejects.toThrow('mapping write failed');
+
+        // first install: mappings, install transports, package row
+        expect(bar.start).toHaveBeenCalledWith(3, 0, expect.anything());
+        expect(bar.update).not.toHaveBeenCalled();
+        expect(bar.stop).toHaveBeenCalledTimes(1);
     });
 
     test('first installs do not read the stored row', async () => {

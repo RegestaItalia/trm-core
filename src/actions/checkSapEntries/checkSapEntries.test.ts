@@ -14,6 +14,8 @@ const connector = SystemConnector as unknown as {
     readTable: jest.Mock
 };
 
+const bar = { start: jest.fn(), update: jest.fn(), stop: jest.fn() };
+
 function run(sapEntries: any) {
     return checkSapEntries({ packageData: { manifest: { name: 'test', version: '1.0.0', sapEntries } } });
 }
@@ -23,6 +25,7 @@ describe('checkSapEntries', () => {
         jest.restoreAllMocks();
         jest.clearAllMocks();
         ['info', 'log', 'table', 'error', 'loading', 'success'].forEach(m => jest.spyOn(Logger, m as any).mockImplementation(() => undefined as never));
+        jest.spyOn(Logger, 'progressbar').mockReturnValue(bar as any);
         // entries are checked one by one unless a test reads them in batches
         connector.readTable.mockRejectedValue(new Error('no batch read'));
     });
@@ -35,12 +38,11 @@ describe('checkSapEntries', () => {
             { status: false, entry: { ID: 'B' } },
             { status: true, entry: { ID: 'C' } }
         ]);
-        expect((Logger.loading as jest.Mock).mock.calls.map(([message]) => message)).toEqual([
-            'Checking 3 SAP entries: 0% (ZTAB)...',
-            'Checking 3 SAP entries: 33% (ZTAB)...',
-            'Checking 3 SAP entries: 66% (ZTAB)...',
-            'Checking 3 SAP entries: 100% (ZTAB)...'
+        expect(bar.start).toHaveBeenCalledWith(3, 0, expect.objectContaining({ table: '' }));
+        expect(bar.update.mock.calls.map(([value, payload]) => [value, payload.table])).toEqual([
+            [0, 'ZTAB'], [1, 'ZTAB'], [2, 'ZTAB'], [3, 'ZTAB']
         ]);
+        expect(bar.stop).toHaveBeenCalledTimes(1);
     });
 
     test('entries with the same fields are read in batches', async () => {
@@ -58,9 +60,10 @@ describe('checkSapEntries', () => {
         expect(output.sapEntriesStatus.TADIR.filter(o => o.status).map(o => o.entry.OBJ_NAME)).toEqual(['CX_ROOT', 'TADIR']);
         // entries a batch doesn't return are confirmed on their own
         expect(connector.checkSapEntryExists).toHaveBeenCalledTimes(1 + 28);
-        const progress = (Logger.loading as jest.Mock).mock.calls.map(([message]) => message);
-        expect(progress[0]).toBe('Checking 30 SAP entries: 0% (TADIR)...');
-        expect(progress[progress.length - 1]).toBe('Checking 30 SAP entries: 100% (TADIR)...');
+        expect(bar.start).toHaveBeenCalledWith(30, 0, expect.anything());
+        const progress = bar.update.mock.calls.map(([value]) => value);
+        expect(progress[0]).toBe(0);
+        expect(progress[progress.length - 1]).toBe(30);
     });
 
     test('a batch that can\'t be read is checked entry by entry', async () => {

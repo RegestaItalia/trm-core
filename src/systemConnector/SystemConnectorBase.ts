@@ -1,5 +1,6 @@
 import { valid as semverValid } from "semver";
 import { inspect, Logger, ValueHelpContext, ValueHelpPage } from "trm-commons";
+import { progressBar } from "../commons/progressBar";
 import { getSapEntryConditions, Manifest, TrmManifestEngineTableCondition } from "../manifest";
 import { TADIR, TDEVC } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
@@ -586,7 +587,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
-    const logProgress = Logger.progressbar('Finding dependencies [{bar}] {percentage}%', '>');
+    const logProgress = progressBar('Finding dependencies {bar} {percentage}%');
     logProgress.start(100, 0);
     // create logging poll
     const isStateless = SystemConnector.isStateless();

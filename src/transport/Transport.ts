@@ -1,5 +1,5 @@
 import { BinaryTransport } from "./BinaryTransport";
-import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
+import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy, multiProgressBar } from "../commons";
 import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
 import { R3transLogParser, ReleaseLogStep } from "./R3transLogParser";
@@ -556,7 +556,8 @@ export class Transport {
      * `offset` is the log size before the release: only what this release appended is read.
      */
     public async readReleaseLog(tmpFolder: string, offset: number = 0): Promise<number> {
-        const multibar = Logger.multibar('{stage} [{bar}] {exitCode} {result}', Transport.getTransportIcon());
+        // the icon is drawn two columns wide by some terminals: the space keeps the bar from covering its right half
+        const multibar = multiProgressBar('{stage} {bar} {exitCode} {result}', `${Transport.getTransportIcon()} `);
         const steps = RELEASE_LOG_STEPS.map(step => ({
             ...step,
             progress: 0,
