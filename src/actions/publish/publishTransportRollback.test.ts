@@ -162,6 +162,61 @@ describe('publish transport rollback chain', () => {
         }
     });
 
+    function mockBar() {
+        const bar = { start: jest.fn(), update: jest.fn(), stop: jest.fn() };
+        jest.spyOn(Logger, 'progressbar').mockReturnValue(bar as any);
+        return bar;
+    }
+
+    test('one progress bar counts the transports of every generate step', async () => {
+        const bar = mockBar();
+
+        await execute('publish-test', steps(), context());
+
+        // DEVC, TADIR, LANG and the two customizing copies
+        expect(Logger.progressbar).toHaveBeenCalledTimes(1);
+        expect(bar.start).toHaveBeenCalledWith(5, 0, expect.objectContaining({ transport: 'DEVC' }));
+        const counted = bar.update.mock.calls.filter((_, i) => i % 2 === 1).map(([value, payload]) => [value, payload.transport]);
+        expect(counted).toEqual([
+            [1, 'DEVC'], [2, 'TADIR'], [3, 'LANG'], [4, 'CUST (copy of TSTK900010)'], [5, 'CUST (copy of TSTK900011)']
+        ]);
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+        expect(Logger.loading).not.toHaveBeenCalledWith('Generating transports...');
+    });
+
+    test('skipped language and customizing transports are not counted', async () => {
+        const bar = mockBar();
+        const ctx = context();
+        ctx.rawInput.publishData = { noLanguageTransport: true, noCustomizingTransports: true };
+
+        await execute('publish-test', steps(), ctx);
+
+        expect(bar.start).toHaveBeenCalledWith(2, 0, expect.anything());
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+    });
+
+    test('a failed transport generation stops the progress bar before the rollback', async () => {
+        const bar = mockBar();
+
+        await failAt('addObjects', 2);
+
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+        const stopOrder = bar.stop.mock.invocationCallOrder[0];
+        const deleteOrders = ((Transport as any).created as any[]).flatMap(o => o.delete.mock.invocationCallOrder);
+        expect(deleteOrders.every((order: number) => order > stopOrder)).toBe(true);
+    });
+
+    test('a language transport warning is printed after the progress bar', async () => {
+        const bar = mockBar();
+        const ctx = context();
+        (Transport as any).setFault('addTranslations');
+
+        await execute('publish-test', steps(), ctx);
+
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Language transport generation error'), { important: true });
+        expect((Logger.warning as jest.Mock).mock.invocationCallOrder[0]).toBeGreaterThan(bar.stop.mock.invocationCallOrder[0]);
+    });
+
     test('transports target the system itself and leave its import queue after release', async () => {
         const ctx = context();
 

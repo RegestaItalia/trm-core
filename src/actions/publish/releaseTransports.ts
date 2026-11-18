@@ -4,6 +4,7 @@ import { Inquirer, Logger } from "trm-commons";
 import { Transport } from "../../transport";
 import { SystemConnector } from "../../systemConnector";
 import { dequeueTransport } from "../commons/utils/importQueue";
+import { endTransportsProgress } from "./transportsProgress";
 
 /**
  * Workflow step that annotates and releases every generated publish transport.
@@ -19,6 +20,7 @@ import { dequeueTransport } from "../commons/utils/importQueue";
 export const releaseTransports: Step<PublishWorkflowContext> = {
     name: 'release-transport',
     run: async (context: PublishWorkflowContext): Promise<void> => {
+        endTransportsProgress(context);
         //1- release
         context.runtime.aggregatedTransports = [context.runtime.transports.tadir, context.runtime.transports.devc];
         if(context.runtime.transports.lang){

@@ -4,6 +4,7 @@ import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
+import { generateTransport } from "./transportsProgress";
 
 /**
  * Workflow step that packages each selected customizing request for publication.
@@ -32,32 +33,33 @@ export const generateCustTransport: Step<PublishWorkflowContext> = {
             context.runtime.stopWarningShown = true;
             stopWarning('publish');
         }
-        Logger.loading(`Generating transports...`);
         for (const cust of context.runtime.customizing.new) {
-            Logger.loading(`Generating CUST transport (copy of ${cust.trkorr})...`, true);
-            const custInstance = new Transport(cust.trkorr);
-            var aggregate = [custInstance];
-            aggregate = aggregate.concat(await (custInstance.getTasks()));
-            const transport = await Transport.createToc({
-                trmIdentifier: TrmTransportIdentifier.CUST,
-                target: SystemConnector.getDest(),
-                text: cust.description.trim().slice(0, 60),
+            await generateTransport(context, `CUST (copy of ${cust.trkorr})`, async () => {
+                Logger.log(`Generating CUST transport (copy of ${cust.trkorr})`, true);
+                const custInstance = new Transport(cust.trkorr);
+                var aggregate = [custInstance];
+                aggregate = aggregate.concat(await (custInstance.getTasks()));
+                const transport = await Transport.createToc({
+                    trmIdentifier: TrmTransportIdentifier.CUST,
+                    target: SystemConnector.getDest(),
+                    text: cust.description.trim().slice(0, 60),
+                });
+                // Track the TOC before populating it so workflow rollback can delete it if a
+                // subsequent copy or content check fails.
+                context.runtime.transports.cust.push(transport);
+                for (const aggInstance of aggregate) {
+                    await transport.addObjectsFromTransport(aggInstance.trkorr);
+                }
+                //check transport has content (else delete)
+                const e071 = await transport.getE071();
+                if (e071.length === 0) {
+                    Logger.info(`Customizing transport has no content, deleting.`, true);
+                    await transport.delete();
+                    context.runtime.transports.cust = context.runtime.transports.cust.filter(
+                        trackedTransport => trackedTransport !== transport
+                    );
+                }
             });
-            // Track the TOC before populating it so workflow rollback can delete it if a
-            // subsequent copy or content check fails.
-            context.runtime.transports.cust.push(transport);
-            for (const aggInstance of aggregate) {
-                await transport.addObjectsFromTransport(aggInstance.trkorr);
-            }
-            //check transport has content (else delete)
-            const e071 = await transport.getE071();
-            if (e071.length === 0) {
-                Logger.info(`Customizing transport has no content, deleting.`, true);
-                await transport.delete();
-                context.runtime.transports.cust = context.runtime.transports.cust.filter(
-                    trackedTransport => trackedTransport !== transport
-                );
-            }
         }
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {

@@ -21,6 +21,7 @@ Legend
 ! transport import and release polling logged with Logger.transportProgress (trm-commons 5.6.0): same CLI output, GUIs can update one progress view in place instead of a message per check
 ! install: the existing objects check, the ownership check of existing objects and the finalize step show a progress bar; the existing objects are checked in chunks (100 objects, 1000 with the bulk API)
 ! check SAP entries: progress bar instead of the percentage in the loading message; missing tables are reported after the check
+! publish: one progress bar counts the generated transports (DEVC, TADIR, LANG, CUST) instead of a "Generating transports..." loading message per step; a language transport warning is printed after the bar
 ! requires trm-server 8.2.0
 
 2026-11-09 v11.4.0

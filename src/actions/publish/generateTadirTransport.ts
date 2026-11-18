@@ -5,6 +5,7 @@ import { Transport, TrmTransportIdentifier } from "../../transport";
 import { SystemConnector } from "../../systemConnector";
 import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
+import { generateTransport } from "./transportsProgress";
 
 /**
  * Workflow step that creates the transport containing repository objects.
@@ -20,15 +21,16 @@ export const generateTadirTransport: Step<PublishWorkflowContext> = {
             stopWarning('publish');
         }
         //1- generate transport
-        Logger.loading(`Generating transports...`);
-        Logger.loading(`Generating TADIR transport...`, true);
-        const aTadir = context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
-        context.runtime.transports.tadir = await Transport.createToc({
-            trmIdentifier: TrmTransportIdentifier.TADIR,
-            target: SystemConnector.getDest(),
-            text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`)
+        await generateTransport(context, 'TADIR', async () => {
+            Logger.log(`Generating TADIR transport`, true);
+            const aTadir = context.runtime.sapPackage.objects.filter(o => !(o.pgmid === 'R3TR' && o.object === 'DEVC'));
+            context.runtime.transports.tadir = await Transport.createToc({
+                trmIdentifier: TrmTransportIdentifier.TADIR,
+                target: SystemConnector.getDest(),
+                text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`)
+            });
+            await context.runtime.transports.tadir.addObjects(aTadir, false);
         });
-        await context.runtime.transports.tadir.addObjects(aTadir, false);
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
         if (context.runtime.transports.tadir) {

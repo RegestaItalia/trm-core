@@ -23,6 +23,7 @@ import { updatePackageData } from "./updatePackageData";
 import { ActionLockScope, packageLockResource, withActionLockScope } from "../commons/utils";
 import { lockResources } from "./lockResources";
 import { simulatePublish } from "./simulatePublish";
+import type { TransportsProgress } from "./transportsProgress";
 import { logRegistry, runWithActionLog } from "../../actionLog";
 
 /** Input required to build and publish a TRM package release from the connected SAP system. */
@@ -213,7 +214,9 @@ type WorkflowRuntime = {
         cust?: Transport[]
     },
     aggregatedTransports: Transport[],
-    stopWarningShown: boolean
+    stopWarningShown: boolean,
+    /** Bar shown while the generate steps create the release transports. */
+    transportsProgress?: TransportsProgress
 }
 
 /** Artifacts produced by a successful {@link publish} action. */
