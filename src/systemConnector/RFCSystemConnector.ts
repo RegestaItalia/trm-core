@@ -168,6 +168,10 @@ export class RFCSystemConnector extends SystemConnectorBase implements ISystemCo
         return this._client.checkConnection();
     }
 
+    public invalidateMetadata(): void {
+        this._client.invalidateMetadata();
+    }
+
     public async ping(): Promise<string> {
         return this._client.trmServerPing();
     }

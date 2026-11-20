@@ -106,6 +106,39 @@ describe('RFCClient open timeout', () => {
     });
 });
 
+describe('RFCClient invalidateMetadata', () => {
+    it('calls invalidateMetadata on the RFC client when the library offers it (open-rfc)', () => {
+        const invalidateMetadata = jest.fn();
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = { invalidateMetadata };
+
+        client.invalidateMetadata();
+
+        expect(invalidateMetadata).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when the library has no invalidateMetadata (node-rfc)', () => {
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = { call: jest.fn() };
+
+        expect(() => client.invalidateMetadata()).not.toThrow();
+    });
+
+    it('does nothing before the RFC client exists', () => {
+        const client = new RFCClient({}, 'EN');
+
+        expect(() => client.invalidateMetadata()).not.toThrow();
+        expect((client as any)._rfcClient).toBeUndefined();
+    });
+
+    it('swallows an error thrown by the library', () => {
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = { invalidateMetadata: jest.fn(() => { throw new Error('boom'); }) };
+
+        expect(() => client.invalidateMetadata()).not.toThrow();
+    });
+});
+
 describe('RFCClient exception log', () => {
     beforeEach(() => {
         jest.clearAllMocks();

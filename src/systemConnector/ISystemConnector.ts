@@ -36,6 +36,7 @@ export interface ISystemConnector extends ISystemConnectorBase {
     connect: (silent: boolean) => Promise<void>,
     closeConnection: () => Promise<void>,
     checkConnection: () => Promise<boolean>,
+    invalidateMetadata: () => void,
     ping: () => Promise<string>,
     getFileSystem: () => Promise<struct.FILESYS>,
     getDirTrans: () => Promise<components.PFEVALUE>,
