@@ -20,7 +20,7 @@ import { DeletionPreview, generateDeletion } from "./generateDeletion";
 import { dequeueTransport, protectBackupTransport } from "./importQueue";
 import { addObjectsResiliently } from "./transportObjects";
 import { lacksTrmBackendApis, TrmBackendApis } from "./trmBackend";
-import { addManualStep, isPackageApiUnsupported, logPackageApiUnsupported, StagingUnavailableError } from "./packageApiFallback";
+import { addManualStep, isPackageApiUnsupported, isStagingPackageUnavailable, logPackageApiUnsupported, StagingUnavailableError } from "./packageApiFallback";
 
 type CleanupObject = Pick<E071, 'pgmid' | 'object' | 'objName'>;
 
@@ -753,7 +753,7 @@ export async function createStagingPackage(context: Pick<PackageCleanupContext, 
         });
     } catch (error) {
         // not created: nothing to delete, and no staging package to list in the deletion preview
-        if (isPackageApiUnsupported(error) && !(await SystemConnector.getDevclass(stagingDevclass).catch(() => true))) {
+        if (isStagingPackageUnavailable(error) && !(await SystemConnector.getDevclass(stagingDevclass).catch(() => true))) {
             context.revert.stagingPackages = context.revert.stagingPackages.filter(devclass => devclass !== stagingDevclass);
         }
         throw error;
@@ -774,7 +774,7 @@ export async function createStagingPackage(context: Pick<PackageCleanupContext, 
  * A backend older than trm-server 7.0.0 (a trm-server/trm-rest upgrade) has no fallback for TO 124: a missing
  * namespace is imported temporarily, and its objects are staged in a package of the namespace.
  *
- * Throws {@link StagingUnavailableError} when the SAP package API is unsupported on this release.
+ * Throws {@link StagingUnavailableError} when no transportable package can be created on this release.
  */
 export async function getStagingPackage(context: Pick<PackageCleanupContext, 'revert' | 'runtime' | 'missingBackendApis'>, staging: Map<string, string>, namespace: string, transportLayer: string): Promise<string> {
     const key = normalize(namespace || '');
@@ -796,7 +796,7 @@ export async function getStagingPackage(context: Pick<PackageCleanupContext, 're
         try {
             devclass = await createStagingPackage(context, key, transportLayer);
         } catch (error) {
-            throw isPackageApiUnsupported(error) ? new StagingUnavailableError(key, error) : error;
+            throw isStagingPackageUnavailable(error) ? new StagingUnavailableError(key, error) : error;
         }
         staging.set(key, devclass);
         return devclass;
@@ -813,7 +813,7 @@ export async function getStagingPackage(context: Pick<PackageCleanupContext, 're
         try {
             devclass = staging.get('') || await createStagingPackage(context, '', transportLayer);
         } catch (error) {
-            throw isPackageApiUnsupported(error) ? new StagingUnavailableError(key, error) : error;
+            throw isStagingPackageUnavailable(error) ? new StagingUnavailableError(key, error) : error;
         }
         staging.set('', devclass);
     }
@@ -1264,7 +1264,7 @@ export async function backupInstalledPackage(context: PackageCleanupContext, pla
                 if (!(error instanceof StagingUnavailableError)) {
                     throw error;
                 }
-                logPackageApiUnsupported(error.message, error.cause);
+                Logger.log(`${error.message} (${error.cause instanceof Error ? error.cause.message : String(error.cause)})`, true);
                 keptNamespaces.add(normalize(namespace));
                 kept.push(...staged);
             }

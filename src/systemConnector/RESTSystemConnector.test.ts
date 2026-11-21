@@ -143,4 +143,12 @@ describe("RESTSystemConnector", () => {
             expect(() => endpointOf(input)).toThrow(/Invalid REST endpoint/);
         });
     });
+
+    test("invalidateMetadata is a no-op", () => {
+        jest.spyOn(Logger, "log").mockImplementation(() => undefined);
+        const { RESTClient } = jest.requireMock("../client");
+        (RESTClient as jest.Mock).mockImplementation(() => ({}));
+        const connector = new RESTSystemConnector({ endpoint: "http://vhcala4hci:50000" }, { user: "developer", passwd: "pw", lang: "EN", client: "001" } as any);
+        expect(() => connector.invalidateMetadata()).not.toThrow();
+    });
 });

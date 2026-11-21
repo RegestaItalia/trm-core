@@ -107,6 +107,30 @@ describe('publish version resolution', () => {
         expect(ctx.rawInput.packageData.registry.getPackage).not.toHaveBeenCalled();
     });
 
+    test('local export accepts the version of the installed public package', async () => {
+        const publicRegistry = { getRegistryType: () => RegistryType.PUBLIC } as any;
+        const installed = new TrmPackage('pkg', publicRegistry, new Manifest({ name: 'pkg', version: '8.2.0' } as any)).setDevclass('ZROOT');
+        const ctx = context(RegistryType.LOCAL, '8.2.0', true, [installed]);
+        await run(ctx);
+        expect(ctx.rawInput.packageData.version).toBe('8.2.0');
+        expect(ctx.rawInput.packageData.registry.validatePublish).toHaveBeenCalledWith('pkg', '8.2.0', true);
+    });
+
+    test('local export prompt accepts the version of the installed public package', async () => {
+        const questions: any[] = [];
+        jest.spyOn(Inquirer, 'prompt').mockImplementation(async (q: any) => {
+            questions.push(...(Array.isArray(q) ? q : [q]));
+            return { acceptDefaultVersion: true, devclass: 'ZROOT' };
+        });
+        const publicRegistry = { getRegistryType: () => RegistryType.PUBLIC } as any;
+        const installed = new TrmPackage('pkg', publicRegistry, new Manifest({ name: 'pkg', version: '8.2.0' } as any)).setDevclass('ZROOT');
+        const ctx = context(RegistryType.LOCAL, undefined, false, [installed]);
+        await run(ctx);
+        expect(ctx.rawInput.packageData.version).toBe('8.2.1');
+        const validate = questions.find(q => q.name === 'version').validate;
+        expect(validate('8.2.0')).toBe(true);
+    });
+
     test('remote publish increments the latest release', async () => {
         const ctx = context(RegistryType.PRIVATE);
         await run(ctx);

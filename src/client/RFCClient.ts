@@ -158,6 +158,25 @@ export class RFCClient implements IClient {
         }
     }
 
+    /**
+     * Drops the RFC library's cached function and structure metadata, so the next call
+     * re-reads each interface from SAP (e.g. after an import changed a function module
+     * signature). Only open-rfc offers this: with node-rfc, or before the client exists,
+     * it does nothing. Never throws.
+     */
+    public invalidateMetadata(): void {
+        const rfcClient = this._rfcClient;
+        if (typeof rfcClient?.invalidateMetadata !== 'function') {
+            return;
+        }
+        try {
+            rfcClient.invalidateMetadata();
+            Logger.log(`RFC metadata cache invalidated`, true);
+        } catch (e) {
+            Logger.log(`RFC metadata cache invalidation failed: ${getErrorMessage(e)}`, true);
+        }
+    }
+
     public async checkConnection(): Promise<boolean> {
         const result = await this._call("STFC_CONNECTION", { requtext: 'This is TRM' }, connectionCheckTimeoutSeconds);
         if (!this._connectionResponseLogged && result && result.resptext) {
@@ -686,6 +705,14 @@ export class RFCClient implements IClient {
     public async trmServerPing(): Promise<string> {
         const result = await this._call("/ATRM/PING");
         return result['return'];
+    }
+
+    /** HTTP base URL (protocol://host:port[/service]) of the system, optionally with an ICF service path appended. RFC only: there is no REST equivalent. */
+    public async getHttpBaseUrl(service?: string): Promise<string> {
+        const result = await this._call("/ATRM/GET_HTTP_BASE_URL", {
+            service: service
+        });
+        return result['baseUrl'];
     }
 
     public async renameTransportRequest(trkorr: components.TRKORR, as4text: components.AS4TEXT): Promise<void> {

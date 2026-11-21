@@ -5,7 +5,7 @@ import { TrmTransportIdentifier } from "../../transport";
 import { Inquirer } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
 import { E071, TADIR, TDEVC, TransportEntries } from "../../client";
-import { adjustTrmServerRestDevclass, getPackageHierarchy } from "../../commons";
+import { adjustTrmServerRestDevclass, getPackageHierarchy, progressBar } from "../../commons";
 import { getOwningInstallation, logObjectsLocks, TRM_FIXED_TADIR_TRANSPORTS } from "../commons/utils";
 import { TrmPackage } from "../../trmPackage";
 import { createHash } from "crypto";
@@ -25,8 +25,15 @@ export async function checkObjectsLocks(e071: E071[]): Promise<void> {
     }
 }
 
-/** Returns the objects of the release that already exist on the target system. */
-export async function findExistingObjects(context: InstallWorkflowContext, tadir: TADIR[]): Promise<TADIR[]> {
+/** Objects checked with one existence call while the progress is shown, by connector kind. */
+export const EXISTING_OBJECTS_CHUNK_SIZE = 100;
+export const EXISTING_OBJECTS_BULK_CHUNK_SIZE = 1000;
+
+/**
+ * Returns the objects of the release that already exist on the target system.
+ * With `showProgress` the objects are checked in chunks and a progress bar follows them.
+ */
+export async function findExistingObjects(context: InstallWorkflowContext, tadir: TADIR[], showProgress: boolean = false): Promise<TADIR[]> {
     const checkTadir = tadir.map(o => {
         return {
             ...o, ...{
@@ -34,11 +41,31 @@ export async function findExistingObjects(context: InstallWorkflowContext, tadir
             }
         }
     });
-    if (!SystemConnector.getSupportedBulk().getExistingObjects) {
-        return SystemConnector.getExistingObjects(checkTadir);
-    } else {
-        return SystemConnector.getExistingObjectsBulk(checkTadir);
+    const bulk = SystemConnector.getSupportedBulk().getExistingObjects;
+    const getExisting = (objects: TADIR[]) => bulk ? SystemConnector.getExistingObjectsBulk(objects) : SystemConnector.getExistingObjects(objects);
+    if (!showProgress) {
+        return getExisting(checkTadir);
     }
+    // objects of the same type are read together: chunks keep them together
+    const typeKey = (o: TADIR) => `${o.pgmid.trim().toUpperCase()} ${o.object.trim().toUpperCase()}`;
+    const sorted = [...checkTadir].sort((a, b) => typeKey(a).localeCompare(typeKey(b)));
+    const chunkSize = bulk ? EXISTING_OBJECTS_BULK_CHUNK_SIZE : EXISTING_OBJECTS_CHUNK_SIZE;
+    const existing: TADIR[] = [];
+    const bar = progressBar('Checking existing objects {bar} {percentage}% ({value}/{total})');
+    bar.start(sorted.length, 0);
+    try {
+        for (let i = 0; i < sorted.length; i += chunkSize) {
+            const chunk = sorted.slice(i, i + chunkSize);
+            existing.push(...await getExisting(chunk));
+            bar.update(i + chunk.length);
+        }
+    } finally {
+        bar.stop();
+    }
+    // returned in the order of the release objects
+    const objectKey = (o: TADIR) => `${typeKey(o)} ${o.objName.trim().toUpperCase()}`;
+    const order = new Map(checkTadir.map((o, index) => [objectKey(o), index]));
+    return existing.sort((a, b) => (order.get(objectKey(a)) ?? 0) - (order.get(objectKey(b)) ?? 0));
 }
 
 /**
@@ -302,29 +329,33 @@ export const checkTransports: Step<InstallWorkflowContext> = {
 
         //8- check objects existance
         const checkedTadir = existenceCheckObjects(mergedTADIR);
-        Logger.loading(`Checking whether ${checkedTadir.length} package object${checkedTadir.length === 1 ? '' : 's'} already exist${checkedTadir.length === 1 ? 's' : ''}...`);
-        const existingObjects = checkedTadir.length > 0 ? await findExistingObjects(context, checkedTadir) : [];
+        const existingObjects = checkedTadir.length > 0 ? await findExistingObjects(context, checkedTadir, true) : [];
         // lock-resources checks again, once locked, that no other object appeared
         context.runtime.existingObjects = existingObjects;
         Logger.log(`TADIR object that already exist in system: ${JSON.stringify(existingObjects)}`, true);
         //if updating and existing object is part of the package (devclass in hierarchy) ok, else throw error
         if (existingObjects.length > 0) {
             // Name the installed TRM package that contains each existing object: it can't be taken over silently.
-            Logger.loading(`Checking ownership of ${existingObjects.length} existing object${existingObjects.length === 1 ? '' : 's'}...`);
             const owners = new Map<TADIR, string>();
             // objects share few SAP packages: look each one up once
             const packageOwners = new Map<string, Promise<TrmPackage | undefined>>();
-            for (const o of existingObjects) {
-                if (!o.devclass) {
-                    continue;
+            const ownershipBar = progressBar('Checking ownership of existing objects {bar} {percentage}% ({value}/{total})');
+            ownershipBar.start(existingObjects.length, 0);
+            try {
+                for (const [index, o] of existingObjects.entries()) {
+                    if (o.devclass) {
+                        if (!packageOwners.has(o.devclass)) {
+                            packageOwners.set(o.devclass, getOwningInstallation(o.devclass, context.rawInput.contextData.systemPackages || [], context.runtime.update));
+                        }
+                        const owner = await packageOwners.get(o.devclass);
+                        if (owner) {
+                            owners.set(o, owner.packageName);
+                        }
+                    }
+                    ownershipBar.update(index + 1);
                 }
-                if (!packageOwners.has(o.devclass)) {
-                    packageOwners.set(o.devclass, getOwningInstallation(o.devclass, context.rawInput.contextData.systemPackages || [], context.runtime.update));
-                }
-                const owner = await packageOwners.get(o.devclass);
-                if (owner) {
-                    owners.set(o, owner.packageName);
-                }
+            } finally {
+                ownershipBar.stop();
             }
             const label = (o: TADIR) => `${o.pgmid} ${o.object} ${o.objName}${owners.has(o) ? ` (TRM package ${owners.get(o)})` : ''}`;
             const ownerNames = [...new Set(owners.values())];

@@ -77,4 +77,12 @@ describe("RFCSystemConnector", () => {
         const { RFCClient } = jest.requireMock("../client");
         expect((RFCClient as jest.Mock).mock.lastCall[0]).not.toHaveProperty("saprouter");
     });
+
+    test("invalidateMetadata delegates to the RFC client", () => {
+        const client = { invalidateMetadata: jest.fn() };
+        mockClient(client);
+        const connector = new RFCSystemConnector(connection(), login());
+        connector.invalidateMetadata();
+        expect(client.invalidateMetadata).toHaveBeenCalledTimes(1);
+    });
 });

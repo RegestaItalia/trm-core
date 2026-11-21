@@ -541,7 +541,8 @@ describe('backupInstalledPackage when the SAP package API is unsupported', () =>
 
     test.each([
         ['DYN_CALL_PARAM_NOT_FOUND', unsupported()],
-        ['an exception without a message', new ClientError('TRM_RFC_EXCEPTION', { class: '', no: '000' }, ' Type:E Number:000', '/ATRM/CREATE_PACKAGE')]
+        ['an exception without a message', new ClientError('TRM_RFC_EXCEPTION', { class: '', no: '000' }, ' Type:E Number:000', '/ATRM/CREATE_PACKAGE')],
+        ['no task to record the package (TK 599)', new ClientError('TRM_RFC_EXCEPTION', { class: 'TK', no: '599' }, 'No task for editing objects can be determined', '/ATRM/CREATE_PACKAGE')]
     ])('%s: local objects stay in their packages, neither backed up nor moved, and the action goes on', async (_label, error) => {
         const tadir = new MockTransport('TSTKBKP1');
         (Transport.createToc as jest.Mock).mockResolvedValueOnce(tadir);

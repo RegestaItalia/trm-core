@@ -6,6 +6,7 @@ import { installRegistryKey, lacksTrmBackendApis } from "../commons/utils";
 import { Manifest } from "../../manifest";
 import { ZTRM_INSTALLDEVC, ZTRM_INSTALLTR } from "../../client";
 import { TrmTransportIdentifier } from "../../transport";
+import { progressBar } from "../../commons";
 
 function installTransportRows(packageName: string, packageRegistry: string, transports: { trkorr: string, trmType: string }[]): ZTRM_INSTALLTR[] {
     return transports.map(transport => ({
@@ -30,7 +31,6 @@ function installDevcRows(packageName: string, packageRegistry: string, replaceme
  * A trm-server/trm-rest upgrade also records it right after its import, which is never rolled back.
  */
 export async function recordInstalledRelease(context: InstallWorkflowContext): Promise<void> {
-    Logger.loading(`Updating TRM data...`);
     const originalTransport = context.runtime.transports.tadir.instance.trkorr;
     const installTransport = context.output.transport?.trkorr;
     const originalDevclass = context.runtime.package.hierarchy.devclass;
@@ -71,38 +71,54 @@ export async function recordInstalledRelease(context: InstallWorkflowContext): P
     ]);
     context.revert.metadataPackageRegistry = packageRegistry;
     // A trm-server/trm-rest upgrade is not rolled back after its import: nothing to restore
-    if (context.runtime.update && !context.runtime.selfUpdate) {
-        // The installed packages may have been read without their rows: read the stored row
-        // before writing, so the revert restores it exactly, or removes the row it wrote.
-        // A failed read aborts before any write.
-        context.revert.metadataPreviousPackageRow = await SystemConnector.getTrmPackageData(context.runtime.package.data.manifest.name, packageRegistry);
-        context.revert.metadataPreviousPackageRead = true;
-    }
-    context.revert.metadataPackageRow = {
-        package_name: context.runtime.package.data.manifest.name,
-        package_registry: packageRegistry,
-        manifest: Buffer.from(new Manifest(context.runtime.package.data.manifest).getAbapXml(), 'utf8'),
-        trkorr: installTransport || originalTransport,
-        integrity: context.runtime.package.data.checksum,
-        devclass
-    };
+    const readPreviousRow = !!context.runtime.update && !context.runtime.selfUpdate;
+    // A backend without trmServer7 has neither API: trm-server and trm-rest have no stale mappings nor install transports
+    const writeInstallTransports = !lacksTrmBackendApis(context, 'trmServer7');
     // Mappings stored for devclasses that are no longer installed: the write only upserts.
     const staleInstallDevc = installDevcRows(context.rawInput.packageData.name, packageRegistry,
         context.runtime.previousInstallPackages.filter(previous => !installDevc.some(o => o.original_devclass === previous.originalDevclass)));
-    context.revert.metadataInstallDevc = installDevc;
-    // Mark before the mutating await: SAP may commit the mapping and still
-    // fail while returning the response.
-    context.revert.metadataWriteStarted = true;
-    await SystemConnector.setInstallDevc(installDevc);
-    // A backend without trmServer7 has neither API: trm-server and trm-rest have no stale mappings nor install transports
-    if (!lacksTrmBackendApis(context, 'trmServer7')) {
-        if (staleInstallDevc.length > 0) {
-            await SystemConnector.deleteInstallDevc(staleInstallDevc);
+    const deleteStaleInstallDevc = writeInstallTransports && staleInstallDevc.length > 0;
+    const bar = progressBar('Finalizing install {bar} {percentage}% ({value}/{total})');
+    let done = 0;
+    bar.start([readPreviousRow, true, deleteStaleInstallDevc, writeInstallTransports, true].filter(Boolean).length, 0);
+    const stepDone = () => bar.update(++done);
+    try {
+        if (readPreviousRow) {
+            // The installed packages may have been read without their rows: read the stored row
+            // before writing, so the revert restores it exactly, or removes the row it wrote.
+            // A failed read aborts before any write.
+            context.revert.metadataPreviousPackageRow = await SystemConnector.getTrmPackageData(context.runtime.package.data.manifest.name, packageRegistry);
+            context.revert.metadataPreviousPackageRead = true;
+            stepDone();
         }
-        context.revert.metadataTransportsWriteStarted = true;
-        await SystemConnector.setInstallTransports(context.rawInput.packageData.name, packageRegistry, installTr);
+        context.revert.metadataPackageRow = {
+            package_name: context.runtime.package.data.manifest.name,
+            package_registry: packageRegistry,
+            manifest: Buffer.from(new Manifest(context.runtime.package.data.manifest).getAbapXml(), 'utf8'),
+            trkorr: installTransport || originalTransport,
+            integrity: context.runtime.package.data.checksum,
+            devclass
+        };
+        context.revert.metadataInstallDevc = installDevc;
+        // Mark before the mutating await: SAP may commit the mapping and still
+        // fail while returning the response.
+        context.revert.metadataWriteStarted = true;
+        await SystemConnector.setInstallDevc(installDevc);
+        stepDone();
+        if (deleteStaleInstallDevc) {
+            await SystemConnector.deleteInstallDevc(staleInstallDevc);
+            stepDone();
+        }
+        if (writeInstallTransports) {
+            context.revert.metadataTransportsWriteStarted = true;
+            await SystemConnector.setInstallTransports(context.rawInput.packageData.name, packageRegistry, installTr);
+            stepDone();
+        }
+        await SystemConnector.updateTrmPackageData(context.revert.metadataPackageRow);
+        stepDone();
+    } finally {
+        bar.stop();
     }
-    await SystemConnector.updateTrmPackageData(context.revert.metadataPackageRow);
 }
 
 /**
@@ -117,8 +133,6 @@ export async function recordInstalledRelease(context: InstallWorkflowContext): P
 export const updatePackageData: Step<InstallWorkflowContext> = {
     name: 'update-package-data',
     run: async (context: InstallWorkflowContext): Promise<void> => {
-        Logger.loading(`Finalizing install...`);
-
         //1- commit new values
         await recordInstalledRelease(context);
     },

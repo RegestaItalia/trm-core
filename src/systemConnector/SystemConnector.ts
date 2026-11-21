@@ -123,6 +123,16 @@ export namespace SystemConnector {
         return result;
     }
 
+    /**
+     * Drops the RFC library's cached function/structure metadata, when the library
+     * supports it (open-rfc). No-op otherwise, and with REST. Does not check the connection,
+     * and a library failure is ignored.
+     */
+    export function invalidateMetadata(): void {
+        assertSystemConnector();
+        systemConnector.invalidateMetadata();
+    }
+
     export async function getTransportStatus(trkorr: TRKORR): Promise<string> {
         await checkSystemConnector();
         return systemConnector.getTransportStatus(trkorr);

@@ -1,3 +1,9 @@
+jest.mock('../../systemConnector', () => ({
+    SystemConnector: {
+        getDest: jest.fn(() => 'TST'),
+        deleteTmsTransport: jest.fn(async () => undefined)
+    }
+}));
 jest.mock('../../transport', () => {
     const created: any[] = [];
     let sequence = 0;
@@ -52,12 +58,12 @@ import { generateLangTransport } from './generateLangTransport';
 import { generateCustTransport } from './generateCustTransport';
 import { releaseTransports } from './releaseTransports';
 import { TrmArtifact } from '../../trmPackage';
+import { SystemConnector } from '../../systemConnector';
 
 function context() {
     return {
         rawInput: {
             contextData: {},
-            systemData: { transportTarget: 'TST' },
             packageData: { name: 'pkg', version: '1.0.0', tags: [] },
             publishData: { noLanguageTransport: false, noCustomizingTransports: false }
         },
@@ -153,6 +159,91 @@ describe('publish transport rollback chain', () => {
             if (!transport.released) {
                 expect(transport.delete).toHaveBeenCalled();
             }
+        }
+    });
+
+    function mockBar() {
+        const bar = { start: jest.fn(), update: jest.fn(), stop: jest.fn() };
+        jest.spyOn(Logger, 'progressbar').mockReturnValue(bar as any);
+        return bar;
+    }
+
+    test('one progress bar counts the transports of every generate step', async () => {
+        const bar = mockBar();
+
+        await execute('publish-test', steps(), context());
+
+        // DEVC, TADIR, LANG and the two customizing copies
+        expect(Logger.progressbar).toHaveBeenCalledTimes(1);
+        expect(bar.start).toHaveBeenCalledWith(5, 0, expect.objectContaining({ transport: 'DEVC' }));
+        const counted = bar.update.mock.calls.filter((_, i) => i % 2 === 1).map(([value, payload]) => [value, payload.transport]);
+        expect(counted).toEqual([
+            [1, 'DEVC'], [2, 'TADIR'], [3, 'LANG'], [4, 'CUST (copy of TSTK900010)'], [5, 'CUST (copy of TSTK900011)']
+        ]);
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+        expect(Logger.loading).not.toHaveBeenCalledWith('Generating transports...');
+    });
+
+    test('skipped language and customizing transports are not counted', async () => {
+        const bar = mockBar();
+        const ctx = context();
+        ctx.rawInput.publishData = { noLanguageTransport: true, noCustomizingTransports: true };
+
+        await execute('publish-test', steps(), ctx);
+
+        expect(bar.start).toHaveBeenCalledWith(2, 0, expect.anything());
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+    });
+
+    test('a failed transport generation stops the progress bar before the rollback', async () => {
+        const bar = mockBar();
+
+        await failAt('addObjects', 2);
+
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+        const stopOrder = bar.stop.mock.invocationCallOrder[0];
+        const deleteOrders = ((Transport as any).created as any[]).flatMap(o => o.delete.mock.invocationCallOrder);
+        expect(deleteOrders.every((order: number) => order > stopOrder)).toBe(true);
+    });
+
+    test('a language transport warning is printed after the progress bar', async () => {
+        const bar = mockBar();
+        const ctx = context();
+        (Transport as any).setFault('addTranslations');
+
+        await execute('publish-test', steps(), ctx);
+
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('Language transport generation error'), { important: true });
+        expect((Logger.warning as jest.Mock).mock.invocationCallOrder[0]).toBeGreaterThan(bar.stop.mock.invocationCallOrder[0]);
+    });
+
+    test('transports target the system itself and leave its import queue after release', async () => {
+        const ctx = context();
+
+        await execute('publish-test', steps(), ctx);
+
+        const created = (Transport as any).created as any[];
+        expect(created.length).toBeGreaterThan(0);
+        for (const call of (Transport.createToc as jest.Mock).mock.calls) {
+            expect(call[0].target).toBe('TST');
+        }
+        for (const transport of created.filter(o => o.released)) {
+            expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledWith(transport.trkorr, 'TST');
+        }
+    });
+
+    test('a failed import queue removal warns and the publish continues', async () => {
+        const ctx = context();
+        (SystemConnector.deleteTmsTransport as jest.Mock).mockRejectedValueOnce(new Error('queue locked'));
+
+        await execute('publish-test', steps(), ctx);
+
+        const released = ((Transport as any).created as any[]).filter(o => o.released);
+        expect(released.length).toBe(ctx.runtime.aggregatedTransports.length);
+        expect(SystemConnector.deleteTmsTransport).toHaveBeenCalledTimes(released.length);
+        expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('queue locked'), { important: true });
+        for (const transport of released) {
+            expect(transport.delete).not.toHaveBeenCalled();
         }
     });
 
