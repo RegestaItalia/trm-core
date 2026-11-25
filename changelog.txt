@@ -25,6 +25,8 @@ Legend
 ! publish: one progress bar counts the generated transports (DEVC, TADIR, LANG, CUST) instead of a "Generating transports..." loading message per step; a language transport warning is printed after the bar
 ! requires trm-server 8.2.0
 * install: a package superpackage that TDEVC already has (or a package that already has none) is no longer written again, in generate devclass, import and rollback: on systems where the SAP package API sends a dialog (e.g. SAP_BASIS 700), an unchanged hierarchy no longer becomes a manual step. A rollback restores only the superpackages that changed
+* transport release: a tp internal error (02xx) in the tp test call before the export (TK 094, e.g. a transport directory file briefly in use) is retried up to 3 times while the request is still modifiable; if it persists, TransportReleaseTpError explains that tp or its environment failed, not the package content, and that it may need a check by SAP Basis
++ TransportReleaseTpError, getReleaseTpCheckReturnCode, isTpInternalReturnCode
 
 2026-11-09 v11.4.0
 -------------------
