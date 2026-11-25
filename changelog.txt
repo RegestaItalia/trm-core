@@ -24,6 +24,7 @@ Legend
 ! check SAP entries: progress bar instead of the percentage in the loading message; missing tables are reported after the check
 ! publish: one progress bar counts the generated transports (DEVC, TADIR, LANG, CUST) instead of a "Generating transports..." loading message per step; a language transport warning is printed after the bar
 ! requires trm-server 8.2.0
+* install: a package superpackage that TDEVC already has (or a package that already has none) is no longer written again, in generate devclass, import and rollback: on systems where the SAP package API sends a dialog (e.g. SAP_BASIS 700), an unchanged hierarchy no longer becomes a manual step. A rollback restores only the superpackages that changed
 
 2026-11-09 v11.4.0
 -------------------

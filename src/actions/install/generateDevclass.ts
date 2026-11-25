@@ -5,7 +5,7 @@ import { getPackageHierarchy, getParentFromHierarchy, packageDataFromTdevc } fro
 import type { DEVCLASS, SCOMPKDTLN, TDEVC } from "../../client";
 import { SystemConnector } from "../../systemConnector";
 import { stopWarning } from "../stopWarning";
-import { addManualStep, isPackageApiUnsupported, logObjectsLocks, logPackageApiUnsupported } from "../commons/utils";
+import { addManualStep, applySuperpackage, hasSuperpackage, isPackageApiUnsupported, logObjectsLocks, logPackageApiUnsupported } from "../commons/utils";
 
 function describePackage(data: SCOMPKDTLN): string {
     return [
@@ -44,11 +44,7 @@ async function waitForManualPackage(context: InstallWorkflowContext, data: SCOMP
 /** Changes the superpackage of an install package; when the SAP package API is unsupported, it's left to do by hand. */
 async function setSuperpackage(context: InstallWorkflowContext, devclass: DEVCLASS, superpackage?: DEVCLASS): Promise<void> {
     try {
-        if (superpackage) {
-            await SystemConnector.setPackageSuperpackage(devclass, superpackage);
-        } else {
-            await SystemConnector.clearPackageSuperpackage(devclass);
-        }
+        await applySuperpackage(devclass, superpackage);
     } catch (error) {
         if (!isPackageApiUnsupported(error)) {
             throw error;
@@ -198,28 +194,29 @@ export const generateDevclass: Step<InstallWorkflowContext> = {
             });
         }
         const installPackageHierarchy = getPackageHierarchy(aDummyTdevc);
-        //clear all parentcl, except for root
+        const replacements = context.rawInput.installData.installDevclass.replacements;
+        const installParent = (originalDevclass: DEVCLASS): DEVCLASS | undefined => {
+            const originalParentCl = getParentFromHierarchy(context.runtime.package.hierarchy, originalDevclass);
+            return originalParentCl ? replacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass : undefined;
+        };
+        //clear parentcl, except for root and packages already under their install superpackage
+        //(what's kept is part of the final hierarchy: no cycle while the others are set)
         if (!context.runtime.stopWarningShown) {
             context.runtime.stopWarningShown = true;
             stopWarning('install');
         }
-        for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
+        for (const packageReplacement of replacements) {
             const installRoot = installPackageHierarchy.devclass === packageReplacement.installDevclass;
-            if (!installRoot) {
+            if (!installRoot && !(await hasSuperpackage(packageReplacement.installDevclass, installParent(packageReplacement.originalDevclass)))) {
                 await setSuperpackage(context, packageReplacement.installDevclass);
             }
         }
         //add parentcl
-        for (const packageReplacement of context.rawInput.installData.installDevclass.replacements) {
+        for (const packageReplacement of replacements) {
             const installRoot = installPackageHierarchy.devclass === packageReplacement.installDevclass;
-            const originalParentCl = getParentFromHierarchy(context.runtime.package.hierarchy, packageReplacement.originalDevclass);
-            if (originalParentCl) {
-                const installParentCl = context.rawInput.installData.installDevclass.replacements.find(o => o.originalDevclass === originalParentCl)?.installDevclass;
-                if (installParentCl) {
-                    if (!installRoot) {
-                        await setSuperpackage(context, packageReplacement.installDevclass, installParentCl);
-                    }
-                }
+            const installParentCl = installParent(packageReplacement.originalDevclass);
+            if (installParentCl && !installRoot) {
+                await setSuperpackage(context, packageReplacement.installDevclass, installParentCl);
             }
         }
     }

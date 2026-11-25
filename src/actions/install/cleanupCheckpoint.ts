@@ -2,7 +2,7 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { InstallWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { SystemConnector } from "../../systemConnector";
-import { isPackageApiUnsupported, logPackageApiUnsupported } from "../commons/utils";
+import { applySuperpackage, isPackageApiUnsupported, logPackageApiUnsupported } from "../commons/utils";
 import { deleteImportedEntries } from "./importBatch";
 
 /** A restore the SAP package API can't run on this release is left to do by hand: it's not a rollback failure. */
@@ -52,11 +52,7 @@ export const cleanupCheckpoint: Step<InstallWorkflowContext> = {
         }
         for (const pkg of context.revert.packageHierarchy || []) {
             try {
-                if (pkg.parentcl) {
-                    await SystemConnector.setPackageSuperpackage(pkg.devclass, pkg.parentcl);
-                } else {
-                    await SystemConnector.clearPackageSuperpackage(pkg.devclass);
-                }
+                await applySuperpackage(pkg.devclass, pkg.parentcl);
             } catch (error) {
                 const manualStep = pkg.parentcl
                     ? `Set the superpackage of SAP package ${pkg.devclass} back to ${pkg.parentcl} in SE21`
