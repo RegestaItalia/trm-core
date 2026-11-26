@@ -347,26 +347,41 @@ describe('install mutation checkpoints', () => {
         (getParentFromHierarchy as jest.Mock).mockImplementation((_hierarchy, devclass) =>
             devclass === 'ORIGINAL_CHILD' ? 'ORIGINAL_ROOT' : undefined
         );
+        // TDEVC as the system holds it: reads see the writes, so the restore compares the live state
+        const original: Record<string, string> = { ZROOT: 'ZOLD_ROOT_PARENT', ZCHILD: 'ZOLD_PARENT' };
+        const parentcl: Record<string, string> = { ...original };
         (SystemConnector.getDevclass as jest.Mock).mockImplementation(async devclass =>
-            devclass === 'ZROOT'
-                ? { devclass: 'ZROOT', parentcl: '', dlvunit: 'HOME', tpclass: 'A' }
-                : { devclass: 'ZCHILD', parentcl: 'ZOLD_PARENT', dlvunit: 'HOME', tpclass: 'A' }
+            ({ devclass, parentcl: parentcl[devclass], dlvunit: 'HOME', tpclass: 'A' })
         );
-        if (point === 'clear') {
-            (SystemConnector.clearPackageSuperpackage as jest.Mock)
-                .mockRejectedValueOnce(new Error('clear failed'))
-                .mockResolvedValue(undefined);
-        } else {
-            (SystemConnector.setPackageSuperpackage as jest.Mock)
-                .mockRejectedValueOnce(new Error('set failed'))
-                .mockResolvedValue(undefined);
-        }
+        let failNext = true;
+        (SystemConnector.clearPackageSuperpackage as jest.Mock).mockImplementation(async devclass => {
+            if (point === 'clear' && failNext) {
+                failNext = false;
+                throw new Error('clear failed');
+            }
+            parentcl[devclass] = '';
+        });
+        (SystemConnector.setPackageSuperpackage as jest.Mock).mockImplementation(async (devclass, superpackage) => {
+            if (point === 'set' && failNext) {
+                failNext = false;
+                throw new Error('set failed');
+            }
+            parentcl[devclass] = superpackage;
+        });
 
         await expect(generateDevclass.run(ctx)).rejects.toThrow(`${point} failed`);
         await cleanupCheckpoint.revert(ctx);
 
-        expect(SystemConnector.setPackageSuperpackage).toHaveBeenCalledWith('ZCHILD', 'ZOLD_PARENT');
-        expect(SystemConnector.clearPackageSuperpackage).toHaveBeenCalledWith('ZROOT');
+        expect(parentcl).toEqual(original);
+        if (point === 'set') {
+            // ZCHILD was cleared before its set failed: restored; the root is never changed: left alone
+            expect(SystemConnector.setPackageSuperpackage).toHaveBeenLastCalledWith('ZCHILD', 'ZOLD_PARENT');
+            expect(SystemConnector.setPackageSuperpackage).not.toHaveBeenCalledWith('ZROOT', expect.anything());
+        } else {
+            // the failed clear changed nothing: no restore is written
+            expect(SystemConnector.setPackageSuperpackage).not.toHaveBeenCalled();
+        }
+        expect(SystemConnector.clearPackageSuperpackage).not.toHaveBeenCalledWith('ZROOT');
     });
 
     describe('transport layer', () => {

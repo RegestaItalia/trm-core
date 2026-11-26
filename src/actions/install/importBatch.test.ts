@@ -223,6 +223,7 @@ describe('importBatch rollback checkpoint', () => {
         jest.spyOn(SystemConnector, 'getDest').mockReturnValue('TST');
         (SystemConnector.getSupportedBulk as jest.Mock).mockReturnValue({});
         (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([]);
+        (SystemConnector.getDevclass as jest.Mock).mockResolvedValue(undefined);
         jest.spyOn(SystemConnector, 'isStateless').mockReturnValue(false);
         jest.spyOn(SystemConnector, 'closeConnection').mockImplementation(() => fail('closeConnection'));
         jest.spyOn(SystemConnector, 'connect').mockImplementation(() => fail('connect'));
@@ -367,6 +368,31 @@ describe('importBatch rollback checkpoint', () => {
         expect(events).toContain('tadirInterface.1');
         expect(Transport.createToc).not.toHaveBeenCalled();
         expect(context.revert.cleanupImported).toBeFalsy();
+    });
+
+    test('an imported root that already has no superpackage is left alone: no package API call, no manual step', async () => {
+        // SAP_BASIS 700: removing a superpackage sends a dialog, so a needless clear became a manual step
+        const context = makeContext(registryDelete);
+        context.runtime.rootDevclassBeforeImport = undefined;
+        (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZROOT', parentcl: '' });
+        jest.spyOn(SystemConnector, 'clearPackageSuperpackage').mockRejectedValue(
+            new ClientError('DYNPRO_SEND_IN_BACKGROUND', { class: '', no: '000' }, 'Screen output without connection to user', '/ATRM/TDEVC_INTERFACE'));
+
+        await expect(execute('test', [importBatch], context)).resolves.toBeDefined();
+
+        expect(SystemConnector.clearPackageSuperpackage).not.toHaveBeenCalled();
+        expect(SystemConnector.setPackageSuperpackage).not.toHaveBeenCalled();
+        expect(context.runtime.manualSteps).toBeUndefined();
+    });
+
+    test('an imported root that already has its superpackage is left alone', async () => {
+        const context = makeContext(registryDelete);
+        (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZROOT', parentcl: 'ZPARENT' });
+
+        await expect(execute('test', [importBatch], context)).resolves.toBeDefined();
+
+        expect(SystemConnector.setPackageSuperpackage).not.toHaveBeenCalled();
+        expect(context.runtime.manualSteps).toBeUndefined();
     });
 
     test('a superpackage failure with a message is a real error: the import is rolled back', async () => {
@@ -798,6 +824,8 @@ describe('importBatch rollback checkpoint', () => {
     test('only the TADIR entries that differ from the live ones are written after the import', async () => {
         const context = makeContext(registryDelete);
         context.rawInput.installData.installDevclass = { keepOriginal: true, replacements: [] };
+        // the imported packages keep their source transport layer: no default layer is needed
+        (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZROOT', pdevclass: 'SOURCE_LAYER' });
         context.runtime.transports.tadir.binaries.entries.tadir = [
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SAME', devclass: 'ZROOT' },
             { pgmid: 'R3TR', object: 'PROG', objName: 'Z_SOURCE', devclass: 'ZROOT' },
@@ -903,6 +931,8 @@ describe('importBatch rollback checkpoint', () => {
         test('failure clearing an imported root package is cleaned first', async () => {
             const context = makeContext(registryDelete);
             context.runtime.rootDevclassBeforeImport.parentcl = '';
+            // the import brought the source superpackage: clearing it is a real change
+            (SystemConnector.getDevclass as jest.Mock).mockResolvedValue({ devclass: 'ZROOT', parentcl: 'ZSOURCE_PARENT' });
             failurePoint = 'clearPackageSuperpackage';
             if (outcome === 'denied') {
                 registryDelete.mockRejectedValue(new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied')));
@@ -933,6 +963,9 @@ describe('importBatch rollback checkpoint', () => {
                 { originalDevclass: 'ZROOT', installDevclass: 'ZNEWROOT' }
             ];
             context.runtime.update = { getDevclass: () => 'ZOLDROOT' };
+            // the promoted root still has its old superpackage: clearing it is a real change
+            (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+                ({ devclass, parentcl: devclass === 'ZNEWROOT' ? 'ZOLDROOT' : 'ZPARENT' }));
             failurePoint = 'clearPackageSuperpackage';
             if (outcome === 'denied') {
                 registryDelete.mockRejectedValue(new RegistryDeletionTransportUnavailableError('registry', 'denied', new Error('denied')));

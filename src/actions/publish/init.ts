@@ -7,7 +7,6 @@ import { clean, inc, parse, prerelease, rcompare, valid } from "semver";
 import { SystemConnector } from "../../systemConnector";
 import { RegistryPackageNotFoundError, RegistryType } from "../../registry";
 import chalk from "chalk";
-import { setTransportTarget } from "../commons/prompts";
 import { validateDevclass } from "../../validators";
 import { DotAbapGit } from "../../abapgit";
 import { minimatch } from "minimatch";
@@ -247,7 +246,8 @@ export const init: Step<PublishWorkflowContext> = {
         //on automatic version, manual validation by user
         Logger.loading(`Validating version...`);
         var automaticVersion: boolean = false;
-        if (context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL) {
+        const isLocal = context.rawInput.packageData.registry.getRegistryType() === RegistryType.LOCAL;
+        if (isLocal) {
             //the target file is overwritten, it's not a previous release of this package:
             //every local artifact is a standalone publication
             Logger.log(`Local publish: target file is not read as latest release`, true);
@@ -266,7 +266,8 @@ export const init: Step<PublishWorkflowContext> = {
             if (!context.runtime.latest.data.dist_tags.latest) {
                 throw new Error(`Package has no latest distribution tag assigned! Unable to locate latest release.`);
             }
-            const publishedVersions = context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions);
+            //a local export is a standalone file: the installed release only suggests the version, any version can be exported
+            const publishedVersions = isLocal ? [] : context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions);
             if (!context.rawInput.packageData.version || !valid(context.rawInput.packageData.version)) {
                 context.rawInput.packageData.version = inc(context.runtime.latest.data.dist_tags.latest, context.rawInput.packageData.inc || "patch");
                 automaticVersion = true;
@@ -318,7 +319,7 @@ export const init: Step<PublishWorkflowContext> = {
                         //compare the version as it will be stored (cleaned)
                         const version = clean(v || '');
                         if (version) {
-                            const publishedVersions = context.runtime.latest.data
+                            const publishedVersions = context.runtime.latest.data && !isLocal
                                 ? context.runtime.latest.data.versions.concat(context.runtime.latest.data.yanked_versions)
                                 : [];
                             if (publishedVersions.includes(version)) {
@@ -453,15 +454,6 @@ export const init: Step<PublishWorkflowContext> = {
         } else {
             Logger.log(`All objects released, continue`, true);
         }
-
-        //12- check/set system target
-        Logger.loading(`Checking system target...`);
-        context.rawInput.systemData.transportTarget = await setTransportTarget(
-            context.rawInput.contextData.noInquirer,
-            await SystemConnector.getTransportTargets(),
-            context.rawInput.systemData.transportTarget,
-            "Publish transport target"
-        );
 
         Logger.info(`Ready to publish ${context.rawInput.packageData.name} v${context.rawInput.packageData.version}`);
         Logger.info(`Package visibility: ${chalk.bold(isPrivate ? 'private' : 'public')}`);

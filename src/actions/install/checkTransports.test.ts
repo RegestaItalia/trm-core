@@ -12,8 +12,56 @@ jest.mock('../../systemConnector', () => ({
 
 import { Inquirer, Logger } from 'trm-commons';
 import { SystemConnector } from '../../systemConnector';
-import { checkTransports } from './checkTransports';
+import { checkTransports, EXISTING_OBJECTS_CHUNK_SIZE, findExistingObjects } from './checkTransports';
 import { createHash } from 'crypto';
+
+const bar = { start: jest.fn(), update: jest.fn(), stop: jest.fn() };
+
+describe('find existing objects with progress', () => {
+    const ctx = { runtime: { isTrmServer: false, isTrmRest: false } } as any;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        jest.spyOn(Logger, 'progressbar').mockReturnValue(bar as any);
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+    });
+
+    test('objects are checked in chunks of the same type and returned in release order', async () => {
+        const objects = Array.from({ length: EXISTING_OBJECTS_CHUNK_SIZE + 1 }, (_, i) => ({
+            pgmid: 'R3TR', object: i % 2 === 0 ? 'PROG' : 'CLAS', objName: `Z${i}`, devclass: 'ZROOT'
+        }));
+        (SystemConnector.getExistingObjects as jest.Mock).mockImplementation(async (chunk: any[]) => chunk.filter(o => ['Z0', 'Z1', 'Z100'].includes(o.objName)));
+
+        const existing = await findExistingObjects(ctx, objects as any, true);
+
+        expect(SystemConnector.getExistingObjects).toHaveBeenCalledTimes(2);
+        // sorted by type: the CLAS objects come first, the chunk boundary falls in the PROG objects
+        const [first, second] = (SystemConnector.getExistingObjects as jest.Mock).mock.calls.map(([chunk]) => chunk);
+        expect(first).toHaveLength(EXISTING_OBJECTS_CHUNK_SIZE);
+        expect(first.slice(0, 50).every((o: any) => o.object === 'CLAS')).toBe(true);
+        expect(second).toHaveLength(1);
+        expect(existing.map(o => o.objName)).toEqual(['Z0', 'Z1', 'Z100']);
+        expect(bar.start).toHaveBeenCalledWith(EXISTING_OBJECTS_CHUNK_SIZE + 1, 0, expect.anything());
+        expect(bar.update.mock.calls.map(([value]) => value)).toEqual([EXISTING_OBJECTS_CHUNK_SIZE, EXISTING_OBJECTS_CHUNK_SIZE + 1]);
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+    });
+
+    test('the bar is stopped when a check fails', async () => {
+        (SystemConnector.getExistingObjects as jest.Mock).mockRejectedValue(new Error('read failed'));
+        await expect(findExistingObjects(ctx, [{ pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL', devclass: 'ZROOT' }] as any, true)).rejects.toThrow('read failed');
+        expect(bar.stop).toHaveBeenCalledTimes(1);
+    });
+
+    test('without progress the objects are checked with one call', async () => {
+        (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([]);
+        await findExistingObjects(ctx, Array.from({ length: EXISTING_OBJECTS_CHUNK_SIZE + 1 }, (_, i) => ({ pgmid: 'R3TR', object: 'CLAS', objName: `Z${i}` })) as any);
+        expect(SystemConnector.getExistingObjects).toHaveBeenCalledTimes(1);
+        expect(Logger.progressbar).not.toHaveBeenCalled();
+    });
+});
 
 describe('check-transports existing objects with unknown root devclass', () => {
     const existing = { pgmid: 'R3TR', object: 'CLAS', objName: 'ZCL_FOREIGN', devclass: 'ZOTHER' };
@@ -66,6 +114,7 @@ describe('check-transports existing objects with unknown root devclass', () => {
         for (const method of ['loading', 'log', 'warning', 'error'] as const) {
             jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
         }
+        jest.spyOn(Logger, 'progressbar').mockReturnValue(bar as any);
         (SystemConnector.getObjectsLocks as jest.Mock).mockResolvedValue([]);
         (SystemConnector.getObjectsList as jest.Mock).mockResolvedValue([{ pgmid: 'R3TR', object: 'CLAS' }]);
         (SystemConnector.getExistingObjects as jest.Mock).mockResolvedValue([existing]);
@@ -86,11 +135,13 @@ describe('check-transports existing objects with unknown root devclass', () => {
     test('non-interactive mode continues when existing objects are explicitly allowed', async () => {
         await expect(checkTransports.run(context({ noInquirer: true, noExistingObjects: true }))).resolves.toBeUndefined();
         expect(Logger.warning).toHaveBeenCalledWith(expect.stringContaining('1 object(s) already exist'), { important: true });
-        expect((Logger.loading as jest.Mock).mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
-            'Checking objects support...',
-            'Checking whether 1 package object already exists...',
-            'Checking ownership of 1 existing object...'
-        ]));
+        expect(Logger.loading).toHaveBeenCalledWith('Checking objects support...');
+        expect((Logger.progressbar as jest.Mock).mock.calls.map(([format]) => format)).toEqual([
+            'Checking existing objects {trmBar} {percentage}% ({value}/{total})',
+            'Checking ownership of existing objects {trmBar} {percentage}% ({value}/{total})'
+        ]);
+        expect(bar.start.mock.calls.map(([total]) => total)).toEqual([1, 1]);
+        expect(bar.stop).toHaveBeenCalledTimes(2);
     });
 
     test('object types the system does not support fail the check', async () => {

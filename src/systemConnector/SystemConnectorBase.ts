@@ -1,5 +1,6 @@
 import { valid as semverValid } from "semver";
 import { inspect, Logger, ValueHelpContext, ValueHelpPage } from "trm-commons";
+import { progressBar } from "../commons/progressBar";
 import { getSapEntryConditions, Manifest, TrmManifestEngineTableCondition } from "../manifest";
 import { TADIR, TDEVC } from "../client/struct";
 import { COMMENT_OBJ, Transport } from "../transport";
@@ -10,7 +11,7 @@ import * as components from "../client/components";
 import * as struct from "../client/struct";
 import { ISystemConnectorBase } from "./ISystemConnectorBase";
 import type { TrmPackageUpdateData } from "./ISystemConnector";
-import { AbstractRegistry, LOCAL_RESERVED_KEYWORD, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType, registryKey } from "../registry";
+import { AbstractRegistry, PUBLIC_RESERVED_KEYWORD, RegistryProvider, RegistryType, registryKey } from "../registry";
 import { ObjectDependencies, PackageDependencies } from "../dependencies";
 import { SystemConnector } from "./SystemConnector";
 import { getSystemInfoFromComponents, SystemInfo } from "./SystemInfo";
@@ -261,13 +262,27 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
   }
 
   public async getInstalledPackages(refresh?: boolean, includeLocals?: boolean, filter?: { name: string, registry: string }): Promise<TrmPackage[]> {
+    // The cache holds the complete list, local packages included, so every caller gets
+    // what it asked for regardless of the arguments of the read that filled it.
+    const selectPackages = (trmPackages: TrmPackage[]): TrmPackage[] => includeLocals
+      ? trmPackages
+      : trmPackages.filter(o => o.registry.getRegistryType() !== RegistryType.LOCAL);
+
+    if (!refresh && !filter && Array.isArray(this._installedPackages)) {
+      Logger.log(`Reading cached version of installed packages`, true);
+      return selectPackages(this._installedPackages);
+    }
+
+    const trmPackages = await this.readInstalledPackages(filter);
+    if (!filter) {
+      this._installedPackages = trmPackages;
+    }
+    return selectPackages(trmPackages);
+  }
+
+  private async readInstalledPackages(filter?: { name: string, registry: string }): Promise<TrmPackage[]> {
     var trmPackages: TrmPackage[] = [];
     var fromBackend = false;
-
-    if (!refresh && Array.isArray(this._installedPackages)) {
-      Logger.log(`Reading cached version of installed packages`, true);
-      return this._installedPackages;
-    }
 
     //if system has trm-server we can fetch with backend api
     const serverExists: any[] = await this.readTable('TADIR',
@@ -278,9 +293,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       try {
         var installedPackagesBackend = await this.getInstalledPackagesBackend(filter);
         installedPackagesBackend = installedPackagesBackend.sort((a, b) => Number(`${b.as4Date}${b.as4Time}`) - Number(`${a.as4Date}${a.as4Time}`));
-        if (!includeLocals) {
-          installedPackagesBackend = installedPackagesBackend.filter(o => o.packageRegistry !== LOCAL_RESERVED_KEYWORD);
-        }
         for (const o of installedPackagesBackend) {
           const manifest = Manifest.fromAbapXml(o.manifest);
           const trmPackage = new TrmPackage(o.packageName, RegistryProvider.getRegistry(o.packageRegistry), manifest)
@@ -307,7 +319,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
     }
     if (fromBackend) {
       Logger.log(`Packages were fetched from backend API`, true);
-      this._installedPackages = trmPackages;
       return trmPackages;
     } else {
       Logger.log(`Packages weren't fetched from backend API, continue`, true);
@@ -355,10 +366,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       const trmPackage = await transport.getLinkedPackage();
       if (trmPackage) {
         Logger.log(`Transport ${transport.trkorr}, found linked package`, true);
-        if (trmPackage.registry.getRegistryType() === RegistryType.LOCAL && !includeLocals) {
-          Logger.log(`Package is local, skipping`, true);
-          continue;
-        }
         //only compares package name and registry
         var arrayIndex = packageTransports.findIndex(o => TrmPackage.compare(o.package, trmPackage));
         if (arrayIndex < 0) {
@@ -385,7 +392,6 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
       }
     }
     Logger.log(`Packages found: ${inspect(trmPackages, { breakLength: Infinity, compact: true })}`, true);
-    this._installedPackages = trmPackages;
     return trmPackages;
   }
 
@@ -586,7 +592,7 @@ export abstract class SystemConnectorBase implements ISystemConnectorBase {
 
   public async getPackageDependencies(devclass: components.DEVCLASS, includeSubPackages: boolean): Promise<PackageDependencies> {
     var packageDependencies: struct.ZTRM_OBJECT_DEPENDENCIES[];
-    const logProgress = Logger.progressbar('Finding dependencies [{bar}] {percentage}%', '>');
+    const logProgress = progressBar('Finding dependencies {bar} {percentage}%');
     logProgress.start(100, 0);
     // create logging poll
     const isStateless = SystemConnector.isStateless();

@@ -74,7 +74,40 @@ describe('generate-devclass', () => {
 
         expect(ctx.revert.sapPackages).toEqual(['ZNEW', 'ZNEW_SUB']);
         expect(SystemConnector.setPackageSuperpackage).toHaveBeenCalledWith('ZNEW_SUB', 'ZNEW');
+        // a new package has no superpackage: nothing to clear
+        expect(SystemConnector.clearPackageSuperpackage).not.toHaveBeenCalled();
         expect(ctx.runtime.manualSteps).toBeUndefined();
+    });
+
+    test('existing packages already in the hierarchy are left alone: no package API call, no manual step', async () => {
+        const unsupportedDialog = () => new ClientError('DYNPRO_SEND_IN_BACKGROUND', { class: '', no: '000' }, '', '/ATRM/TDEVC_INTERFACE');
+        (SystemConnector.setPackageSuperpackage as jest.Mock).mockRejectedValue(unsupportedDialog());
+        (SystemConnector.clearPackageSuperpackage as jest.Mock).mockRejectedValue(unsupportedDialog());
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+            ({ devclass, parentcl: devclass === 'ZNEW_SUB' ? 'ZNEW' : '', dlvunit: 'HOME', tpclass: '' }));
+        const ctx = context();
+
+        await generateDevclass.run(ctx);
+
+        expect(SystemConnector.createPackage).not.toHaveBeenCalled();
+        expect(SystemConnector.setPackageSuperpackage).not.toHaveBeenCalled();
+        expect(SystemConnector.clearPackageSuperpackage).not.toHaveBeenCalled();
+        expect(ctx.runtime.manualSteps).toBeUndefined();
+    });
+
+    test('an existing package under another superpackage is moved', async () => {
+        const parentcl: Record<string, string> = { ZNEW: '', ZNEW_SUB: 'ZFOREIGN' };
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+            ({ devclass, parentcl: parentcl[devclass], dlvunit: 'HOME', tpclass: '' }));
+        (SystemConnector.clearPackageSuperpackage as jest.Mock).mockImplementation(async (devclass: string) => { parentcl[devclass] = ''; });
+        (SystemConnector.setPackageSuperpackage as jest.Mock).mockImplementation(async (devclass: string, parent: string) => { parentcl[devclass] = parent; });
+        const ctx = context();
+
+        await generateDevclass.run(ctx);
+
+        expect(SystemConnector.clearPackageSuperpackage).toHaveBeenCalledWith('ZNEW_SUB');
+        expect(SystemConnector.setPackageSuperpackage).toHaveBeenCalledWith('ZNEW_SUB', 'ZNEW');
+        expect(parentcl).toEqual({ ZNEW: '', ZNEW_SUB: 'ZNEW' });
     });
 
     test('a package the SAP package API cannot create is created by the user, and not deleted by a rollback', async () => {

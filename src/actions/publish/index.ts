@@ -2,7 +2,7 @@ import { PackageDependencies } from "../../dependencies";
 import { TrmArtifact, TrmPackage } from "../../trmPackage";
 import { checkServerAuth, IActionContext, setSystemPackages, executeWorkflow, workflowCallbacks } from "..";
 import { ReleaseType } from "semver";
-import { DEVCLASS, TADIR, TR_TARGET, TRKORR, TRNSPACET, TRNSPACETT, ZTY_SER_OBJ } from "../../client";
+import { DEVCLASS, TADIR, TRKORR, TRNSPACET, TRNSPACETT, ZTY_SER_OBJ } from "../../client";
 import { TrmManifest, TrmManifestBase } from "../../manifest";
 import { AbstractRegistry } from "../../registry";
 import { Package } from "trm-registry-types";
@@ -23,6 +23,7 @@ import { updatePackageData } from "./updatePackageData";
 import { ActionLockScope, packageLockResource, withActionLockScope } from "../commons/utils";
 import { lockResources } from "./lockResources";
 import { simulatePublish } from "./simulatePublish";
+import type { TransportsProgress } from "./transportsProgress";
 import { logRegistry, runWithActionLog } from "../../actionLog";
 
 /** Input required to build and publish a TRM package release from the connected SAP system. */
@@ -116,17 +117,6 @@ export interface PublishActionInput {
          */
         manifest?: TrmManifestBase;
     };
-
-    /**
-         * Data related to the origin system.
-         */
-    systemData?: {
-
-        /**
-         * TMS target assigned to generated publish transports. It is selected interactively when omitted.
-         */
-        transportTarget?: TR_TARGET;
-    }
 
     /**
      * Data related to package publish.
@@ -224,7 +214,9 @@ type WorkflowRuntime = {
         cust?: Transport[]
     },
     aggregatedTransports: Transport[],
-    stopWarningShown: boolean
+    stopWarningShown: boolean,
+    /** Bar shown while the generate steps create the release transports. */
+    transportsProgress?: TransportsProgress
 }
 
 /** Artifacts produced by a successful {@link publish} action. */
@@ -268,7 +260,6 @@ const WORKFLOW_NAME = 'publish';
  */
 export async function publish(inputData: PublishActionInput): Promise<PublishActionOutput> {
     inputData.contextData ??= {};
-    inputData.systemData ??= {};
     inputData.publishData ??= { keepLatestReleaseManifestValues: true };
     inputData.publishData.keepLatestReleaseManifestValues ??= true;
     inputData.publishData.customizingTransports ??= [];

@@ -8,6 +8,26 @@ Legend
 + : added
 - : removed
 
+2026-11-13 v11.5.0
+-------------------
++ releaseOpenActionLocks: clients call it when a command ends to retry the release of SAP action locks still held (failed release, or an uncertain acquisition whose cleanup failed)
++ RFCSystemConnector.getHttpBaseUrl: HTTP base URL of the system, optionally with an ICF service path (RFC only, /ATRM/GET_HTTP_BASE_URL)
++ SystemConnector.invalidateMetadata, RFCClient.invalidateMetadata: drop the RFC library's cached function/structure metadata, so the next call re-reads changed function module signatures. Uses open-rfc's Client.invalidateMetadata when available; no-op with node-rfc and REST, a failure is ignored
+! publish: transports always target the connected system and are removed from its import queue right after release (a failed removal only warns); works on systems without transport targets
+- PublishActionInput.systemData (transportTarget)
+* install/uninstall: TK 599 ("No task for editing objects can be determined") when creating the staging package (e.g. SAP_BASIS 702) keeps local objects in their packages with a manual step instead of aborting
+* publish: a local export of a package installed from the public registry no longer rejects the installed version as already published (the installed release only suggests the version)
++ progressBar, multiProgressBar, renderProgressBar: the TRM progress bar style (█░ bar, optional glue), used by every progress bar
+! progress bars use the TRM style instead of "[===>---]"; transport release bars keep the transport icon as glue, followed by a space for terminals that draw it two columns wide
+! transport import and release polling logged with Logger.transportProgress (trm-commons 5.6.0): same CLI output, GUIs can update one progress view in place instead of a message per check
+! install: the existing objects check, the ownership check of existing objects and the finalize step show a progress bar; the existing objects are checked in chunks (100 objects, 1000 with the bulk API)
+! check SAP entries: progress bar instead of the percentage in the loading message; missing tables are reported after the check
+! publish: one progress bar counts the generated transports (DEVC, TADIR, LANG, CUST) instead of a "Generating transports..." loading message per step; a language transport warning is printed after the bar
+! requires trm-server 8.2.0
+* install: a package superpackage that TDEVC already has (or a package that already has none) is no longer written again, in generate devclass, import and rollback: on systems where the SAP package API sends a dialog (e.g. SAP_BASIS 700), an unchanged hierarchy no longer becomes a manual step. A rollback restores only the superpackages that changed
+* transport release: a tp internal error (02xx) in the tp test call before the export (TK 094, e.g. a transport directory file briefly in use) is retried up to 3 times while the request is still modifiable; if it persists, TransportReleaseTpError explains that tp or its environment failed, not the package content, and that it may need a check by SAP Basis
++ TransportReleaseTpError, getReleaseTpCheckReturnCode, isTpInternalReturnCode
+
 2026-11-09 v11.4.0
 -------------------
 + action log (transaction /ATRM/LOG in trm-server): install (with dependencies), publish, uninstall and cg3z record each action on SAP with session, parent action, package, version, status and the transports they create, release, forward, import, delete, dequeue and restore, with their role. Best-effort: a failed write warns once and the action continues; rollbacks end the action with status B

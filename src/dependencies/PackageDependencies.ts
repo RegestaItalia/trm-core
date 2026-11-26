@@ -1,4 +1,5 @@
 import { Logger } from "trm-commons";
+import { progressBar } from "../commons/progressBar";
 import { DEVCLASS, TDEVC, ZTRM_OBJECT_DEPENDENCIES } from "../client";
 import { SystemConnector } from "../systemConnector";
 import { TrmPackage } from "../trmPackage";
@@ -45,7 +46,7 @@ export class PackageDependencies {
 
     public async setDependencies(packageDependencies: ZTRM_OBJECT_DEPENDENCIES[]): Promise<PackageDependencies> {
         var i = 0;
-        var logProgress = Logger.progressbar('Analyzing dependencies [{bar}] {percentage}% ({value}/{total})', '>');
+        var logProgress = progressBar('Analyzing dependencies {bar} {percentage}% ({value}/{total})');
         logProgress.start(packageDependencies.length, 0);
 
         for (const d of packageDependencies) {
@@ -56,7 +57,7 @@ export class PackageDependencies {
         
         logProgress.stop();
         i = 0;
-        logProgress = Logger.progressbar('Building dependency tree [{bar}] {percentage}% ({value}/{total})', '>');
+        logProgress = progressBar('Building dependency tree {bar} {percentage}% ({value}/{total})');
         logProgress.start(this.allDependencies.length, 0);
 
         //Logger.loading(`Building dependency tree...`, !log);

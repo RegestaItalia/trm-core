@@ -46,7 +46,6 @@ describe("simulate-publish", () => {
         jest.spyOn(SystemConnector, "getDest").mockReturnValue("DEV");
         const ctx: any = {
             rawInput: {
-                systemData: { transportTarget: 'QAS' },
                 packageData: { devclass: 'ZROOT', tags: ['beta'], registry: { name: 'public' } },
                 publishData: { noLanguageTransport: true, noCustomizingTransports: false }
             },
@@ -61,7 +60,7 @@ describe("simulate-publish", () => {
         await simulatePublish.run(ctx);
         const log = info.mock.calls[0][0];
         expect(log).toContain('nothing was changed on DEV or the registry');
-        expect(log).toContain('generate and release transports DEVC, TADIR, CUST (DEVK1) to QAS');
+        expect(log).toContain('generate and release transports DEVC, TADIR, CUST (DEVK1) on DEV, then remove them from its import queue');
         expect(log).toContain('include 3 objects of SAP package ZROOT');
         expect(log).toContain('carry over customizing OLDK1');
         expect(log).toContain('depend on dep ^1.0.0');

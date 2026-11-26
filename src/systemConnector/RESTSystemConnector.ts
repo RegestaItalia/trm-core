@@ -197,6 +197,10 @@ export class RESTSystemConnector extends SystemConnectorBase implements ISystemC
         //
     }
 
+    public invalidateMetadata(): void {
+        // REST has no client-side RFC metadata cache
+    }
+
     public async checkConnection(): Promise<boolean> {
         return this._client.checkConnection();
     }

@@ -29,6 +29,9 @@ export function objectLockResource(object: { pgmid: string; object: string; objN
     return { type: "OBJECT", name: `${object.pgmid.trim().toUpperCase()} ${object.object.trim().toUpperCase()} ${object.objName.trim().toUpperCase()}` };
 }
 
+/** Scopes still holding SAP locks in this process, for {@link releaseOpenActionLocks}. */
+const openScopes = new Set<ActionLockScope>();
+
 /** One non-expiring SAP lock owner; close only after workflow rollback has finished. */
 export class ActionLockScope {
     private readonly ownerToken = randomUUID().replace(/-/g, "").toUpperCase();
@@ -63,11 +66,20 @@ export class ActionLockScope {
                 await SystemConnector.releaseActionLocks(fresh, this.ownerToken);
             } catch (cleanupError) {
                 Logger.warning(`Could not clean up uncertain action lock acquisition: ${String(cleanupError)}`, { important: true });
+                // Keep them so a later release retries: SAP skips rows this owner doesn't hold.
+                this.hold(fresh);
             }
             throw error;
         }
-        for (const key of fresh) {
+        this.hold(fresh);
+    }
+
+    private hold(keys: ActionLockKey[]): void {
+        for (const key of keys) {
             this.held.set(`${key.resourceType}:${key.resourceHash}`, key);
+        }
+        if (this.held.size > 0) {
+            openScopes.add(this);
         }
     }
 
@@ -88,6 +100,18 @@ export class ActionLockScope {
             throw error;
         }
         this.held.clear();
+        openScopes.delete(this);
+    }
+}
+
+/**
+ * Extra guard for clients, run when a command ends: retries the release of every lock scope in
+ * this process that still holds SAP locks (a failed or skipped release). Each failure is logged
+ * by its scope with the resources to delete in transaction /ATRM/LOCK; it never throws.
+ */
+export async function releaseOpenActionLocks(): Promise<void> {
+    for (const scope of [...openScopes]) {
+        await releaseLogged(() => scope.release());
     }
 }
 

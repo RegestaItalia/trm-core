@@ -3,7 +3,9 @@ jest.mock('../../systemConnector', () => ({
         getDest: jest.fn(() => 'DEV'),
         setPackageTransportLayer: jest.fn(),
         setPackageSuperpackage: jest.fn(),
-        clearPackageSuperpackage: jest.fn()
+        clearPackageSuperpackage: jest.fn(),
+        // packages not found: every restore is written
+        getDevclass: jest.fn().mockResolvedValue(undefined)
     }
 }));
 
@@ -32,6 +34,7 @@ function context() {
 describe('cleanup-checkpoint revert', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        (SystemConnector.getDevclass as jest.Mock).mockResolvedValue(undefined);
         for (const method of ['log', 'warning'] as const) {
             jest.spyOn(Logger, method).mockImplementation(() => undefined as never);
         }
@@ -51,6 +54,38 @@ describe('cleanup-checkpoint revert', () => {
         expect(SystemConnector.clearPackageSuperpackage).toHaveBeenCalledWith('ZTWO');
         expect(Logger.warning).toHaveBeenCalledWith('Set transport layer ZOLD on SAP package ZONE in SE21: the SAP package API is unsupported on DEV.', { important: true });
         expect(Logger.warning).toHaveBeenCalledWith('Set the superpackage of SAP package ZONE back to ZPARENT in SE21: the SAP package API is unsupported on DEV.', { important: true });
+    });
+
+    test('a superpackage that is already the original one is not written: no package API call, no warning', async () => {
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+            ({ devclass, parentcl: devclass === 'ZONE' ? 'ZPARENT' : '' }));
+        (SystemConnector.clearPackageSuperpackage as jest.Mock).mockRejectedValue(dialog());
+
+        await expect(cleanupCheckpoint.revert(context())).resolves.toBeUndefined();
+
+        expect(SystemConnector.setPackageSuperpackage).not.toHaveBeenCalled();
+        expect(SystemConnector.clearPackageSuperpackage).not.toHaveBeenCalled();
+        expect(Logger.warning).not.toHaveBeenCalledWith(expect.stringContaining('superpackage'), expect.anything());
+    });
+
+    test('only a changed superpackage is restored', async () => {
+        (SystemConnector.getDevclass as jest.Mock).mockImplementation(async (devclass: string) =>
+            ({ devclass, parentcl: devclass === 'ZONE' ? 'ZPARENT' : 'ZINSTALLED' }));
+
+        await expect(cleanupCheckpoint.revert(context())).resolves.toBeUndefined();
+
+        expect(SystemConnector.setPackageSuperpackage).not.toHaveBeenCalled();
+        expect(SystemConnector.clearPackageSuperpackage).toHaveBeenCalledWith('ZTWO');
+    });
+
+    test('a superpackage that cannot be read is restored anyway, and the next restores still run', async () => {
+        (SystemConnector.getDevclass as jest.Mock).mockRejectedValue(new Error('read failed'));
+        (SystemConnector.setPackageSuperpackage as jest.Mock).mockRejectedValueOnce(new Error('locked'));
+
+        await expect(cleanupCheckpoint.revert(context())).rejects.toThrow('locked');
+
+        expect(SystemConnector.setPackageSuperpackage).toHaveBeenCalledWith('ZONE', 'ZPARENT');
+        expect(SystemConnector.clearPackageSuperpackage).toHaveBeenCalledWith('ZTWO');
     });
 
     test('a real error is thrown after every restore is attempted', async () => {

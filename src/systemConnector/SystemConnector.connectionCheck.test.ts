@@ -53,4 +53,11 @@ describe('SystemConnector connection checks', () => {
         SystemConnector.systemConnector = undefined;
         expect(() => SystemConnector.getDest()).toThrow('System connector not initialized.');
     });
+
+    test('invalidateMetadata delegates without checking the connection', () => {
+        connector.invalidateMetadata = jest.fn();
+        SystemConnector.invalidateMetadata();
+        expect(connector.invalidateMetadata).toHaveBeenCalledTimes(1);
+        expect(connector.checkConnection).not.toHaveBeenCalled();
+    });
 });

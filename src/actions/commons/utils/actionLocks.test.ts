@@ -1,4 +1,4 @@
-import { ActionLockScope, actionLockKey, packageLockResource, withActionLockScope, withLockRelease } from "./actionLocks";
+import { ActionLockScope, actionLockKey, packageLockResource, releaseOpenActionLocks, withActionLockScope, withLockRelease } from "./actionLocks";
 import { ClientError } from "../../../client";
 import { SystemConnector } from "../../../systemConnector";
 import { Logger } from "trm-commons";
@@ -120,5 +120,62 @@ describe("persistent action lock scope", () => {
         expect(calls).toBe(1);
         await expect(withLockRelease(countRelease, async () => { throw new Error("work failed"); })).rejects.toThrow("work failed");
         expect(calls).toBe(2);
+    });
+
+    describe("client guard releasing open scopes", () => {
+        beforeEach(async () => {
+            // Scopes left open by earlier tests are released by the guard itself
+            await releaseOpenActionLocks();
+            release.mockReset().mockResolvedValue(undefined);
+        });
+
+        test("retries scopes whose release failed and continues after a failure, without throwing", async () => {
+            const warning = jest.spyOn(Logger, "warning").mockImplementation(() => undefined);
+            try {
+                const first = new ActionLockScope("install");
+                const second = new ActionLockScope("uninstall");
+                await first.acquire([{ type: "DEVCLASS", name: "Z_A" }]);
+                await second.acquire([{ type: "DEVCLASS", name: "Z_B" }]);
+                release.mockRejectedValueOnce(new Error("release failed"));
+                await expect(first.release()).rejects.toThrow("release failed");
+                release.mockRejectedValueOnce(new Error("still failing"));
+                await expect(releaseOpenActionLocks()).resolves.toBeUndefined();
+                expect(release).toHaveBeenCalledTimes(3);
+                expect(release.mock.calls[1][0]).toEqual([actionLockKey({ type: "DEVCLASS", name: "Z_A" })]);
+                expect(release.mock.calls[2][0]).toEqual([actionLockKey({ type: "DEVCLASS", name: "Z_B" })]);
+                await releaseOpenActionLocks();
+                expect(release).toHaveBeenCalledTimes(4);
+                expect(release.mock.calls[3][0]).toEqual([actionLockKey({ type: "DEVCLASS", name: "Z_A" })]);
+                await releaseOpenActionLocks();
+                expect(release).toHaveBeenCalledTimes(4);
+            } finally {
+                warning.mockRestore();
+            }
+        });
+
+        test("released and lockless scopes are not retried", async () => {
+            const released = new ActionLockScope("publish");
+            await released.acquire([{ type: "PACKAGE", name: "pkg [registry]" }]);
+            await released.release();
+            new ActionLockScope("cg3z");
+            await new ActionLockScope("install", false).acquire([{ type: "DEVCLASS", name: "Z_A" }]);
+            await releaseOpenActionLocks();
+            expect(release).toHaveBeenCalledTimes(1);
+        });
+
+        test("an uncertain acquisition whose cleanup failed is retried with the same owner", async () => {
+            const warning = jest.spyOn(Logger, "warning").mockImplementation(() => undefined);
+            try {
+                acquire.mockRejectedValueOnce(new Error("response lost"));
+                release.mockRejectedValueOnce(new Error("cleanup failed"));
+                const scope = new ActionLockScope("install");
+                await expect(scope.acquire([{ type: "DEVCLASS", name: "Z_A" }])).rejects.toThrow("response lost");
+                await releaseOpenActionLocks();
+                expect(release).toHaveBeenCalledTimes(2);
+                expect(release.mock.calls[1]).toEqual(release.mock.calls[0]);
+            } finally {
+                warning.mockRestore();
+            }
+        });
     });
 });

@@ -2,8 +2,10 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
 import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
+import { generateTransport } from "./transportsProgress";
 
 /**
  * Workflow step that creates the transport containing ABAP package definitions.
@@ -19,15 +21,16 @@ export const generateDevcTransport: Step<PublishWorkflowContext> = {
             stopWarning('publish');
         }
         //1- generate transport
-        Logger.loading(`Generating transports...`);
-        Logger.loading(`Generating DEVC transport...`, true);
-        const aDevc = context.runtime.sapPackage.objects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
-        context.runtime.transports.devc = await Transport.createToc({
-            trmIdentifier: TrmTransportIdentifier.DEVC,
-            target: context.rawInput.systemData.transportTarget,
-            text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`, 'D')
+        await generateTransport(context, 'DEVC', async () => {
+            Logger.log(`Generating DEVC transport`, true);
+            const aDevc = context.runtime.sapPackage.objects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
+            context.runtime.transports.devc = await Transport.createToc({
+                trmIdentifier: TrmTransportIdentifier.DEVC,
+                target: SystemConnector.getDest(),
+                text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`, 'D')
+            });
+            await context.runtime.transports.devc.addObjects(aDevc, false);
         });
-        await context.runtime.transports.devc.addObjects(aDevc, false);
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
         if (context.runtime.transports.devc) {

@@ -2,8 +2,10 @@ import { Step } from "@simonegaffurini/sammarksworkflow";
 import { PublishWorkflowContext } from ".";
 import { Logger } from "trm-commons";
 import { Transport, TrmTransportIdentifier } from "../../transport";
+import { SystemConnector } from "../../systemConnector";
 import { trmTransportDescription } from "../../transport/TransportDescription";
 import { stopWarning } from "../stopWarning";
+import { generateTransport, transportsProgressWarning } from "./transportsProgress";
 
 /**
  * Workflow step that creates the optional transport containing language data.
@@ -27,27 +29,28 @@ export const generateLangTransport: Step<PublishWorkflowContext> = {
             stopWarning('publish');
         }
         //1- generate transport
-        Logger.loading(`Generating transports...`);
-        Logger.loading(`Generating LANG transport...`, true);
-        const aDevc = context.runtime.sapPackage.objects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
-        context.runtime.transports.lang = await Transport.createToc({
-            trmIdentifier: TrmTransportIdentifier.LANG,
-            target: context.rawInput.systemData.transportTarget,
-            text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`, 'L')
-        });
-        var iLanguageObjects: number = 0;
-        try {
-            await context.runtime.transports.lang.addTranslations(aDevc.map(o => o.objName));
-            iLanguageObjects = (await context.runtime.transports.lang.getE071()).length;
-        } catch (e) {
-            Logger.warning(`Language transport generation error: ${e.toString()}`, { important: true });
-        } finally {
-            if (iLanguageObjects === 0) {
-                Logger.info(`Language transport has no content, deleting.`, true);
-                await context.runtime.transports.lang.delete();
-                context.runtime.transports.lang = undefined;
+        await generateTransport(context, 'LANG', async () => {
+            Logger.log(`Generating LANG transport`, true);
+            const aDevc = context.runtime.sapPackage.objects.filter(o => o.pgmid === 'R3TR' && o.object === 'DEVC');
+            context.runtime.transports.lang = await Transport.createToc({
+                trmIdentifier: TrmTransportIdentifier.LANG,
+                target: SystemConnector.getDest(),
+                text: trmTransportDescription(context.rawInput.packageData.name, `v${context.rawInput.packageData.version}`, 'L')
+            });
+            var iLanguageObjects: number = 0;
+            try {
+                await context.runtime.transports.lang.addTranslations(aDevc.map(o => o.objName));
+                iLanguageObjects = (await context.runtime.transports.lang.getE071()).length;
+            } catch (e) {
+                transportsProgressWarning(context, `Language transport generation error: ${e.toString()}`);
+            } finally {
+                if (iLanguageObjects === 0) {
+                    Logger.info(`Language transport has no content, deleting.`, true);
+                    await context.runtime.transports.lang.delete();
+                    context.runtime.transports.lang = undefined;
+                }
             }
-        }
+        });
     },
     revert: async (context: PublishWorkflowContext): Promise<void> => {
         if (context.runtime.transports.lang) {

@@ -1,5 +1,5 @@
 import { BinaryTransport } from "./BinaryTransport";
-import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy } from "../commons";
+import { fromAbapToDate, getFileSysSeparator, getPackageHierarchy, multiProgressBar } from "../commons";
 import { FileNames } from "./FileNames";
 import { FilePaths } from "./FilePaths";
 import { R3transLogParser, ReleaseLogStep } from "./R3transLogParser";
@@ -16,6 +16,7 @@ import { TROBJTYPE, E070, E071, E071K, E07T, TRKORR, TR_TARGET, DEVCLASS, TLINE,
 import { SystemConnector } from "../systemConnector";
 import chalk from "chalk";
 import { TransportTmsError } from "./TransportTmsError";
+import { getReleaseTpCheckReturnCode, isTpInternalReturnCode, TransportReleaseTpError } from "./TransportReleaseTpError";
 import { assignTransportRole, recordTransportEvent, recordTransportImports, transportRole } from "../actionLog";
 import type { ActionLogTransportRole } from "../client/struct/ActionLog";
 
@@ -487,12 +488,7 @@ export class Transport {
     public async release(lock: boolean, skipLog: boolean, tmpFolder?: string): Promise<void> {
         //tp appends to the release log: an earlier export of the same request number may have left one
         const releaseLogOffset = await this._getReleaseLogSize();
-        try {
-            await SystemConnector.releaseTrkorr(this.trkorr, lock);
-        } finally {
-            //the status may have changed even if the call failed: re-read it
-            this._e070 = undefined;
-        }
+        await this._releaseTrkorr(lock);
         if (tmpFolder) {
             await this.readReleaseLog(tmpFolder, releaseLogOffset);
         } else {
@@ -500,6 +496,49 @@ export class Transport {
         }
         await this._refreshReusedTmsText();
     }
+
+    /**
+     * Releases the request. Before the export, SAP runs a tp test call that can fail with a tp internal error
+     * (02xx) for a short-lived reason of the system, such as a transport directory file in use: tp then
+     * stops before reading the request, which stays modifiable, so the release is tried again.
+     */
+    private async _releaseTrkorr(lock: boolean): Promise<void> {
+        for (var attempt = 1; ; attempt++) {
+            try {
+                await SystemConnector.releaseTrkorr(this.trkorr, lock);
+                return;
+            } catch (e) {
+                const returnCode = getReleaseTpCheckReturnCode(e);
+                if (!isTpInternalReturnCode(returnCode)) {
+                    throw e;
+                }
+                //never release again a request that went past the check
+                this._e070 = undefined;
+                var modifiable: boolean;
+                try {
+                    modifiable = ['D', 'L'].includes((await this.getE070())?.trstatus);
+                } catch (statusError) {
+                    Logger.log(`Couldn't read ${this.trkorr} status after a failed release: ${statusError?.message || statusError}`, true);
+                    throw e;
+                }
+                if (!modifiable) {
+                    throw e;
+                }
+                if (attempt >= Transport.RELEASE_TP_ATTEMPTS) {
+                    throw new TransportReleaseTpError(this.trkorr, SystemConnector.getDest(), returnCode, attempt, e);
+                }
+                const delay = Transport.RELEASE_TP_RETRY_DELAY_MS * attempt;
+                Logger.warning(`${this.trkorr} release check failed with tp internal error ${`${returnCode}`.padStart(4, '0')}, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${Transport.RELEASE_TP_ATTEMPTS})`);
+                await setTimeout(delay);
+            } finally {
+                //the status may have changed even if the call failed: re-read it
+                this._e070 = undefined;
+            }
+        }
+    }
+
+    private static readonly RELEASE_TP_ATTEMPTS = 3;
+    private static readonly RELEASE_TP_RETRY_DELAY_MS = 5000;
 
     /**
      * Waits for the export appended to the release log after `offset`, without failing on its return code.
@@ -512,7 +551,12 @@ export class Transport {
         var poll: Awaited<ReturnType<Transport['_pollReleaseLog']>>;
         try {
             poll = await this._pollReleaseLog(tmpFolder, offset, () => {
-                Logger.loading(`${Transport.getTransportIcon()}  Releasing ${this.trkorr} (${Transport._formatDuration(Date.now() - started)})...`, skipLog);
+                Logger.transportProgress({
+                    trkorr: this.trkorr,
+                    action: 'release',
+                    started,
+                    text: `${Transport.getTransportIcon()}  Releasing ${this.trkorr} (${Transport._formatDuration(Date.now() - started)})...`
+                }, skipLog);
             });
         } finally {
             fs.rmSync(tmpFolder, { recursive: true, force: true });
@@ -556,7 +600,8 @@ export class Transport {
      * `offset` is the log size before the release: only what this release appended is read.
      */
     public async readReleaseLog(tmpFolder: string, offset: number = 0): Promise<number> {
-        const multibar = Logger.multibar('{stage} [{bar}] {exitCode} {result}', Transport.getTransportIcon());
+        // the icon is drawn two columns wide by some terminals: the space keeps the bar from covering its right half
+        const multibar = multiProgressBar('{stage} {bar} {exitCode} {result}', `${Transport.getTransportIcon()} `);
         const steps = RELEASE_LOG_STEPS.map(step => ({
             ...step,
             progress: 0,
@@ -702,12 +747,17 @@ export class Transport {
                 unchangedPolls = 0;
                 lastStatusKey = statusKey;
             }
-            if (ownStatus?.message) {
-                const unchanged = unchangedPolls > 0 ? `, unchanged since ${Transport._formatAbapTime(ownStatus.modtime)}` : '';
-                Logger.loading(`Importing ${this.trkorr} (${elapsed()}${unchanged}): ${ownStatus.message}...`, skipLog);
-            } else {
-                Logger.loading(`Importing ${this.trkorr} (${elapsed()})...`, skipLog);
-            }
+            const unchangedSince = ownStatus?.message && unchangedPolls > 0 ? Transport._formatAbapTime(ownStatus.modtime) : undefined;
+            Logger.transportProgress({
+                trkorr: this.trkorr,
+                action: 'import',
+                started,
+                text: ownStatus?.message
+                    ? `Importing ${this.trkorr} (${elapsed()}${unchangedSince ? `, unchanged since ${unchangedSince}` : ''}): ${ownStatus.message}...`
+                    : `Importing ${this.trkorr} (${elapsed()})...`,
+                step: ownStatus?.message || undefined,
+                unchangedSince
+            }, skipLog);
             if (Transport._isFinalStatus(ownStatus)) {
                 // the import is over: one queue read for the request return code
                 finalStatus = ownStatus;

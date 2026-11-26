@@ -106,6 +106,39 @@ describe('RFCClient open timeout', () => {
     });
 });
 
+describe('RFCClient invalidateMetadata', () => {
+    it('calls invalidateMetadata on the RFC client when the library offers it (open-rfc)', () => {
+        const invalidateMetadata = jest.fn();
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = { invalidateMetadata };
+
+        client.invalidateMetadata();
+
+        expect(invalidateMetadata).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing when the library has no invalidateMetadata (node-rfc)', () => {
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = { call: jest.fn() };
+
+        expect(() => client.invalidateMetadata()).not.toThrow();
+    });
+
+    it('does nothing before the RFC client exists', () => {
+        const client = new RFCClient({}, 'EN');
+
+        expect(() => client.invalidateMetadata()).not.toThrow();
+        expect((client as any)._rfcClient).toBeUndefined();
+    });
+
+    it('swallows an error thrown by the library', () => {
+        const client = new RFCClient({}, 'EN');
+        (client as any)._rfcClient = { invalidateMetadata: jest.fn(() => { throw new Error('boom'); }) };
+
+        expect(() => client.invalidateMetadata()).not.toThrow();
+    });
+});
+
 describe('RFCClient exception log', () => {
     beforeEach(() => {
         jest.clearAllMocks();
@@ -299,6 +332,26 @@ describe('RFCClient importTransport', () => {
 
         expect(call.mock.calls[0][1]).toEqual({ SYSTEM: 'DEV', TRKORR: 'DEVK900001' });
         expect(call.mock.calls[1][1]).toEqual({ SYSTEM: 'DEV', TRKORR: 'DEVK900001', TEST: 'X' });
+    });
+});
+
+describe('RFCClient getHttpBaseUrl', () => {
+    it('passes the service path and returns the base URL', async () => {
+        const call = mockCalls({ '/ATRM/GET_HTTP_BASE_URL': () => ({ BASE_URL: 'https://vhcala4hci:44300/ztrmserver' }) });
+        const client = createClient(call);
+
+        await expect(client.getHttpBaseUrl('/ztrmserver')).resolves.toEqual('https://vhcala4hci:44300/ztrmserver');
+
+        expect(call).toHaveBeenCalledWith('/ATRM/GET_HTTP_BASE_URL', { SERVICE: '/ztrmserver' }, undefined);
+    });
+
+    it('omits the service when not given', async () => {
+        const call = mockCalls({ '/ATRM/GET_HTTP_BASE_URL': () => ({ BASE_URL: 'https://vhcala4hci:44300' }) });
+        const client = createClient(call);
+
+        await expect(client.getHttpBaseUrl()).resolves.toEqual('https://vhcala4hci:44300');
+
+        expect(call).toHaveBeenCalledWith('/ATRM/GET_HTTP_BASE_URL', {}, undefined);
     });
 });
 
